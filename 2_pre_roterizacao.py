@@ -149,27 +149,26 @@ def load_and_prepare_data(uploaded_file):
 ##############################
 def pagina_sincronizacao(): 
     st.title("📁 Sincronização de Dados")
-    st.subheader("1. Sincronizar arquivo local com o Banco de Dados")
+    st.subheader("1. Envie o arquivo Excel com os dados")
 
-    file_path = Path("C:/Users/Rafael/OneDrive/Área de Trabalho/Roteriza/fBaseroter.xlsx") # DEVE SER ALTERADO DE ACORDO COM O PC INSTALADO
-    if not file_path.exists():
-        st.error(f"Arquivo não encontrado: {file_path}")
-        st.stop()
+    # Upload manual do arquivo .xlsx
+    uploaded_file = st.file_uploader("📂 Selecione o arquivo .xlsx", type=["xlsx"])
 
-    with open(file_path, "rb") as f:
-        uploaded_file = io.BytesIO(f.read())
-        uploaded_file.name = "fBaseroter.xlsx"
+    if uploaded_file is None:
+        st.warning("Por favor, selecione um arquivo Excel para continuar.")
+        return
 
+    # Processar o arquivo enviado
     data_to_sync = load_and_prepare_data(uploaded_file)
 
     if data_to_sync is not None:
         st.subheader("2. Enviar para o Supabase")
         st.write(f"⚠️ Todos os dados da tabela `{TABLE_NAME}` serão apagados antes da nova inserção.")
 
-        if st.button("Sincronizar"):
+        if st.button("🚀 Sincronizar"):
             progress_bar = st.progress(0, text="Iniciando...")
             status_text = st.empty()
-            log_area = st.expander("Logs Detalhados", expanded=False)
+            log_area = st.expander("📄 Logs Detalhados", expanded=False)
 
             try:
                 status_text.info("Deletando dados antigos...")
@@ -182,14 +181,14 @@ def pagina_sincronizacao():
                 for i in range(0, total, batch_size):
                     batch = data_to_sync[i:i+batch_size]
                     supabase.table(TABLE_NAME).insert(batch).execute()
-                    progress = 33 + int((i+batch_size)/total * 67)
-                    progress_bar.progress(min(progress, 100), text=f"Inserindo {i+1}-{min(i+batch_size, total)}...")
+                    progresso = 33 + int((i+batch_size)/total * 67)
+                    progress_bar.progress(min(progresso, 100), text=f"Inserindo {i+1}-{min(i+batch_size, total)}...")
 
                 status_text.success(f"✅ {total} registros sincronizados com sucesso!")
                 st.cache_data.clear()
 
             except Exception as e:
-                st.error(f"Erro na sincronização: {e}")
+                st.error(f"❌ Erro na sincronização: {e}")
                 log_area.write(e)
 
 

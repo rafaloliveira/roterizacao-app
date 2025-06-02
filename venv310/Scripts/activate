@@ -38,7 +38,7 @@ deactivate () {
 # unset irrelevant variables
 deactivate nondestructive
 
-VIRTUAL_ENV="C:\Users\Rafael\OneDrive\Área de Trabalho\Roteriza\Scripts\venv310"
+VIRTUAL_ENV="C:\Users\Rafael\Roteriza\Scripts\venv310"
 export VIRTUAL_ENV
 
 _OLD_VIRTUAL_PATH="$PATH"
