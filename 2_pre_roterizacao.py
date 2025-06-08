@@ -974,16 +974,14 @@ def pagina_confirmar_producao():
         """)
 
         gb = GridOptionsBuilder.from_dataframe(df_formatado)
-        gb.configure_default_column(resizable=True, minWidth=150)  # Permitir redimensionamento e largura mínima
+        gb.configure_default_column(minWidth=150)
         gb.configure_selection('multiple', use_checkbox=True)
-        gb.configure_grid_options(paginationPageSize=300)
-        gb.configure_grid_options(getRowStyle=linha_destacar)
-
-        # Configurações para scroll horizontal explícito
+        gb.configure_grid_options(paginationPageSize=500)
+        gb.configure_grid_options(domLayout="autoHeight")
         gb.configure_grid_options(alwaysShowHorizontalScroll=True)
         gb.configure_grid_options(suppressHorizontalScroll=False)
-        gb.configure_grid_options(forceFitColumns=False)  # Importante: NÃO forçar colunas a caberem na tela
         gb.configure_grid_options(suppressScrollOnNewData=False)
+        gb.configure_grid_options(forceFitColumns=False)
 
 
         grid_options = gb.build()
@@ -1001,7 +999,7 @@ def pagina_confirmar_producao():
                 update_mode=GridUpdateMode.SELECTION_CHANGED,
                 fit_columns_on_grid_load=False,
                 height=500,
-                width=1500,  # 👈 força largura que excede tela
+                width=1800,  # 👈 força largura que excede tela
                 allow_unsafe_jscode=True,
                 key=f"grid_{cliente}"
             )
