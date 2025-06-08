@@ -905,7 +905,7 @@ def pagina_confirmar_producao():
     """, unsafe_allow_html=True)
 
     # Visão geral
-    st.markdown("### 📊 Visão Geral por Cliente Pagador")
+    #st.markdown("### 📊 Visão Geral por Cliente Pagador")
     df_grouped = df[df["Cliente Pagador"].notna()].groupby("Cliente Pagador").agg({
         "Peso Real em Kg": "sum",
         "Peso Calculado em Kg": "sum",
