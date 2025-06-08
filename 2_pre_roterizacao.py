@@ -1258,13 +1258,15 @@ def pagina_aprovacao_diretoria():
         with st.container():
             col_sel1, col_sel2 = st.columns([1, 1])
             with col_sel1:
-                st.button("🔘 Selecionar todas", key=f"btn_sel_{cliente}", use_container_width=True,
-                        help="Seleciona todas as entregas exibidas",
-                        on_click=lambda: st.session_state.update({selecionar_chave: "selecionar_tudo"}))
+                if st.button("🔘 Selecionar todas", key=f"btn_sel_{cliente}", use_container_width=True,
+                            help="Seleciona todas as entregas exibidas"):
+                    st.session_state[selecionar_chave] = "selecionar_tudo"
+                    st.rerun()  # 👈 força renderização com a seleção aplicada
             with col_sel2:
-                st.button("❌ Desmarcar todas", key=f"btn_desmarcar_{cliente}", use_container_width=True,
-                        help="Desmarca todas as entregas selecionadas",
-                        on_click=lambda: st.session_state.update({selecionar_chave: "desmarcar_tudo"}))
+                if st.button("❌ Desmarcar todas", key=f"btn_desmarcar_{cliente}", use_container_width=True,
+                            help="Desmarca todas as entregas selecionadas"):
+                    st.session_state[selecionar_chave] = "desmarcar_tudo"
+                    st.rerun()
 
         # Aprovação das entregas
         if not selecionadas.empty:
