@@ -1675,7 +1675,7 @@ def pagina_rotas_confirmadas():
                     gridOptions=grid_options,
                     update_mode=GridUpdateMode.SELECTION_CHANGED,
                     fit_columns_on_grid_load=False,
-                    height=650,
+                    height=500,
                     allow_unsafe_jscode=True
                 )
 
