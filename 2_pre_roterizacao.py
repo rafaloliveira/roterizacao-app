@@ -1211,7 +1211,7 @@ def pagina_aprovacao_diretoria():
         gb.configure_grid_options(suppressScrollOnNewData=False)
 
         grid_options = gb.build()
-        grid_options["domLayout"] = "normal"
+       
         grid_options["getRowStyle"] = linha_destacar
 
         # Renderiza o grid com scroll horizontal visível
