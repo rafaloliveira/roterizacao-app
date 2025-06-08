@@ -1585,8 +1585,8 @@ def pagina_rotas_confirmadas():
             total_entregas = len(df_confirmadas)
 
             st.markdown(f"""
-            <div style="display: flex; justify-content: space-between; margin-bottom: 20px;">
-                <div style="font-size: 16px;"><strong>Total de Rotas:</strong> {total_rotas}</div>
+            <div style="background-color: #2e2e2e; padding: 12px 20px; border-radius: 6px; margin-top: 30px; margin-bottom: 10px;">
+                <h3 style="color: white; margin: 0;">🚛 Rota: {rota}</h3>
                 <div style="font-size: 16px;"><strong>Total de Entregas:</strong> {total_entregas}</div>
             </div>
             """, unsafe_allow_html=True)
