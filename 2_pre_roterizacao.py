@@ -775,7 +775,7 @@ def pagina_sincronizacao():
 #####################################
 
 def pagina_confirmar_producao():
-    aplicar_zoom_personalizado(85)  # 👈 define zoom de 85% no app inteiro
+    aplicar_zoom_personalizado(67)  # 👈 define zoom de 85% no app inteiro
     habilitar_scroll_horizontal_aggrid()
     st.title("🏭 Confirmar Produção")
 
