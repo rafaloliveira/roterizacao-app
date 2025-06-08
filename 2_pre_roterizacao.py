@@ -114,8 +114,9 @@ def controle_selecao(chave_estado, df_todos, grid_key, grid_options):
     df_todos,
     gridOptions=grid_options,
     update_mode=GridUpdateMode.SELECTION_CHANGED,
-    height=350,
-    use_container_width=True,  # <-- Adicionado
+    fit_columns_on_grid_load=False,
+    height=500,  # ⬅️ AUMENTE AQUI
+    use_container_width=True,
     allow_unsafe_jscode=True,
     key=grid_key
 )
@@ -483,7 +484,7 @@ def criar_grid_destacado(df, key, selection_mode="multiple", page_size=500, altu
         gridOptions=grid_options,
         update_mode=GridUpdateMode.SELECTION_CHANGED,
         fit_columns_on_grid_load=False,
-        height=350,
+        height=500,
         allow_unsafe_jscode=True,
         key=key
     )
@@ -870,13 +871,62 @@ def pagina_confirmar_producao():
         st.markdown(f"<div style='background-color: #2e2e2e; padding: 10px 20px; border-radius: 6px; color: white; font-size: 22px; font-weight: bold; margin-top: 30px;'>Cliente: {cliente}</div>", unsafe_allow_html=True)
         df_cliente = df[df["Cliente Pagador"].fillna("(Vazio)") == cliente]
 
+
+
+
+
+
+
+
+
+
+
+
         col1, col2, col3, col4, col5, col6 = st.columns(6)
-        col1.metric("Entregas", df_cliente.shape[0])
-        col2.metric("Peso Calc. (Kg)", formatar_brasileiro(df_cliente["Peso Calculado em Kg"].sum()))
-        col3.metric("Peso Real (Kg)", formatar_brasileiro(df_cliente["Peso Real em Kg"].sum()))
-        col4.metric("Cubagem (m³)", formatar_brasileiro(df_cliente["Cubagem em m³"].sum()))
-        col5.metric("Volumes", int(df_cliente["Quantidade de Volumes"].sum()))
-        col6.metric("Valor Frete", f"R$ {formatar_brasileiro(df_cliente['Valor do Frete'].sum())}")
+
+        col1.markdown(f"""
+            <div style="padding:4px; text-align:center">
+                <div style="font-size:14px; color:white;">Entregas</div>
+                <div style="font-size:14px; font-weight:bold; color:white;">{df_cliente.shape[0]}</div>
+            </div>
+        """, unsafe_allow_html=True)
+
+        col2.markdown(f"""
+            <div style="padding:4px; text-align:center">
+                <div style="font-size:14px; color:white;">Peso Calc. (Kg)</div>
+                <div style="font-size:14px; font-weight:bold; color:white;">{formatar_brasileiro(df_cliente["Peso Calculado em Kg"].sum())}</div>
+            </div>
+        """, unsafe_allow_html=True)
+
+        col3.markdown(f"""
+            <div style="padding:4px; text-align:center">
+                <div style="font-size:14px; color:white;">Peso Real (Kg)</div>
+                <div style="font-size:14px; font-weight:bold; color:white;">{formatar_brasileiro(df_cliente["Peso Real em Kg"].sum())}</div>
+            </div>
+        """, unsafe_allow_html=True)
+
+        col4.markdown(f"""
+            <div style="padding:4px; text-align:center">
+                <div style="font-size:14px; color:white;">Cubagem (m³)</div>
+                <div style="font-size:14px; font-weight:bold; color:white;">{formatar_brasileiro(df_cliente["Cubagem em m³"].sum())}</div>
+            </div>
+        """, unsafe_allow_html=True)
+
+        col5.markdown(f"""
+            <div style="padding:4px; text-align:center">
+                <div style="font-size:14px; color:white;">Volumes</div>
+                <div style="font-size:14px; font-weight:bold; color:white;">{int(df_cliente["Quantidade de Volumes"].sum())}</div>
+            </div>
+        """, unsafe_allow_html=True)
+
+        col6.markdown(f"""
+            <div style="padding:4px; text-align:center">
+                <div style="font-size:14px; color:white;">Valor Frete</div>
+                <div style="font-size:14px; font-weight:bold; color:white;">R$ {formatar_brasileiro(df_cliente["Valor do Frete"].sum())}</div>
+            </div>
+        """, unsafe_allow_html=True)
+
+
 
         df_formatado = df_cliente[[col for col in colunas_exibir if col in df_cliente.columns]].copy()
 
@@ -1577,7 +1627,7 @@ def pagina_rotas_confirmadas():
                     gridOptions=grid_options,
                     update_mode=GridUpdateMode.SELECTION_CHANGED,
                     fit_columns_on_grid_load=False,
-                    height=350,
+                    height=500,
                     allow_unsafe_jscode=True
                 )
 
