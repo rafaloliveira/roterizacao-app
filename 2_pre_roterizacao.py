@@ -53,6 +53,23 @@ from pathlib import Path
 from st_aggrid.shared import JsCode
 
 
+
+
+def aplicar_zoom_personalizado(percent=90):
+    escala = percent / 100
+    st.markdown(
+        f"""
+        <style>
+        .main {{
+            zoom: {escala};
+            -moz-transform: scale({escala});
+            -moz-transform-origin: top left;
+        }}
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+
 # ========== SUPABASE CONFIG ========== #
 url = "https://xhwotwefiqfwfabenwsi.supabase.co"
 key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhod290d2VmaXFmd2ZhYmVud3NpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDgzNjc4NTMsImV4cCI6MjA2Mzk0Mzg1M30.3E2z-1SaABbCaV_HjQf0Rj8249mnPeGv7YkV4gOGhlg"  # Substitua pela sua chave real
@@ -133,7 +150,6 @@ def controle_selecao(chave_estado, df_todos, grid_key, grid_options):
 
     # ✅ Garantir scroll horizontal
     grid_options["domLayout"] = "normal"
-    grid_options["alwaysShowHorizontalScroll"] = True
 
     # Renderiza o grid com altura fixa
     grid_response = AgGrid(
@@ -759,6 +775,7 @@ def pagina_sincronizacao():
 #####################################
 
 def pagina_confirmar_producao():
+    aplicar_zoom_personalizado(85)  # 👈 define zoom de 85% no app inteiro
     habilitar_scroll_horizontal_aggrid()
     st.title("🏭 Confirmar Produção")
 
@@ -901,16 +918,6 @@ def pagina_confirmar_producao():
         df_cliente = df[df["Cliente Pagador"].fillna("(Vazio)") == cliente]
 
 
-
-
-
-
-
-
-
-
-
-
         col1, col2, col3, col4, col5, col6 = st.columns(6)
 
         col1.markdown(f"""
@@ -990,6 +997,7 @@ def pagina_confirmar_producao():
         gb.configure_grid_options(paginationPageSize=500)
         gb.configure_grid_options(getRowStyle=linha_destacar)
 
+        
 
         
         grid_options = gb.build()
@@ -1755,10 +1763,3 @@ elif st.session_state.pagina == "Alterar Senha":
     pagina_trocar_senha()
 elif st.session_state.pagina == "Gerenciar Usuários":
     pagina_gerenciar_usuarios()
-
-
-
-
-
-
-
