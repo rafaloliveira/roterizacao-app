@@ -917,7 +917,7 @@ def pagina_confirmar_producao():
     st.dataframe(df_grouped.style.format(formatar_brasileiro), use_container_width=True)
 
     # Detalhamento por cliente
-    st.markdown("### 📋 Entregas por Cliente")
+    #st.markdown("### 📋 Entregas por Cliente")
 
     colunas_exibir = [
         "Serie_Numero_CTRC","Rota","Valor do Frete", "Cliente Pagador", "Chave CT-e", "Cliente Destinatario",
@@ -1585,17 +1585,12 @@ def pagina_rotas_confirmadas():
             total_entregas = len(df_confirmadas)
 
             st.markdown(f"""
-            <div style="display: flex; gap: 20px; margin-bottom: 20px;">
-                <div style="background-color: #2e2e2e; padding: 16px 24px; border-radius: 8px; color: white; text-align: center;">  
-                    <h4 style="margin: 0 0 6px 0;">Total de Rotas</h4>
-                    <div style="font-size: 22px; font-weight: bold;">{total_rotas}</div>
-                </div>
-                <div style="background-color: #2e2e2e; padding: 16px 24px; border-radius: 8px; color: white; text-align: center;">
-                    <h4 style="margin: 0 0 6px 0;">Total de Entregas</h4>
-                    <div style="font-size: 22px; font-weight: bold;">{total_entregas}</div>
-                </div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 20px;">
+                <div style="font-size: 16px;"><strong>Total de Rotas:</strong> {total_rotas}</div>
+                <div style="font-size: 16px;"><strong>Total de Entregas:</strong> {total_entregas}</div>
             </div>
             """, unsafe_allow_html=True)
+
 
             # Continua como antes
             rotas_unicas = sorted(df_confirmadas['Rota'].dropna().unique())
@@ -1612,14 +1607,24 @@ def pagina_rotas_confirmadas():
                 cubagem = df_rota['Cubagem em m³'].sum()
                 volumes = df_rota['Quantidade de Volumes'].sum()
 
+
+
                 st.markdown(f"""
-                - **Quantidade de Entregas:** {total_entregas}  
-                - **Peso Calculado (kg):** {formatar_brasileiro(peso_calculado)}  
-                - **Peso Real (kg):** {formatar_brasileiro(peso_real)}  
-                - **Valor do Frete:** R$ {formatar_brasileiro(valor_frete)}  
-                - **Cubagem (m³):** {formatar_brasileiro(cubagem)}  
-                - **Volumes:** {int(volumes) if pd.notnull(volumes) else 0}
-                """)
+                <div style="background-color: #2e2e2e; padding: 12px 20px; border-radius: 6px; margin-top: 30px; margin-bottom: 10px;">
+                    <h3 style="color: white; margin: 0;">\ud83d\ude9b Rota: {rota}</h3>
+                </div>
+
+                <div style="display: flex; flex-wrap: wrap; gap: 20px; font-size: 16px; margin-bottom: 20px;">
+                    <div><strong>Quantidade de Entregas:</strong> {total_entregas}</div>
+                    <div><strong>Peso Calculado (kg):</strong> {formatar_brasileiro(peso_calculado)}</div>
+                    <div><strong>Peso Real (kg):</strong> {formatar_brasileiro(peso_real)}</div>
+                    <div><strong>Valor do Frete:</strong> R$ {formatar_brasileiro(valor_frete)}</div>
+                    <div><strong>Cubagem (m³):</strong> {formatar_brasileiro(cubagem)}</div>
+                    <div><strong>Volumes:</strong> {int(volumes) if pd.notnull(volumes) else 0}</div>
+                </div>
+                """, unsafe_allow_html=True)
+
+
 
                 colunas_exibidas = [
                     'Serie_Numero_CTRC', 'Cliente Pagador', 'Chave CT-e', 'Cliente Destinatario',
