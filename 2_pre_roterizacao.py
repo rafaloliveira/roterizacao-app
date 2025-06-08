@@ -133,6 +133,7 @@ def controle_selecao(chave_estado, df_todos, grid_key, grid_options):
 
     # ✅ Garantir scroll horizontal
     grid_options["domLayout"] = "normal"
+    grid_options["alwaysShowHorizontalScroll"] = True
 
     # Renderiza o grid com altura fixa
     grid_response = AgGrid(
