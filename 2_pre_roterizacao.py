@@ -898,7 +898,12 @@ def pagina_confirmar_producao():
     ]
 
     for cliente in sorted(df["Cliente Pagador"].fillna("(Vazio)").unique()):
-        st.markdown(f"<div style='background-color: #2e2e2e; padding: 10px 20px; border-radius: 6px; color: white; font-size: 22px; font-weight: bold; margin-top: 30px;'>Cliente: {cliente}</div>", unsafe_allow_html=True)
+        st.markdown(f"""
+        <div style=\"background-color: #444; padding: 8px 16px; border-radius: 6px; margin-top: 20px; margin-bottom: 8px;\">
+            <div style=\"color: white; margin: 0; font-size: 15px; font-weight: bold;\">🏭 Cliente: {cliente}</div>
+        </div>
+        """, unsafe_allow_html=True)
+
         df_cliente = df[df["Cliente Pagador"].fillna("(Vazio)") == cliente]
 
 
@@ -988,8 +993,6 @@ def pagina_confirmar_producao():
         grid_options["domLayout"] = "normal"
 
 
-
-
         # Renderiza o grid normalmente
         with st.container():
             st.markdown("<div style='overflow-x:auto;'>", unsafe_allow_html=True)
@@ -999,7 +1002,7 @@ def pagina_confirmar_producao():
                 update_mode=GridUpdateMode.SELECTION_CHANGED,
                 fit_columns_on_grid_load=False,
                 height=380,
-                width=1800,  # 👈 força largura que excede tela
+                width=1800,  # 👈 scroll garantido
                 allow_unsafe_jscode=True,
                 key=f"grid_{cliente}"
             )
@@ -1017,15 +1020,16 @@ def pagina_confirmar_producao():
             selecionadas = pd.DataFrame(grid_response.get("selected_rows", []))
 
         # Botões mais finos e na parte de baixo
-        col_sel, col_des = st.columns(2)
-        with col_sel:
-            st.button("🔘 Selecionar todas", key=f"btn_sel_{cliente}", use_container_width=True,
-                    help="Seleciona todas as entregas exibidas",
-                    on_click=lambda: st.session_state.update({selecionar_chave: "selecionar_tudo"}))
-        with col_des:
-            st.button("❌ Desmarcar todas", key=f"btn_desmarcar_{cliente}", use_container_width=True,
-                    help="Desmarca todas as entregas selecionadas",
-                    on_click=lambda: st.session_state.update({selecionar_chave: "desmarcar_tudo"}))
+        with st.container():
+            col_sel1, col_sel2 = st.columns([1, 1])
+            with col_sel1:
+                st.button("🔘 Selecionar todas", key=f"btn_sel_{cliente}", use_container_width=True,
+                        help="Seleciona todas as entregas exibidas",
+                        on_click=lambda: st.session_state.update({selecionar_chave: "selecionar_tudo"}))
+            with col_sel2:
+                st.button("❌ Desmarcar todas", key=f"btn_desmarcar_{cliente}", use_container_width=True,
+                        help="Desmarca todas as entregas selecionadas",
+                        on_click=lambda: st.session_state.update({selecionar_chave: "desmarcar_tudo"}))
 
 
         if not selecionadas.empty:
