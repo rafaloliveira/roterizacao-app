@@ -60,15 +60,15 @@ def aplicar_zoom_personalizado(percent=90):
     st.markdown(
         f"""
         <style>
-        .main {{
-            zoom: {escala};
-            -moz-transform: scale({escala});
-            -moz-transform-origin: top left;
+        [data-testid="stAppViewContainer"] > .main {{
+            transform: scale({escala});
+            transform-origin: top left;
         }}
         </style>
         """,
         unsafe_allow_html=True
     )
+
 
 # ========== SUPABASE CONFIG ========== #
 url = "https://xhwotwefiqfwfabenwsi.supabase.co"
@@ -775,7 +775,7 @@ def pagina_sincronizacao():
 #####################################
 
 def pagina_confirmar_producao():
-    aplicar_zoom_personalizado(67)  # 👈 define zoom de 85% no app inteiro
+    aplicar_zoom_personalizado(67)
     habilitar_scroll_horizontal_aggrid()
     st.title("🏭 Confirmar Produção")
 
