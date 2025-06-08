@@ -114,7 +114,7 @@ def controle_selecao(chave_estado, df_todos, grid_key, grid_options):
         df_todos,
         gridOptions=grid_options,
         update_mode=GridUpdateMode.SELECTION_CHANGED,
-        height=300,
+        height=600,
         allow_unsafe_jscode=True,
         key=grid_key
     )
@@ -482,7 +482,7 @@ def criar_grid_destacado(df, key, selection_mode="multiple", page_size=500, altu
         gridOptions=grid_options,
         update_mode=GridUpdateMode.SELECTION_CHANGED,
         fit_columns_on_grid_load=False,
-        height=300,
+        height=600,
         allow_unsafe_jscode=True,
         key=key
     )
@@ -923,9 +923,6 @@ def pagina_confirmar_producao():
             grid_key=f"grid_{cliente}",
             grid_options=grid_options
         )
-
-
-
 
         if not selecionadas.empty:
             st.success(f"{len(selecionadas)} entregas selecionadas para {cliente}.")
@@ -1570,7 +1567,7 @@ def pagina_rotas_confirmadas():
                     gridOptions=grid_options,
                     update_mode=GridUpdateMode.SELECTION_CHANGED,
                     fit_columns_on_grid_load=True,
-                    height=300,
+                    height=600,
                     allow_unsafe_jscode=True
                 )
 
