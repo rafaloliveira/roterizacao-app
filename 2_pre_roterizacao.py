@@ -111,7 +111,7 @@ def controle_selecao(chave_estado, df_todos, grid_key, grid_options):
         df_todos,
         gridOptions=grid_options,
         update_mode=GridUpdateMode.SELECTION_CHANGED,
-        height=400,
+        height=300,
         allow_unsafe_jscode=True,
         key=grid_key
     )
@@ -478,7 +478,7 @@ def criar_grid_destacado(df, key, selection_mode="multiple", page_size=500, altu
         gridOptions=grid_options,
         update_mode=GridUpdateMode.SELECTION_CHANGED,
         fit_columns_on_grid_load=False,
-        height=altura,
+        height=300,
         allow_unsafe_jscode=True,
         key=key
     )
@@ -1566,7 +1566,7 @@ def pagina_rotas_confirmadas():
                     gridOptions=grid_options,
                     update_mode=GridUpdateMode.SELECTION_CHANGED,
                     fit_columns_on_grid_load=True,
-                    height=400,
+                    height=300,
                     allow_unsafe_jscode=True
                 )
 
