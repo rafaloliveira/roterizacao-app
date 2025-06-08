@@ -1613,11 +1613,11 @@ def pagina_rotas_confirmadas():
                 volumes = df_rota['Quantidade de Volumes'].sum()
 
                 st.markdown(f"""
-                <div style="background-color: #444; padding: 8px 16px; border-radius: 6px; margin-top: 20px; margin-bottom: 8px;">
-                    <div style="color: white; margin: 0; font-size: 15px; font-weight: bold;">🚛 Rota: {rota}</div>
+                <div style=\"background-color: #444; padding: 8px 16px; border-radius: 6px; margin-top: 20px; margin-bottom: 8px;\">
+                    <div style=\"color: white; margin: 0; font-size: 15px; font-weight: bold;\">🚛 Rota: {rota}</div>
                 </div>
 
-                <div style="display: flex; flex-wrap: wrap; gap: 20px; font-size: 16px; margin-bottom: 20px;">
+                <div style=\"display: flex; flex-wrap: wrap; gap: 20px; font-size: 16px; margin-bottom: 20px;\">
                     <div><strong>Quantidade de Entregas:</strong> {total_entregas_rota}</div>
                     <div><strong>Peso Calculado (kg):</strong> {formatar_brasileiro(peso_calculado)}</div>
                     <div><strong>Peso Real (kg):</strong> {formatar_brasileiro(peso_real)}</div>
@@ -1652,6 +1652,9 @@ def pagina_rotas_confirmadas():
                 gb.configure_default_column(minWidth=150)
                 gb.configure_selection('multiple', use_checkbox=True)
                 gb.configure_grid_options(paginationPageSize=500)
+                gb.configure_grid_options(domLayout="normal")
+                gb.configure_grid_options(alwaysShowHorizontalScroll=True)
+                gb.configure_grid_options(suppressHorizontalScroll=False)
 
                 for col in ['Peso Real em Kg', 'Peso Calculado em Kg', 'Cubagem em m³', 'Quantidade de Volumes', 'Valor do Frete']:
                     if col in df_formatado.columns:
@@ -1659,9 +1662,6 @@ def pagina_rotas_confirmadas():
 
                 grid_options = gb.build()
 
-                grid_options["domLayout"] = "normal"
-
-                # Renderizar o grid
                 grid_response = AgGrid(
                     df_formatado,
                     gridOptions=grid_options,
@@ -1701,6 +1701,7 @@ def pagina_rotas_confirmadas():
 
     except Exception as e:
         st.error(f"Erro ao carregar rotas confirmadas: {e}")
+
 
 
 
