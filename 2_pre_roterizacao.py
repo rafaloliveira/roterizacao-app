@@ -903,7 +903,8 @@ def pagina_confirmar_producao():
         """)
 
         gb = GridOptionsBuilder.from_dataframe(df_formatado)
-        gb.configure_default_column(resizable=True, minWidth=150)
+        #gb.configure_default_column(resizable=True, minWidth=150)
+        gb.configure_default_column(minWidth=150)
         gb.configure_selection('multiple', use_checkbox=True)
         #gb.configure_pagination(enabled=True, paginationAutoPageSize=False)
         gb.configure_grid_options(paginationPageSize=500)
@@ -1094,7 +1095,8 @@ def pagina_aprovacao_diretoria():
         """)
 
         gb = GridOptionsBuilder.from_dataframe(df_formatado)
-        gb.configure_default_column(resizable=True, minWidth=150)
+        #gb.configure_default_column(resizable=True, minWidth=150)
+        gb.configure_default_column(minWidth=150)
         gb.configure_selection("multiple", use_checkbox=True)
         #gb.configure_pagination(enabled=True)
         gb.configure_grid_options(paginationPageSize=600)
@@ -1388,7 +1390,8 @@ def pagina_pre_roterizacao():
         """)
 
         gb = GridOptionsBuilder.from_dataframe(df_formatado)
-        gb.configure_default_column(resizable=True, minWidth=150)
+        #gb.configure_default_column(resizable=True, minWidth=150)
+        gb.configure_default_column(minWidth=150)
         gb.configure_selection("multiple", use_checkbox=True)
         gb.configure_grid_options(getRowStyle=linha_destacar)
         gb.configure_grid_options(paginationPageSize=500)
@@ -1542,7 +1545,8 @@ def pagina_rotas_confirmadas():
                 """)
 
                 gb = GridOptionsBuilder.from_dataframe(df_rota[colunas_exibidas])
-                gb.configure_default_column(resizable=True, minWidth=150)
+                gb.configure_default_column(minWidth=150)
+                #gb.configure_default_column(resizable=True, minWidth=150)
                 gb.configure_selection('multiple', use_checkbox=True)
                 gb.configure_pagination(enabled=True, paginationAutoPageSize=False)
                 gb.configure_grid_options(paginationPageSize=500)
