@@ -106,7 +106,10 @@ def controle_selecao(chave_estado, df_todos, grid_key, grid_options):
         if st.button(f"❌ Desmarcar todas", key=f"btn_desmarcar_{chave_estado}"):
             st.session_state[chave_estado] = "desmarcar_tudo"
 
-    # Renderiza o grid normalmente
+    # ✅ Garantir scroll horizontal
+    grid_options["domLayout"] = "normal"
+
+    # Renderiza o grid com altura fixa
     grid_response = AgGrid(
         df_todos,
         gridOptions=grid_options,
@@ -125,6 +128,7 @@ def controle_selecao(chave_estado, df_todos, grid_key, grid_options):
 
     else:
         return pd.DataFrame(grid_response.get("selected_rows", []))
+
 
 
 #################################
@@ -909,7 +913,7 @@ def pagina_confirmar_producao():
         
         grid_options = gb.build()
 
-
+        grid_options["domLayout"] = "normal"  # ⬅️ Força o scroll horizontal
 
 
 
