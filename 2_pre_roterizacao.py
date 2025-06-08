@@ -55,19 +55,23 @@ from st_aggrid.shared import JsCode
 
 
 
-def aplicar_zoom_personalizado(percent=90):
+def aplicar_zoom_personalizado(percent=85):
     escala = percent / 100
+    largura = 100 / escala  # Ex: para 85%, usamos 117% de largura
+
     st.markdown(
         f"""
         <style>
-        [data-testid="stAppViewContainer"] > .main {{
+        .appview-container .main {{
             transform: scale({escala});
             transform-origin: top left;
+            width: {largura}%;
         }}
         </style>
         """,
         unsafe_allow_html=True
     )
+
 
 
 # ========== SUPABASE CONFIG ========== #
@@ -775,9 +779,10 @@ def pagina_sincronizacao():
 #####################################
 
 def pagina_confirmar_producao():
-    aplicar_zoom_personalizado(67)
+    aplicar_zoom_personalizado(85)  # ou 80, ou 75, teste o valor ideal
     habilitar_scroll_horizontal_aggrid()
     st.title("🏭 Confirmar Produção")
+
 
     def carregar_entregas_base():
         # Carregamento da tabela confirmadas_producao diretamente
