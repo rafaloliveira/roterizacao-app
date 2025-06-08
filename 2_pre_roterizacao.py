@@ -915,7 +915,7 @@ def pagina_confirmar_producao():
         
         grid_options = gb.build()
 
-        grid_options["domLayout"] = "normal"  # ⬅️ Força o scroll horizontal
+        grid_options["domLayout"] = "normal"
 
 
 
@@ -1104,6 +1104,7 @@ def pagina_aprovacao_diretoria():
 
         # Build e adicionar JsCode corretamente
         grid_options = gb.build()
+        grid_options["domLayout"] = "normal"
         grid_options["getRowStyle"] = linha_destacar
 
         selecionadas = controle_selecao(
@@ -1399,6 +1400,7 @@ def pagina_pre_roterizacao():
         gb.configure_grid_options(paginationPageSize=500)
 
         grid_options = gb.build()
+        grid_options["domLayout"] = "normal"
 
         selecionadas = controle_selecao(
         chave_estado=f"selecionar_tudo_pre_rota_{rota}",
@@ -1568,6 +1570,7 @@ def pagina_rotas_confirmadas():
 
 
                 grid_options = gb.build()
+                grid_options["domLayout"] = "normal"
 
                 grid_response = AgGrid(
                     df_rota[colunas_exibidas],
