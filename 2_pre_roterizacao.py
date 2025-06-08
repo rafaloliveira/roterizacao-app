@@ -1580,8 +1580,7 @@ def pagina_rotas_confirmadas():
         if df_confirmadas.empty:
             st.info("Nenhuma entrega foi confirmada ainda.")
         else:
-            # ▶️ Novidade: Totais no topo
-            # Fora do loop de rotas
+            # ▶️ Totais gerais no topo
             total_rotas = df_confirmadas['Rota'].nunique()
             total_entregas = len(df_confirmadas)
 
@@ -1592,31 +1591,26 @@ def pagina_rotas_confirmadas():
             </div>
             """, unsafe_allow_html=True)
 
-
-            # Continua como antes
             rotas_unicas = sorted(df_confirmadas['Rota'].dropna().unique())
 
             for rota in rotas_unicas:
-                st.markdown(f"## 🚛 Rota: {rota}")
-
                 df_rota = df_confirmadas[df_confirmadas['Rota'] == rota]
 
-                total_entregas = len(df_rota)
+                total_entregas_rota = len(df_rota)
                 peso_calculado = df_rota['Peso Calculado em Kg'].sum()
                 peso_real = df_rota['Peso Real em Kg'].sum()
                 valor_frete = df_rota['Valor do Frete'].sum()
                 cubagem = df_rota['Cubagem em m³'].sum()
                 volumes = df_rota['Quantidade de Volumes'].sum()
 
-
-
+                # Título e resumo da rota
                 st.markdown(f"""
                 <div style="background-color: #2e2e2e; padding: 12px 20px; border-radius: 6px; margin-top: 30px; margin-bottom: 10px;">
-                    <h3 style="color: white; margin: 0;">\ud83d\ude9b Rota: {rota}</h3>
+                    <h3 style="color: white; margin: 0;">🚛 Rota: {rota}</h3>
                 </div>
 
                 <div style="display: flex; flex-wrap: wrap; gap: 20px; font-size: 16px; margin-bottom: 20px;">
-                    <div><strong>Quantidade de Entregas:</strong> {total_entregas}</div>
+                    <div><strong>Quantidade de Entregas:</strong> {total_entregas_rota}</div>
                     <div><strong>Peso Calculado (kg):</strong> {formatar_brasileiro(peso_calculado)}</div>
                     <div><strong>Peso Real (kg):</strong> {formatar_brasileiro(peso_real)}</div>
                     <div><strong>Valor do Frete:</strong> R$ {formatar_brasileiro(valor_frete)}</div>
@@ -1624,6 +1618,7 @@ def pagina_rotas_confirmadas():
                     <div><strong>Volumes:</strong> {int(volumes) if pd.notnull(volumes) else 0}</div>
                 </div>
                 """, unsafe_allow_html=True)
+   
 
 
 
