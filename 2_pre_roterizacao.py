@@ -1113,7 +1113,7 @@ def pagina_aprovacao_diretoria():
 
     df = pd.DataFrame(supabase.table("aprovacao_diretoria").select("*").execute().data)
 
-    #st.write("🔍 Dados encontrados:", df.shape)
+    
     if df.empty:
         st.info("Nenhuma entrega pendente para aprovação.")
         return
@@ -1158,7 +1158,13 @@ def pagina_aprovacao_diretoria():
     ]
 
     for cliente in sorted(df["Cliente Pagador"].unique()):
-        st.markdown(f"### Cliente: **{cliente}**")
+
+        st.markdown(f"""
+        <div style=\"background-color: #444; padding: 8px 16px; border-radius: 6px; margin-top: 20px; margin-bottom: 8px;\">
+            <div style=\"color: white; margin: 0; font-size: 15px; font-weight: bold;\">📦 Cliente: {cliente}</div>
+        </div>
+        """, unsafe_allow_html=True)
+
         df_cliente = df[df["Cliente Pagador"] == cliente]
 
         col1, col2, col3, col4, col5, col6 = st.columns(6)
@@ -1196,28 +1202,58 @@ def pagina_aprovacao_diretoria():
         """)
 
         gb = GridOptionsBuilder.from_dataframe(df_formatado)
-        #gb.configure_default_column(resizable=True, minWidth=150)
         gb.configure_default_column(minWidth=150)
         gb.configure_selection("multiple", use_checkbox=True)
-        #gb.configure_pagination(enabled=True)
         gb.configure_grid_options(paginationPageSize=500)
+        gb.configure_grid_options(domLayout="autoHeight")
+        gb.configure_grid_options(alwaysShowHorizontalScroll=True)
+        gb.configure_grid_options(suppressHorizontalScroll=False)
+        gb.configure_grid_options(suppressScrollOnNewData=False)
 
-        # Build e adicionar JsCode corretamente
         grid_options = gb.build()
         grid_options["domLayout"] = "normal"
         grid_options["getRowStyle"] = linha_destacar
 
-        selecionadas = controle_selecao(
-        chave_estado=f"selecionar_tudo_aprovacao_{cliente}",
-        df_todos=df_formatado,
-        grid_key=f"grid_{cliente}",
-        grid_options=grid_options
-    )
+        # Renderiza o grid com scroll horizontal visível
+        with st.container():
+            st.markdown("<div style='overflow-x:auto;'>", unsafe_allow_html=True)
+            grid_response = AgGrid(
+                df_formatado,
+                gridOptions=grid_options,
+                update_mode=GridUpdateMode.SELECTION_CHANGED,
+                fit_columns_on_grid_load=False,
+                height=500,
+                width=1500,
+                allow_unsafe_jscode=True,
+                key=f"grid_{cliente}"
+            )
+            st.markdown("</div>", unsafe_allow_html=True)
 
+        # Lógica de seleção baseada em estado dos botões
+        selecionar_chave = f"selecionar_tudo_aprovacao_{cliente}"
+        acao = st.session_state.get(selecionar_chave)
+        if acao == "selecionar_tudo":
+            selecionadas = df_formatado.copy()
+        elif acao == "desmarcar_tudo":
+            selecionadas = pd.DataFrame([])
+        else:
+            selecionadas = pd.DataFrame(grid_response.get("selected_rows", []))
 
+        # Botões ao final do grid
+        with st.container():
+            col_sel1, col_sel2 = st.columns([1, 1])
+            with col_sel1:
+                st.button("🔘 Selecionar todas", key=f"btn_sel_{cliente}", use_container_width=True,
+                        help="Seleciona todas as entregas exibidas",
+                        on_click=lambda: st.session_state.update({selecionar_chave: "selecionar_tudo"}))
+            with col_sel2:
+                st.button("❌ Desmarcar todas", key=f"btn_desmarcar_{cliente}", use_container_width=True,
+                        help="Desmarca todas as entregas selecionadas",
+                        on_click=lambda: st.session_state.update({selecionar_chave: "desmarcar_tudo"}))
+
+        # Aprovação das entregas
         if not selecionadas.empty:
             st.success(f"{len(selecionadas)} entregas selecionadas.")
-
             if st.button(f"✅ Aprovar entregas de {cliente}", key=f"btn_aprovar_{cliente}"):
                 try:
                     aprovadas = selecionadas.copy()
@@ -1245,7 +1281,6 @@ def pagina_aprovacao_diretoria():
                     # Filtrar para não duplicar
                     aprovadas = aprovadas[~aprovadas["Serie_Numero_CTRC"].isin(ctrcs_existentes)]
 
-                    # Se ainda houver entregas válidas
                     if not aprovadas.empty:
                         supabase.table("pre_roterizacao").insert(aprovadas.to_dict(orient="records")).execute()
 
@@ -1259,7 +1294,6 @@ def pagina_aprovacao_diretoria():
                         st.info("Todas as entregas selecionadas já estavam na Pré-Roterização.")
                 except Exception as e:
                     st.error(f"Erro ao aprovar entregas: {e}")
-
 
 
 ###########################################
