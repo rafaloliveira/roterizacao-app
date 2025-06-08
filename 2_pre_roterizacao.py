@@ -1570,6 +1570,8 @@ def pagina_pre_roterizacao():
 
 ################################
 # Página de Rotas Confirmadas
+################################################################
+# Página de Rotas Confirmadas
 ################################
 def pagina_rotas_confirmadas():
     st.title("✅ Entregas Confirmadas por Rota")
@@ -1605,8 +1607,8 @@ def pagina_rotas_confirmadas():
 
                 # Título e resumo da rota
                 st.markdown(f"""
-                <div style="background-color: #2e2e2e; padding: 12px 20px; border-radius: 6px; margin-top: 30px; margin-bottom: 10px;">
-                    <h3 style="color: white; margin: 0;">🚛 Rota: {rota}</h3>
+                <div style="background-color: #444; padding: 8px 16px; border-radius: 6px; margin-top: 20px; margin-bottom: 8px;">
+                    <div style="color: white; margin: 0; font-size: 15px; font-weight: bold;">🚛 Rota: {rota}</div>
                 </div>
 
                 <div style="display: flex; flex-wrap: wrap; gap: 20px; font-size: 16px; margin-bottom: 20px;">
@@ -1618,9 +1620,6 @@ def pagina_rotas_confirmadas():
                     <div><strong>Volumes:</strong> {int(volumes) if pd.notnull(volumes) else 0}</div>
                 </div>
                 """, unsafe_allow_html=True)
-   
-
-
 
                 colunas_exibidas = [
                     'Serie_Numero_CTRC', 'Cliente Pagador', 'Chave CT-e', 'Cliente Destinatario',
@@ -1631,7 +1630,7 @@ def pagina_rotas_confirmadas():
                 ]
                 colunas_exibidas = [col for col in colunas_exibidas if col in df_rota.columns]
 
-                    # Função JS para formatar valores no estilo brasileiro (2 casas decimais)
+                # Formatador brasileiro padrão (sem conversão)
                 formatter_brasileiro = JsCode("""
                 function(params) {
                     if (!params.value) return '';
@@ -1642,36 +1641,19 @@ def pagina_rotas_confirmadas():
                 }
                 """)
 
-                formatter_tonelada = JsCode("""
-                function(params) {
-                    if (!params.value) return '';
-                    return (Number(params.value) / 1000).toLocaleString('pt-BR', {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2
-                    }) + ' t';
-                }
-                """)
-
                 gb = GridOptionsBuilder.from_dataframe(df_rota[colunas_exibidas])
                 gb.configure_default_column(minWidth=150)
-                #gb.configure_default_column(resizable=True, minWidth=150)
                 gb.configure_selection('multiple', use_checkbox=True)
                 gb.configure_pagination(enabled=True, paginationAutoPageSize=False)
                 gb.configure_grid_options(paginationPageSize=500)
 
-
-                # Aplica o formatador nas colunas numéricas
                 colunas_formatadas = [
                     'Peso Real em Kg', 'Peso Calculado em Kg', 'Cubagem em m³',
                     'Quantidade de Volumes', 'Valor do Frete'
                 ]
                 for col in colunas_formatadas:
                     if col in df_rota.columns:
-                        if col in ['Peso Real em Kg', 'Peso Calculado em Kg']:
-                            gb.configure_column(col, type=["numericColumn"], valueFormatter=formatter_tonelada)
-                        else:
-                            gb.configure_column(col, type=["numericColumn"], valueFormatter=formatter_brasileiro)
-
+                        gb.configure_column(col, type=["numericColumn"], valueFormatter=formatter_brasileiro)
 
                 grid_options = gb.build()
                 grid_options["domLayout"] = "normal"
@@ -1703,7 +1685,6 @@ def pagina_rotas_confirmadas():
                                 st.error("Coluna 'Serie_Numero_CTRC' não encontrada nos dados selecionados.")
                         except Exception as e:
                             st.error(f"Erro ao remover entregas: {e}")
-
 
     except Exception as e:
         st.error(f"Erro ao carregar rotas confirmadas: {e}")
