@@ -4,6 +4,31 @@ import streamlit as st
 
 st.set_page_config(page_title="Roterização", layout="wide")
 
+def habilitar_scroll_horizontal_aggrid():
+    """Insere CSS global para garantir o scroll lateral dos grids."""
+    st.markdown(
+        """
+        <style>
+        /* garante overflow lateral nos viewports principais do Ag-Grid */
+        .ag-body-viewport,
+        .ag-center-cols-viewport,
+        .ag-body-horizontal-scroll-viewport,
+        .ag-root-wrapper {
+            overflow-x: auto !important;
+        }
+
+        /* mostra sempre a barra, mesmo se não estiver precisando */
+        .ag-body-horizontal-scroll {
+            visibility: visible !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+habilitar_scroll_horizontal_aggrid()
+
+
 import pandas as pd
 import numpy as np
 import io
@@ -493,6 +518,8 @@ def criar_grid_destacado(df, key, selection_mode="multiple", page_size=500, altu
 
 
 
+
+
 ##############################
 # Página de sincronização
 ##############################
@@ -731,6 +758,7 @@ def pagina_sincronizacao():
 #####################################
 
 def pagina_confirmar_producao():
+    habilitar_scroll_horizontal_aggrid()
     st.title("🏭 Confirmar Produção")
 
     def carregar_entregas_base():
@@ -964,8 +992,9 @@ def pagina_confirmar_producao():
 
         
         grid_options = gb.build()
-
         grid_options["domLayout"] = "normal"
+        grid_options["alwaysShowHorizontalScroll"] = True
+        grid_options["suppressHorizontalScroll"] = False
 
 
 
