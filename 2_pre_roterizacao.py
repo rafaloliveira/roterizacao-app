@@ -755,8 +755,6 @@ def pagina_sincronizacao():
 #####################################
 
 def pagina_confirmar_producao():
-    aplicar_zoom_personalizado(45)  # ou 80, ou 75, teste o valor ideal
-    
   
     st.title("🏭 Confirmar Produção")
 
@@ -986,13 +984,9 @@ def pagina_confirmar_producao():
         gb.configure_grid_options(alwaysShowHorizontalScroll=True)
         gb.configure_grid_options(suppressHorizontalScroll=False)
         gb.configure_grid_options(suppressScrollOnNewData=False)
-        gb.configure_grid_options(forceFitColumns=False)
-
 
         grid_options = gb.build()
-        grid_options["domLayout"] = "normal"
-
-
+        
         # Renderiza o grid normalmente
         with st.container():
             st.markdown("<div style='overflow-x:auto;'>", unsafe_allow_html=True)
@@ -1001,8 +995,8 @@ def pagina_confirmar_producao():
                 gridOptions=grid_options,
                 update_mode=GridUpdateMode.SELECTION_CHANGED,
                 fit_columns_on_grid_load=False,
-                height=380,
-                width=1800,  # 👈 scroll garantido
+                height=500,
+                width=1500,  # 👈 scroll garantido
                 allow_unsafe_jscode=True,
                 key=f"grid_{cliente}"
             )
