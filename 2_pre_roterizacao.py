@@ -998,7 +998,7 @@ def pagina_confirmar_producao():
                 gridOptions=grid_options,
                 update_mode=GridUpdateMode.SELECTION_CHANGED,
                 fit_columns_on_grid_load=False,
-                height=500,
+                height=380,
                 width=1800,  # 👈 força largura que excede tela
                 allow_unsafe_jscode=True,
                 key=f"grid_{cliente}"
