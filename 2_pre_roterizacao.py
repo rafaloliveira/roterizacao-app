@@ -871,8 +871,6 @@ def pagina_confirmar_producao():
         return base.copy()
 
 
-
-
     # ✅ Carregar dados
     df = carregar_entregas_base()
 
@@ -883,12 +881,12 @@ def pagina_confirmar_producao():
 
     # Filtro por cliente
     clientes_filtrados = ["Todos"] + sorted(df["Cliente Pagador"].unique())
-    #cliente_selecionado = st.selectbox("🔎 Filtrar por Cliente", clientes_filtrados, key="filtro_cliente")
-    #if cliente_selecionado != "Todos":
+    cliente_selecionado = st.selectbox("🔎 Filtrar por Cliente", clientes_filtrados, key="filtro_cliente")
+    if cliente_selecionado != "Todos":
         #df = df[df["Cliente Pagador"] == cliente_selecionado]
 
-    total_clientes = df["Cliente Pagador"].nunique()
-    total_entregas = len(df)
+        total_clientes = df["Cliente Pagador"].nunique()
+        total_entregas = len(df)
 
     # Cards informativos
     st.markdown(f"""
@@ -905,7 +903,7 @@ def pagina_confirmar_producao():
     """, unsafe_allow_html=True)
 
     # Visão geral
-    #st.markdown("### 📊 Visão Geral por Cliente Pagador")
+    st.markdown("### 📊 Visão Geral por Cliente Pagador")
     df_grouped = df[df["Cliente Pagador"].notna()].groupby("Cliente Pagador").agg({
         "Peso Real em Kg": "sum",
         "Peso Calculado em Kg": "sum",
@@ -1022,12 +1020,40 @@ def pagina_confirmar_producao():
 
 
 
-        selecionadas = controle_selecao(
-            chave_estado=f"selecionar_tudo_cliente_{cliente}",
-            df_todos=df_formatado,
-            grid_key=f"grid_{cliente}",
-            grid_options=grid_options
+        # Renderiza o grid normalmente
+        grid_response = AgGrid(
+            df_formatado,
+            gridOptions=grid_options,
+            update_mode=GridUpdateMode.SELECTION_CHANGED,
+            fit_columns_on_grid_load=False,
+            height=470,
+            use_container_width=True,
+            allow_unsafe_jscode=True,
+            key=f"grid_{cliente}"
         )
+
+        # Lógica de seleção baseada no estado dos botões
+        selecionar_chave = f"selecionar_tudo_cliente_{cliente}"
+        acao = st.session_state.get(selecionar_chave)
+
+        if acao == "selecionar_tudo":
+            selecionadas = df_formatado.copy()
+        elif acao == "desmarcar_tudo":
+            selecionadas = pd.DataFrame([])
+        else:
+            selecionadas = pd.DataFrame(grid_response.get("selected_rows", []))
+
+        # Botões mais finos e na parte de baixo
+        col_sel, col_des = st.columns(2)
+        with col_sel:
+            st.button("🔘 Selecionar todas", key=f"btn_sel_{cliente}", use_container_width=True,
+                    help="Seleciona todas as entregas exibidas",
+                    on_click=lambda: st.session_state.update({selecionar_chave: "selecionar_tudo"}))
+        with col_des:
+            st.button("❌ Desmarcar todas", key=f"btn_desmarcar_{cliente}", use_container_width=True,
+                    help="Desmarca todas as entregas selecionadas",
+                    on_click=lambda: st.session_state.update({selecionar_chave: "desmarcar_tudo"}))
+
 
         if not selecionadas.empty:
             st.success(f"{len(selecionadas)} entregas selecionadas para {cliente}.")
