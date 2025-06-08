@@ -1217,6 +1217,18 @@ def pagina_aprovacao_diretoria():
         # Renderiza o grid com scroll horizontal visível
         with st.container():
             st.markdown("<div style='overflow-x:auto;'>", unsafe_allow_html=True)
+
+            # Determinar seleção com base na session_state
+            selecionar_chave = f"selecionar_tudo_aprovacao_{cliente}"
+            acao = st.session_state.get(selecionar_chave)
+            if acao == "selecionar_tudo":
+                linhas_selecionadas = df_formatado.to_dict("records")
+            elif acao == "desmarcar_tudo":
+                linhas_selecionadas = []
+            else:
+                linhas_selecionadas = None  # seleção será definida pelo usuário
+
+            # Renderizar o grid com a seleção aplicada
             grid_response = AgGrid(
                 df_formatado,
                 gridOptions=grid_options,
@@ -1225,8 +1237,11 @@ def pagina_aprovacao_diretoria():
                 height=500,
                 width=1500,
                 allow_unsafe_jscode=True,
-                key=f"grid_{cliente}"
+                key=f"grid_{cliente}",
+                data_return_mode="AS_INPUT",  # manter ordem original
+                selected_rows=linhas_selecionadas
             )
+
             st.markdown("</div>", unsafe_allow_html=True)
 
         # Lógica de seleção baseada em estado dos botões
