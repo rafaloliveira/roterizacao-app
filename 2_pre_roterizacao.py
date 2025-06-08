@@ -178,6 +178,15 @@ def controle_selecao(chave_estado, df_todos, grid_key, grid_options):
         return pd.DataFrame(grid_response.get("selected_rows", []))
 
 
+def remover_espaco_topo():
+    st.markdown("""
+    <style>
+    .appview-container .main .block-container {
+        padding-top: 1rem !important;  /* padrão é ~6rem */
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
 
 #################################
 
@@ -780,6 +789,7 @@ def pagina_sincronizacao():
 
 def pagina_confirmar_producao():
     aplicar_zoom_personalizado(45)  # ou 80, ou 75, teste o valor ideal
+    remover_espaco_topo() 
     habilitar_scroll_horizontal_aggrid()
     st.title("🏭 Confirmar Produção")
 
