@@ -1496,21 +1496,34 @@ def pagina_pre_roterizacao():
         """)
 
         gb = GridOptionsBuilder.from_dataframe(df_formatado)
-        #gb.configure_default_column(resizable=True, minWidth=150)
         gb.configure_default_column(minWidth=150)
-        gb.configure_selection("multiple", use_checkbox=True)
-        gb.configure_grid_options(getRowStyle=linha_destacar)
+        gb.configure_selection('multiple', use_checkbox=True)
         gb.configure_grid_options(paginationPageSize=500)
+        gb.configure_grid_options(domLayout="autoHeight")
+        gb.configure_grid_options(alwaysShowHorizontalScroll=True)
+        gb.configure_grid_options(suppressHorizontalScroll=False)
+        gb.configure_grid_options(suppressScrollOnNewData=False)
+
+        for col in ['Peso Real em Kg', 'Peso Calculado em Kg', 'Cubagem em m³', 'Quantidade de Volumes', 'Valor do Frete']:
+            if col in df_formatado.columns:
+                gb.configure_column(col, type=["numericColumn"], valueFormatter=formatar_brasileiro)
 
         grid_options = gb.build()
-        grid_options["domLayout"] = "normal"
 
-        selecionadas = controle_selecao(
-        chave_estado=f"selecionar_tudo_pre_rota_{rota}",
-        df_todos=df_formatado,
-        grid_key=f"grid_{rota}",
-        grid_options=grid_options
+        # Container com largura forçada e barra horizontal ativada
+        with st.container():
+            st.markdown("<div style='overflow-x:auto'>", unsafe_allow_html=True)
+            grid_response = AgGrid(
+            df_formatado,
+            gridOptions=grid_options,
+            update_mode=GridUpdateMode.SELECTION_CHANGED,
+            fit_columns_on_grid_load=False,
+            height=500,
+            width=1500,  # 👈 força largura para scroll
+            allow_unsafe_jscode=True,
+            key=f"grid_rotas_confirmadas_{rota}"
         )
+            st.markdown("</div>", unsafe_allow_html=True)
 
         if not selecionadas.empty:
             if "Serie_Numero_CTRC" not in selecionadas.columns:
