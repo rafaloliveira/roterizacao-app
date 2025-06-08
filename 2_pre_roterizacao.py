@@ -999,7 +999,7 @@ def pagina_confirmar_producao():
         gb.configure_default_column(minWidth=150)
         gb.configure_selection('multiple', use_checkbox=True)
         #gb.configure_pagination(enabled=True, paginationAutoPageSize=False)
-        gb.configure_grid_options(paginationPageSize=500)
+        gb.configure_grid_options(paginationPageSize=300)
         gb.configure_grid_options(getRowStyle=linha_destacar)
 
         
