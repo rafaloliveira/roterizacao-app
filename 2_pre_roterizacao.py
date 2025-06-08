@@ -1586,12 +1586,24 @@ def pagina_rotas_confirmadas():
             total_rotas = df_confirmadas['Rota'].nunique()
             total_entregas = len(df_confirmadas)
 
-            st.markdown(f"""
-            <div style="display: flex; justify-content: space-between; margin-bottom: 20px;">
-                <div style="font-size: 16px;"><strong>Total de Rotas:</strong> {total_rotas}</div>
-                <div style="font-size: 16px;"><strong>Total de Entregas:</strong> {total_entregas}</div>
-            </div>
-            """, unsafe_allow_html=True)
+
+            col1, col2 = st.columns(2)
+            with col1:
+                st.markdown(
+                    f"<div style='background:#2f2f2f;padding:8px;border-radius:8px'>"
+                    f"<span style='color:white;font-weight:bold;font-size:18px;'>Total de Rotas:</span>"
+                    f"<span style='color:white;font-size:24px;'> {total_rotas}</span></div>",
+                    unsafe_allow_html=True
+                )
+            with col2:
+                st.markdown(
+                    f"<div style='background:#2f2f2f;padding:8px;border-radius:8px'>"
+                    f"<span style='color:white;font-weight:bold;font-size:18px;'>Total de Entregas:</span>"
+                    f"<span style='color:white;font-size:24px;'> {total_entregas}</span></div>",
+                    unsafe_allow_html=True
+                )
+
+            
 
             rotas_unicas = sorted(df_confirmadas['Rota'].dropna().unique())
 
