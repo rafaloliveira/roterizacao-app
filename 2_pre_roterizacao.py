@@ -1652,7 +1652,7 @@ def pagina_rotas_confirmadas():
                 gb.configure_default_column(minWidth=150)
                 gb.configure_selection('multiple', use_checkbox=True)
                 gb.configure_grid_options(paginationPageSize=500)
-                gb.configure_grid_options(domLayout="normal")
+                gb.configure_grid_options(domLayout="autoHeight")
                 gb.configure_grid_options(alwaysShowHorizontalScroll=True)
                 gb.configure_grid_options(suppressHorizontalScroll=False)
 
@@ -1663,14 +1663,15 @@ def pagina_rotas_confirmadas():
                 grid_options = gb.build()
 
                 grid_response = AgGrid(
-                    df_formatado,
-                    gridOptions=grid_options,
-                    update_mode=GridUpdateMode.SELECTION_CHANGED,
-                    fit_columns_on_grid_load=False,
-                    height=500,
-                    allow_unsafe_jscode=True,
-                    key=f"grid_rotas_confirmadas_{rota}"
-                )
+                df_formatado,
+                gridOptions=grid_options,
+                update_mode=GridUpdateMode.SELECTION_CHANGED,
+                fit_columns_on_grid_load=False,
+                width='100%',
+                allow_unsafe_jscode=True,
+                key=f"grid_rotas_confirmadas_{rota}"
+            )
+
 
                 selecionadas = pd.DataFrame(grid_response.get("selected_rows", []))
 
