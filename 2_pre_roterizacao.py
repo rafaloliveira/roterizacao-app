@@ -906,7 +906,7 @@ def pagina_confirmar_producao():
         gb.configure_default_column(resizable=True, minWidth=150)
         gb.configure_selection('multiple', use_checkbox=True)
         #gb.configure_pagination(enabled=True, paginationAutoPageSize=False)
-        #gb.configure_grid_options(paginationPageSize=500)
+        gb.configure_grid_options(paginationPageSize=500)
         gb.configure_grid_options(getRowStyle=linha_destacar)
 
 
@@ -1391,6 +1391,7 @@ def pagina_pre_roterizacao():
         gb.configure_default_column(resizable=True, minWidth=150)
         gb.configure_selection("multiple", use_checkbox=True)
         gb.configure_grid_options(getRowStyle=linha_destacar)
+        gb.configure_grid_options(paginationPageSize=500)
 
         grid_options = gb.build()
 
