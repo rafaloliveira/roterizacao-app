@@ -983,6 +983,8 @@ def pagina_confirmar_producao():
         gb.configure_grid_options(alwaysShowHorizontalScroll=True)
         gb.configure_grid_options(suppressHorizontalScroll=False)
         gb.configure_grid_options(forceFitColumns=False)  # Importante: NÃO forçar colunas a caberem na tela
+        gb.configure_grid_options(suppressScrollOnNewData=False)
+
 
         grid_options = gb.build()
         grid_options["domLayout"] = "normal"
@@ -991,16 +993,19 @@ def pagina_confirmar_producao():
 
 
         # Renderiza o grid normalmente
-        grid_response = AgGrid(
-            df_formatado,
-            gridOptions=grid_options,
-            update_mode=GridUpdateMode.SELECTION_CHANGED,
-            fit_columns_on_grid_load=False,
-            height=470,
-            use_container_width=True,
-            allow_unsafe_jscode=True,
-            key=f"grid_{cliente}"
-        )
+        with st.container():
+            st.markdown("<div style='overflow-x:auto;'>", unsafe_allow_html=True)
+            grid_response = AgGrid(
+                df_formatado,
+                gridOptions=grid_options,
+                update_mode=GridUpdateMode.SELECTION_CHANGED,
+                fit_columns_on_grid_load=False,
+                height=500,
+                width=1500,  # 👈 força largura que excede tela
+                allow_unsafe_jscode=True,
+                key=f"grid_{cliente}"
+            )
+            st.markdown("</div>", unsafe_allow_html=True)
 
         # Lógica de seleção baseada no estado dos botões
         selecionar_chave = f"selecionar_tudo_cliente_{cliente}"
