@@ -1581,8 +1581,10 @@ def pagina_rotas_confirmadas():
         if df_confirmadas.empty:
             st.info("Nenhuma entrega foi confirmada ainda.")
         else:
+            # ▶️ Totais gerais no topo
             total_rotas = df_confirmadas['Rota'].nunique()
             total_entregas = len(df_confirmadas)
+
 
             col1, col2 = st.columns(2)
             with col1:
@@ -1600,10 +1602,12 @@ def pagina_rotas_confirmadas():
                     unsafe_allow_html=True
                 )
 
+            
+
             rotas_unicas = sorted(df_confirmadas['Rota'].dropna().unique())
 
             for rota in rotas_unicas:
-                df_rota = df_confirmadas[df_confirmadas['Rota'] == rota].copy()
+                df_rota = df_confirmadas[df_confirmadas['Rota'] == rota]
 
                 total_entregas_rota = len(df_rota)
                 peso_calculado = df_rota['Peso Calculado em Kg'].sum()
@@ -1612,6 +1616,7 @@ def pagina_rotas_confirmadas():
                 cubagem = df_rota['Cubagem em m³'].sum()
                 volumes = df_rota['Quantidade de Volumes'].sum()
 
+                # Título e resumo da rota
                 st.markdown(f"""
                 <div style="background-color: #444; padding: 8px 16px; border-radius: 6px; margin-top: 20px; margin-bottom: 8px;">
                     <div style="color: white; margin: 0; font-size: 15px; font-weight: bold;">🚛 Rota: {rota}</div>
@@ -1636,8 +1641,7 @@ def pagina_rotas_confirmadas():
                 ]
                 colunas_exibidas = [col for col in colunas_exibidas if col in df_rota.columns]
 
-                df_formatado = df_rota[colunas_exibidas].copy()
-
+                # Formatador brasileiro padrão (sem conversão)
                 formatter_brasileiro = JsCode("""
                 function(params) {
                     if (!params.value) return '';
@@ -1648,37 +1652,42 @@ def pagina_rotas_confirmadas():
                 }
                 """)
 
-                gb = GridOptionsBuilder.from_dataframe(df_formatado)
+                gb = GridOptionsBuilder.from_dataframe(df_rota[colunas_exibidas])
                 gb.configure_default_column(minWidth=150)
                 gb.configure_selection('multiple', use_checkbox=True)
+                gb.configure_pagination(enabled=True, paginationAutoPageSize=False)
                 gb.configure_grid_options(paginationPageSize=500)
 
-                for col in ['Peso Real em Kg', 'Peso Calculado em Kg', 'Cubagem em m³', 'Quantidade de Volumes', 'Valor do Frete']:
-                    if col in df_formatado.columns:
+                colunas_formatadas = [
+                    'Peso Real em Kg', 'Peso Calculado em Kg', 'Cubagem em m³',
+                    'Quantidade de Volumes', 'Valor do Frete'
+                ]
+                for col in colunas_formatadas:
+                    if col in df_rota.columns:
                         gb.configure_column(col, type=["numericColumn"], valueFormatter=formatter_brasileiro)
 
                 grid_options = gb.build()
+                grid_options["domLayout"] = "normal"
 
                 grid_response = AgGrid(
-                    df_formatado,
+                    df_rota[colunas_exibidas],
                     gridOptions=grid_options,
                     update_mode=GridUpdateMode.SELECTION_CHANGED,
                     fit_columns_on_grid_load=False,
                     height=500,
-                    allow_unsafe_jscode=True,
-                    key=f"grid_rotas_confirmadas_{rota}"
+                    allow_unsafe_jscode=True
                 )
-                selecionadas = pd.DataFrame(grid_response.get("selected_rows", []))
 
+                df_selecionadas = pd.DataFrame(grid_response.get("selected_rows", []))
 
-                if not selecionadas.empty:
-                    st.warning(f"{len(selecionadas)} entrega(s) selecionada(s). Clique abaixo para remover da rota confirmada.")
+                if not df_selecionadas.empty:
+                    st.warning(f"{len(df_selecionadas)} entrega(s) selecionada(s). Clique abaixo para remover da rota confirmada.")
 
                     confirmar = st.checkbox("Confirmar remoção das entregas selecionadas", key=f"confirmar_remocao_{rota}")
                     if st.button(f"❌ Remover selecionadas da Rota {rota}", key=f"remover_{rota}") and confirmar:
                         try:
-                            if "Serie_Numero_CTRC" in selecionadas.columns:
-                                chaves_ctrc = selecionadas["Serie_Numero_CTRC"].dropna().astype(str).tolist()
+                            if "Serie_Numero_CTRC" in df_selecionadas.columns:
+                                chaves_ctrc = df_selecionadas["Serie_Numero_CTRC"].dropna().astype(str).tolist()
                                 for ctrc in chaves_ctrc:
                                     supabase.table("rotas_confirmadas").delete().eq("Serie_Numero_CTRC", ctrc).execute()
                                 st.success("✅ Entregas removidas com sucesso!")
@@ -1690,7 +1699,6 @@ def pagina_rotas_confirmadas():
 
     except Exception as e:
         st.error(f"Erro ao carregar rotas confirmadas: {e}")
-
 
 
 
