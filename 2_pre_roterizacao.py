@@ -779,7 +779,7 @@ def pagina_sincronizacao():
 #####################################
 
 def pagina_confirmar_producao():
-    aplicar_zoom_personalizado(85)  # ou 80, ou 75, teste o valor ideal
+    aplicar_zoom_personalizado(45)  # ou 80, ou 75, teste o valor ideal
     habilitar_scroll_horizontal_aggrid()
     st.title("🏭 Confirmar Produção")
 
