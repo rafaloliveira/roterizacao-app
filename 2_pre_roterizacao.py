@@ -1659,12 +1659,17 @@ def pagina_rotas_confirmadas():
 
                 grid_options = gb.build()
 
-                selecionadas = controle_selecao(
-                    chave_estado=f"selecionar_tudo_rotas_confirmadas_{rota}",
-                    df_todos=df_formatado,
-                    grid_key=f"grid_rotas_confirmadas_{rota}",
-                    grid_options=grid_options
+                grid_response = AgGrid(
+                    df_formatado,
+                    gridOptions=grid_options,
+                    update_mode=GridUpdateMode.SELECTION_CHANGED,
+                    fit_columns_on_grid_load=False,
+                    height=500,
+                    allow_unsafe_jscode=True,
+                    key=f"grid_rotas_confirmadas_{rota}"
                 )
+                selecionadas = pd.DataFrame(grid_response.get("selected_rows", []))
+
 
                 if not selecionadas.empty:
                     st.warning(f"{len(selecionadas)} entrega(s) selecionada(s). Clique abaixo para remover da rota confirmada.")
