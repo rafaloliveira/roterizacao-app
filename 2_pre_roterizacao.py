@@ -4,29 +4,6 @@ import streamlit as st
 
 st.set_page_config(page_title="Roterização", layout="wide")
 
-def habilitar_scroll_horizontal_aggrid():
-    """Insere CSS global para garantir o scroll lateral dos grids."""
-    st.markdown(
-        """
-        <style>
-        /* garante overflow lateral nos viewports principais do Ag-Grid */
-        .ag-body-viewport,
-        .ag-center-cols-viewport,
-        .ag-body-horizontal-scroll-viewport,
-        .ag-root-wrapper {
-            overflow-x: auto !important;
-        }
-
-        /* mostra sempre a barra, mesmo se não estiver precisando */
-        .ag-body-horizontal-scroll {
-            visibility: visible !important;
-        }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
-
-habilitar_scroll_horizontal_aggrid()
 
 
 import pandas as pd
@@ -176,16 +153,6 @@ def controle_selecao(chave_estado, df_todos, grid_key, grid_options):
 
     else:
         return pd.DataFrame(grid_response.get("selected_rows", []))
-
-
-def remover_espaco_topo():
-    st.markdown("""
-    <style>
-    .appview-container .main .block-container {
-        padding-top: 1rem !important;  /* padrão é ~6rem */
-    }
-    </style>
-    """, unsafe_allow_html=True)
 
 
 #################################
@@ -789,8 +756,8 @@ def pagina_sincronizacao():
 
 def pagina_confirmar_producao():
     aplicar_zoom_personalizado(45)  # ou 80, ou 75, teste o valor ideal
-    remover_espaco_topo() 
-    habilitar_scroll_horizontal_aggrid()
+    
+  
     st.title("🏭 Confirmar Produção")
 
 
@@ -1007,20 +974,19 @@ def pagina_confirmar_producao():
         """)
 
         gb = GridOptionsBuilder.from_dataframe(df_formatado)
-        #gb.configure_default_column(resizable=True, minWidth=150)
-        gb.configure_default_column(minWidth=150)
+        gb.configure_default_column(resizable=True, minWidth=150)  # Permitir redimensionamento e largura mínima
         gb.configure_selection('multiple', use_checkbox=True)
-        #gb.configure_pagination(enabled=True, paginationAutoPageSize=False)
         gb.configure_grid_options(paginationPageSize=300)
         gb.configure_grid_options(getRowStyle=linha_destacar)
 
-        
+        # Configurações para scroll horizontal explícito
+        gb.configure_grid_options(alwaysShowHorizontalScroll=True)
+        gb.configure_grid_options(suppressHorizontalScroll=False)
+        gb.configure_grid_options(forceFitColumns=False)  # Importante: NÃO forçar colunas a caberem na tela
 
-        
         grid_options = gb.build()
         grid_options["domLayout"] = "normal"
-        grid_options["alwaysShowHorizontalScroll"] = True
-        grid_options["suppressHorizontalScroll"] = False
+
 
 
 
