@@ -873,9 +873,9 @@ def pagina_confirmar_producao():
 
     # Filtro por cliente
     clientes_filtrados = ["Todos"] + sorted(df["Cliente Pagador"].unique())
-    cliente_selecionado = st.selectbox("🔎 Filtrar por Cliente", clientes_filtrados, key="filtro_cliente")
-    if cliente_selecionado != "Todos":
-        df = df[df["Cliente Pagador"] == cliente_selecionado]
+    #cliente_selecionado = st.selectbox("🔎 Filtrar por Cliente", clientes_filtrados, key="filtro_cliente")
+    #if cliente_selecionado != "Todos":
+        #df = df[df["Cliente Pagador"] == cliente_selecionado]
 
     total_clientes = df["Cliente Pagador"].nunique()
     total_entregas = len(df)
