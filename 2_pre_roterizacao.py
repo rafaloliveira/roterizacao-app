@@ -111,13 +111,14 @@ def controle_selecao(chave_estado, df_todos, grid_key, grid_options):
 
     # Renderiza o grid com altura fixa
     grid_response = AgGrid(
-        df_todos,
-        gridOptions=grid_options,
-        update_mode=GridUpdateMode.SELECTION_CHANGED,
-        height=600,
-        allow_unsafe_jscode=True,
-        key=grid_key
-    )
+    df_todos,
+    gridOptions=grid_options,
+    update_mode=GridUpdateMode.SELECTION_CHANGED,
+    height=600,
+    use_container_width=True,  # <-- Adicionado
+    allow_unsafe_jscode=True,
+    key=grid_key
+)
 
     # Lógica de seleção
     if st.session_state.get(chave_estado) == "selecionar_tudo":
@@ -964,7 +965,7 @@ def pagina_confirmar_producao():
 
                     # ✅ Inserir na aprovacao_diretoria
                     supabase.table("aprovacao_diretoria").insert(dados_confirmar).execute()
-                    st.success("Entregas confirmadas e removidas com sucesso!")
+                    
                     
 
                     # ✅ Excluir da confirmadas_producao
@@ -1099,7 +1100,7 @@ def pagina_aprovacao_diretoria():
         gb.configure_default_column(minWidth=150)
         gb.configure_selection("multiple", use_checkbox=True)
         #gb.configure_pagination(enabled=True)
-        gb.configure_grid_options(paginationPageSize=600)
+        gb.configure_grid_options(paginationPageSize=500)
 
         # Build e adicionar JsCode corretamente
         grid_options = gb.build()
@@ -1341,7 +1342,8 @@ def pagina_pre_roterizacao():
 
     for rota in sorted(df["Rota"].dropna().unique()):
         df_rota = df[df["Rota"] == rota]
-        st.markdown(f"<div style='font-size:22px;font-weight:bold;color:#f0f0f0;background:#2c2c2c;padding:10px;border-radius:8px'>Rota: {rota}</div>", unsafe_allow_html=True)
+        st.subheader(f"Rota: {rota}")
+        #st.markdown(f"<div style='font-size:22px;font-weight:bold;color:#f0f0f0;background:#2c2c2c;padding:10px;border-radius:8px'>Rota: {rota}</div>", unsafe_allow_html=True)
 
         col1, col2, col3, col4, col5, col6 = st.columns(6)
         col1.metric("Entregas", len(df_rota))
