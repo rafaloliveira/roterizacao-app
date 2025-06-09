@@ -1011,11 +1011,14 @@ def pagina_confirmar_producao():
                         st.success("Entregas confirmadas e removidas com sucesso!")
 
                         # Remove chaves se existirem
-                        st.session_state.pop(f"btn_sel_{cliente}", None)
-                        st.session_state.pop(f"btn_desmarcar_{cliente}", None)
+                        # Limpa o session_state para forçar nova renderização sem erro de widgets já instanciados
+                    for key in list(st.session_state.keys()):
+                        if key.startswith("btn_sel_") or key.startswith("btn_desmarcar_") or key.startswith("grid_confirmar_"):
+                            del st.session_state[key]
 
-                        time.sleep(1.5)
-                        st.rerun()
+                    # Pequeno delay visual antes de rerun
+                    time.sleep(0.5)
+                    st.experimental_rerun()
 
                 except Exception as e:
                     st.error(f"Erro ao confirmar entregas: {e}")
