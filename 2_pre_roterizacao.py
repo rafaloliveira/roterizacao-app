@@ -1498,6 +1498,12 @@ def pagina_pre_roterizacao():
         col5.metric("Volumes", int(df_rota["Quantidade de Volumes"].sum()))
         col6.metric("Valor Frete", f"R$ {formatar_brasileiro(df_rota['Valor do Frete'].sum())}")
 
+        # ✅ Checkbox logo após os totais
+        marcar_todas = st.checkbox("☑️ Marcar todas as entregas exibidas", key=f"check_sel_{rota}")
+        selecionar_chave = f"selecionar_tudo_pre_rota_{rota}"
+        st.session_state[selecionar_chave] = "selecionar_tudo" if marcar_todas else "desmarcar_tudo"
+
+
         colunas_exibir = [
             "Serie_Numero_CTRC", "Cliente Pagador", "Chave CT-e", "Cliente Destinatario",
             "Cidade de Entrega", "Bairro do Destinatario", "Previsao de Entrega",
@@ -1521,7 +1527,7 @@ def pagina_pre_roterizacao():
                     'fontWeight': 'bold'
                 }
             } else if (params.data['Status'] === 'AGENDAR' && 
-                       (!params.data['Entrega Programada'] || params.data['Entrega Programada'].trim() === '')) {
+                    (!params.data['Entrega Programada'] || params.data['Entrega Programada'].trim() === '')) {
                 return {
                     'backgroundColor': '#8B4513',
                     'fontWeight': 'bold'
@@ -1535,7 +1541,6 @@ def pagina_pre_roterizacao():
         gb.configure_default_column(minWidth=150)
         gb.configure_selection("multiple", use_checkbox=True)
         gb.configure_grid_options(paginationPageSize=500)
-
         gb.configure_grid_options(domLayout="normal")
         gb.configure_grid_options(alwaysShowHorizontalScroll=True)
         gb.configure_grid_options(suppressHorizontalScroll=False)
@@ -1544,9 +1549,7 @@ def pagina_pre_roterizacao():
         grid_options = gb.build()
         grid_options["getRowStyle"] = linha_destacar
 
-        selecionar_chave = f"selecionar_tudo_pre_rota_{rota}"
         acao = st.session_state.get(selecionar_chave)
-
         if acao == "selecionar_tudo":
             linhas_selecionadas = df_formatado.to_dict("records")
         elif acao == "desmarcar_tudo":
@@ -1554,7 +1557,6 @@ def pagina_pre_roterizacao():
         else:
             linhas_selecionadas = None
 
-        # Renderiza o grid
         grid_response = AgGrid(
             df_formatado,
             gridOptions=grid_options,
@@ -1573,7 +1575,6 @@ def pagina_pre_roterizacao():
             }
         )
 
-        # Atualiza selecionadas após grid
         if acao == "selecionar_tudo":
             selecionadas = df_formatado.copy()
         elif acao == "desmarcar_tudo":
@@ -1581,20 +1582,8 @@ def pagina_pre_roterizacao():
         else:
             selecionadas = pd.DataFrame(grid_response.get("selected_rows", []))
 
-        # ✅ Botões de seleção movidos para cá (depois do grid)
-       # ✅ Checkbox compacto de seleção
-            marcar_todas = st.checkbox("☑️ Marcar todas as entregas exibidas", key=f"check_sel_{rota}")
-
-            if marcar_todas:
-                st.session_state[selecionar_chave] = "selecionar_tudo"
-            else:
-                st.session_state[selecionar_chave] = "desmarcar_tudo"
-
-
-        # ✅ Bloco de confirmação continua abaixo
         if not selecionadas.empty:
             st.success(f"🔒 {len(selecionadas)} entregas selecionadas na rota **{rota}**.")
-
             chave_hash = "_" + str(hash("-".join(selecionadas["Serie_Numero_CTRC"].astype(str))))[:6]
             col_conf, col_ret = st.columns(2)
 
@@ -1626,6 +1615,7 @@ def pagina_pre_roterizacao():
                         st.rerun()
                     except Exception as e:
                         st.error(f"❌ Erro ao retornar entregas: {e}")
+
 
 
 
