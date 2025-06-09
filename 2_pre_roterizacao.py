@@ -993,7 +993,7 @@ def pagina_confirmar_producao():
                     df_confirmar.drop(columns=["Indice"], errors="ignore", inplace=True)
 
                     supabase.table("aprovacao_diretoria").insert(dados_confirmar).execute()
-                    st.rerun()
+                    
 
                     supabase.table("confirmadas_producao") \
                         .delete() \
@@ -1004,6 +1004,7 @@ def pagina_confirmar_producao():
                         .select("Serie_Numero_CTRC") \
                         .in_("Serie_Numero_CTRC", chaves) \
                         .execute()
+                    st.rerun()
 
                     if check_response.data:
                         chaves_nao_removidas = [r["Serie_Numero_CTRC"] for r in check_response.data]
