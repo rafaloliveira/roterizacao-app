@@ -1493,25 +1493,27 @@ def pagina_pre_roterizacao():
        # Reduz espaço entre métricas com CSS
         st.markdown("""
             <style>
-                /* Reduz altura e margem do container */
+                /* Container das métricas */
                 div[data-testid="metric-container"] {
-                    padding: 0.1rem 0.2rem !important;
+                    padding: 0rem !important;
                     margin: 0rem !important;
+                    flex-direction: column;
+                    align-items: flex-start;
                 }
 
-                /* Reduz tamanho do número (valor principal) */
-                div[data-testid="metric-container"] div:nth-child(1) {
-                    font-size: 0.75rem !important;
-                    line-height: 1rem !important;
+                /* Valor principal da métrica */
+                div[data-testid="metric-container"] > div:nth-child(1) > div {
+                    font-size: 0.8rem !important;
                 }
 
-                /* Reduz tamanho do label (título da métrica) */
-                div[data-testid="metric-container"] div:nth-child(2) {
+                /* Label da métrica */
+                div[data-testid="metric-container"] > div:nth-child(2) {
                     font-size: 0.6rem !important;
-                    line-height: 0.8rem !important;
+                    color: #aaa !important;
                 }
             </style>
         """, unsafe_allow_html=True)
+
 
 
 
