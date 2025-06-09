@@ -926,7 +926,7 @@ def pagina_confirmar_producao():
                     'backgroundColor': '#808000',
                     'fontWeight': 'bold'
                 }
-            } else if (params.data['Status'] === 'AGENDAR' && 
+            } else if (params.data['Status'] === 'AGENDAR' &&
                     (!params.data['Entrega Programada'] || params.data['Entrega Programada'].trim() === '')) {
                 return {
                     'backgroundColor': '#8B4513',
@@ -939,33 +939,31 @@ def pagina_confirmar_producao():
 
         gb = GridOptionsBuilder.from_dataframe(df_formatado)
         gb.configure_default_column(minWidth=150)
-        gb.configure_selection("multiple", use_checkbox=True)
-        gb.configure_grid_options(paginationPageSize=500)
+        gb.configure_selection('multiple', use_checkbox=True)
+        gb.configure_grid_options(paginationPageSize=12)
         gb.configure_grid_options(domLayout="autoHeight")
         gb.configure_grid_options(alwaysShowHorizontalScroll=True)
-
-        for col in ["Peso Real em Kg", "Peso Calculado em Kg", "Cubagem em m³", "Quantidade de Volumes", "Valor do Frete"]:
-            if col in df_formatado.columns:
-                gb.configure_column(col, type=["numericColumn"], valueFormatter=formatter_brasileiro)
+        gb.configure_grid_options(suppressHorizontalScroll=False)
+        gb.configure_grid_options(suppressScrollOnNewData=False)
 
         grid_options = gb.build()
-        grid_options["getRowStyle"] = linha_destacar
+        grid_options["getRowStyle"] = linha_destacar  # ✅ aplica o destaque de linhas
 
-        grid_key = f"grid_confirmar_{cliente}_{uuid.uuid4()}"  # 🔁 Chave única por cliente a cada carregamento
+        # Renderiza o grid
+        with st.container():
+            st.markdown("<div style='overflow-x:auto;'>", unsafe_allow_html=True)
+            grid_response = AgGrid(
+                df_formatado,
+                gridOptions=grid_options,
+                update_mode=GridUpdateMode.SELECTION_CHANGED,
+                fit_columns_on_grid_load=False,
+                height=500,
+                width=1500,
+                allow_unsafe_jscode=True,
+                key=f"grid_{cliente}"
+            )
+            st.markdown("</div>", unsafe_allow_html=True)
 
-        grid_response = AgGrid(
-            df_formatado,
-            gridOptions=grid_options,
-            update_mode=GridUpdateMode.SELECTION_CHANGED,
-            fit_columns_on_grid_load=False,
-            height=500,
-            width=1500,
-            allow_unsafe_jscode=True,
-            key=grid_key,
-            data_return_mode="AS_INPUT"
-        )
-
-        # Seleção direta via grid (sem botões adicionais)
         selecionadas = pd.DataFrame(grid_response.get("selected_rows", []))
 
         if not selecionadas.empty:
@@ -995,6 +993,7 @@ def pagina_confirmar_producao():
                         st.warning("⚠️ Nenhum registro com 'Serie_Numero_CTRC' válido.")
                         return
 
+                    # Inserir no Supabase
                     supabase.table("aprovacao_diretoria").insert(dados_confirmar).execute()
 
                     supabase.table("confirmadas_producao") \
@@ -1018,6 +1017,7 @@ def pagina_confirmar_producao():
 
                 except Exception as e:
                     st.error(f"❌ Erro ao confirmar entregas: {e}")
+
 
 ###########################################
 
