@@ -1574,6 +1574,9 @@ def pagina_pre_roterizacao():
                         for col in df_selecionadas.columns:
                             if 'data' in col.lower() or 'entrega programada' in col.lower():
                                 df_selecionadas[col] = df_selecionadas[col].replace("", None)
+                                # Remove coluna técnica do AgGrid que causa erro no Supabase
+                                df_selecionadas = df_selecionadas.drop(columns=["_selectedRowNodeInfo"], errors="ignore")
+
 
                         df_selecionadas = df_selecionadas[df_selecionadas["Serie_Numero_CTRC"].notnull()]
                         supabase.table("rotas_confirmadas").insert(df_selecionadas.to_dict(orient="records")).execute()
