@@ -1493,18 +1493,24 @@ def pagina_pre_roterizacao():
        # Reduz espaço entre métricas com CSS
         st.markdown("""
             <style>
-                div[data-testid="metric-container"] > div {
-                    font-size: 0.9rem !important;
-                }
-                div[data-testid="metric-container"] label {
-                    font-size: 0.8rem !important;
-                }
+                /* Reduz o espaço e a fonte do container da métrica */
                 div[data-testid="metric-container"] {
-                    padding: 0.2rem 0.3rem;
-                    margin: 0.1rem;
+                    padding: 0.05rem 0.2rem !important;
+                    margin: 0rem !important;
+                }
+
+                /* Reduz o tamanho do número exibido na métrica */
+                div[data-testid="metric-container"] > div {
+                    font-size: 0.75rem !important;
+                }
+
+                /* Reduz o tamanho do label (nome da métrica) */
+                div[data-testid="metric-container"] label {
+                    font-size: 0.65rem !important;
                 }
             </style>
         """, unsafe_allow_html=True)
+
 
         col1, col2, col3, col4, col5, col6 = st.columns(6)
         col1.metric("Entregas", len(df_rota))
