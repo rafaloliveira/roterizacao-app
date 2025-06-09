@@ -993,7 +993,6 @@ def pagina_confirmar_producao():
                     df_confirmar.drop(columns=["Indice"], errors="ignore", inplace=True)
 
                     supabase.table("aprovacao_diretoria").insert(dados_confirmar).execute()
-                    time.sleep(1.5)
                     st.rerun()
 
                     supabase.table("confirmadas_producao") \
