@@ -849,6 +849,15 @@ def pagina_confirmar_producao():
 ### VIsual Página PAGINA CONFIRMAR PRODUÇÃO ###
 ###############################################
     # ✅ Carregar dados
+    # Inicializa o estado se não existir ainda
+    if "rerun_confirmacao" not in st.session_state:
+        st.session_state["rerun_confirmacao"] = False
+
+    # Executa rerun apenas uma vez após a alteração
+    if st.session_state["rerun_confirmacao"]:
+        st.session_state["rerun_confirmacao"] = False
+        st.rerun()
+
 
     df = carregar_entregas_base()
     if df.empty:
@@ -1017,7 +1026,7 @@ def pagina_confirmar_producao():
                             else:
                                 st.success("✅ Entregas confirmadas e removidas com sucesso!")
 
-                            st.rerun()
+                            st.session_state["rerun_confirmacao"] = True
 
                 except Exception as e:
                     st.error(f"❌ Erro ao confirmar entregas: {e}")
