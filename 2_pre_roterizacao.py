@@ -1490,7 +1490,7 @@ def pagina_pre_roterizacao():
         </div>
         """, unsafe_allow_html=True)
 
-        col1, col2, col3 = st.columns(3)
+        col1, col2, col3 = st.columns(1)
         with col1:
             st.markdown(f"**Entregas:** {len(df_rota)}")
             st.markdown(f"**Cubagem:** {formatar_brasileiro(df_rota['Cubagem em m³'].sum())} m³")
