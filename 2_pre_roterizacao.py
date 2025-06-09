@@ -855,7 +855,7 @@ def pagina_confirmar_producao():
     if st.session_state["rerun_confirmacao"]:
         st.session_state["rerun_confirmacao"] = False
         st.rerun()
-
+        return
     df = carregar_entregas_base()
 
     # ✅ Aplica filtro de entregas válidas
@@ -968,8 +968,9 @@ def pagina_confirmar_producao():
             st.markdown("<div style='overflow-x:auto;'>", unsafe_allow_html=True)
 
             grid_key_id = f"grid_confirmar_{cliente}"
-            if grid_key_id not in st.session_state:
+            if grid_key_id not in st.session_state or st.session_state.get("rerun_confirmacao", False):
                 st.session_state[grid_key_id] = str(uuid.uuid4())
+
 
             grid_response = AgGrid(
                 df_formatado,
