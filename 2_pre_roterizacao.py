@@ -1112,7 +1112,6 @@ def pagina_aprovacao_diretoria():
         return
 
     df = pd.DataFrame(supabase.table("aprovacao_diretoria").select("*").execute().data)
-
     if df.empty:
         st.info("Nenhuma entrega pendente para aprovação.")
         return
@@ -1143,18 +1142,6 @@ def pagina_aprovacao_diretoria():
             unsafe_allow_html=True
         )
 
-    st.markdown("### 📊 Resumo por Cliente")
-    df_grouped = df.groupby("Cliente Pagador").agg({
-        "Peso Real em Kg": "sum",
-        "Peso Calculado em Kg": "sum",
-        "Cubagem em m³": "sum",
-        "Quantidade de Volumes": "sum",
-        "Valor do Frete": "sum",
-        "Serie_Numero_CTRC": "count"
-    }).reset_index().rename(columns={"Serie_Numero_CTRC": "Qtd Entregas"})
-
-    st.dataframe(df_grouped.style.format(formatar_brasileiro), use_container_width=True)
-
     colunas_exibir = [
         "Serie_Numero_CTRC", "Rota", "Valor do Frete", "Cliente Pagador", "Chave CT-e",
         "Cliente Destinatario", "Cidade de Entrega", "Bairro do Destinatario", "Previsao de Entrega",
@@ -1162,26 +1149,7 @@ def pagina_aprovacao_diretoria():
         "Peso Real em Kg", "Peso Calculado em Kg", "Cubagem em m³", "Quantidade de Volumes"
     ]
 
-    for cliente in sorted(df["Cliente Pagador"].unique()):
-        st.markdown(f"""
-        <div style=\"background-color: #444; padding: 8px 16px; border-radius: 6px; margin-top: 20px; margin-bottom: 8px;\">
-            <div style=\"color: white; margin: 0; font-size: 15px; font-weight: bold;\">📦 Cliente: {cliente}</div>
-        </div>
-        """, unsafe_allow_html=True)
-
-        df_cliente = df[df["Cliente Pagador"] == cliente]
-
-        col1, col2, col3, col4, col5, col6 = st.columns(6)
-        col1.metric("Entregas", len(df_cliente))
-        col2.metric("Peso Calc.", formatar_brasileiro(df_cliente["Peso Calculado em Kg"].sum()))
-        col3.metric("Peso Real", formatar_brasileiro(df_cliente["Peso Real em Kg"].sum()))
-        col4.metric("Cubagem", formatar_brasileiro(df_cliente["Cubagem em m³"].sum()))
-        col5.metric("Volumes", int(df_cliente["Quantidade de Volumes"].sum()))
-        col6.metric("Frete", f"R$ {formatar_brasileiro(df_cliente['Valor do Frete'].sum())}")
-
-        df_formatado = df_cliente[[col for col in colunas_exibir if col in df_cliente.columns]].copy()
-
-        formatter_brasileiro = JsCode("""
+    formatter_brasileiro = JsCode("""
         function(params) {
             if (!params.value) return '';
             return Number(params.value).toLocaleString('pt-BR', {
@@ -1189,7 +1157,34 @@ def pagina_aprovacao_diretoria():
                 maximumFractionDigits: 2
             });
         }
-        """)
+    """)
+
+    for cliente in sorted(df["Cliente Pagador"].unique()):
+        df_cliente = df[df["Cliente Pagador"] == cliente].copy()
+
+        total_entregas = len(df_cliente)
+        peso_calculado = df_cliente['Peso Calculado em Kg'].sum()
+        peso_real = df_cliente['Peso Real em Kg'].sum()
+        valor_frete = df_cliente['Valor do Frete'].sum()
+        cubagem = df_cliente['Cubagem em m³'].sum()
+        volumes = df_cliente['Quantidade de Volumes'].sum()
+
+        st.markdown(f"""
+        <div style=\"background-color: #444; padding: 8px 16px; border-radius: 6px; margin-top: 20px; margin-bottom: 8px;\">
+            <div style=\"color: white; margin: 0; font-size: 15px; font-weight: bold;\">📦 Cliente: {cliente}</div>
+        </div>
+
+        <div style=\"display: flex; flex-wrap: wrap; gap: 20px; font-size: 16px; margin-bottom: 20px;\">
+            <div><strong>Quantidade de Entregas:</strong> {total_entregas}</div>
+            <div><strong>Peso Calculado (kg):</strong> {formatar_brasileiro(peso_calculado)}</div>
+            <div><strong>Peso Real (kg):</strong> {formatar_brasileiro(peso_real)}</div>
+            <div><strong>Valor do Frete:</strong> R$ {formatar_brasileiro(valor_frete)}</div>
+            <div><strong>Cubagem (m³):</strong> {formatar_brasileiro(cubagem)}</div>
+            <div><strong>Volumes:</strong> {int(volumes) if pd.notnull(volumes) else 0}</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        df_formatado = df_cliente[[col for col in colunas_exibir if col in df_cliente.columns]].copy()
 
         linha_destacar = JsCode("""
         function(params) {
@@ -1212,8 +1207,6 @@ def pagina_aprovacao_diretoria():
         gb.configure_grid_options(paginationPageSize=500)
         gb.configure_grid_options(domLayout="autoHeight")
         gb.configure_grid_options(alwaysShowHorizontalScroll=True)
-        gb.configure_grid_options(suppressHorizontalScroll=False)
-        gb.configure_grid_options(suppressScrollOnNewData=False)
 
         for col in ["Peso Real em Kg", "Peso Calculado em Kg", "Cubagem em m³", "Quantidade de Volumes", "Valor do Frete"]:
             if col in df_formatado.columns:
@@ -1222,53 +1215,33 @@ def pagina_aprovacao_diretoria():
         grid_options = gb.build()
         grid_options["getRowStyle"] = linha_destacar
 
-        selecionar_chave = f"selecionar_tudo_aprovacao_{cliente}"
-        acao = st.session_state.get(selecionar_chave)
-        if acao == "selecionar_tudo":
-            linhas_selecionadas = df_formatado.to_dict("records")
-        elif acao == "desmarcar_tudo":
-            linhas_selecionadas = []
-        else:
-            linhas_selecionadas = None
+        grid_response = AgGrid(
+            df_formatado,
+            gridOptions=grid_options,
+            update_mode=GridUpdateMode.SELECTION_CHANGED,
+            fit_columns_on_grid_load=False,
+            height=500,
+            width=1500,
+            allow_unsafe_jscode=True,
+            key=f"grid_aprovacao_{cliente}",
+            data_return_mode="AS_INPUT"
+        )
 
-        with st.container():
-            st.markdown("<div style='overflow-x:auto'>", unsafe_allow_html=True)
-            grid_response = AgGrid(
-                df_formatado,
-                gridOptions=grid_options,
-                update_mode=GridUpdateMode.SELECTION_CHANGED,
-                fit_columns_on_grid_load=False,
-                height=500,
-                width=1500,
-                allow_unsafe_jscode=True,
-                key=f"grid_aprovacao_{cliente}",
-                data_return_mode="AS_INPUT",
-                selected_rows=linhas_selecionadas
-            )
-            st.markdown("</div>", unsafe_allow_html=True)
+        selecionadas = pd.DataFrame(grid_response.get("selected_rows", []))
 
         with st.container():
             col_sel1, col_sel2 = st.columns([1, 1])
             with col_sel1:
-                if st.button("🔘 Selecionar todas", key=f"btn_sel_{cliente}", use_container_width=True):
-                    st.session_state[selecionar_chave] = "selecionar_tudo"
-                    st.rerun()
+                st.button("🔘 Selecionar todas", key=f"btn_sel_{cliente}", use_container_width=True)
             with col_sel2:
-                if st.button("❌ Desmarcar todas", key=f"btn_desmarcar_{cliente}", use_container_width=True):
-                    st.session_state[selecionar_chave] = "desmarcar_tudo"
-                    st.rerun()
-
-        selecionadas = pd.DataFrame(grid_response.get("selected_rows", []))
+                st.button("❌ Desmarcar todas", key=f"btn_desmarcar_{cliente}", use_container_width=True)
 
         if not selecionadas.empty:
             st.success(f"{len(selecionadas)} entregas selecionadas.")
             if st.button(f"✅ Aprovar entregas de {cliente}", key=f"btn_aprovar_{cliente}"):
                 try:
                     aprovadas = selecionadas.copy()
-                    colunas_numericas = [
-                        "Peso Real em Kg", "Peso Calculado em Kg", "Cubagem em m³",
-                        "Quantidade de Volumes", "Valor do Frete"
-                    ]
+                    colunas_numericas = ["Peso Real em Kg", "Peso Calculado em Kg", "Cubagem em m³", "Quantidade de Volumes", "Valor do Frete"]
                     for col in colunas_numericas:
                         if col in aprovadas.columns:
                             aprovadas[col] = aprovadas[col].astype(str).str.replace(".", "", regex=False).str.replace(",", ".", regex=False).astype(float)
@@ -1277,19 +1250,16 @@ def pagina_aprovacao_diretoria():
                         st.warning("Coluna 'Rota' não encontrada nos dados selecionados.")
                         return
 
-                    if "_selectedRowNodeInfo" in aprovadas.columns:
-                        aprovadas.drop(columns=["_selectedRowNodeInfo"], inplace=True)
+                    aprovadas.drop(columns=["_selectedRowNodeInfo"], errors="ignore", inplace=True)
 
                     ctrcs_existentes = supabase.table("pre_roterizacao").select("Serie_Numero_CTRC").execute().data
                     ctrcs_existentes = {item["Serie_Numero_CTRC"] for item in ctrcs_existentes}
-
                     aprovadas = aprovadas[~aprovadas["Serie_Numero_CTRC"].isin(ctrcs_existentes)]
 
                     if not aprovadas.empty:
                         supabase.table("pre_roterizacao").insert(aprovadas.to_dict(orient="records")).execute()
                         ctrcs = aprovadas["Serie_Numero_CTRC"].astype(str).tolist()
                         supabase.table("aprovacao_diretoria").delete().in_("Serie_Numero_CTRC", ctrcs).execute()
-
                         st.success("✅ Entregas aprovadas e movidas para Pré Roteirização.")
                         time.sleep(1.5)
                         st.rerun()
@@ -1297,6 +1267,7 @@ def pagina_aprovacao_diretoria():
                         st.info("Todas as entregas selecionadas já estavam na Pré-Roterização.")
                 except Exception as e:
                     st.error(f"Erro ao aprovar entregas: {e}")
+
 
 
 
