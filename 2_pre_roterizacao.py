@@ -1441,6 +1441,11 @@ def carregar_base_supabase():
         st.error(f"Erro ao consultar as tabelas do Supabase: {e}")
         return pd.DataFrame()
 
+
+
+# PÁGINA PRÉ ROTERIZAÇÃO
+##########################################
+
 def pagina_pre_roterizacao():
     st.title("Pré Roterização")
 
@@ -1495,7 +1500,6 @@ def pagina_pre_roterizacao():
     for rota in sorted(df["Rota"].dropna().unique()):
         df_rota = df[df["Rota"] == rota]
         st.subheader(f"Rota: {rota}")
-        #st.markdown(f"<div style='font-size:22px;font-weight:bold;color:#f0f0f0;background:#2c2c2c;padding:10px;border-radius:8px'>Rota: {rota}</div>", unsafe_allow_html=True)
 
         col1, col2, col3, col4, col5, col6 = st.columns(6)
         col1.metric("Entregas", len(df_rota))
@@ -1544,43 +1548,76 @@ def pagina_pre_roterizacao():
         """)
 
         gb = GridOptionsBuilder.from_dataframe(df_formatado)
-        #gb.configure_default_column(resizable=True, minWidth=150)
         gb.configure_default_column(minWidth=150)
         gb.configure_selection("multiple", use_checkbox=True)
         gb.configure_grid_options(getRowStyle=linha_destacar)
         gb.configure_grid_options(paginationPageSize=500)
-
+        gb.configure_grid_options(domLayout="autoHeight")
+        gb.configure_grid_options(alwaysShowHorizontalScroll=True)
+        gb.configure_grid_options(suppressHorizontalScroll=False)
+        gb.configure_grid_options(suppressScrollOnNewData=False)
         grid_options = gb.build()
         grid_options["domLayout"] = "normal"
 
-        selecionadas = controle_selecao(
-        chave_estado=f"selecionar_tudo_pre_rota_{rota}",
-        df_todos=df_formatado,
-        grid_key=f"grid_{rota}",
-        grid_options=grid_options
-        )
+        selecionar_chave = f"selecionar_tudo_pre_rota_{rota}"
+        if selecionar_chave not in st.session_state:
+            st.session_state[selecionar_chave] = None
+        acao = st.session_state.get(selecionar_chave)
+
+        if acao == "selecionar_tudo":
+            linhas_selecionadas = df_formatado.to_dict("records")
+        elif acao == "desmarcar_tudo":
+            linhas_selecionadas = []
+        else:
+            linhas_selecionadas = None
+
+        with st.container():
+            st.markdown("<div style='overflow-x:auto;'>", unsafe_allow_html=True)
+            grid_response = AgGrid(
+                df_formatado,
+                gridOptions=grid_options,
+                update_mode=GridUpdateMode.SELECTION_CHANGED,
+                fit_columns_on_grid_load=False,
+                height=500,
+                width=1500,
+                allow_unsafe_jscode=True,
+                key=f"grid_{rota}",
+                data_return_mode="AS_INPUT",
+                selected_rows=linhas_selecionadas
+            )
+            st.markdown("</div>", unsafe_allow_html=True)
+
+        with st.container():
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("🔘 Selecionar todas", key=f"btn_sel_rota_{rota}", use_container_width=True):
+                    st.session_state[selecionar_chave] = "selecionar_tudo"
+                    st.rerun()
+            with col2:
+                if st.button("❌ Desmarcar todas", key=f"btn_desmarcar_rota_{rota}", use_container_width=True):
+                    st.session_state[selecionar_chave] = "desmarcar_tudo"
+                    st.rerun()
+
+        if acao == "selecionar_tudo":
+            selecionadas = df_formatado.copy()
+        elif acao == "desmarcar_tudo":
+            selecionadas = pd.DataFrame([])
+        else:
+            selecionadas = pd.DataFrame(grid_response.get("selected_rows", []))
+
+        if acao in ["selecionar_tudo", "desmarcar_tudo"]:
+            st.session_state[selecionar_chave] = None
 
         if not selecionadas.empty:
-            if "Serie_Numero_CTRC" not in selecionadas.columns:
-                st.error("❌ A coluna 'Serie_Numero_CTRC' não foi retornada pelo AgGrid. Certifique-se de que ela está visível no grid.")
-                return
+            st.success(f"🔒 {len(selecionadas)} entregas selecionadas na rota **{rota}**.")
 
-            selecionadas = selecionadas[selecionadas["Serie_Numero_CTRC"].notnull()]
-
-            chaves = selecionadas["Serie_Numero_CTRC"].dropna().astype(str).str.strip().tolist()
-            df_selecionadas = df_rota[df_rota["Serie_Numero_CTRC"].isin(chaves)].copy()
-            df_selecionadas["Rota"] = rota
-            df_selecionadas.drop(columns=["Indice"], inplace=True, errors="ignore")
-            df_selecionadas = df_selecionadas.replace([np.nan, np.inf, -np.inf], None)
-
-            st.success(f"🔒 {len(df_selecionadas)} entregas selecionadas na rota **{rota}**.")
-            chave_hash = "_" + str(hash("-".join(chaves)))[:6]
+            chave_hash = "_" + str(hash("-".join(selecionadas["Serie_Numero_CTRC"].astype(str))))[:6]
             col_conf, col_ret = st.columns(2)
 
             with col_conf:
                 if st.button(f"✅ Confirmar Rota: {rota}", key=f"confirmar_{rota}{chave_hash}"):
                     try:
-                        # Corrigir campos de data com string vazia para None
+                        df_selecionadas = selecionadas.copy()
                         for col in df_selecionadas.columns:
                             if 'data' in col.lower() or 'entrega programada' in col.lower():
                                 df_selecionadas[col] = df_selecionadas[col].replace("", None)
@@ -1590,7 +1627,6 @@ def pagina_pre_roterizacao():
                             return
 
                         df_selecionadas = df_selecionadas[df_selecionadas["Serie_Numero_CTRC"].notnull()]
-
                         supabase.table("rotas_confirmadas").insert(df_selecionadas.to_dict(orient="records")).execute()
                         st.success(f"✅ {len(df_selecionadas)} entregas confirmadas com sucesso na rota **{rota}**!")
                         time.sleep(1.5)
@@ -1601,15 +1637,16 @@ def pagina_pre_roterizacao():
             with col_ret:
                 if st.button(f"❌ Retirar da Pré Rota: {rota}", key=f"retirar_{rota}{chave_hash}"):
                     try:
-                        for ctrc in df_selecionadas["Serie_Numero_CTRC"]:
+                        for ctrc in selecionadas["Serie_Numero_CTRC"]:
                             supabase.table("rotas_confirmadas").delete().eq("Serie_Numero_CTRC", ctrc).execute()
-                        registros_confirmar = [{"Serie_Numero_CTRC": ctrc} for ctrc in df_selecionadas["Serie_Numero_CTRC"]]
+                        registros_confirmar = [{"Serie_Numero_CTRC": ctrc} for ctrc in selecionadas["Serie_Numero_CTRC"]]
                         supabase.table("confirmadas_producao").insert(registros_confirmar).execute()
                         st.success("🔄 Entregas retornadas para a etapa de produção com sucesso.")
                         time.sleep(1.5)
                         st.rerun()
                     except Exception as e:
                         st.error(f"❌ Erro ao retornar entregas: {e}")
+
 
 
 
