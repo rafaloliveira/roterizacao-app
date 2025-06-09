@@ -1535,7 +1535,7 @@ def pagina_pre_roterizacao():
         gb.configure_default_column(minWidth=150)
         gb.configure_selection("multiple", use_checkbox=True)
         gb.configure_grid_options(paginationPageSize=500)
-        gb.configure_grid_options(domLayout="autoHeight")
+       #gb.configure_grid_options(domLayout="autoHeight")
         gb.configure_grid_options(alwaysShowHorizontalScroll=True)
         gb.configure_grid_options(suppressHorizontalScroll=False)
         gb.configure_grid_options(suppressScrollOnNewData=False)
@@ -1552,21 +1552,24 @@ def pagina_pre_roterizacao():
         else:
             linhas_selecionadas = None
 
-        with st.container():
-            st.markdown("<div style='overflow-x:auto;'>", unsafe_allow_html=True)
-            grid_response = AgGrid(
-                df_formatado,
-                gridOptions=grid_options,
-                update_mode=GridUpdateMode.SELECTION_CHANGED,
-                fit_columns_on_grid_load=False,
-                height=350,
-                width=1500,
-                allow_unsafe_jscode=True,
-                key=f"grid_{rota}",
-                data_return_mode="AS_INPUT",
-                selected_rows=linhas_selecionadas
-            )
-            st.markdown("</div>", unsafe_allow_html=True)
+        grid_response = AgGrid(
+            df_formatado,
+            gridOptions=grid_options,
+            update_mode=GridUpdateMode.SELECTION_CHANGED,
+            fit_columns_on_grid_load=False,
+            height=350,  # Altura fixa
+            width=1500,  # Largura conforme necessário
+            allow_unsafe_jscode=True,
+            key=f"grid_{rota}",
+            data_return_mode="AS_INPUT",
+            selected_rows=linhas_selecionadas,
+            custom_css={
+                ".ag-root-wrapper": {
+                    "overflow": "auto !important",  # Garante scroll horizontal e vertical
+                }
+            }
+        )
+
 
         with st.container():
             col_sel1, col_sel2 = st.columns([1, 1])
