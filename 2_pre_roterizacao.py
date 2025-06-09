@@ -1234,7 +1234,7 @@ def pagina_aprovacao_diretoria():
                 gridOptions=grid_options,
                 update_mode=GridUpdateMode.SELECTION_CHANGED,
                 fit_columns_on_grid_load=False,
-                height=500,
+                height=380,
                 width=1500,
                 allow_unsafe_jscode=True,
                 key=f"grid_{cliente}",
