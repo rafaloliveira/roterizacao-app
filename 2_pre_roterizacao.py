@@ -955,14 +955,26 @@ def pagina_confirmar_producao():
             data_return_mode="AS_INPUT"
         )
 
-        selecionadas = pd.DataFrame(grid_response.get("selected_rows", []))
+        # Lógica de seleção baseada no estado dos botões
+        selecionar_chave = f"selecionar_tudo_cliente_{cliente}"
+        acao = st.session_state.get(selecionar_chave)
 
+        if acao == "selecionar_tudo":
+            selecionadas = df_formatado.copy()
+        elif acao == "desmarcar_tudo":
+            selecionadas = pd.DataFrame([])
+        else:
+            selecionadas = pd.DataFrame(grid_response.get("selected_rows", []))
+
+        # Botões para seleção/desmarcação
         with st.container():
             col_sel1, col_sel2 = st.columns([1, 1])
             with col_sel1:
-                st.button("🔘 Selecionar todas", key=f"btn_sel_{cliente}", use_container_width=True)
+                st.button("🔘 Selecionar todas", key=f"btn_sel_{cliente}", use_container_width=True,
+                        on_click=lambda: st.session_state.update({selecionar_chave: "selecionar_tudo"}))
             with col_sel2:
-                st.button("❌ Desmarcar todas", key=f"btn_desmarcar_{cliente}", use_container_width=True)
+                st.button("❌ Desmarcar todas", key=f"btn_desmarcar_{cliente}", use_container_width=True,
+                        on_click=lambda: st.session_state.update({selecionar_chave: "desmarcar_tudo"}))
 
         if not selecionadas.empty:
             st.success(f"{len(selecionadas)} entregas selecionadas para {cliente}.")
@@ -972,6 +984,8 @@ def pagina_confirmar_producao():
                     df_cliente["Serie_Numero_CTRC"] = df_cliente["Serie_Numero_CTRC"].astype(str).str.strip()
 
                     df_confirmar = df_cliente[df_cliente["Serie_Numero_CTRC"].isin(chaves)].copy()
+                    colunas_validas = [col for col in colunas_exibir if col != "Serie_Numero_CTRC"]
+                    df_confirmar = df_confirmar[["Serie_Numero_CTRC"] + colunas_validas]
                     df_confirmar = df_confirmar.replace([np.nan, np.inf, -np.inf], None)
 
                     for col in df_confirmar.select_dtypes(include=['datetime64[ns]']).columns:
@@ -981,41 +995,40 @@ def pagina_confirmar_producao():
                         st.warning("⚠️ Nenhuma entrega válida para confirmar.")
                         return
 
-                    df_confirmar.drop(columns=["Indice"], errors="ignore", inplace=True)
                     dados_confirmar = df_confirmar.to_dict(orient="records")
-
                     dados_confirmar = [d for d in dados_confirmar if d.get("Serie_Numero_CTRC")]
 
                     if not dados_confirmar:
                         st.warning("⚠️ Nenhum registro com 'Serie_Numero_CTRC' válido.")
                         return
-                    
-                    df_confirmar.drop(columns=["Indice"], errors="ignore", inplace=True)
 
                     supabase.table("aprovacao_diretoria").insert(dados_confirmar).execute()
-                    
 
                     supabase.table("confirmadas_producao") \
                         .delete() \
                         .in_("Serie_Numero_CTRC", chaves) \
                         .execute()
-                    st.rerun()
+
                     check_response = supabase.table("confirmadas_producao") \
                         .select("Serie_Numero_CTRC") \
                         .in_("Serie_Numero_CTRC", chaves) \
                         .execute()
-                    
 
                     if check_response.data:
                         chaves_nao_removidas = [r["Serie_Numero_CTRC"] for r in check_response.data]
                         st.warning(f"⚠️ Algumas entregas não foram removidas da base: {chaves_nao_removidas}")
                     else:
                         st.success("Entregas confirmadas e removidas com sucesso!")
+
+                        # Resetar estado da seleção
+                        st.session_state[selecionar_chave] = "desmarcar_tudo"
+
                         time.sleep(1.5)
                         st.rerun()
 
                 except Exception as e:
                     st.error(f"Erro ao confirmar entregas: {e}")
+
 
 
 
