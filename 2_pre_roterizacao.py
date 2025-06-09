@@ -1020,7 +1020,10 @@ def pagina_confirmar_producao():
                     else:
                         st.success("Entregas confirmadas e removidas com sucesso!")
 
-                        # Resetar estado da seleção
+                        # 🔁 Força atualização do Grid ao mudar a chave
+                        st.session_state["grid_update_counter"] = st.session_state.get("grid_update_counter", 0) + 1
+
+                        # ✅ Resetar estado da seleção
                         st.session_state[selecionar_chave] = "desmarcar_tudo"
 
                         time.sleep(1.5)
@@ -1028,6 +1031,7 @@ def pagina_confirmar_producao():
 
                 except Exception as e:
                     st.error(f"Erro ao confirmar entregas: {e}")
+
 
 
 
