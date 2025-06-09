@@ -936,10 +936,7 @@ def pagina_confirmar_producao():
             return {};
         }
         """)
-
-    for cliente in sorted(df["Cliente Pagador"].fillna("(Vazio)").unique()):
-        df_cliente = df[df["Cliente Pagador"].fillna("(Vazio)") == cliente].copy()
-        df_formatado = df_cliente[[col for col in colunas_exibir if col in df_cliente.columns]].copy()
+        
 
         gb = GridOptionsBuilder.from_dataframe(df_formatado)
         gb.configure_default_column(minWidth=150)
@@ -1017,7 +1014,7 @@ def pagina_confirmar_producao():
                         st.success("✅ Entregas confirmadas e removidas com sucesso!")
                     
                     time.sleep(1.2)
-                    
+                    st.rerun()
                     
 
                 except Exception as e:
