@@ -1501,12 +1501,12 @@ def pagina_pre_roterizacao():
 
                 /* Reduz o tamanho do número exibido na métrica */
                 div[data-testid="metric-container"] > div {
-                    font-size: 0.75rem !important;
+                    font-size: 0.25rem !important;
                 }
 
                 /* Reduz o tamanho do label (nome da métrica) */
                 div[data-testid="metric-container"] label {
-                    font-size: 0.65rem !important;
+                    font-size: 0.15rem !important;
                 }
             </style>
         """, unsafe_allow_html=True)
