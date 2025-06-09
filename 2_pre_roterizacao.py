@@ -834,57 +834,38 @@ def pagina_confirmar_producao():
 
         # Retornar tudo que não está na aprovacao_diretoria (já foi filtrado acima)
         return base.copy()
-
-
+    
+    
+###########################################
+### VIsual Página PAGINA CONFIRMAR PRODUÇÃO ###
+###############################################
     # ✅ Carregar dados
-    df = carregar_entregas_base()
+    
+    st.title("🏭 Confirmar Produção")
 
+    df = carregar_entregas_base()
     if df.empty:
         st.info("Nenhuma entrega pendente para confirmação.")
         return
 
-
-    # Filtro por cliente
-    
-    # Cálculo global
     total_clientes = df["Cliente Pagador"].nunique()
     total_entregas = len(df)
 
-    # Filtro por cliente (depois do cálculo)
-    clientes_filtrados = ["Todos"] + sorted(df["Cliente Pagador"].unique())
-    cliente_selecionado = st.selectbox("🔎 Filtrar por Cliente", clientes_filtrados, key="filtro_cliente")
-    if cliente_selecionado != "Todos":
-        df = df[df["Cliente Pagador"] == cliente_selecionado]
-
-
-    # Cards informativos
-    st.markdown(f"""
-    <div style="display: flex; gap: 10px; margin-bottom: 20px;">
-        <div style="flex: 1; background-color: #2e2e2e; padding: 8px 16px; border-radius: 6px;">
-            <span style="color: white; font-weight: bold; font-size: 18px;">Total de Clientes:</span>
-            <span style="color: white; font-size: 24px;">{total_clientes}</span>
-        </div>
-        <div style="flex: 1; background-color: #2e2e2e; padding: 8px 16px; border-radius: 6px;">
-            <span style="color: white; font-weight: bold; font-size: 18px;">Total de Entregas:</span>
-            <span style="color: white; font-size: 24px;">{total_entregas}</span>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    # Visão geral
-    st.markdown("### 📊 Visão Geral por Cliente Pagador")
-    df_grouped = df[df["Cliente Pagador"].notna()].groupby("Cliente Pagador").agg({
-        "Peso Real em Kg": "sum",
-        "Peso Calculado em Kg": "sum",
-        "Cubagem em m³": "sum",
-        "Quantidade de Volumes": "sum",
-        "Valor do Frete": "sum",
-        "Indice": "count"
-    }).reset_index().rename(columns={"Indice": "Qtd Entregas"})
-    st.dataframe(df_grouped.style.format(formatar_brasileiro), use_container_width=True)
-
-    # Detalhamento por cliente
-    #st.markdown("### 📋 Entregas por Cliente")
+    col1, col2 = st.columns(2)
+    with col1:
+        st.markdown(
+            f"<div style='background:#2f2f2f;padding:8px;border-radius:8px'>"
+            f"<span style='color:white;font-weight:bold;font-size:18px;'>Total de Clientes:</span>"
+            f"<span style='color:white;font-size:24px;'> {total_clientes}</span></div>",
+            unsafe_allow_html=True
+        )
+    with col2:
+        st.markdown(
+            f"<div style='background:#2f2f2f;padding:8px;border-radius:8px'>"
+            f"<span style='color:white;font-weight:bold;font-size:18px;'>Total de Entregas:</span>"
+            f"<span style='color:white;font-size:24px;'> {total_entregas}</span></div>",
+            unsafe_allow_html=True
+        )
 
     colunas_exibir = [
         "Serie_Numero_CTRC","Rota","Valor do Frete", "Cliente Pagador", "Chave CT-e", "Cliente Destinatario",
@@ -895,68 +876,42 @@ def pagina_confirmar_producao():
         "Quantidade de Volumes"
     ]
 
+    formatter_brasileiro = JsCode("""
+        function(params) {
+            if (!params.value) return '';
+            return Number(params.value).toLocaleString('pt-BR', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            });
+        }
+    """)
+
     for cliente in sorted(df["Cliente Pagador"].fillna("(Vazio)").unique()):
+        df_cliente = df[df["Cliente Pagador"].fillna("(Vazio)") == cliente].copy()
+
+        total_entregas = len(df_cliente)
+        peso_calculado = df_cliente['Peso Calculado em Kg'].sum()
+        peso_real = df_cliente['Peso Real em Kg'].sum()
+        valor_frete = df_cliente['Valor do Frete'].sum()
+        cubagem = df_cliente['Cubagem em m³'].sum()
+        volumes = df_cliente['Quantidade de Volumes'].sum()
+
         st.markdown(f"""
         <div style=\"background-color: #444; padding: 8px 16px; border-radius: 6px; margin-top: 20px; margin-bottom: 8px;\">
             <div style=\"color: white; margin: 0; font-size: 15px; font-weight: bold;\">🏭 Cliente: {cliente}</div>
         </div>
+
+        <div style=\"display: flex; flex-wrap: wrap; gap: 20px; font-size: 16px; margin-bottom: 20px;\">
+            <div><strong>Quantidade de Entregas:</strong> {total_entregas}</div>
+            <div><strong>Peso Calculado (kg):</strong> {formatar_brasileiro(peso_calculado)}</div>
+            <div><strong>Peso Real (kg):</strong> {formatar_brasileiro(peso_real)}</div>
+            <div><strong>Valor do Frete:</strong> R$ {formatar_brasileiro(valor_frete)}</div>
+            <div><strong>Cubagem (m³):</strong> {formatar_brasileiro(cubagem)}</div>
+            <div><strong>Volumes:</strong> {int(volumes) if pd.notnull(volumes) else 0}</div>
+        </div>
         """, unsafe_allow_html=True)
-
-        df_cliente = df[df["Cliente Pagador"].fillna("(Vazio)") == cliente]
-
-
-        col1, col2, col3, col4, col5, col6 = st.columns(6)
-
-        col1.markdown(f"""
-            <div style="padding:4px; text-align:center">
-                <div style="font-size:14px; color:white;">Entregas</div>
-                <div style="font-size:14px; font-weight:bold; color:white;">{df_cliente.shape[0]}</div>
-            </div>
-        """, unsafe_allow_html=True)
-
-        col2.markdown(f"""
-            <div style="padding:4px; text-align:center">
-                <div style="font-size:14px; color:white;">Peso Calc. (Kg)</div>
-                <div style="font-size:14px; font-weight:bold; color:white;">{formatar_brasileiro(df_cliente["Peso Calculado em Kg"].sum())}</div>
-            </div>
-        """, unsafe_allow_html=True)
-
-        col3.markdown(f"""
-            <div style="padding:4px; text-align:center">
-                <div style="font-size:14px; color:white;">Peso Real (Kg)</div>
-                <div style="font-size:14px; font-weight:bold; color:white;">{formatar_brasileiro(df_cliente["Peso Real em Kg"].sum())}</div>
-            </div>
-        """, unsafe_allow_html=True)
-
-        col4.markdown(f"""
-            <div style="padding:4px; text-align:center">
-                <div style="font-size:14px; color:white;">Cubagem (m³)</div>
-                <div style="font-size:14px; font-weight:bold; color:white;">{formatar_brasileiro(df_cliente["Cubagem em m³"].sum())}</div>
-            </div>
-        """, unsafe_allow_html=True)
-
-        col5.markdown(f"""
-            <div style="padding:4px; text-align:center">
-                <div style="font-size:14px; color:white;">Volumes</div>
-                <div style="font-size:14px; font-weight:bold; color:white;">{int(df_cliente["Quantidade de Volumes"].sum())}</div>
-            </div>
-        """, unsafe_allow_html=True)
-
-        col6.markdown(f"""
-            <div style="padding:4px; text-align:center">
-                <div style="font-size:14px; color:white;">Valor Frete</div>
-                <div style="font-size:14px; font-weight:bold; color:white;">R$ {formatar_brasileiro(df_cliente["Valor do Frete"].sum())}</div>
-            </div>
-        """, unsafe_allow_html=True)
-
-
 
         df_formatado = df_cliente[[col for col in colunas_exibir if col in df_cliente.columns]].copy()
-
-        for col in ["Peso Real em Kg", "Peso Calculado em Kg", "Cubagem em m³", "Quantidade de Volumes", "Valor do Frete"]:
-            if col in df_formatado.columns:
-                df_formatado[col] = pd.to_numeric(df_formatado[col], errors='coerce')
-                df_formatado[col] = df_formatado[col].apply(formatar_brasileiro)
 
         linha_destacar = JsCode("""
         function(params) {
@@ -966,7 +921,7 @@ def pagina_confirmar_producao():
                     'fontWeight': 'bold'
                 }
             } else if (params.data['Status'] === 'AGENDAR' && 
-                       (!params.data['Entrega Programada'] || params.data['Entrega Programada'].trim() === '')) {
+                    (!params.data['Entrega Programada'] || params.data['Entrega Programada'].trim() === '')) {
                 return {
                     'backgroundColor': '#8B4513',
                     'fontWeight': 'bold'
@@ -978,84 +933,56 @@ def pagina_confirmar_producao():
 
         gb = GridOptionsBuilder.from_dataframe(df_formatado)
         gb.configure_default_column(minWidth=150)
-        gb.configure_selection('multiple', use_checkbox=True)
-        gb.configure_grid_options(paginationPageSize=12)
+        gb.configure_selection("multiple", use_checkbox=True)
+        gb.configure_grid_options(paginationPageSize=500)
         gb.configure_grid_options(domLayout="autoHeight")
         gb.configure_grid_options(alwaysShowHorizontalScroll=True)
-        gb.configure_grid_options(suppressHorizontalScroll=False)
-        gb.configure_grid_options(suppressScrollOnNewData=False)
+
+        for col in ["Peso Real em Kg", "Peso Calculado em Kg", "Cubagem em m³", "Quantidade de Volumes", "Valor do Frete"]:
+            if col in df_formatado.columns:
+                gb.configure_column(col, type=["numericColumn"], valueFormatter=formatter_brasileiro)
 
         grid_options = gb.build()
-        
-        # Renderiza o grid normalmente
-        with st.container():
-            st.markdown("<div style='overflow-x:auto;'>", unsafe_allow_html=True)
-            grid_response = AgGrid(
-                df_formatado,
-                gridOptions=grid_options,
-                update_mode=GridUpdateMode.SELECTION_CHANGED,
-                fit_columns_on_grid_load=False,
-                height=500,
-                width=1500,  # 👈 scroll garantido
-                allow_unsafe_jscode=True,
-                key=f"grid_{cliente}"
-            )
-            st.markdown("</div>", unsafe_allow_html=True)
+        grid_options["getRowStyle"] = linha_destacar
 
-        # Lógica de seleção baseada no estado dos botões
-        selecionar_chave = f"selecionar_tudo_cliente_{cliente}"
-        acao = st.session_state.get(selecionar_chave)
+        grid_response = AgGrid(
+            df_formatado,
+            gridOptions=grid_options,
+            update_mode=GridUpdateMode.SELECTION_CHANGED,
+            fit_columns_on_grid_load=False,
+            height=500,
+            width=1500,
+            allow_unsafe_jscode=True,
+            key=f"grid_confirmar_{cliente}",
+            data_return_mode="AS_INPUT"
+        )
 
-        if acao == "selecionar_tudo":
-            selecionadas = df_formatado.copy()
-        elif acao == "desmarcar_tudo":
-            selecionadas = pd.DataFrame([])
-        else:
-            selecionadas = pd.DataFrame(grid_response.get("selected_rows", []))
+        selecionadas = pd.DataFrame(grid_response.get("selected_rows", []))
 
-        # Botões mais finos e na parte de baixo
         with st.container():
             col_sel1, col_sel2 = st.columns([1, 1])
             with col_sel1:
-                st.button("🔘 Selecionar todas", key=f"btn_sel_{cliente}", use_container_width=True,
-                        help="Seleciona todas as entregas exibidas",
-                        on_click=lambda: st.session_state.update({selecionar_chave: "selecionar_tudo"}))
+                st.button("🔘 Selecionar todas", key=f"btn_sel_{cliente}", use_container_width=True)
             with col_sel2:
-                st.button("❌ Desmarcar todas", key=f"btn_desmarcar_{cliente}", use_container_width=True,
-                        help="Desmarca todas as entregas selecionadas",
-                        on_click=lambda: st.session_state.update({selecionar_chave: "desmarcar_tudo"}))
-
+                st.button("❌ Desmarcar todas", key=f"btn_desmarcar_{cliente}", use_container_width=True)
 
         if not selecionadas.empty:
             st.success(f"{len(selecionadas)} entregas selecionadas para {cliente}.")
-
             if st.button(f"✅ Confirmar entregas de {cliente}", key=f"botao_{cliente}"):
                 try:
-                    # 🔒 Padronizar valores de chave
                     chaves = selecionadas["Serie_Numero_CTRC"].dropna().astype(str).str.strip().tolist()
-
-                    # 🔒 Garantir que df_cliente também está padronizado
                     df_cliente["Serie_Numero_CTRC"] = df_cliente["Serie_Numero_CTRC"].astype(str).str.strip()
 
                     df_confirmar = df_cliente[df_cliente["Serie_Numero_CTRC"].isin(chaves)].copy()
-                    colunas_validas = [col for col in colunas_exibir if col != "Serie_Numero_CTRC"]
-                    df_confirmar = df_confirmar[["Serie_Numero_CTRC"] + colunas_validas]
                     df_confirmar = df_confirmar.replace([np.nan, np.inf, -np.inf], None)
 
-                    # ✅ Converter datas para string
                     for col in df_confirmar.select_dtypes(include=['datetime64[ns]']).columns:
                         df_confirmar[col] = df_confirmar[col].dt.strftime('%Y-%m-%d %H:%M:%S')
 
-                    # ⚠️ Verificações
-                    if df_confirmar.empty:
+                    if df_confirmar.empty or "Serie_Numero_CTRC" not in df_confirmar.columns or df_confirmar["Serie_Numero_CTRC"].isnull().all():
                         st.warning("⚠️ Nenhuma entrega válida para confirmar.")
                         return
 
-                    if "Serie_Numero_CTRC" not in df_confirmar.columns or df_confirmar["Serie_Numero_CTRC"].isnull().all():
-                        st.warning("⚠️ Coluna 'Serie_Numero_CTRC' ausente ou com todos os valores nulos.")
-                        return
-
-                    # 🔒 Remover registros com chaves vazias
                     dados_confirmar = df_confirmar.to_dict(orient="records")
                     dados_confirmar = [d for d in dados_confirmar if d.get("Serie_Numero_CTRC")]
 
@@ -1063,18 +990,13 @@ def pagina_confirmar_producao():
                         st.warning("⚠️ Nenhum registro com 'Serie_Numero_CTRC' válido.")
                         return
 
-                    # ✅ Inserir na aprovacao_diretoria
                     supabase.table("aprovacao_diretoria").insert(dados_confirmar).execute()
-                    
-                    
 
-                    # ✅ Excluir da confirmadas_producao
-                    delete_response = supabase.table("confirmadas_producao") \
+                    supabase.table("confirmadas_producao") \
                         .delete() \
                         .in_("Serie_Numero_CTRC", chaves) \
                         .execute()
 
-                    # 🔍 Verificação: buscar os que eventualmente não foram deletados
                     check_response = supabase.table("confirmadas_producao") \
                         .select("Serie_Numero_CTRC") \
                         .in_("Serie_Numero_CTRC", chaves) \
@@ -1085,11 +1007,6 @@ def pagina_confirmar_producao():
                         st.warning(f"⚠️ Algumas entregas não foram removidas da base: {chaves_nao_removidas}")
                     else:
                         st.success("Entregas confirmadas e removidas com sucesso!")
-                        
-
-                        # ✅ Resetar seleção do cliente após confirmação
-                        st.session_state[f"selecionar_tudo_cliente_{cliente}"] = "desmarcar_tudo"
-
                         time.sleep(1.5)
                         st.rerun()
 
@@ -1097,11 +1014,13 @@ def pagina_confirmar_producao():
                     st.error(f"Erro ao confirmar entregas: {e}")
 
 
+
 ###########################################
 
 # PÁGINA APROVAÇÃO DIRETORIA
 
 ##########################################
+
 def pagina_aprovacao_diretoria():
     st.title("📋 Aprovação da Diretoria")
 
