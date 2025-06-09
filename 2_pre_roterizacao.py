@@ -1009,6 +1009,10 @@ def pagina_confirmar_producao():
                         st.warning(f"⚠️ Algumas entregas não foram removidas da base: {chaves_nao_removidas}")
                     else:
                         st.success("Entregas confirmadas e removidas com sucesso!")
+                        
+                        # Resetar session_state do botão de seleção (caso esteja usando)
+                        st.session_state[f"btn_sel_{cliente}"] = False
+                        st.session_state[f"btn_desmarcar_{cliente}"] = False
                         time.sleep(1.5)
                         st.rerun()
 
