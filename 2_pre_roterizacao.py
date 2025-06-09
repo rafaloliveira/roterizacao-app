@@ -1582,16 +1582,14 @@ def pagina_pre_roterizacao():
             selecionadas = pd.DataFrame(grid_response.get("selected_rows", []))
 
         # ✅ Botões de seleção movidos para cá (depois do grid)
-        with st.container():
-            col_sel1, col_sel2 = st.columns([1, 1])
-            with col_sel1:
-                if st.button("🔘 Selecionar todas", key=f"btn_sel_{rota}", use_container_width=True):
-                    st.session_state[selecionar_chave] = "selecionar_tudo"
-                    st.rerun()
-            with col_sel2:
-                if st.button("❌ Desmarcar todas", key=f"btn_desmarcar_{rota}", use_container_width=True):
-                    st.session_state[selecionar_chave] = "desmarcar_tudo"
-                    st.rerun()
+       # ✅ Checkbox compacto de seleção
+            marcar_todas = st.checkbox("☑️ Marcar todas as entregas exibidas", key=f"check_sel_{rota}")
+
+            if marcar_todas:
+                st.session_state[selecionar_chave] = "selecionar_tudo"
+            else:
+                st.session_state[selecionar_chave] = "desmarcar_tudo"
+
 
         # ✅ Bloco de confirmação continua abaixo
         if not selecionadas.empty:
