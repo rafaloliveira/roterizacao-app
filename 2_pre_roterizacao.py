@@ -1205,20 +1205,16 @@ def pagina_aprovacao_diretoria():
         gb.configure_default_column(minWidth=150)
         gb.configure_selection("multiple", use_checkbox=True)
         gb.configure_grid_options(paginationPageSize=12)
-       #gb.configure_grid_options(domLayout="autoHeight")
+        gb.configure_grid_options(domLayout="normal")  # evita autoHeight
         gb.configure_grid_options(alwaysShowHorizontalScroll=True)
         gb.configure_grid_options(suppressHorizontalScroll=False)
         gb.configure_grid_options(suppressScrollOnNewData=False)
 
         grid_options = gb.build()
-       
         grid_options["getRowStyle"] = linha_destacar
 
-        # Renderiza o grid com scroll horizontal visível
         with st.container():
-            st.markdown("<div style='overflow-x:auto;'>", unsafe_allow_html=True)
-
-            # Determinar seleção com base na session_state
+            # Seleção via session_state
             selecionar_chave = f"selecionar_tudo_aprovacao_{cliente}"
             acao = st.session_state.get(selecionar_chave)
             if acao == "selecionar_tudo":
@@ -1226,19 +1222,19 @@ def pagina_aprovacao_diretoria():
             elif acao == "desmarcar_tudo":
                 linhas_selecionadas = []
             else:
-                linhas_selecionadas = None  # seleção será definida pelo usuário
+                linhas_selecionadas = None
 
             # Renderizar o grid com a seleção aplicada
             grid_response = AgGrid(
                 df_formatado,
                 gridOptions=grid_options,
                 update_mode=GridUpdateMode.SELECTION_CHANGED,
-                fit_columns_on_grid_load=True,
+                fit_columns_on_grid_load=False,  # <- importante!
                 height=350,
-                width=1500,
+                width='100%',  # permite rolagem horizontal se necessário
                 allow_unsafe_jscode=True,
                 key=f"grid_{cliente}",
-                data_return_mode="AS_INPUT",  # manter ordem original
+                data_return_mode="AS_INPUT",
                 selected_rows=linhas_selecionadas
             )
 
