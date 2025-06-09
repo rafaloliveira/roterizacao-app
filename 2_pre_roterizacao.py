@@ -840,8 +840,6 @@ def pagina_confirmar_producao():
 ### VIsual Página PAGINA CONFIRMAR PRODUÇÃO ###
 ###############################################
     # ✅ Carregar dados
-    
-    st.title("🏭 Confirmar Produção")
 
     df = carregar_entregas_base()
     if df.empty:
@@ -983,12 +981,16 @@ def pagina_confirmar_producao():
                         st.warning("⚠️ Nenhuma entrega válida para confirmar.")
                         return
 
+                    df_confirmar.drop(columns=["Indice"], errors="ignore", inplace=True)
                     dados_confirmar = df_confirmar.to_dict(orient="records")
+
                     dados_confirmar = [d for d in dados_confirmar if d.get("Serie_Numero_CTRC")]
 
                     if not dados_confirmar:
                         st.warning("⚠️ Nenhum registro com 'Serie_Numero_CTRC' válido.")
                         return
+                    
+                    df_confirmar.drop(columns=["Indice"], errors="ignore", inplace=True)
 
                     supabase.table("aprovacao_diretoria").insert(dados_confirmar).execute()
 
