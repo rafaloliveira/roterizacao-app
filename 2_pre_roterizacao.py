@@ -1548,7 +1548,7 @@ def pagina_pre_roterizacao():
         gb.configure_selection("multiple", use_checkbox=True)
         gb.configure_grid_options(getRowStyle=linha_destacar)
         gb.configure_grid_options(paginationPageSize=500)
-        gb.configure_grid_options(domLayout="autoHeight")
+        #gb.configure_grid_options(domLayout="autoHeight")
         gb.configure_grid_options(alwaysShowHorizontalScroll=True)
         gb.configure_grid_options(suppressHorizontalScroll=False)
         gb.configure_grid_options(suppressScrollOnNewData=False)
