@@ -1558,7 +1558,7 @@ def pagina_pre_roterizacao():
             update_mode=GridUpdateMode.SELECTION_CHANGED,
             fit_columns_on_grid_load=False,
             height=350,  # Altura fixa
-            width=1500,  # Largura conforme necessário
+            width=2000,#argura conforme necessário
             allow_unsafe_jscode=True,
             key=f"grid_{rota}",
             data_return_mode="AS_INPUT",
