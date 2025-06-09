@@ -951,6 +951,8 @@ def pagina_confirmar_producao():
         grid_options = gb.build()
         grid_options["getRowStyle"] = linha_destacar
 
+        grid_key = f"grid_confirmar_{cliente}_{uuid.uuid4()}"  # 🔁 Chave única por cliente a cada carregamento
+
         grid_response = AgGrid(
             df_formatado,
             gridOptions=grid_options,
@@ -959,7 +961,7 @@ def pagina_confirmar_producao():
             height=500,
             width=1500,
             allow_unsafe_jscode=True,
-            key=f"grid_confirmar_{cliente}",
+            key=grid_key,
             data_return_mode="AS_INPUT"
         )
 
