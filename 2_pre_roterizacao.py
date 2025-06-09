@@ -1486,7 +1486,7 @@ def pagina_pre_roterizacao():
         df_rota = df[df["Rota"] == rota]
         st.markdown(f"""
         <div style=\"background-color: #444; padding: 8px 16px; border-radius: 6px; margin-top: 20px; margin-bottom: 8px;\">
-            <div style=\"color: white; margin: 0; font-size: 15px; font-weight: bold;\">🚚 Rota: {rota}</div>
+            <div style=\"color: white; margin: 0; font-size: 15px; font-weight: bold;\"> Rota: {rota}</div>
         </div>
         """, unsafe_allow_html=True)
 
@@ -1499,7 +1499,7 @@ def pagina_pre_roterizacao():
         col6.metric("Valor Frete", f"R$ {formatar_brasileiro(df_rota['Valor do Frete'].sum())}")
 
         # ✅ Checkbox logo após os totais
-        marcar_todas = st.checkbox("☑️ Marcar todas as entregas exibidas", key=f"check_sel_{rota}")
+        marcar_todas = st.checkbox("Marcar todas as entregas", key=f"check_sel_{rota}")
         selecionar_chave = f"selecionar_tudo_pre_rota_{rota}"
         st.session_state[selecionar_chave] = "selecionar_tudo" if marcar_todas else "desmarcar_tudo"
 
