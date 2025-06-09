@@ -1598,7 +1598,7 @@ def pagina_pre_roterizacao():
 
                         supabase.table("rotas_confirmadas").insert(df_selecionadas.to_dict(orient="records")).execute()
                         st.success(f"✅ {len(df_selecionadas)} entregas confirmadas com sucesso na rota **{rota}**!")
-                        time.sleep(1.5)
+                        time.sleep(2)
                         st.rerun()
                     except Exception as e:
                         st.error(f"❌ Erro ao confirmar entregas: {e}")
@@ -1611,7 +1611,7 @@ def pagina_pre_roterizacao():
                         registros_confirmar = [{"Serie_Numero_CTRC": ctrc} for ctrc in selecionadas["Serie_Numero_CTRC"]]
                         supabase.table("confirmadas_producao").insert(registros_confirmar).execute()
                         st.success("🔄 Entregas retornadas para a etapa de produção com sucesso.")
-                        time.sleep(1.5)
+                        time.sleep(2)
                         st.rerun()
                     except Exception as e:
                         st.error(f"❌ Erro ao retornar entregas: {e}")
@@ -1750,6 +1750,7 @@ def pagina_rotas_confirmadas():
                                 for ctrc in chaves_ctrc:
                                     supabase.table("rotas_confirmadas").delete().eq("Serie_Numero_CTRC", ctrc).execute()
                                 st.success("✅ Entregas removidas com sucesso!")
+                                time.sleep(2)
                                 st.rerun()
                             else:
                                 st.error("Coluna 'Serie_Numero_CTRC' não encontrada nos dados selecionados.")
