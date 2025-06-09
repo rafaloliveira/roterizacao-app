@@ -850,7 +850,7 @@ def pagina_confirmar_producao():
 ###############################################
     # ✅ Carregar dados
     if "rerun_confirmacao" not in st.session_state:
-        st.session_state["rerun_confirmacao"] = False
+        st.session_state["rerun_confirmacao"] = True
 
     if st.session_state["rerun_confirmacao"]:
         st.session_state["rerun_confirmacao"] = False
