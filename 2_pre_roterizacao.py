@@ -849,17 +849,22 @@ def pagina_confirmar_producao():
 ### VIsual Página PAGINA CONFIRMAR PRODUÇÃO ###
 ###############################################
     # ✅ Carregar dados
-    # Inicializa o estado se não existir ainda
     if "rerun_confirmacao" not in st.session_state:
         st.session_state["rerun_confirmacao"] = False
 
-    # Executa rerun apenas uma vez após a alteração
     if st.session_state["rerun_confirmacao"]:
         st.session_state["rerun_confirmacao"] = False
         st.rerun()
 
-
     df = carregar_entregas_base()
+
+    # ✅ Aplica filtro de entregas válidas
+    colunas_necessarias = [
+        "Chave CT-e", "Cliente Pagador", "Cliente Destinatario",
+        "Cidade de Entrega", "Bairro do Destinatario"
+    ]
+    df = df.dropna(subset=colunas_necessarias)
+
     if df.empty:
         st.info("Nenhuma entrega pendente para confirmação.")
         return
@@ -884,9 +889,9 @@ def pagina_confirmar_producao():
         )
 
     colunas_exibir = [
-        "Serie_Numero_CTRC","Rota","Valor do Frete", "Cliente Pagador", "Chave CT-e", "Cliente Destinatario",
-        "Cidade de Entrega", "Bairro do Destinatario", "Previsao de Entrega",
-        "Numero da Nota Fiscal", "Status", "Entrega Programada",
+        "Serie_Numero_CTRC", "Rota", "Valor do Frete", "Cliente Pagador", "Chave CT-e",
+        "Cliente Destinatario", "Cidade de Entrega", "Bairro do Destinatario",
+        "Previsao de Entrega", "Numero da Nota Fiscal", "Status", "Entrega Programada",
         "Particularidade", "Codigo da Ultima Ocorrencia",
         "Peso Real em Kg", "Peso Calculado em Kg", "Cubagem em m³",
         "Quantidade de Volumes"
@@ -946,7 +951,6 @@ def pagina_confirmar_producao():
             return {};
         }
         """)
-        
 
         gb = GridOptionsBuilder.from_dataframe(df_formatado)
         gb.configure_default_column(minWidth=150)
@@ -958,14 +962,11 @@ def pagina_confirmar_producao():
         gb.configure_grid_options(suppressScrollOnNewData=False)
 
         grid_options = gb.build()
-        grid_options["getRowStyle"] = linha_destacar  # ✅ aplica o destaque de linhas
+        grid_options["getRowStyle"] = linha_destacar
 
-        # Renderiza o grid
         with st.container():
             st.markdown("<div style='overflow-x:auto;'>", unsafe_allow_html=True)
-            
 
-        # Gera um key único se ainda não existir para o cliente
             grid_key_id = f"grid_confirmar_{cliente}"
             if grid_key_id not in st.session_state:
                 st.session_state[grid_key_id] = str(uuid.uuid4())
@@ -978,7 +979,7 @@ def pagina_confirmar_producao():
                 height=500,
                 width=1500,
                 allow_unsafe_jscode=True,
-                key=st.session_state[grid_key_id],  # <-- aqui está a mudança
+                key=st.session_state[grid_key_id],
                 data_return_mode="AS_INPUT"
             )
 
@@ -989,55 +990,46 @@ def pagina_confirmar_producao():
         if not selecionadas.empty:
             st.success(f"{len(selecionadas)} entregas selecionadas para {cliente}.")
 
+        if st.button(f"✅ Confirmar entregas de {cliente}", key=f"botao_{cliente}"):
+            try:
+                chaves = selecionadas["Serie_Numero_CTRC"].dropna().astype(str).str.strip().tolist()
+                df_cliente["Serie_Numero_CTRC"] = df_cliente["Serie_Numero_CTRC"].astype(str).str.strip()
 
+                df_confirmar = df_cliente[df_cliente["Serie_Numero_CTRC"].isin(chaves)].copy()
+                colunas_validas = [col for col in colunas_exibir if col != "Serie_Numero_CTRC"]
+                df_confirmar = df_confirmar[["Serie_Numero_CTRC"] + colunas_validas]
+                df_confirmar = df_confirmar.replace([np.nan, np.inf, -np.inf], None)
 
-            if st.button(f"✅ Confirmar entregas de {cliente}", key=f"botao_{cliente}"):
-                try:
-                    chaves = selecionadas["Serie_Numero_CTRC"].dropna().astype(str).str.strip().tolist()
-                    df_cliente["Serie_Numero_CTRC"] = df_cliente["Serie_Numero_CTRC"].astype(str).str.strip()
+                for col in df_confirmar.select_dtypes(include=['datetime64[ns]']).columns:
+                    df_confirmar[col] = df_confirmar[col].dt.strftime('%Y-%m-%d %H:%M:%S')
 
-                    df_confirmar = df_cliente[df_cliente["Serie_Numero_CTRC"].isin(chaves)].copy()
-                    colunas_validas = [col for col in colunas_exibir if col != "Serie_Numero_CTRC"]
-                    df_confirmar = df_confirmar[["Serie_Numero_CTRC"] + colunas_validas]
-                    df_confirmar = df_confirmar.replace([np.nan, np.inf, -np.inf], None)
+                if df_confirmar.empty or df_confirmar["Serie_Numero_CTRC"].isnull().all():
+                    st.warning("⚠️ Nenhuma entrega válida para confirmar.")
+                else:
+                    dados_confirmar = df_confirmar.to_dict(orient="records")
+                    dados_confirmar = [d for d in dados_confirmar if d.get("Serie_Numero_CTRC")]
 
-                    for col in df_confirmar.select_dtypes(include=['datetime64[ns]']).columns:
-                        df_confirmar[col] = df_confirmar[col].dt.strftime('%Y-%m-%d %H:%M:%S')
-
-                    if df_confirmar.empty or df_confirmar["Serie_Numero_CTRC"].isnull().all():
-                        st.warning("⚠️ Nenhuma entrega válida para confirmar.")
+                    if not dados_confirmar:
+                        st.warning("⚠️ Nenhum registro com 'Serie_Numero_CTRC' válido.")
                     else:
-                        dados_confirmar = df_confirmar.to_dict(orient="records")
-                        dados_confirmar = [d for d in dados_confirmar if d.get("Serie_Numero_CTRC")]
+                        supabase.table("aprovacao_diretoria").insert(dados_confirmar).execute()
+                        supabase.table("confirmadas_producao") \
+                            .delete().in_("Serie_Numero_CTRC", chaves).execute()
 
-                        if not dados_confirmar:
-                            st.warning("⚠️ Nenhum registro com 'Serie_Numero_CTRC' válido.")
+                        check_response = supabase.table("confirmadas_producao") \
+                            .select("Serie_Numero_CTRC").in_("Serie_Numero_CTRC", chaves).execute()
+
+                        if check_response.data:
+                            chaves_nao_removidas = [r["Serie_Numero_CTRC"] for r in check_response.data]
+                            st.warning(f"⚠️ Algumas entregas não foram removidas da base: {chaves_nao_removidas}")
                         else:
-                            # Inserir no destino
-                            supabase.table("aprovacao_diretoria").insert(dados_confirmar).execute()
+                            st.success("✅ Entregas confirmadas e removidas com sucesso!")
 
-                            # Remover da origem
-                            supabase.table("confirmadas_producao") \
-                                .delete() \
-                                .in_("Serie_Numero_CTRC", chaves) \
-                                .execute()
+                        st.session_state["rerun_confirmacao"] = True
 
-                            # Verificar se ainda há registros
-                            check_response = supabase.table("confirmadas_producao") \
-                                .select("Serie_Numero_CTRC") \
-                                .in_("Serie_Numero_CTRC", chaves) \
-                                .execute()
+            except Exception as e:
+                st.error(f"❌ Erro ao confirmar entregas: {e}")
 
-                            if check_response.data:
-                                chaves_nao_removidas = [r["Serie_Numero_CTRC"] for r in check_response.data]
-                                st.warning(f"⚠️ Algumas entregas não foram removidas da base: {chaves_nao_removidas}")
-                            else:
-                                st.success("✅ Entregas confirmadas e removidas com sucesso!")
-
-                            st.session_state["rerun_confirmacao"] = True
-
-                except Exception as e:
-                    st.error(f"❌ Erro ao confirmar entregas: {e}")
 
 
 
