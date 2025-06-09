@@ -1579,6 +1579,23 @@ def pagina_pre_roterizacao():
 
 
                         df_selecionadas = df_selecionadas[df_selecionadas["Serie_Numero_CTRC"].notnull()]
+                        # Corrige números formatados com vírgula para float (com ponto decimal)
+                        colunas_numericas = [
+                            "Peso Real em Kg", "Cubagem em m³", "Quantidade de Volumes", "Valor da Mercadoria",
+                            "Valor do Frete", "Valor do ICMS", "Valor do ISS", "Peso Calculado em Kg",
+                            "Frete Peso", "Frete Valor", "TDA", "TDE"
+                        ]
+
+                        for col in colunas_numericas:
+                            if col in df_selecionadas.columns:
+                                df_selecionadas[col] = (
+                                    df_selecionadas[col]
+                                    .astype(str)
+                                    .str.replace(".", "", regex=False)
+                                    .str.replace(",", ".", regex=False)
+                                    .astype(float)
+                                )
+
                         supabase.table("rotas_confirmadas").insert(df_selecionadas.to_dict(orient="records")).execute()
                         st.success(f"✅ {len(df_selecionadas)} entregas confirmadas com sucesso na rota **{rota}**!")
                         time.sleep(1.5)
