@@ -1514,9 +1514,6 @@ def pagina_pre_roterizacao():
             </style>
         """, unsafe_allow_html=True)
 
-
-
-
         col1, col2, col3, col4, col5, col6 = st.columns(6)
         col1.metric("Entregas", len(df_rota))
         col2.metric("Peso Calc. (Kg)", formatar_brasileiro(df_rota["Peso Calculado em Kg"].sum()))
