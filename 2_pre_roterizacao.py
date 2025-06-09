@@ -1442,6 +1442,9 @@ def carregar_base_supabase():
         return pd.DataFrame()
 
 
+# PÁGINA PRÉ ROTERIZAÇÃO
+##########################################
+
 def pagina_pre_roterizacao():
     st.title("Pré Roterização")
 
@@ -1467,19 +1470,9 @@ def pagina_pre_roterizacao():
 
     col1, col2 = st.columns(2)
     with col1:
-        st.markdown(
-            f"<div style='background:#2f2f2f;padding:8px;border-radius:8px'>"
-            f"<span style='color:white;font-weight:bold;font-size:18px;'>Total de Rotas:</span>"
-            f"<span style='color:white;font-size:24px;'> {qtd_rotas}</span></div>",
-            unsafe_allow_html=True
-        )
+        st.markdown(f"<div style='background:#2f2f2f;padding:8px;border-radius:8px'><span style='color:white;font-weight:bold;font-size:18px;'>Total de Rotas:</span><span style='color:white;font-size:24px;'> {qtd_rotas}</span></div>", unsafe_allow_html=True)
     with col2:
-        st.markdown(
-            f"<div style='background:#2f2f2f;padding:8px;border-radius:8px'>"
-            f"<span style='color:white;font-weight:bold;font-size:18px;'>Total de Entregas:</span>"
-            f"<span style='color:white;font-size:24px;'> {qtd_entregas_pre_roterizacao}</span></div>",
-            unsafe_allow_html=True
-        )
+        st.markdown(f"<div style='background:#2f2f2f;padding:8px;border-radius:8px'><span style='color:white;font-weight:bold;font-size:18px;'>Total de Entregas:</span><span style='color:white;font-size:24px;'> {qtd_entregas_pre_roterizacao}</span></div>", unsafe_allow_html=True)
 
     st.markdown("### 📊 Visão Geral das Entregas por Rota")
     df_grouped = df.groupby('Rota').agg({
@@ -1495,7 +1488,11 @@ def pagina_pre_roterizacao():
 
     for rota in sorted(df["Rota"].dropna().unique()):
         df_rota = df[df["Rota"] == rota]
-        st.subheader(f"Rota: {rota}")
+        st.markdown(f"""
+        <div style=\"background-color: #444; padding: 8px 16px; border-radius: 6px; margin-top: 20px; margin-bottom: 8px;\">
+            <div style=\"color: white; margin: 0; font-size: 15px; font-weight: bold;\">🚚 Rota: {rota}</div>
+        </div>
+        """, unsafe_allow_html=True)
 
         col1, col2, col3, col4, col5, col6 = st.columns(6)
         col1.metric("Entregas", len(df_rota))
@@ -1504,11 +1501,6 @@ def pagina_pre_roterizacao():
         col4.metric("Cubagem (m³)", formatar_brasileiro(df_rota["Cubagem em m³"].sum()))
         col5.metric("Volumes", int(df_rota["Quantidade de Volumes"].sum()))
         col6.metric("Valor Frete", f"R$ {formatar_brasileiro(df_rota['Valor do Frete'].sum())}")
-
-        if 'Particularidade' not in df_rota.columns:
-            df_rota['Particularidade'] = df_rota['Serie_Numero_CTRC'].map(
-                dict(zip(df_pre_roterizacao['Serie_Numero_CTRC'], df_pre_roterizacao['Particularidade']))
-            )
 
         colunas_exibir = [
             "Serie_Numero_CTRC", "Cliente Pagador", "Chave CT-e", "Cliente Destinatario",
@@ -1546,20 +1538,17 @@ def pagina_pre_roterizacao():
         gb = GridOptionsBuilder.from_dataframe(df_formatado)
         gb.configure_default_column(minWidth=150)
         gb.configure_selection("multiple", use_checkbox=True)
-        gb.configure_grid_options(getRowStyle=linha_destacar)
         gb.configure_grid_options(paginationPageSize=500)
-        #gb.configure_grid_options(domLayout="autoHeight")
+        gb.configure_grid_options(domLayout="autoHeight")
         gb.configure_grid_options(alwaysShowHorizontalScroll=True)
         gb.configure_grid_options(suppressHorizontalScroll=False)
         gb.configure_grid_options(suppressScrollOnNewData=False)
+
         grid_options = gb.build()
-        
+        grid_options["getRowStyle"] = linha_destacar
 
         selecionar_chave = f"selecionar_tudo_pre_rota_{rota}"
-        if selecionar_chave not in st.session_state:
-            st.session_state[selecionar_chave] = None
         acao = st.session_state.get(selecionar_chave)
-
         if acao == "selecionar_tudo":
             linhas_selecionadas = df_formatado.to_dict("records")
         elif acao == "desmarcar_tudo":
@@ -1584,13 +1573,13 @@ def pagina_pre_roterizacao():
             st.markdown("</div>", unsafe_allow_html=True)
 
         with st.container():
-            col1, col2 = st.columns(2)
-            with col1:
-                if st.button("🔘 Selecionar todas", key=f"btn_sel_rota_{rota}", use_container_width=True):
+            col_sel1, col_sel2 = st.columns([1, 1])
+            with col_sel1:
+                if st.button("🔘 Selecionar todas", key=f"btn_sel_{rota}", use_container_width=True):
                     st.session_state[selecionar_chave] = "selecionar_tudo"
                     st.rerun()
-            with col2:
-                if st.button("❌ Desmarcar todas", key=f"btn_desmarcar_rota_{rota}", use_container_width=True):
+            with col_sel2:
+                if st.button("❌ Desmarcar todas", key=f"btn_desmarcar_{rota}", use_container_width=True):
                     st.session_state[selecionar_chave] = "desmarcar_tudo"
                     st.rerun()
 
@@ -1600,9 +1589,6 @@ def pagina_pre_roterizacao():
             selecionadas = pd.DataFrame([])
         else:
             selecionadas = pd.DataFrame(grid_response.get("selected_rows", []))
-
-        if acao in ["selecionar_tudo", "desmarcar_tudo"]:
-            st.session_state[selecionar_chave] = None
 
         if not selecionadas.empty:
             st.success(f"🔒 {len(selecionadas)} entregas selecionadas na rota **{rota}**.")
@@ -1617,10 +1603,6 @@ def pagina_pre_roterizacao():
                         for col in df_selecionadas.columns:
                             if 'data' in col.lower() or 'entrega programada' in col.lower():
                                 df_selecionadas[col] = df_selecionadas[col].replace("", None)
-
-                        if "Serie_Numero_CTRC" not in df_selecionadas.columns:
-                            st.error("❌ A coluna 'Serie_Numero_CTRC' está ausente nos dados selecionados.")
-                            return
 
                         df_selecionadas = df_selecionadas[df_selecionadas["Serie_Numero_CTRC"].notnull()]
                         supabase.table("rotas_confirmadas").insert(df_selecionadas.to_dict(orient="records")).execute()
