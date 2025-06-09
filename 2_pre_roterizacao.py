@@ -1535,7 +1535,7 @@ def pagina_pre_roterizacao():
         gb.configure_default_column(minWidth=150)
         gb.configure_selection("multiple", use_checkbox=True)
         gb.configure_grid_options(paginationPageSize=500)
-        gb.configure_grid_options(domLayout="normal")
+        gb.configure_grid_options(domLayout="autoHeight")
         gb.configure_grid_options(alwaysShowHorizontalScroll=True)
         gb.configure_grid_options(suppressHorizontalScroll=False)
         gb.configure_grid_options(suppressScrollOnNewData=False)
@@ -1548,7 +1548,7 @@ def pagina_pre_roterizacao():
             gridOptions=grid_options,
             update_mode=GridUpdateMode.SELECTION_CHANGED,
             fit_columns_on_grid_load=False,
-            height=250,
+            height=500,
             width=1500,
             allow_unsafe_jscode=True,
             key=f"grid_{rota}",
