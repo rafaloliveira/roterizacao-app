@@ -999,12 +999,12 @@ def pagina_confirmar_producao():
                         .delete() \
                         .in_("Serie_Numero_CTRC", chaves) \
                         .execute()
-
+                    st.rerun()
                     check_response = supabase.table("confirmadas_producao") \
                         .select("Serie_Numero_CTRC") \
                         .in_("Serie_Numero_CTRC", chaves) \
                         .execute()
-                    st.rerun()
+                    
 
                     if check_response.data:
                         chaves_nao_removidas = [r["Serie_Numero_CTRC"] for r in check_response.data]
