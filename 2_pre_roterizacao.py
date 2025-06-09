@@ -1490,13 +1490,17 @@ def pagina_pre_roterizacao():
         </div>
         """, unsafe_allow_html=True)
 
-        col1, col2, col3, col4, col5, col6 = st.columns(6)
-        col1.metric("Entregas", len(df_rota))
-        col2.metric("Peso Calc. (Kg)", formatar_brasileiro(df_rota["Peso Calculado em Kg"].sum()))
-        col3.metric("Peso Real (Kg)", formatar_brasileiro(df_rota["Peso Real em Kg"].sum()))
-        col4.metric("Cubagem (m³)", formatar_brasileiro(df_rota["Cubagem em m³"].sum()))
-        col5.metric("Volumes", int(df_rota["Quantidade de Volumes"].sum()))
-        col6.metric("Valor Frete", f"R$ {formatar_brasileiro(df_rota['Valor do Frete'].sum())}")
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.markdown(f"**Entregas:** {len(df_rota)}")
+            st.markdown(f"**Cubagem:** {formatar_brasileiro(df_rota['Cubagem em m³'].sum())} m³")
+        with col2:
+            st.markdown(f"**Peso Calc.:** {formatar_brasileiro(df_rota['Peso Calculado em Kg'].sum())} Kg")
+            st.markdown(f"**Peso Real:** {formatar_brasileiro(df_rota['Peso Real em Kg'].sum())} Kg")
+        with col3:
+            st.markdown(f"**Volumes:** {int(df_rota['Quantidade de Volumes'].sum())}")
+            st.markdown(f"**Valor Frete:** R$ {formatar_brasileiro(df_rota['Valor do Frete'].sum())}")
+
 
         # ✅ Checkbox logo após os totais
         marcar_todas = st.checkbox("Marcar todas as entregas", key=f"check_sel_{rota}")
