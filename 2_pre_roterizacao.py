@@ -1536,7 +1536,6 @@ def pagina_pre_roterizacao():
         gb.configure_selection("multiple", use_checkbox=True)
         gb.configure_grid_options(paginationPageSize=500)
 
-        # ⚠️ Removido autoHeight e forçado layout normal
         gb.configure_grid_options(domLayout="normal")
         gb.configure_grid_options(alwaysShowHorizontalScroll=True)
         gb.configure_grid_options(suppressHorizontalScroll=False)
@@ -1555,26 +1554,34 @@ def pagina_pre_roterizacao():
         else:
             linhas_selecionadas = None
 
-        # ✅ Grid com altura fixa e scroll horizontal/vertical garantido
+        # Renderiza o grid
         grid_response = AgGrid(
             df_formatado,
             gridOptions=grid_options,
             update_mode=GridUpdateMode.SELECTION_CHANGED,
             fit_columns_on_grid_load=False,
-            height=500,  # ✅ altura fixa habilita rolagem vertical
-            width=1500,  # ✅ exige rolagem horizontal se necessário
+            height=500,
+            width=1500,
             allow_unsafe_jscode=True,
             key=f"grid_{rota}",
             data_return_mode="AS_INPUT",
             selected_rows=linhas_selecionadas,
             custom_css={
                 ".ag-root-wrapper": {
-                    "overflow": "auto !important"  # ✅ rolagem garantida
+                    "overflow": "auto !important"
                 }
             }
         )
 
+        # Atualiza selecionadas após grid
+        if acao == "selecionar_tudo":
+            selecionadas = df_formatado.copy()
+        elif acao == "desmarcar_tudo":
+            selecionadas = pd.DataFrame([])
+        else:
+            selecionadas = pd.DataFrame(grid_response.get("selected_rows", []))
 
+        # ✅ Botões de seleção movidos para cá (depois do grid)
         with st.container():
             col_sel1, col_sel2 = st.columns([1, 1])
             with col_sel1:
@@ -1586,13 +1593,7 @@ def pagina_pre_roterizacao():
                     st.session_state[selecionar_chave] = "desmarcar_tudo"
                     st.rerun()
 
-        if acao == "selecionar_tudo":
-            selecionadas = df_formatado.copy()
-        elif acao == "desmarcar_tudo":
-            selecionadas = pd.DataFrame([])
-        else:
-            selecionadas = pd.DataFrame(grid_response.get("selected_rows", []))
-
+        # ✅ Bloco de confirmação continua abaixo
         if not selecionadas.empty:
             st.success(f"🔒 {len(selecionadas)} entregas selecionadas na rota **{rota}**.")
 
