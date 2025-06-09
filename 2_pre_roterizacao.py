@@ -972,6 +972,8 @@ def pagina_confirmar_producao():
         if not selecionadas.empty:
             st.success(f"{len(selecionadas)} entregas selecionadas para {cliente}.")
 
+
+
             if st.button(f"✅ Confirmar entregas de {cliente}", key=f"botao_{cliente}"):
                 try:
                     chaves = selecionadas["Serie_Numero_CTRC"].dropna().astype(str).str.strip().tolist()
@@ -987,40 +989,39 @@ def pagina_confirmar_producao():
 
                     if df_confirmar.empty or df_confirmar["Serie_Numero_CTRC"].isnull().all():
                         st.warning("⚠️ Nenhuma entrega válida para confirmar.")
-                        return
-
-                    dados_confirmar = df_confirmar.to_dict(orient="records")
-                    dados_confirmar = [d for d in dados_confirmar if d.get("Serie_Numero_CTRC")]
-
-                    if not dados_confirmar:
-                        st.warning("⚠️ Nenhum registro com 'Serie_Numero_CTRC' válido.")
-                        return
-
-                    # Inserir no Supabase
-                    supabase.table("aprovacao_diretoria").insert(dados_confirmar).execute()
-
-                    supabase.table("confirmadas_producao") \
-                        .delete() \
-                        .in_("Serie_Numero_CTRC", chaves) \
-                        .execute()
-
-                    check_response = supabase.table("confirmadas_producao") \
-                        .select("Serie_Numero_CTRC") \
-                        .in_("Serie_Numero_CTRC", chaves) \
-                        .execute()
-
-                    if check_response.data:
-                        chaves_nao_removidas = [r["Serie_Numero_CTRC"] for r in check_response.data]
-                        st.warning(f"⚠️ Algumas entregas não foram removidas da base: {chaves_nao_removidas}")
                     else:
-                        st.success("✅ Entregas confirmadas e removidas com sucesso!")
-                    
-                    time.sleep(1.2)
-                    st.rerun()
-                    
+                        dados_confirmar = df_confirmar.to_dict(orient="records")
+                        dados_confirmar = [d for d in dados_confirmar if d.get("Serie_Numero_CTRC")]
+
+                        if not dados_confirmar:
+                            st.warning("⚠️ Nenhum registro com 'Serie_Numero_CTRC' válido.")
+                        else:
+                            # Inserir no destino
+                            supabase.table("aprovacao_diretoria").insert(dados_confirmar).execute()
+
+                            # Remover da origem
+                            supabase.table("confirmadas_producao") \
+                                .delete() \
+                                .in_("Serie_Numero_CTRC", chaves) \
+                                .execute()
+
+                            # Verificar se ainda há registros
+                            check_response = supabase.table("confirmadas_producao") \
+                                .select("Serie_Numero_CTRC") \
+                                .in_("Serie_Numero_CTRC", chaves) \
+                                .execute()
+
+                            if check_response.data:
+                                chaves_nao_removidas = [r["Serie_Numero_CTRC"] for r in check_response.data]
+                                st.warning(f"⚠️ Algumas entregas não foram removidas da base: {chaves_nao_removidas}")
+                            else:
+                                st.success("✅ Entregas confirmadas e removidas com sucesso!")
+
+                            st.rerun()
 
                 except Exception as e:
                     st.error(f"❌ Erro ao confirmar entregas: {e}")
+
 
 
 ###########################################
