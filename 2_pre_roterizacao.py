@@ -1113,7 +1113,6 @@ def pagina_aprovacao_diretoria():
 
     df = pd.DataFrame(supabase.table("aprovacao_diretoria").select("*").execute().data)
 
-    
     if df.empty:
         st.info("Nenhuma entrega pendente para aprovação.")
         return
@@ -1129,11 +1128,22 @@ def pagina_aprovacao_diretoria():
     total_entregas = len(df)
 
     col1, col2 = st.columns(2)
-    col1.markdown(f"### Total de Clientes: **{total_clientes}**")
-    col2.markdown(f"### Total de Entregas: **{total_entregas}**")
+    with col1:
+        st.markdown(
+            f"<div style='background:#2f2f2f;padding:8px;border-radius:8px'>"
+            f"<span style='color:white;font-weight:bold;font-size:18px;'>Total de Clientes:</span>"
+            f"<span style='color:white;font-size:24px;'> {total_clientes}</span></div>",
+            unsafe_allow_html=True
+        )
+    with col2:
+        st.markdown(
+            f"<div style='background:#2f2f2f;padding:8px;border-radius:8px'>"
+            f"<span style='color:white;font-weight:bold;font-size:18px;'>Total de Entregas:</span>"
+            f"<span style='color:white;font-size:24px;'> {total_entregas}</span></div>",
+            unsafe_allow_html=True
+        )
 
-    st.markdown("---")
-
+    st.markdown("### 📊 Resumo por Cliente")
     df_grouped = df.groupby("Cliente Pagador").agg({
         "Peso Real em Kg": "sum",
         "Peso Calculado em Kg": "sum",
@@ -1143,22 +1153,16 @@ def pagina_aprovacao_diretoria():
         "Serie_Numero_CTRC": "count"
     }).reset_index().rename(columns={"Serie_Numero_CTRC": "Qtd Entregas"})
 
-    st.markdown("### 📊 Resumo por Cliente")
     st.dataframe(df_grouped.style.format(formatar_brasileiro), use_container_width=True)
 
-    st.markdown("### 📦 Entregas por Cliente")
-
     colunas_exibir = [
-        "Serie_Numero_CTRC","Rota","Valor do Frete", "Cliente Pagador", "Chave CT-e", 
-        "Cliente Destinatario","Cidade de Entrega", "Bairro do Destinatario", "Previsao de Entrega",
-        "Numero da Nota Fiscal", "Status", "Entrega Programada",
-        "Particularidade", "Codigo da Ultima Ocorrencia",
-        "Peso Real em Kg", "Peso Calculado em Kg", "Cubagem em m³",
-        "Quantidade de Volumes"
+        "Serie_Numero_CTRC", "Rota", "Valor do Frete", "Cliente Pagador", "Chave CT-e",
+        "Cliente Destinatario", "Cidade de Entrega", "Bairro do Destinatario", "Previsao de Entrega",
+        "Numero da Nota Fiscal", "Status", "Entrega Programada", "Particularidade", "Codigo da Ultima Ocorrencia",
+        "Peso Real em Kg", "Peso Calculado em Kg", "Cubagem em m³", "Quantidade de Volumes"
     ]
 
     for cliente in sorted(df["Cliente Pagador"].unique()):
-
         st.markdown(f"""
         <div style=\"background-color: #444; padding: 8px 16px; border-radius: 6px; margin-top: 20px; margin-bottom: 8px;\">
             <div style=\"color: white; margin: 0; font-size: 15px; font-weight: bold;\">📦 Cliente: {cliente}</div>
@@ -1175,22 +1179,23 @@ def pagina_aprovacao_diretoria():
         col5.metric("Volumes", int(df_cliente["Quantidade de Volumes"].sum()))
         col6.metric("Frete", f"R$ {formatar_brasileiro(df_cliente['Valor do Frete'].sum())}")
 
-        df_formatado = df_cliente[colunas_exibir].copy()
-        for col in ["Peso Real em Kg", "Peso Calculado em Kg", "Cubagem em m³", "Quantidade de Volumes", "Valor do Frete"]:
-            if col in df_formatado.columns:
-                df_formatado[col] = df_formatado[col].apply(formatar_brasileiro)
+        df_formatado = df_cliente[[col for col in colunas_exibir if col in df_cliente.columns]].copy()
 
-        # ✅ Aqui dentro do loop por cliente
+        formatter_brasileiro = JsCode("""
+        function(params) {
+            if (!params.value) return '';
+            return Number(params.value).toLocaleString('pt-BR', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            });
+        }
+        """)
+
         linha_destacar = JsCode("""
         function(params) {
             const status = params.data['Status'];
             const entrega = params.data['Entrega Programada'];
-
-            if (
-                status &&
-                status.toUpperCase() === 'AGENDAR' &&
-                (!entrega || entrega.toString().trim() === '')
-            ) {
+            if (status && status.toUpperCase() === 'AGENDAR' && (!entrega || entrega.toString().trim() === '')) {
                 return {
                     'backgroundColor': '#8B4513',
                     'color': 'white',
@@ -1204,74 +1209,62 @@ def pagina_aprovacao_diretoria():
         gb = GridOptionsBuilder.from_dataframe(df_formatado)
         gb.configure_default_column(minWidth=150)
         gb.configure_selection("multiple", use_checkbox=True)
-        gb.configure_grid_options(paginationPageSize=12)
-        gb.configure_grid_options(domLayout="normal")  # evita autoHeight
+        gb.configure_grid_options(paginationPageSize=500)
+        gb.configure_grid_options(domLayout="autoHeight")
         gb.configure_grid_options(alwaysShowHorizontalScroll=True)
         gb.configure_grid_options(suppressHorizontalScroll=False)
         gb.configure_grid_options(suppressScrollOnNewData=False)
 
+        for col in ["Peso Real em Kg", "Peso Calculado em Kg", "Cubagem em m³", "Quantidade de Volumes", "Valor do Frete"]:
+            if col in df_formatado.columns:
+                gb.configure_column(col, type=["numericColumn"], valueFormatter=formatter_brasileiro)
+
         grid_options = gb.build()
         grid_options["getRowStyle"] = linha_destacar
 
-        with st.container():
-            # Seleção via session_state
-            selecionar_chave = f"selecionar_tudo_aprovacao_{cliente}"
-            acao = st.session_state.get(selecionar_chave)
-            if acao == "selecionar_tudo":
-                linhas_selecionadas = df_formatado.to_dict("records")
-            elif acao == "desmarcar_tudo":
-                linhas_selecionadas = []
-            else:
-                linhas_selecionadas = None
+        selecionar_chave = f"selecionar_tudo_aprovacao_{cliente}"
+        acao = st.session_state.get(selecionar_chave)
+        if acao == "selecionar_tudo":
+            linhas_selecionadas = df_formatado.to_dict("records")
+        elif acao == "desmarcar_tudo":
+            linhas_selecionadas = []
+        else:
+            linhas_selecionadas = None
 
-            # Renderizar o grid com a seleção aplicada
+        with st.container():
+            st.markdown("<div style='overflow-x:auto'>", unsafe_allow_html=True)
             grid_response = AgGrid(
                 df_formatado,
                 gridOptions=grid_options,
                 update_mode=GridUpdateMode.SELECTION_CHANGED,
-                fit_columns_on_grid_load=False,  # <- importante!
-                height=350,
-                width='100%',  # permite rolagem horizontal se necessário
+                fit_columns_on_grid_load=False,
+                height=500,
+                width=1500,
                 allow_unsafe_jscode=True,
-                key=f"grid_{cliente}",
+                key=f"grid_aprovacao_{cliente}",
                 data_return_mode="AS_INPUT",
                 selected_rows=linhas_selecionadas
             )
-
             st.markdown("</div>", unsafe_allow_html=True)
 
-        # Lógica de seleção baseada em estado dos botões
-        selecionar_chave = f"selecionar_tudo_aprovacao_{cliente}"
-        acao = st.session_state.get(selecionar_chave)
-        if acao == "selecionar_tudo":
-            selecionadas = df_formatado.copy()
-        elif acao == "desmarcar_tudo":
-            selecionadas = pd.DataFrame([])
-        else:
-            selecionadas = pd.DataFrame(grid_response.get("selected_rows", []))
-
-        # Botões ao final do grid
         with st.container():
             col_sel1, col_sel2 = st.columns([1, 1])
             with col_sel1:
-                if st.button("🔘 Selecionar todas", key=f"btn_sel_{cliente}", use_container_width=True,
-                            help="Seleciona todas as entregas exibidas"):
+                if st.button("🔘 Selecionar todas", key=f"btn_sel_{cliente}", use_container_width=True):
                     st.session_state[selecionar_chave] = "selecionar_tudo"
-                    st.rerun()  # 👈 força renderização com a seleção aplicada
+                    st.rerun()
             with col_sel2:
-                if st.button("❌ Desmarcar todas", key=f"btn_desmarcar_{cliente}", use_container_width=True,
-                            help="Desmarca todas as entregas selecionadas"):
+                if st.button("❌ Desmarcar todas", key=f"btn_desmarcar_{cliente}", use_container_width=True):
                     st.session_state[selecionar_chave] = "desmarcar_tudo"
                     st.rerun()
 
-        # Aprovação das entregas
+        selecionadas = pd.DataFrame(grid_response.get("selected_rows", []))
+
         if not selecionadas.empty:
             st.success(f"{len(selecionadas)} entregas selecionadas.")
             if st.button(f"✅ Aprovar entregas de {cliente}", key=f"btn_aprovar_{cliente}"):
                 try:
                     aprovadas = selecionadas.copy()
-
-                    # Corrigir campos numéricos
                     colunas_numericas = [
                         "Peso Real em Kg", "Peso Calculado em Kg", "Cubagem em m³",
                         "Quantidade de Volumes", "Valor do Frete"
@@ -1287,16 +1280,13 @@ def pagina_aprovacao_diretoria():
                     if "_selectedRowNodeInfo" in aprovadas.columns:
                         aprovadas.drop(columns=["_selectedRowNodeInfo"], inplace=True)
 
-                    # Buscar CTRCs já presentes na pre_roterizacao
                     ctrcs_existentes = supabase.table("pre_roterizacao").select("Serie_Numero_CTRC").execute().data
                     ctrcs_existentes = {item["Serie_Numero_CTRC"] for item in ctrcs_existentes}
 
-                    # Filtrar para não duplicar
                     aprovadas = aprovadas[~aprovadas["Serie_Numero_CTRC"].isin(ctrcs_existentes)]
 
                     if not aprovadas.empty:
                         supabase.table("pre_roterizacao").insert(aprovadas.to_dict(orient="records")).execute()
-
                         ctrcs = aprovadas["Serie_Numero_CTRC"].astype(str).tolist()
                         supabase.table("aprovacao_diretoria").delete().in_("Serie_Numero_CTRC", ctrcs).execute()
 
@@ -1307,6 +1297,7 @@ def pagina_aprovacao_diretoria():
                         st.info("Todas as entregas selecionadas já estavam na Pré-Roterização.")
                 except Exception as e:
                     st.error(f"Erro ao aprovar entregas: {e}")
+
 
 
 ###########################################
