@@ -1490,30 +1490,6 @@ def pagina_pre_roterizacao():
         </div>
         """, unsafe_allow_html=True)
 
-       # Reduz espaço entre métricas com CSS
-        st.markdown("""
-            <style>
-                /* Container das métricas */
-                div[data-testid="metric-container"] {
-                    padding: 0rem !important;
-                    margin: 0rem !important;
-                    flex-direction: column;
-                    align-items: flex-start;
-                }
-
-                /* Valor principal da métrica */
-                div[data-testid="metric-container"] > div:nth-child(1) > div {
-                    font-size: 0.8rem !important;
-                }
-
-                /* Label da métrica */
-                div[data-testid="metric-container"] > div:nth-child(2) {
-                    font-size: 0.6rem !important;
-                    color: #aaa !important;
-                }
-            </style>
-        """, unsafe_allow_html=True)
-
         col1, col2, col3, col4, col5, col6 = st.columns(6)
         col1.metric("Entregas", len(df_rota))
         col2.metric("Peso Calc. (Kg)", formatar_brasileiro(df_rota["Peso Calculado em Kg"].sum()))
@@ -1521,8 +1497,6 @@ def pagina_pre_roterizacao():
         col4.metric("Cubagem (m³)", formatar_brasileiro(df_rota["Cubagem em m³"].sum()))
         col5.metric("Volumes", int(df_rota["Quantidade de Volumes"].sum()))
         col6.metric("Valor Frete", f"R$ {formatar_brasileiro(df_rota['Valor do Frete'].sum())}")
-
-
 
         # ✅ Checkbox logo após os totais
         marcar_todas = st.checkbox("Marcar todas as entregas", key=f"check_sel_{rota}")
@@ -1643,13 +1617,6 @@ def pagina_pre_roterizacao():
                         st.error(f"❌ Erro ao retornar entregas: {e}")
 
 
-
-
-
-
-
-
-
 ################################
 # Página de Rotas Confirmadas
 ################################
@@ -1759,6 +1726,8 @@ def pagina_rotas_confirmadas():
                 )
                     st.markdown("</div>", unsafe_allow_html=True)
 
+                """    
+
                 selecionadas = pd.DataFrame(grid_response.get("selected_rows", []))
 
                 # Botões de seleção ao final do grid, discretos
@@ -1785,6 +1754,8 @@ def pagina_rotas_confirmadas():
                                 st.error("Coluna 'Serie_Numero_CTRC' não encontrada nos dados selecionados.")
                         except Exception as e:
                             st.error(f"Erro ao remover entregas: {e}")
+
+                     """       
 
     except Exception as e:
         st.error(f"Erro ao carregar rotas confirmadas: {e}")
