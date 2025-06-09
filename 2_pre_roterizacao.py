@@ -993,6 +993,8 @@ def pagina_confirmar_producao():
                     df_confirmar.drop(columns=["Indice"], errors="ignore", inplace=True)
 
                     supabase.table("aprovacao_diretoria").insert(dados_confirmar).execute()
+                    time.sleep(1.5)
+                    st.rerun()
 
                     supabase.table("confirmadas_producao") \
                         .delete() \
@@ -1009,16 +1011,8 @@ def pagina_confirmar_producao():
                         st.warning(f"⚠️ Algumas entregas não foram removidas da base: {chaves_nao_removidas}")
                     else:
                         st.success("Entregas confirmadas e removidas com sucesso!")
-
-                        # Remove chaves se existirem
-                        # Limpa o session_state para forçar nova renderização sem erro de widgets já instanciados
-                    for key in list(st.session_state.keys()):
-                        if key.startswith("btn_sel_") or key.startswith("btn_desmarcar_") or key.startswith("grid_confirmar_"):
-                            del st.session_state[key]
-
-                    # Pequeno delay visual antes de rerun
-                    time.sleep(0.5)
-                    st.experimental_rerun()
+                        time.sleep(1.5)
+                        st.rerun()
 
                 except Exception as e:
                     st.error(f"Erro ao confirmar entregas: {e}")
