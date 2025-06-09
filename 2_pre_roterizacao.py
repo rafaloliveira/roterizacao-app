@@ -1205,7 +1205,7 @@ def pagina_aprovacao_diretoria():
         gb.configure_default_column(minWidth=150)
         gb.configure_selection("multiple", use_checkbox=True)
         gb.configure_grid_options(paginationPageSize=12)
-        gb.configure_grid_options(domLayout="autoHeight")
+       #gb.configure_grid_options(domLayout="autoHeight")
         gb.configure_grid_options(alwaysShowHorizontalScroll=True)
         gb.configure_grid_options(suppressHorizontalScroll=False)
         gb.configure_grid_options(suppressScrollOnNewData=False)
@@ -1233,8 +1233,8 @@ def pagina_aprovacao_diretoria():
                 df_formatado,
                 gridOptions=grid_options,
                 update_mode=GridUpdateMode.SELECTION_CHANGED,
-                fit_columns_on_grid_load=False,
-                height=380,
+                fit_columns_on_grid_load=True,
+                height=350,
                 width=1500,
                 allow_unsafe_jscode=True,
                 key=f"grid_{cliente}",
