@@ -1493,24 +1493,27 @@ def pagina_pre_roterizacao():
        # Reduz espaço entre métricas com CSS
         st.markdown("""
             <style>
+                div[data-testid="metric-container"] > div {
+                    font-size: 0.9rem !important;
+                }
+                div[data-testid="metric-container"] label {
+                    font-size: 0.8rem !important;
+                }
                 div[data-testid="metric-container"] {
                     padding: 0.2rem 0.3rem;
                     margin: 0.1rem;
                 }
-                div[data-testid="metric-container"] > div {
-                    line-height: 1.2;
-                }
             </style>
         """, unsafe_allow_html=True)
 
-        # 6 métricas lado a lado
-        col1, col2, col3, col4, col5, col6 = st.columns([1, 1, 1, 1, 1, 1])
+        col1, col2, col3, col4, col5, col6 = st.columns(6)
         col1.metric("Entregas", len(df_rota))
         col2.metric("Peso Calc. (Kg)", formatar_brasileiro(df_rota["Peso Calculado em Kg"].sum()))
         col3.metric("Peso Real (Kg)", formatar_brasileiro(df_rota["Peso Real em Kg"].sum()))
         col4.metric("Cubagem (m³)", formatar_brasileiro(df_rota["Cubagem em m³"].sum()))
         col5.metric("Volumes", int(df_rota["Quantidade de Volumes"].sum()))
         col6.metric("Valor Frete", f"R$ {formatar_brasileiro(df_rota['Valor do Frete'].sum())}")
+
 
 
         # ✅ Checkbox logo após os totais
