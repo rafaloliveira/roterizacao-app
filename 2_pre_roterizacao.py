@@ -1033,6 +1033,7 @@ def pagina_confirmar_producao():
                                 st.warning(f"⚠️ Algumas entregas não foram removidas da base: {chaves_nao_removidas}")
                             else:
                                 st.success("✅ Entregas confirmadas e removidas com sucesso!")
+                                st.rerun() 
 
                             st.session_state["rerun_confirmacao"] = True
 
