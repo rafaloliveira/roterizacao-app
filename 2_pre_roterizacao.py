@@ -1562,7 +1562,7 @@ def pagina_pre_roterizacao():
             gridOptions=grid_options,
             update_mode=GridUpdateMode.SELECTION_CHANGED,
             fit_columns_on_grid_load=False,
-            height=500,
+            height=250,
             width=1500,
             allow_unsafe_jscode=True,
             key=f"grid_{rota}",
