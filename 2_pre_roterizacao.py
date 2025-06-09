@@ -1582,6 +1582,9 @@ def pagina_pre_roterizacao():
         else:
             selecionadas = pd.DataFrame(grid_response.get("selected_rows", []))
 
+
+        """
+
         if not selecionadas.empty:
             st.success(f"🔒 {len(selecionadas)} entregas selecionadas na rota **{rota}**.")
             chave_hash = "_" + str(hash("-".join(selecionadas["Serie_Numero_CTRC"].astype(str))))[:6]
@@ -1615,7 +1618,7 @@ def pagina_pre_roterizacao():
                         st.rerun()
                     except Exception as e:
                         st.error(f"❌ Erro ao retornar entregas: {e}")
-
+"""
 
 ################################
 # Página de Rotas Confirmadas
@@ -1726,7 +1729,7 @@ def pagina_rotas_confirmadas():
                 )
                     st.markdown("</div>", unsafe_allow_html=True)
 
-                """    
+                    
 
                 selecionadas = pd.DataFrame(grid_response.get("selected_rows", []))
 
@@ -1754,8 +1757,6 @@ def pagina_rotas_confirmadas():
                                 st.error("Coluna 'Serie_Numero_CTRC' não encontrada nos dados selecionados.")
                         except Exception as e:
                             st.error(f"Erro ao remover entregas: {e}")
-
-                     """       
 
     except Exception as e:
         st.error(f"Erro ao carregar rotas confirmadas: {e}")
