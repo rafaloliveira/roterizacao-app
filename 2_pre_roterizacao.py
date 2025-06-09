@@ -963,7 +963,13 @@ def pagina_confirmar_producao():
         # Renderiza o grid
         with st.container():
             st.markdown("<div style='overflow-x:auto;'>", unsafe_allow_html=True)
-            hash_dados = hashlib.md5(df_formatado.to_json().encode()).hexdigest()
+            
+
+            # Gera um key único se ainda não existir para o cliente
+            grid_key_id = f"grid_confirmar_{cliente}"
+            if grid_key_id not in st.session_state:
+                st.session_state[grid_key_id] = str(uuid.uuid4())
+
             grid_response = AgGrid(
                 df_formatado,
                 gridOptions=grid_options,
@@ -972,8 +978,10 @@ def pagina_confirmar_producao():
                 height=500,
                 width=1500,
                 allow_unsafe_jscode=True,
-                key=f"grid_{cliente}"
+                key=st.session_state[grid_key_id],  # <-- aqui está a mudança
+                data_return_mode="AS_INPUT"
             )
+
             st.markdown("</div>", unsafe_allow_html=True)
 
         selecionadas = pd.DataFrame(grid_response.get("selected_rows", []))
