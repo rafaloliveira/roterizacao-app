@@ -1011,9 +1011,9 @@ def pagina_confirmar_producao():
                         st.warning(f"⚠️ Algumas entregas não foram removidas da base: {chaves_nao_removidas}")
                     else:
                         st.success("✅ Entregas confirmadas e removidas com sucesso!")
-
-                    time.sleep(1.2)
                     st.rerun()
+                    time.sleep(1.2)
+                    
 
                 except Exception as e:
                     st.error(f"❌ Erro ao confirmar entregas: {e}")
