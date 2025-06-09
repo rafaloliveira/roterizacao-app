@@ -1442,10 +1442,6 @@ def carregar_base_supabase():
         return pd.DataFrame()
 
 
-
-# PÁGINA PRÉ ROTERIZAÇÃO
-##########################################
-
 def pagina_pre_roterizacao():
     st.title("Pré Roterização")
 
@@ -1557,7 +1553,7 @@ def pagina_pre_roterizacao():
         gb.configure_grid_options(suppressHorizontalScroll=False)
         gb.configure_grid_options(suppressScrollOnNewData=False)
         grid_options = gb.build()
-        grid_options["domLayout"] = "normal"
+        
 
         selecionar_chave = f"selecionar_tudo_pre_rota_{rota}"
         if selecionar_chave not in st.session_state:
