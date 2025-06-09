@@ -10,6 +10,7 @@ import pandas as pd
 import numpy as np
 import io
 import time
+import hashlib
 import uuid
 import bcrypt
 from datetime import datetime, timedelta, timezone
@@ -953,6 +954,7 @@ def pagina_confirmar_producao():
         # Renderiza o grid
         with st.container():
             st.markdown("<div style='overflow-x:auto;'>", unsafe_allow_html=True)
+            hash_dados = hashlib.md5(df_formatado.to_json().encode()).hexdigest()
             grid_response = AgGrid(
                 df_formatado,
                 gridOptions=grid_options,
