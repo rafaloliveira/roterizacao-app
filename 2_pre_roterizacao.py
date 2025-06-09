@@ -1575,50 +1575,8 @@ def pagina_pre_roterizacao():
             }
         )
 
-        if acao == "selecionar_tudo":
-            selecionadas = df_formatado.copy()
-        elif acao == "desmarcar_tudo":
-            selecionadas = pd.DataFrame([])
-        else:
-            selecionadas = pd.DataFrame(grid_response.get("selected_rows", []))
-
-
-        """
-
-        if not selecionadas.empty:
-            st.success(f"🔒 {len(selecionadas)} entregas selecionadas na rota **{rota}**.")
-            chave_hash = "_" + str(hash("-".join(selecionadas["Serie_Numero_CTRC"].astype(str))))[:6]
-            col_conf, col_ret = st.columns(2)
-
-            with col_conf:
-                if st.button(f"✅ Confirmar Rota: {rota}", key=f"confirmar_{rota}{chave_hash}"):
-                    try:
-                        df_selecionadas = selecionadas.copy()
-                        for col in df_selecionadas.columns:
-                            if 'data' in col.lower() or 'entrega programada' in col.lower():
-                                df_selecionadas[col] = df_selecionadas[col].replace("", None)
-
-                        df_selecionadas = df_selecionadas[df_selecionadas["Serie_Numero_CTRC"].notnull()]
-                        supabase.table("rotas_confirmadas").insert(df_selecionadas.to_dict(orient="records")).execute()
-                        st.success(f"✅ {len(df_selecionadas)} entregas confirmadas com sucesso na rota **{rota}**!")
-                        time.sleep(1.5)
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"❌ Erro ao confirmar entregas: {e}")
-
-            with col_ret:
-                if st.button(f"❌ Retirar da Pré Rota: {rota}", key=f"retirar_{rota}{chave_hash}"):
-                    try:
-                        for ctrc in selecionadas["Serie_Numero_CTRC"]:
-                            supabase.table("rotas_confirmadas").delete().eq("Serie_Numero_CTRC", ctrc).execute()
-                        registros_confirmar = [{"Serie_Numero_CTRC": ctrc} for ctrc in selecionadas["Serie_Numero_CTRC"]]
-                        supabase.table("confirmadas_producao").insert(registros_confirmar).execute()
-                        st.success("🔄 Entregas retornadas para a etapa de produção com sucesso.")
-                        time.sleep(1.5)
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"❌ Erro ao retornar entregas: {e}")
-"""
+        
+    selecionadas = pd.DataFrame(grid_response.get("selected_rows", []))
 
 ################################
 # Página de Rotas Confirmadas
