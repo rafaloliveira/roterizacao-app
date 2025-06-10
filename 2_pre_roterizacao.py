@@ -877,7 +877,8 @@ def pagina_confirmar_producao():
             st.markdown("<div style='overflow-x:auto;'>", unsafe_allow_html=True)
 
             grid_key_id = f"grid_confirmar_{cliente}"
-            
+            if grid_key_id not in st.session_state:
+                st.session_state[grid_key_id] = str(uuid.uuid4())
           
 
             grid_response = AgGrid(
