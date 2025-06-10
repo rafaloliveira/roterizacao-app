@@ -930,26 +930,31 @@ def pagina_confirmar_producao():
                     dados_confirmar = df_confirmar.to_dict(orient="records")
                     dados_confirmar = [d for d in dados_confirmar if d.get("Serie_Numero_CTRC")]
 
-                if not dados_confirmar:
-                    st.warning("⚠️ Nenhum registro com 'Serie_Numero_CTRC' válido.")
-                else:
-                    resultado_insercao = supabase.table("aprovacao_diretoria").insert(dados_confirmar).execute()
-
-                    if resultado_insercao.data:  # Verifica se a inserção ocorreu
-                        if chaves:
-                            supabase.table("confirmadas_producao").delete().in_("Serie_Numero_CTRC", chaves).execute()
-
-                        st.success("✅ Entregas aprovadas e movidas para Aprovação.")
-
-                        st.session_state["rerun_confirmacao"] = True
-                        st.session_state["chaves_confirmadas"] = chaves
-
-                        time.sleep(1.5)
-                        st.rerun()
+                    if not dados_confirmar:
+                        st.warning("⚠️ Nenhum registro com 'Serie_Numero_CTRC' válido.")
                     else:
-                        st.error("❌ A inserção na tabela 'aprovacao_diretoria' falhou. Nenhuma entrega foi removida de 'confirmadas_producao'.")
+                        resultado_insercao = supabase.table("aprovacao_diretoria").insert(dados_confirmar).execute()
+
+                        chaves_inseridas = [
+                            str(item.get("Serie_Numero_CTRC")).strip()
+                            for item in resultado_insercao.data
+                            if item.get("Serie_Numero_CTRC")
+                        ]
+
+                        if set(chaves_inseridas) == set(chaves):
+                            supabase.table("confirmadas_producao").delete().in_("Serie_Numero_CTRC", chaves_inseridas).execute()
+
+                            st.success("✅ Entregas aprovadas e movidas para Aprovação.")
+
+                            st.session_state["rerun_confirmacao"] = True
+                            st.session_state["chaves_confirmadas"] = chaves_inseridas
+
+                            time.sleep(1.5)
+                            st.rerun()
+                        else:
+                            st.error("❌ Nem todas as entregas foram inseridas corretamente em 'aprovacao_diretoria'. Nenhuma foi removida de 'confirmadas_producao'.")
             except Exception as e:
-                st.error(f"Ocorreu um erro ao confirmar as entregas: {e}")
+                st.error(f"Erro ao confirmar entregas: {e}")
 
 
 ###########################################
