@@ -775,14 +775,7 @@ def pagina_confirmar_producao():
         df = carregar_base_supabase()
 
     # Carrega entregas já confirmadas
-    confirmadas = supabase.table("aprovacao_diretoria").insert(dados_confirmar).execute()
-    aprovadas = supabase.table("confirmadas_producao").delete().filter("Serie_Numero_CTRC", "in", chaves).execute()
-
-    chaves_confirmadas = {item["Serie_Numero_CTRC"] for item in confirmadas.data if item.get("Serie_Numero_CTRC")}
-    chaves_aprovadas = {item["Serie_Numero_CTRC"] for item in aprovadas.data if item.get("Serie_Numero_CTRC")}
-    chaves_a_remover = chaves_confirmadas.union(chaves_aprovadas)
-
-    df = df[~df["Serie_Numero_CTRC"].astype(str).isin(chaves_a_remover)]
+    
     colunas_necessarias = [
         "Chave CT-e", "Cliente Pagador", "Cliente Destinatario",
         "Cidade de Entrega", "Bairro do Destinatario"
@@ -794,6 +787,7 @@ def pagina_confirmar_producao():
         return
 
     total_clientes = df["Cliente Pagador"].nunique()
+    confirmadas = supabase.table("confirmadas_producao").select("*").execute()  
     df_confirmadas = pd.DataFrame(confirmadas.data)
     total_entregas = len(df_confirmadas)
 
@@ -938,7 +932,8 @@ def pagina_confirmar_producao():
                     if not dados_confirmar:
                         st.warning("⚠️ Nenhum registro com 'Serie_Numero_CTRC' válido.")
                     else:
-                        supabase.table("aprovacao_diretoria").insert(dados_confirmar).execute()
+                        resultado_insercao = supabase.table("aprovacao_diretoria").insert(dados_confirmar).execute()
+
                         supabase.table("confirmadas_producao").delete().in_("Serie_Numero_CTRC", chaves).execute()
 
                         st.session_state["rerun_confirmacao"] = True
