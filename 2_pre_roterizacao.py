@@ -994,18 +994,13 @@ def pagina_confirmar_producao():
                                 st.session_state.pop(session_key_sucesso, None)
 
                                 time.sleep(1.5)
-                                st.experimental_rerun()
+                                st.rerun()
                             except Exception as delete_error:
                                 st.error(f"Erro ao deletar entregas: {delete_error}")
                         else:
                             st.error("❌ Nem todas as entregas foram inseridas corretamente em 'aprovacao_diretoria'. Nenhuma foi removida.")
             except Exception as e:
                 st.error(f"Erro ao confirmar entregas: {e}")
-
-
-
-
-
 
 ###########################################
 
