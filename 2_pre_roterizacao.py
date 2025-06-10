@@ -749,6 +749,8 @@ def pagina_sincronizacao():
             except Exception as e:
                 st.error(f"❌ Erro durante a sincronização: {e}")
                 log_area.write(e)
+
+
 ##############################
 
 # PAGINA CONFIRMAR PRODUÇão
@@ -875,8 +877,8 @@ def pagina_confirmar_producao():
             st.markdown("<div style='overflow-x:auto;'>", unsafe_allow_html=True)
 
             grid_key_id = f"grid_confirmar_{cliente}"
-            if grid_key_id not in st.session_state or st.session_state.get("rerun_confirmacao", False):
-                st.session_state[grid_key_id] = str(uuid.uuid4())
+            
+          
 
             grid_response = AgGrid(
                 df_formatado,
@@ -924,11 +926,9 @@ def pagina_confirmar_producao():
                         supabase.table("confirmadas_producao") \
                             .delete().in_("Serie_Numero_CTRC", chaves).execute()
 
-                        check_response = supabase.table("confirmadas_producao") \
-                            .select("Serie_Numero_CTRC").in_("Serie_Numero_CTRC", chaves).execute()
-
+                        st.success(f"{len(chaves)} entregas confirmadas com sucesso!")
                         st.session_state["rerun_confirmacao"] = True
-                        st.rerun()
+                        st.experimental_rerun()
 
             except Exception as e:
                 st.error(f"❌ Erro ao confirmar entregas: {e}")
