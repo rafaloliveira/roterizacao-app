@@ -929,7 +929,7 @@ def pagina_confirmar_producao():
 
                         st.success(f"{len(chaves)} entregas confirmadas com sucesso!")
                         st.session_state["rerun_confirmacao"] = True
-                        st.experimental_rerun()
+                        st.rerun()
 
             except Exception as e:
                 st.error(f"❌ Erro ao confirmar entregas: {e}")
