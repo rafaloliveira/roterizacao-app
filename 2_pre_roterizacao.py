@@ -901,8 +901,9 @@ def pagina_confirmar_producao():
                 df_cliente["Serie_Numero_CTRC"] = df_cliente["Serie_Numero_CTRC"].astype(str).str.strip()
 
                 df_confirmar = df_cliente[df_cliente["Serie_Numero_CTRC"].isin(chaves)].copy()
-                colunas_validas = [col for col in colunas_exibir if col != "Serie_Numero_CTRC"]
+                colunas_validas = [col for col in colunas_exibir if col != "Serie_Numero_CTRC" and col in df_confirmar.columns]
                 df_confirmar = df_confirmar[["Serie_Numero_CTRC"] + colunas_validas]
+
                 df_confirmar = df_confirmar.replace([np.nan, np.inf, -np.inf], None)
 
                 for col in df_confirmar.select_dtypes(include=['datetime64[ns]']).columns:
