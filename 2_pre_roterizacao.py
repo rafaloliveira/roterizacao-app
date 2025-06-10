@@ -943,21 +943,26 @@ def pagina_confirmar_producao():
 
                         if set(chaves_inseridas) == set(chaves):
                             st.info(f"Deletando entregas: {chaves_inseridas}")
-                            resultado_delete = supabase.table("confirmadas_producao").delete().in_("Serie_Numero_CTRC", chaves_inseridas).execute()
-                            st.write("Resultado da deleção:", resultado_delete)
+                            try:
+                                resultado_delete = supabase.table("confirmadas_producao").delete().in_("Serie_Numero_CTRC", chaves_inseridas).execute()
+                                st.write("Resultado da deleção:", resultado_delete)
 
-                            if resultado_delete.error:
-                                st.error(f"Erro na deleção: {resultado_delete.error}")
-                            else:
-                                st.success("✅ Entregas aprovadas e movidas para Aprovação.")
-                                st.session_state["rerun_confirmacao"] = True
-                                st.session_state["chaves_confirmadas"] = chaves_inseridas
-                                time.sleep(1.5)
-                                st.rerun()
+                                if resultado_delete.data == []:
+                                    st.warning("⚠️ Nenhuma entrega foi deletada da tabela 'confirmadas_producao'. Verifique se as chaves existem.")
+                                else:
+                                    st.success("✅ Entregas aprovadas e removidas da tabela 'confirmadas_producao'.")
+                                    st.session_state["rerun_confirmacao"] = True
+                                    st.session_state["chaves_confirmadas"] = chaves_inseridas
+                                    time.sleep(1.5)
+                                    st.rerun()
+                            except Exception as delete_error:
+                                st.error(f"Erro ao deletar entregas: {delete_error}")
                         else:
                             st.error("❌ Nem todas as entregas foram inseridas corretamente em 'aprovacao_diretoria'. Nenhuma foi removida de 'confirmadas_producao'.")
             except Exception as e:
                 st.error(f"Erro ao confirmar entregas: {e}")
+
+
 
 ###########################################
 
