@@ -789,7 +789,9 @@ def pagina_confirmar_producao():
         chaves = st.session_state.get("chaves_confirmadas", [])
         st.session_state["rerun_confirmacao"] = False
         st.session_state["chaves_confirmadas"] = []
-
+        st.success("✅ Entregas confirmadas e movidas para Aprovação Diretoria.")
+        time.sleep(1.5)
+        st.rerun()
         # Mensagens desaparecerão naturalmente após rerun
 
     df = carregar_base_supabase()
@@ -993,8 +995,7 @@ def pagina_confirmar_producao():
                                 st.session_state.pop(session_key_selecionadas, None)
                                 st.session_state.pop(session_key_sucesso, None)
 
-                                time.sleep(1.5)
-                                st.rerun()
+                                
                             except Exception as delete_error:
                                 st.error(f"Erro ao deletar entregas: {delete_error}")
                         else:
