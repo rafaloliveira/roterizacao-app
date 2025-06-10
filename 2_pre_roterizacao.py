@@ -757,6 +757,31 @@ def pagina_sincronizacao():
 
 ##############################
 
+from st_aggrid import AgGrid, GridOptionsBuilder, JsCode
+import uuid
+import time
+import numpy as np
+import pandas as pd
+import streamlit as st
+from st_aggrid.shared import GridUpdateMode
+
+# Definição da função JS para destacar linhas conforme regras
+linha_destacar = JsCode("""
+function(params) {
+    const status = params.data.Status;
+    const entregaProg = params.data["Entrega Programada"];
+    const particularidade = params.data.Particularidade;
+
+    if (status === "AGENDAR" && (entregaProg === null || entregaProg === undefined || entregaProg.trim() === "")) {
+        return { 'background-color': 'orange', 'color': 'black', 'font-weight': 'bold' };
+    }
+    if (particularidade !== null && particularidade !== undefined && particularidade.trim() !== "") {
+        return { 'background-color': 'yellow', 'color': 'black', 'font-weight': 'bold' };
+    }
+    return null;
+}
+""")
+
 def pagina_confirmar_producao():
     st.title("🚛 Confirmar Produção")
 
@@ -768,14 +793,12 @@ def pagina_confirmar_producao():
         df = carregar_base_supabase()
         df = df[~df["Serie_Numero_CTRC"].astype(str).isin(chaves)]
 
-        # Reseta as flags para evitar loop infinito
         st.session_state["rerun_confirmacao"] = False
         st.session_state["chaves_confirmadas"] = []
     else:
         df = carregar_base_supabase()
 
-    # Carrega entregas já confirmadas
-    
+    # Filtros iniciais: drop linhas com campos essenciais faltando
     colunas_necessarias = [
         "Chave CT-e", "Cliente Pagador", "Cliente Destinatario",
         "Cidade de Entrega", "Bairro do Destinatario"
@@ -786,10 +809,41 @@ def pagina_confirmar_producao():
         st.info("Nenhuma entrega pendente para confirmação.")
         return
 
-    total_clientes = df["Cliente Pagador"].nunique()
-    confirmadas = supabase.table("confirmadas_producao").select("*").execute()  
-    df_confirmadas = pd.DataFrame(confirmadas.data)
-    total_entregas = len(df_confirmadas)
+    # Consulta entregas já confirmadas na produção
+    confirmadas_res = supabase.table("confirmadas_producao").select("*").execute()
+    df_confirmadas = pd.DataFrame(confirmadas_res.data)
+
+    if df_confirmadas.empty:
+        st.info("Nenhuma entrega confirmada na produção.")
+        return
+
+    # Converte datas para datetime para filtros
+    df["Previsao de Entrega"] = pd.to_datetime(df["Previsao de Entrega"], errors='coerce')
+
+    # Data D+1 para comparação
+    d_mais_1 = pd.Timestamp.now().normalize() + pd.Timedelta(days=1)
+
+    # Define entregas obrigatórias para pré-roterização
+    obrigatorias = df[
+        (df["Previsao de Entrega"] < d_mais_1) |
+        ((df["Status"] == "AGENDAR") & (df["Entrega Programada"].isnull() | (df["Entrega Programada"].str.strip() == "")))
+    ].copy()
+
+    # Remove entregas obrigatórias que já estão confirmadas (não mostrar)
+    if not df_confirmadas.empty:
+        obrigatorias_antes = obrigatorias.shape[0]
+        obrigatorias = obrigatorias[~obrigatorias["Serie_Numero_CTRC"].isin(df_confirmadas["Serie_Numero_CTRC"])]
+        qtd_removidas = obrigatorias_antes - obrigatorias.shape[0]
+        if qtd_removidas > 0:
+            st.info(f"ℹ️ {qtd_removidas} entregas obrigatórias foram ocultadas por já estarem na etapa de produção (`confirmadas_producao`).")
+
+    # EXIBIR APENAS entregas CONFIRMADAS, EXCLUINDO as obrigatórias
+    df_exibir = df_confirmadas[
+        ~df_confirmadas["Serie_Numero_CTRC"].isin(obrigatorias["Serie_Numero_CTRC"])
+    ].copy()
+
+    total_clientes = df_exibir["Cliente Pagador"].nunique()
+    total_entregas = len(df_exibir)
 
     col1, col2 = st.columns(2)
     with col1:
@@ -814,39 +868,12 @@ def pagina_confirmar_producao():
         "Peso Real em Kg", "Peso Calculado em Kg", "Cubagem em m³", "Quantidade de Volumes"
     ]
 
-    formatter_brasileiro = JsCode("""
-        function(params) {
-            if (!params.value) return '';
-            return Number(params.value).toLocaleString('pt-BR', {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2
-            });
-        }
-    """)
-
-    linha_destacar = JsCode("""
-        function(params) {
-            if (params.data['Particularidade'] && params.data['Particularidade'].trim() !== '') {
-                return {
-                    'backgroundColor': '#808000',
-                    'fontWeight': 'bold'
-                }
-            } else if (params.data['Status'] === 'AGENDAR' &&
-                       (!params.data['Entrega Programada'] || params.data['Entrega Programada'].trim() === '')) {
-                return {
-                    'backgroundColor': '#8B4513',
-                    'fontWeight': 'bold'
-                }
-            }
-            return {};
-        }
-    """)
-
-    for cliente in sorted(df["Cliente Pagador"].fillna("(Vazio)").unique()):
-        df_cliente = df[df["Cliente Pagador"].fillna("(Vazio)") == cliente].copy()
+    for cliente in sorted(df_exibir["Cliente Pagador"].fillna("(Vazio)").unique()):
+        df_cliente = df_exibir[df_exibir["Cliente Pagador"].fillna("(Vazio)") == cliente].copy()
         if df_cliente.empty:
             continue
 
+        # Estatísticas do cliente
         total_entregas = len(df_cliente)
         peso_calculado = df_cliente['Peso Calculado em Kg'].sum()
         peso_real = df_cliente['Peso Real em Kg'].sum()
@@ -855,11 +882,11 @@ def pagina_confirmar_producao():
         volumes = df_cliente['Quantidade de Volumes'].sum()
 
         st.markdown(f"""
-        <div style=\"background-color: #444; padding: 8px 16px; border-radius: 6px; margin-top: 20px; margin-bottom: 8px;\">
-            <div style=\"color: white; margin: 0; font-size: 15px; font-weight: bold;\">🏭 Cliente: {cliente}</div>
+        <div style="background-color: #444; padding: 8px 16px; border-radius: 6px; margin-top: 20px; margin-bottom: 8px;">
+            <div style="color: white; margin: 0; font-size: 15px; font-weight: bold;">🏭 Cliente: {cliente}</div>
         </div>
 
-        <div style=\"display: flex; flex-wrap: wrap; gap: 20px; font-size: 16px; margin-bottom: 20px;\">
+        <div style="display: flex; flex-wrap: wrap; gap: 20px; font-size: 16px; margin-bottom: 20px;">
             <div><strong>Quantidade de Entregas:</strong> {total_entregas}</div>
             <div><strong>Peso Calculado (kg):</strong> {formatar_brasileiro(peso_calculado)}</div>
             <div><strong>Peso Real (kg):</strong> {formatar_brasileiro(peso_real)}</div>
@@ -881,7 +908,7 @@ def pagina_confirmar_producao():
         gb.configure_grid_options(suppressScrollOnNewData=False)
 
         grid_options = gb.build()
-        grid_options["getRowStyle"] = linha_destacar
+        grid_options["getRowStyle"] = linha_destacar  # Aplica o destaque de linha JS
 
         with st.container():
             st.markdown("<div style='overflow-x:auto;'>", unsafe_allow_html=True)
@@ -908,7 +935,6 @@ def pagina_confirmar_producao():
 
         if not selecionadas.empty:
             st.success(f"{len(selecionadas)} entregas selecionadas para {cliente}.")
-
 
         if st.button(f"✅ Confirmar entregas de {cliente}", key=f"botao_{cliente}"):
             try:
@@ -954,13 +980,15 @@ def pagina_confirmar_producao():
                                     st.session_state["rerun_confirmacao"] = True
                                     st.session_state["chaves_confirmadas"] = chaves_inseridas
                                     time.sleep(1.5)
-                                    st.rerun()
+                                    st.experimental_rerun()
                             except Exception as delete_error:
                                 st.error(f"Erro ao deletar entregas: {delete_error}")
                         else:
                             st.error("❌ Nem todas as entregas foram inseridas corretamente em 'aprovacao_diretoria'. Nenhuma foi removida de 'confirmadas_producao'.")
             except Exception as e:
                 st.error(f"Erro ao confirmar entregas: {e}")
+
+
 
 
 
