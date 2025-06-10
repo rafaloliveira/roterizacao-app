@@ -795,7 +795,8 @@ def pagina_confirmar_producao():
         return
 
     total_clientes = df["Cliente Pagador"].nunique()
-    total_entregas = len(confirmadas.data)
+    df_confirmadas = pd.DataFrame(supabase.table("confirmadas_producao").select("Serie_Numero_CTRC").execute().data)
+    total_entregas = len(df_confirmadas)
   # <-- Total absoluto da base original
 
 
