@@ -762,9 +762,17 @@ def pagina_confirmar_producao():
 
     # Resetar a flag após o uso
     if st.session_state.get("rerun_confirmacao", False):
-        st.session_state["rerun_confirmacao"] = False
-        st.rerun()  # Isso força a página a reiniciar de verdade
-    # Aplica filtro de entregas válidas
+        # 1. Envia para aprovação da diretoria
+        supabase.table("aprovacao_diretoria").insert(dados_confirmar).execute()
+
+        # 2. Remove da tabela de confirmações
+        supabase.table("confirmadas_producao").delete().in_("Serie_Numero_CTRC", chaves).execute()
+
+        st.success(f"{len(chaves)} entregas confirmadas com sucesso!")
+
+        # 3. Atualiza o dataframe removendo as entregas confirmadas
+        df = df[~df["Serie_Numero_CTRC"].astype(str).isin(chaves)]
+
 
     df = carregar_base_supabase()
     # Carrega as entregas já confirmadas
@@ -854,7 +862,8 @@ def pagina_confirmar_producao():
 
     for cliente in sorted(df["Cliente Pagador"].fillna("(Vazio)").unique()):
         df_cliente = df[df["Cliente Pagador"].fillna("(Vazio)") == cliente].copy()
-
+        if df_cliente.empty:
+            continue
         total_entregas = len(df_cliente)
         peso_calculado = df_cliente['Peso Calculado em Kg'].sum()
         peso_real = df_cliente['Peso Real em Kg'].sum()
@@ -949,9 +958,9 @@ def pagina_confirmar_producao():
 
 
                         st.success(f"{len(chaves)} entregas confirmadas com sucesso!")
-                        st.session_state["rerun_confirmacao"] = True
-                        st.rerun()
 
+                        # Atualiza o dataframe para refletir a remoção local
+                        df = df[~df["Serie_Numero_CTRC"].astype(str).isin(chaves)]
             except Exception as e:
                 st.error(f"❌ Erro ao confirmar entregas: {e}")
 
