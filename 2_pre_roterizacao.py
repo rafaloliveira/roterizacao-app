@@ -980,7 +980,7 @@ def pagina_confirmar_producao():
                                     st.session_state["rerun_confirmacao"] = True
                                     st.session_state["chaves_confirmadas"] = chaves_inseridas
                                     time.sleep(1.5)
-                                    st.experimental_rerun()
+                                    st.rerun()
                             except Exception as delete_error:
                                 st.error(f"Erro ao deletar entregas: {delete_error}")
                         else:
