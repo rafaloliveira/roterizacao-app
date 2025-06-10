@@ -760,21 +760,23 @@ def pagina_sincronizacao():
 def pagina_confirmar_producao():
     st.title("🚛 Confirmar Produção")
 
-    # Resetar a flag após o uso
     if st.session_state.get("rerun_confirmacao", False):
-        # 1. Envia para aprovação da diretoria
-        supabase.table("aprovacao_diretoria").insert(dados_confirmar).execute()
+        chaves = st.session_state.get("chaves_confirmadas", [])
 
-        # 2. Remove da tabela de confirmações
-        supabase.table("confirmadas_producao").delete().in_("Serie_Numero_CTRC", chaves).execute()
-
-        st.success(f"{len(chaves)} entregas confirmadas com sucesso!")
-
-        # 3. Atualiza o dataframe removendo as entregas confirmadas
+        # Recarrega a base e remove as entregas já confirmadas localmente
+        df = carregar_base_supabase()
         df = df[~df["Serie_Numero_CTRC"].astype(str).isin(chaves)]
 
+        # Reseta as flags para evitar loop infinito
+        st.session_state["rerun_confirmacao"] = False
+        st.session_state["chaves_confirmadas"] = []
+    else:
+        df = carregar_base_supabase()
 
-    df = carregar_base_supabase()
+    # Continua o resto do código normalmente...
+
+
+ 
     # Carrega as entregas já confirmadas
     confirmadas = supabase.table("confirmadas_producao").select("Serie_Numero_CTRC").execute()
     aprovadas = supabase.table("aprovacao_diretoria").select("Serie_Numero_CTRC").execute()
@@ -950,19 +952,17 @@ def pagina_confirmar_producao():
                     if not dados_confirmar:
                         st.warning("⚠️ Nenhum registro com 'Serie_Numero_CTRC' válido.")
                     else:
-                        # 1. Envia para aprovação da diretoria
                         supabase.table("aprovacao_diretoria").insert(dados_confirmar).execute()
-
-                        # 2. Remove da tabela de confirmações (evita duplicidade ou reaparecimento)
                         supabase.table("confirmadas_producao").delete().in_("Serie_Numero_CTRC", chaves).execute()
 
+                        # Seta as flags de atualização e força recarregamento
+                        st.session_state["rerun_confirmacao"] = True
+                        st.session_state["chaves_confirmadas"] = chaves
+                        st.rerun()
 
-                        st.success(f"{len(chaves)} entregas confirmadas com sucesso!")
-
-                        # Atualiza o dataframe para refletir a remoção local
-                        df = df[~df["Serie_Numero_CTRC"].astype(str).isin(chaves)]
             except Exception as e:
                 st.error(f"❌ Erro ao confirmar entregas: {e}")
+
 
 
 
