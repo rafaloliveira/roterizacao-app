@@ -942,20 +942,22 @@ def pagina_confirmar_producao():
                         ]
 
                         if set(chaves_inseridas) == set(chaves):
-                            supabase.table("confirmadas_producao").delete().in_("Serie_Numero_CTRC", chaves_inseridas).execute()
+                            st.info(f"Deletando entregas: {chaves_inseridas}")
+                            resultado_delete = supabase.table("confirmadas_producao").delete().in_("Serie_Numero_CTRC", chaves_inseridas).execute()
+                            st.write("Resultado da deleção:", resultado_delete)
 
-                            st.success("✅ Entregas aprovadas e movidas para Aprovação.")
-
-                            st.session_state["rerun_confirmacao"] = True
-                            st.session_state["chaves_confirmadas"] = chaves_inseridas
-
-                            time.sleep(1.5)
-                            st.rerun()
+                            if resultado_delete.error:
+                                st.error(f"Erro na deleção: {resultado_delete.error}")
+                            else:
+                                st.success("✅ Entregas aprovadas e movidas para Aprovação.")
+                                st.session_state["rerun_confirmacao"] = True
+                                st.session_state["chaves_confirmadas"] = chaves_inseridas
+                                time.sleep(1.5)
+                                st.rerun()
                         else:
                             st.error("❌ Nem todas as entregas foram inseridas corretamente em 'aprovacao_diretoria'. Nenhuma foi removida de 'confirmadas_producao'.")
             except Exception as e:
                 st.error(f"Erro ao confirmar entregas: {e}")
-
 
 ###########################################
 
