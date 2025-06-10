@@ -935,7 +935,9 @@ def pagina_confirmar_producao():
                     else:
                         resultado_insercao = supabase.table("aprovacao_diretoria").insert(dados_confirmar).execute()
 
-                        supabase.table("confirmadas_producao").delete().filter("Serie_Numero_CTRC", "in", chaves).execute()
+                        valores_csv = "(" + ",".join([f'"{chave}"' for chave in chaves]) + ")"
+                        supabase.table("confirmadas_producao").delete().filter("Serie_Numero_CTRC", "in", valores_csv).execute()
+
 
                         st.success("✅ Entregas aprovadas e movidas para Pré Roteirização.")
 
