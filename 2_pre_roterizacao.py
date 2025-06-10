@@ -749,7 +749,11 @@ def pagina_sincronizacao():
             except Exception as e:
                 st.error(f"❌ Erro durante a sincronização: {e}")
                 log_area.write(e)
+##############################
 
+# PAGINA CONFIRMAR PRODUÇão
+
+##############################
 
 def pagina_confirmar_producao():
     st.title("🚛 Confirmar Produção")
@@ -793,11 +797,9 @@ def pagina_confirmar_producao():
 
     colunas_exibir = [
         "Serie_Numero_CTRC", "Rota", "Valor do Frete", "Cliente Pagador", "Chave CT-e",
-        "Cliente Destinatario", "Cidade de Entrega", "Bairro do Destinatario",
-        "Previsao de Entrega", "Numero da Nota Fiscal", "Status", "Entrega Programada",
-        "Particularidade", "Codigo da Ultima Ocorrencia",
-        "Peso Real em Kg", "Peso Calculado em Kg", "Cubagem em m³",
-        "Quantidade de Volumes"
+        "Cliente Destinatario", "Cidade de Entrega", "Bairro do Destinatario", "Previsao de Entrega",
+        "Numero da Nota Fiscal", "Status", "Entrega Programada", "Particularidade", "Codigo da Ultima Ocorrencia",
+        "Peso Real em Kg", "Peso Calculado em Kg", "Cubagem em m³", "Quantidade de Volumes"
     ]
 
     formatter_brasileiro = JsCode("""
