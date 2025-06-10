@@ -763,37 +763,38 @@ def pagina_confirmar_producao():
     # Resetar a flag após o uso
     if st.session_state.get("rerun_confirmacao", False):
         st.session_state["rerun_confirmacao"] = False
-        st.rerun()  # Isso força a página a reiniciar de verdade
-    # Aplica filtro de entregas válidas
+        st.rerun()
 
+    # Carrega a base principal
     df = carregar_base_supabase()
-    # Carrega as entregas já confirmadas
+
+    # Carrega as entregas já confirmadas e aprovadas
     confirmadas = supabase.table("confirmadas_producao").select("Serie_Numero_CTRC").execute()
     aprovadas = supabase.table("aprovacao_diretoria").select("Serie_Numero_CTRC").execute()
 
+    # Coleta as chaves a remover
     chaves_confirmadas = {item["Serie_Numero_CTRC"] for item in confirmadas.data if item.get("Serie_Numero_CTRC")}
     chaves_aprovadas = {item["Serie_Numero_CTRC"] for item in aprovadas.data if item.get("Serie_Numero_CTRC")}
 
+    # União de tudo que deve sair da visualização
     chaves_a_remover = chaves_confirmadas.union(chaves_aprovadas)
 
     # Remove do DataFrame principal
     df = df[~df["Serie_Numero_CTRC"].astype(str).isin(chaves_a_remover)]
 
-
-    # Remove as entregas já confirmadas da base principal
-    df = df[~df["Serie_Numero_CTRC"].astype(str).isin(chaves_confirmadas)]
-
-
+    # Filtro adicional para garantir dados válidos
     colunas_necessarias = [
         "Chave CT-e", "Cliente Pagador", "Cliente Destinatario",
         "Cidade de Entrega", "Bairro do Destinatario"
     ]
     df = df.dropna(subset=colunas_necessarias)
 
+    # Exibe mensagem se estiver vazio
     if df.empty:
         st.info("Nenhuma entrega pendente para confirmação.")
         return
 
+    # Cálculo dos totais com base no que sobrou
     total_clientes = df["Cliente Pagador"].nunique()
     total_entregas = len(df)
 
@@ -813,6 +814,7 @@ def pagina_confirmar_producao():
             f"<span style='color:white;font-size:24px;'> {total_entregas}</span></div>",
             unsafe_allow_html=True
         )
+
 
     colunas_exibir = [
         "Serie_Numero_CTRC", "Rota", "Valor do Frete", "Cliente Pagador", "Chave CT-e",
