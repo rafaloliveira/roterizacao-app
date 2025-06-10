@@ -909,6 +909,7 @@ def pagina_confirmar_producao():
         if not selecionadas.empty:
             st.success(f"{len(selecionadas)} entregas selecionadas para {cliente}.")
 
+
         if st.button(f"✅ Confirmar entregas de {cliente}", key=f"botao_{cliente}"):
             try:
                 chaves = selecionadas["Serie_Numero_CTRC"].dropna().astype(str).str.strip().tolist()
@@ -935,9 +936,11 @@ def pagina_confirmar_producao():
                         resultado_insercao = supabase.table("aprovacao_diretoria").insert(dados_confirmar).execute()
 
                         supabase.table("confirmadas_producao").delete().in_("Serie_Numero_CTRC", chaves).execute()
+                        st.success("✅ Entregas aprovadas e movidas para Pré Roteirização.")
 
                         st.session_state["rerun_confirmacao"] = True
                         st.session_state["chaves_confirmadas"] = chaves
+                        
                         time.sleep(1.5)
                         st.rerun()
                     
