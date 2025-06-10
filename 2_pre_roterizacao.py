@@ -760,8 +760,6 @@ def pagina_sincronizacao():
 def pagina_confirmar_producao():
     st.title("🚛 Confirmar Produção")
 
-   
-
     # Resetar a flag após o uso
     if st.session_state.get("rerun_confirmacao", False):
         st.session_state["rerun_confirmacao"] = False
@@ -769,6 +767,14 @@ def pagina_confirmar_producao():
     # Aplica filtro de entregas válidas
 
     df = carregar_base_supabase()
+    # Carrega as entregas já confirmadas
+    confirmadas = supabase.table("confirmadas_producao").select("Serie_Numero_CTRC").execute()
+    chaves_confirmadas = [item["Serie_Numero_CTRC"] for item in confirmadas.data]
+
+    # Remove as entregas já confirmadas da base principal
+    df = df[~df["Serie_Numero_CTRC"].astype(str).isin(chaves_confirmadas)]
+
+
     colunas_necessarias = [
         "Chave CT-e", "Cliente Pagador", "Cliente Destinatario",
         "Cidade de Entrega", "Bairro do Destinatario"
@@ -923,9 +929,12 @@ def pagina_confirmar_producao():
                     if not dados_confirmar:
                         st.warning("⚠️ Nenhum registro com 'Serie_Numero_CTRC' válido.")
                     else:
+                        # 1. Envia para aprovação da diretoria
                         supabase.table("aprovacao_diretoria").insert(dados_confirmar).execute()
-                        supabase.table("confirmadas_producao") \
-                            .delete().in_("Serie_Numero_CTRC", chaves).execute()
+
+                        # 2. Remove da tabela de confirmações (evita duplicidade ou reaparecimento)
+                        supabase.table("confirmadas_producao").delete().in_("Serie_Numero_CTRC", chaves).execute()
+
 
                         st.success(f"{len(chaves)} entregas confirmadas com sucesso!")
                         st.session_state["rerun_confirmacao"] = True
