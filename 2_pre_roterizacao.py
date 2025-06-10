@@ -758,13 +758,15 @@ def pagina_sincronizacao():
 def pagina_confirmar_producao():
     st.title("🚛 Confirmar Produção")
 
-    df = carregar_base_supabase()
+   
 
     # Resetar a flag após o uso
     if st.session_state.get("rerun_confirmacao", False):
         st.session_state["rerun_confirmacao"] = False
-
+        st.rerun()  # Isso força a página a reiniciar de verdade
     # Aplica filtro de entregas válidas
+
+    df = carregar_base_supabase()
     colunas_necessarias = [
         "Chave CT-e", "Cliente Pagador", "Cliente Destinatario",
         "Cidade de Entrega", "Bairro do Destinatario"
