@@ -859,19 +859,19 @@ def pagina_confirmar_producao():
     ]
 
     linha_destacar = JsCode("""
-        function(params) {
-            const status = params.data.Status;
-            const entregaProgramada = params.data["Entrega Programada"];
-            const particularidade = params.data.Particularidade;
+    function(params) {
+        const status = params.data.Status;
+        const entregaProg = params.data["Entrega Programada"];
+        const particularidade = params.data.Particularidade;
 
-            if (status === "AGENDAR" && (!entregaProgramada || entregaProgramada.trim() === "")) {
-                return { background: '#ffe3b3' }; // Laranja
-            }
-            if (particularidade && particularidade.trim() !== "") {
-                return { background: '#ffffb3' }; // Amarelo
-            }
-            return {};
+        if (status === "AGENDAR" && (entregaProg === null || entregaProg === undefined || entregaProg.trim() === "")) {
+            return { 'background-color': 'orange', 'color': 'black', 'font-weight': 'bold' };
         }
+        if (particularidade !== null && particularidade !== undefined && particularidade.trim() !== "") {
+            return { 'background-color': 'yellow', 'color': 'black', 'font-weight': 'bold' };
+        }
+        return null;
+    }
     """)
 
     for cliente in sorted(df_exibir["Cliente Pagador"].fillna("(Vazio)").unique()):
