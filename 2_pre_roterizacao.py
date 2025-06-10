@@ -775,8 +775,8 @@ def pagina_confirmar_producao():
         df = carregar_base_supabase()
 
     # Carrega entregas já confirmadas
-    confirmadas = supabase.table("confirmadas_producao").select("Serie_Numero_CTRC").execute()
-    aprovadas = supabase.table("aprovacao_diretoria").select("Serie_Numero_CTRC").execute()
+    confirmadas = supabase.table("aprovacao_diretoria").insert(dados_confirmar).execute()
+    aprovadas = supabase.table("confirmadas_producao").delete().filter("Serie_Numero_CTRC", "in", chaves).execute()
 
     chaves_confirmadas = {item["Serie_Numero_CTRC"] for item in confirmadas.data if item.get("Serie_Numero_CTRC")}
     chaves_aprovadas = {item["Serie_Numero_CTRC"] for item in aprovadas.data if item.get("Serie_Numero_CTRC")}
@@ -943,7 +943,9 @@ def pagina_confirmar_producao():
 
                         st.session_state["rerun_confirmacao"] = True
                         st.session_state["chaves_confirmadas"] = chaves
+                        time.sleep(1.5)
                         st.rerun()
+                    
 
             except Exception as e:
                 st.error(f"❌ Erro ao confirmar entregas: {e}")
