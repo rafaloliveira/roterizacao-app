@@ -762,6 +762,7 @@ def pagina_confirmar_producao():
 
     if st.session_state.get("rerun_confirmacao", False):
         chaves = st.session_state.get("chaves_confirmadas", [])
+        st.success("✅ Entregas confirmadas e movidas para Aprovação Diretoria.")
 
         # Recarrega a base e remove as entregas já confirmadas localmente
         df = carregar_base_supabase()
@@ -773,27 +774,15 @@ def pagina_confirmar_producao():
     else:
         df = carregar_base_supabase()
 
-    # Continua o resto do código normalmente...
-
-
- 
-    # Carrega as entregas já confirmadas
+    # Carrega entregas já confirmadas
     confirmadas = supabase.table("confirmadas_producao").select("Serie_Numero_CTRC").execute()
     aprovadas = supabase.table("aprovacao_diretoria").select("Serie_Numero_CTRC").execute()
 
     chaves_confirmadas = {item["Serie_Numero_CTRC"] for item in confirmadas.data if item.get("Serie_Numero_CTRC")}
     chaves_aprovadas = {item["Serie_Numero_CTRC"] for item in aprovadas.data if item.get("Serie_Numero_CTRC")}
-
     chaves_a_remover = chaves_confirmadas.union(chaves_aprovadas)
 
-    # Remove do DataFrame principal
     df = df[~df["Serie_Numero_CTRC"].astype(str).isin(chaves_a_remover)]
-
-
-    # Remove as entregas já confirmadas da base principal
-    df = df[~df["Serie_Numero_CTRC"].astype(str).isin(chaves_confirmadas)]
-
-
     colunas_necessarias = [
         "Chave CT-e", "Cliente Pagador", "Cliente Destinatario",
         "Cidade de Entrega", "Bairro do Destinatario"
@@ -805,12 +794,9 @@ def pagina_confirmar_producao():
         return
 
     total_clientes = df["Cliente Pagador"].nunique()
-    df_confirmadas = pd.DataFrame(supabase.table("confirmadas_producao").select("Serie_Numero_CTRC").execute().data)
+    df_confirmadas = pd.DataFrame(confirmadas.data)
     total_entregas = len(df_confirmadas)
-  # <-- Total absoluto da base original
 
-
-    # Painéis de resumo
     col1, col2 = st.columns(2)
     with col1:
         st.markdown(
@@ -845,27 +831,28 @@ def pagina_confirmar_producao():
     """)
 
     linha_destacar = JsCode("""
-    function(params) {
-        if (params.data['Particularidade'] && params.data['Particularidade'].trim() !== '') {
-            return {
-                'backgroundColor': '#808000',
-                'fontWeight': 'bold'
+        function(params) {
+            if (params.data['Particularidade'] && params.data['Particularidade'].trim() !== '') {
+                return {
+                    'backgroundColor': '#808000',
+                    'fontWeight': 'bold'
+                }
+            } else if (params.data['Status'] === 'AGENDAR' &&
+                       (!params.data['Entrega Programada'] || params.data['Entrega Programada'].trim() === '')) {
+                return {
+                    'backgroundColor': '#8B4513',
+                    'fontWeight': 'bold'
+                }
             }
-        } else if (params.data['Status'] === 'AGENDAR' &&
-                (!params.data['Entrega Programada'] || params.data['Entrega Programada'].trim() === '')) {
-            return {
-                'backgroundColor': '#8B4513',
-                'fontWeight': 'bold'
-            }
+            return {};
         }
-        return {};
-    }
     """)
 
     for cliente in sorted(df["Cliente Pagador"].fillna("(Vazio)").unique()):
         df_cliente = df[df["Cliente Pagador"].fillna("(Vazio)") == cliente].copy()
         if df_cliente.empty:
             continue
+
         total_entregas = len(df_cliente)
         peso_calculado = df_cliente['Peso Calculado em Kg'].sum()
         peso_real = df_cliente['Peso Real em Kg'].sum()
@@ -908,7 +895,6 @@ def pagina_confirmar_producao():
             grid_key_id = f"grid_confirmar_{cliente}"
             if grid_key_id not in st.session_state:
                 st.session_state[grid_key_id] = str(uuid.uuid4())
-          
 
             grid_response = AgGrid(
                 df_formatado,
@@ -955,7 +941,6 @@ def pagina_confirmar_producao():
                         supabase.table("aprovacao_diretoria").insert(dados_confirmar).execute()
                         supabase.table("confirmadas_producao").delete().in_("Serie_Numero_CTRC", chaves).execute()
 
-                        # Seta as flags de atualização e força recarregamento
                         st.session_state["rerun_confirmacao"] = True
                         st.session_state["chaves_confirmadas"] = chaves
                         st.rerun()
