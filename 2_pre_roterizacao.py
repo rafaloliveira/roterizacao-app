@@ -766,8 +766,7 @@ def pagina_confirmar_producao():
         st.rerun()  # Isso força a página a reiniciar de verdade
     # Aplica filtro de entregas válidas
 
-    df_bruto = carregar_base_supabase()
-    df = df_bruto.copy()
+    df = carregar_base_supabase()
     # Carrega as entregas já confirmadas
     confirmadas = supabase.table("confirmadas_producao").select("Serie_Numero_CTRC").execute()
     aprovadas = supabase.table("aprovacao_diretoria").select("Serie_Numero_CTRC").execute()
@@ -796,7 +795,8 @@ def pagina_confirmar_producao():
         return
 
     total_clientes = df["Cliente Pagador"].nunique()
-    total_entregas_banco = len(df_bruto)  # <-- Total absoluto da base original
+    total_entregas = len(confirmadas.data)
+  # <-- Total absoluto da base original
 
 
     # Painéis de resumo
@@ -812,7 +812,7 @@ def pagina_confirmar_producao():
         st.markdown(
             f"<div style='background:#2f2f2f;padding:8px;border-radius:8px'>"
             f"<span style='color:white;font-weight:bold;font-size:18px;'>Total de Entregas:</span>"
-            f"<span style='color:white;font-size:24px;'> {total_entregas_banco}</span></div>",
+            f"<span style='color:white;font-size:24px;'> {total_entregas}</span></div>",
             unsafe_allow_html=True
         )
 
