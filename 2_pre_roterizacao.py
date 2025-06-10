@@ -935,23 +935,21 @@ def pagina_confirmar_producao():
                 else:
                     resultado_insercao = supabase.table("aprovacao_diretoria").insert(dados_confirmar).execute()
 
-                    supabase.table("confirmadas_producao").delete().in_("Serie_Numero_CTRC", chaves).execute()
+                    if resultado_insercao.data:  # Verifica se a inserção ocorreu
+                        if chaves:
+                            supabase.table("confirmadas_producao").delete().in_("Serie_Numero_CTRC", chaves).execute()
 
+                        st.success("✅ Entregas aprovadas e movidas para Aprovação.")
 
-                    st.success("✅ Entregas aprovadas e movidas para Aprovação.")
+                        st.session_state["rerun_confirmacao"] = True
+                        st.session_state["chaves_confirmadas"] = chaves
 
-                    st.session_state["rerun_confirmacao"] = True
-                    st.session_state["chaves_confirmadas"] = chaves
-                    
-                    time.sleep(1.5)
-                    st.rerun()
+                        time.sleep(1.5)
+                        st.rerun()
+                    else:
+                        st.error("❌ A inserção na tabela 'aprovacao_diretoria' falhou. Nenhuma entrega foi removida de 'confirmadas_producao'.")
             except Exception as e:
                 st.error(f"Ocorreu um erro ao confirmar as entregas: {e}")
-
-
-
-
-
 
 
 ###########################################
