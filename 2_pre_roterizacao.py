@@ -930,26 +930,23 @@ def pagina_confirmar_producao():
                     dados_confirmar = df_confirmar.to_dict(orient="records")
                     dados_confirmar = [d for d in dados_confirmar if d.get("Serie_Numero_CTRC")]
 
-                    if not dados_confirmar:
-                        st.warning("⚠️ Nenhum registro com 'Serie_Numero_CTRC' válido.")
-                    else:
-                        resultado_insercao = supabase.table("aprovacao_diretoria").insert(dados_confirmar).execute()
+                if not dados_confirmar:
+                    st.warning("⚠️ Nenhum registro com 'Serie_Numero_CTRC' válido.")
+                else:
+                    resultado_insercao = supabase.table("aprovacao_diretoria").insert(dados_confirmar).execute()
 
-                        valores_csv = "(" + ",".join([f'"{chave}"' for chave in chaves]) + ")"
-                        supabase.table("confirmadas_producao").delete().filter("Serie_Numero_CTRC", "in", valores_csv).execute()
+                    supabase.table("confirmadas_producao").delete().in_("Serie_Numero_CTRC", chaves).execute()
 
 
-                        st.success("✅ Entregas aprovadas e movidas para Pré Roteirização.")
+                    st.success("✅ Entregas aprovadas e movidas para Aprovação.")
 
-                        st.session_state["rerun_confirmacao"] = True
-                        st.session_state["chaves_confirmadas"] = chaves
-                        
-                        time.sleep(1.5)
-                        st.rerun()
+                    st.session_state["rerun_confirmacao"] = True
+                    st.session_state["chaves_confirmadas"] = chaves
                     
-
+                    time.sleep(1.5)
+                    st.rerun()
             except Exception as e:
-                st.error(f"❌ Erro ao confirmar entregas: {e}")
+                st.error(f"Ocorreu um erro ao confirmar as entregas: {e}")
 
 
 
