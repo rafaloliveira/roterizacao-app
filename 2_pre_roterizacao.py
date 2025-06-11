@@ -597,28 +597,38 @@ def pagina_sincronizacao():
 
 import time
 
+
+
 def inserir_em_lote(nome_tabela, df, lote=100, tentativas=3, pausa=0.2):
-    # Converte datas para string ISO
+    """
+    Insere dados em lotes na tabela supabase, com tentativas e tratamento de dados.
+    """
+
+    # Converte colunas datetime para strings no formato ISO (yyyy-mm-dd)
     for col in df.columns:
         if pd.api.types.is_datetime64_any_dtype(df[col]):
             df[col] = df[col].dt.strftime('%Y-%m-%d')
 
-    # Substitui NaN e NaT por None
+    # Substitui NaN/NaT por None para evitar erros na serialização JSON
     dados = df.where(pd.notnull(df), None).to_dict(orient="records")
 
+    # Insere em lotes, com tentativas e pausa entre eles
     for i in range(0, len(dados), lote):
-        sublote = dados[i:i+lote]
+        sublote = dados[i:i + lote]
+
         for tentativa in range(tentativas):
             try:
                 supabase.table(nome_tabela).insert(sublote).execute()
-                st.text(f"[DEBUG] Inseridos {len(sublote)} registros na tabela {nome_tabela} (lote {i}–{i+len(sublote)-1}).")
-                break  # Sai do loop de tentativas se sucesso
+                st.info(f"[DEBUG] Inseridos {len(sublote)} registros na tabela '{nome_tabela}' (lote {i}–{i + len(sublote) - 1}).")
+                break
             except Exception as e:
-                st.warning(f"[TENTATIVA {tentativa+1}] Erro ao inserir lote {i}–{i+len(sublote)-1}: {e}")
+                st.warning(f"[TENTATIVA {tentativa + 1}] Erro ao inserir lote {i}–{i + len(sublote) - 1}: {e}")
                 time.sleep(1)
         else:
-            st.error(f"[ERRO] Falha final ao inserir lote {i}–{i+len(sublote)-1} em {nome_tabela}.")
+            st.error(f"[ERRO] Falha final ao inserir lote {i}–{i + len(sublote) - 1} na tabela '{nome_tabela}'.")
+
         time.sleep(pausa)
+
 
 
 
