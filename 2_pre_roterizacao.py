@@ -21,6 +21,13 @@ from http.cookies import SimpleCookie
 import os
 from dotenv import load_dotenv
 from pandas import Timestamp
+from st_aggrid import AgGrid, GridOptionsBuilder, JsCode
+import uuid
+import time
+import numpy as np
+import pandas as pd
+import streamlit as st
+from st_aggrid.shared import GridUpdateMode
 
 
 from streamlit_cookies_manager import EncryptedCookieManager
@@ -757,41 +764,8 @@ def pagina_sincronizacao():
 
 ##############################
 
-from st_aggrid import AgGrid, GridOptionsBuilder, JsCode
-import uuid
-import time
-import numpy as np
-import pandas as pd
-import streamlit as st
-from st_aggrid.shared import GridUpdateMode
-
-# Definição da função JS para destacar linhas conforme regras
-linha_destacar = JsCode("""
-function(params) {
-    const status = params.data.Status;
-    const entregaProg = params.data["Entrega Programada"];
-    const particularidade = params.data.Particularidade;
-
-    if (status === "AGENDAR" && (entregaProg === null || entregaProg === undefined || entregaProg.trim() === "")) {
-        return { 'background-color': 'orange', 'color': 'black', 'font-weight': 'bold' };
-    }
-    if (particularidade !== null && particularidade !== undefined && particularidade.trim() !== "") {
-        return { 'background-color': 'yellow', 'color': 'black', 'font-weight': 'bold' };
-    }
-    return null;
-}
-""")
-
 def pagina_confirmar_producao():
     st.title("🚛 Confirmar Produção")
-
-    # Função auxiliar segura para dropna
-    def dropna_seguro(df, subset):
-        colunas_presentes = [col for col in subset if col in df.columns]
-        if colunas_presentes:
-            return df.dropna(subset=colunas_presentes)
-        else:
-            return df
 
     if st.session_state.get("rerun_confirmacao", False):
         chaves = st.session_state.get("chaves_confirmadas", [])
@@ -803,14 +777,26 @@ def pagina_confirmar_producao():
 
     df = carregar_base_supabase()
 
+    if df is None or df.empty:
+        st.warning("⚠️ Nenhuma entrega encontrada na tabela pre_roterizacao.")
+        return
+
     colunas_necessarias = [
         "Chave CT-e", "Cliente Pagador", "Cliente Destinatario",
         "Cidade de Entrega", "Bairro do Destinatario"
     ]
-    df = dropna_seguro(df, colunas_necessarias)
+
+    # Verifica se as colunas existem
+    colunas_faltantes = [col for col in colunas_necessarias if col not in df.columns]
+    if colunas_faltantes:
+        st.error(f"❌ As seguintes colunas não existem na base carregada: {', '.join(colunas_faltantes)}")
+        return
+
+    # Agora é seguro aplicar o dropna
+    df = df.dropna(subset=colunas_necessarias)
 
     if df.empty:
-        st.info("Nenhuma entrega pendente para confirmação.")
+        st.info("Nenhuma entrega pendente para confirmação após filtragem.")
         return
 
     confirmadas_res = supabase.table("confirmadas_producao").select("*").execute()
@@ -916,8 +902,6 @@ def pagina_confirmar_producao():
         gb.configure_grid_options(paginationPageSize=12)
         gb.configure_grid_options(domLayout="autoHeight")
         gb.configure_grid_options(alwaysShowHorizontalScroll=True)
-        gb.configure_grid_options(suppressHorizontalScroll=False)
-        gb.configure_grid_options(suppressScrollOnNewData=False)
         grid_options = gb.build()
         grid_options["getRowStyle"] = linha_destacar
 
@@ -999,6 +983,7 @@ def pagina_confirmar_producao():
                             st.error("❌ Nem todas as entregas foram inseridas corretamente em 'aprovacao_diretoria'. Nenhuma foi removida.")
             except Exception as e:
                 st.error(f"Erro ao confirmar entregas: {e}")
+
 
 
 ###########################################
