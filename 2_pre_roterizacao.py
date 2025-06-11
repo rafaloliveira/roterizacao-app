@@ -790,6 +790,8 @@ def pagina_confirmar_producao():
         st.success(mensagem_sucesso)
 
     df = carregar_base_supabase()
+    df.columns = df.columns.str.strip()  # Remove espaços extras
+
 
     colunas_necessarias = [
         "Chave CT-e", "Cliente Pagador", "Cliente Destinatario",
