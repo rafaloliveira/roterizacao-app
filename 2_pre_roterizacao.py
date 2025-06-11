@@ -552,7 +552,7 @@ def pagina_sincronizacao():
             st.text(f"[DEBUG] Colunas removidas: {colunas_existentes_para_remover}")
 
         renomear_colunas = {
-            'Cubagem em m3': 'Cubagem m³',
+            'Cubagem em m3': 'Cubagem em m³',
             # outros ajustes podem ser adicionados aqui
         }
         colunas_renomeadas = {k: v for k, v in renomear_colunas.items() if k in df.columns}
