@@ -758,12 +758,6 @@ def pagina_sincronizacao():
                 log_area.write(e)
 
 
-##############################
-
-# PAGINA CONFIRMAR PRODUÇão
-
-##############################
-
 def pagina_confirmar_producao():
     st.title("🚛 Confirmar Produção")
 
@@ -775,26 +769,25 @@ def pagina_confirmar_producao():
         time.sleep(1.5)
         st.rerun()
 
-    df = carregar_base_supabase()
+    # ✅ Dados vindos da sincronização (com fallback)
+    df = st.session_state.get("dados_sincronizados")
+    if df is None or df.empty:
+        df = carregar_base_supabase()
 
     if df is None or df.empty:
-        st.warning("⚠️ Nenhuma entrega encontrada na tabela pre_roterizacao.")
+        st.warning("⚠️ Nenhuma entrega encontrada na base de dados.")
         return
 
     colunas_necessarias = [
         "Chave CT-e", "Cliente Pagador", "Cliente Destinatario",
         "Cidade de Entrega", "Bairro do Destinatario"
     ]
-
-    # Verifica se as colunas existem
     colunas_faltantes = [col for col in colunas_necessarias if col not in df.columns]
     if colunas_faltantes:
         st.error(f"❌ As seguintes colunas não existem na base carregada: {', '.join(colunas_faltantes)}")
         return
 
-    # Agora é seguro aplicar o dropna
     df = df.dropna(subset=colunas_necessarias)
-
     if df.empty:
         st.info("Nenhuma entrega pendente para confirmação após filtragem.")
         return
@@ -815,11 +808,7 @@ def pagina_confirmar_producao():
     ].copy()
 
     if not df_confirmadas.empty:
-        obrigatorias_antes = obrigatorias.shape[0]
         obrigatorias = obrigatorias[~obrigatorias["Serie_Numero_CTRC"].isin(df_confirmadas["Serie_Numero_CTRC"])]
-        qtd_removidas = obrigatorias_antes - obrigatorias.shape[0]
-        if qtd_removidas > 0:
-            st.info(f"ℹ️ {qtd_removidas} entregas obrigatórias foram ocultadas por já estarem na etapa de produção (`confirmadas_producao`).")
 
     df_exibir = df_confirmadas[
         ~df_confirmadas["Serie_Numero_CTRC"].isin(obrigatorias["Serie_Numero_CTRC"])
@@ -972,7 +961,7 @@ def pagina_confirmar_producao():
 
                         if set(chaves_inseridas) == set(chaves):
                             try:
-                                resultado_delete = supabase.table("confirmadas_producao").delete().in_("Serie_Numero_CTRC", chaves_inseridas).execute()
+                                supabase.table("confirmadas_producao").delete().in_("Serie_Numero_CTRC", chaves_inseridas).execute()
                                 st.session_state["rerun_confirmacao"] = True
                                 st.session_state["chaves_confirmadas"] = chaves_inseridas
                                 st.session_state.pop(session_key_selecionadas, None)
@@ -983,6 +972,7 @@ def pagina_confirmar_producao():
                             st.error("❌ Nem todas as entregas foram inseridas corretamente em 'aprovacao_diretoria'. Nenhuma foi removida.")
             except Exception as e:
                 st.error(f"Erro ao confirmar entregas: {e}")
+
 
 
 
