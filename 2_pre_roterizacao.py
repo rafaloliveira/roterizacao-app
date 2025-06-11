@@ -785,6 +785,14 @@ function(params) {
 def pagina_confirmar_producao():
     st.title("🚛 Confirmar Produção")
 
+    # Função auxiliar segura para dropna
+    def dropna_seguro(df, subset):
+        colunas_presentes = [col for col in subset if col in df.columns]
+        if colunas_presentes:
+            return df.dropna(subset=colunas_presentes)
+        else:
+            return df
+
     if st.session_state.get("rerun_confirmacao", False):
         chaves = st.session_state.get("chaves_confirmadas", [])
         st.session_state["rerun_confirmacao"] = False
@@ -792,22 +800,19 @@ def pagina_confirmar_producao():
         st.success("✅ Entregas confirmadas e movidas para Aprovação Diretoria.")
         time.sleep(1.5)
         st.rerun()
-        # Mensagens desaparecerão naturalmente após rerun
 
     df = carregar_base_supabase()
 
-    # Filtros iniciais
     colunas_necessarias = [
         "Chave CT-e", "Cliente Pagador", "Cliente Destinatario",
         "Cidade de Entrega", "Bairro do Destinatario"
     ]
-    df = df.dropna(subset=colunas_necessarias)
+    df = dropna_seguro(df, colunas_necessarias)
 
     if df.empty:
         st.info("Nenhuma entrega pendente para confirmação.")
         return
 
-    # Entregas já confirmadas
     confirmadas_res = supabase.table("confirmadas_producao").select("*").execute()
     df_confirmadas = pd.DataFrame(confirmadas_res.data)
 
@@ -913,17 +918,14 @@ def pagina_confirmar_producao():
         gb.configure_grid_options(alwaysShowHorizontalScroll=True)
         gb.configure_grid_options(suppressHorizontalScroll=False)
         gb.configure_grid_options(suppressScrollOnNewData=False)
-
         grid_options = gb.build()
         grid_options["getRowStyle"] = linha_destacar
 
         with st.container():
             st.markdown("<div style='overflow-x:auto;'>", unsafe_allow_html=True)
-
             grid_key_id = f"grid_confirmar_{cliente}"
             if grid_key_id not in st.session_state:
                 st.session_state[grid_key_id] = str(uuid.uuid4())
-
             grid_response = AgGrid(
                 df_formatado,
                 gridOptions=grid_options,
@@ -935,7 +937,6 @@ def pagina_confirmar_producao():
                 key=st.session_state[grid_key_id],
                 data_return_mode="AS_INPUT"
             )
-
             st.markdown("</div>", unsafe_allow_html=True)
 
         selecionadas = pd.DataFrame(grid_response.get("selected_rows", []))
@@ -961,7 +962,6 @@ def pagina_confirmar_producao():
 
                 chaves = selecionadas["Serie_Numero_CTRC"].dropna().astype(str).str.strip().tolist()
                 df_cliente["Serie_Numero_CTRC"] = df_cliente["Serie_Numero_CTRC"].astype(str).str.strip()
-
                 df_confirmar = df_cliente[df_cliente["Serie_Numero_CTRC"].isin(chaves)].copy()
                 colunas_validas = [col for col in colunas_exibir if col != "Serie_Numero_CTRC" and col in df_confirmar.columns]
                 df_confirmar = df_confirmar[["Serie_Numero_CTRC"] + colunas_validas]
@@ -991,17 +991,15 @@ def pagina_confirmar_producao():
                                 resultado_delete = supabase.table("confirmadas_producao").delete().in_("Serie_Numero_CTRC", chaves_inseridas).execute()
                                 st.session_state["rerun_confirmacao"] = True
                                 st.session_state["chaves_confirmadas"] = chaves_inseridas
-
                                 st.session_state.pop(session_key_selecionadas, None)
                                 st.session_state.pop(session_key_sucesso, None)
-
-                                
                             except Exception as delete_error:
                                 st.error(f"Erro ao deletar entregas: {delete_error}")
                         else:
                             st.error("❌ Nem todas as entregas foram inseridas corretamente em 'aprovacao_diretoria'. Nenhuma foi removida.")
             except Exception as e:
                 st.error(f"Erro ao confirmar entregas: {e}")
+
 
 ###########################################
 
