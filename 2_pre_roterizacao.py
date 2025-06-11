@@ -594,25 +594,24 @@ def pagina_sincronizacao():
     aplicar_regras_e_preencher_tabelas()
 
 
-
+#--------------------------############################
 import time
 
-
-
 def inserir_em_lote(nome_tabela, df, lote=100, tentativas=3, pausa=0.2):
-    """
-    Insere dados em lotes na tabela supabase, com tentativas e tratamento de dados.
-    """
-
-    # Converte colunas datetime para strings no formato ISO (yyyy-mm-dd)
+    # Converte datetime para string ISO
     for col in df.columns:
         if pd.api.types.is_datetime64_any_dtype(df[col]):
             df[col] = df[col].dt.strftime('%Y-%m-%d')
 
-    # Substitui NaN/NaT por None para evitar erros na serialização JSON
-    dados = df.where(pd.notnull(df), None).to_dict(orient="records")
+    # Substitui qualquer NaN ou NaT por None explicitamente
+    df = df.applymap(lambda x: None if pd.isna(x) else x)
 
-    # Insere em lotes, com tentativas e pausa entre eles
+    # Debug para checar NaNs restantes
+    nan_por_coluna = df.isna().sum()
+    st.write(f"[DEBUG] NaNs por coluna antes da inserção:", nan_por_coluna)
+
+    dados = df.to_dict(orient="records")
+
     for i in range(0, len(dados), lote):
         sublote = dados[i:i + lote]
 
@@ -631,8 +630,7 @@ def inserir_em_lote(nome_tabela, df, lote=100, tentativas=3, pausa=0.2):
 
 
 
-
-
+#------------------------------------------------------------------------------
 def limpar_tabelas_relacionadas():
     tabelas = [
         "confirmadas_producao", "aprovacao_diretoria", "pre_roterizacao",
