@@ -529,6 +529,8 @@ def criar_grid_destacado(df, key, selection_mode="multiple", page_size=500, altu
 ##############################
 # Página de sincronização
 ##############################
+import time
+
 def pagina_sincronizacao():
     st.title("🔄 Sincronização de Dados com Supabase")
 
@@ -539,22 +541,19 @@ def pagina_sincronizacao():
 
     try:
         df = pd.read_excel(arquivo_excel)
-        df.columns = df.columns.str.strip()  # Remove espaços dos nomes das colunas
+        df.columns = df.columns.str.strip()
 
-        # 🔧 Ajustes de colunas
-        colunas_para_remover = [
-            'Capa de Canhoto de NF',
-            # 'Outra Coluna Indesejada',  # Exemplo adicional
-        ]
+        # 🔧 Remove colunas indesejadas
+        colunas_para_remover = ['Capa de Canhoto de NF']
         colunas_existentes_para_remover = [col for col in colunas_para_remover if col in df.columns]
         if colunas_existentes_para_remover:
             df.drop(columns=colunas_existentes_para_remover, inplace=True)
             st.text(f"[DEBUG] Colunas removidas: {colunas_existentes_para_remover}")
 
+        # 🔄 Renomeia colunas para casar com o Supabase
         renomear_colunas = {
             'Cubagem em m3': 'Cubagem em m³',
-            'Serie/Numero CTRC':'Serie_Numero_CTRC'
-            # outros ajustes podem ser adicionados aqui
+            'Serie/Numero CTRC': 'Serie_Numero_CTRC'
         }
         colunas_renomeadas = {k: v for k, v in renomear_colunas.items() if k in df.columns}
         if colunas_renomeadas:
@@ -562,13 +561,13 @@ def pagina_sincronizacao():
             st.text(f"[DEBUG] Colunas renomeadas: {colunas_renomeadas}")
 
         st.success(f"Arquivo lido com sucesso: {df.shape[0]} linhas")
-        st.dataframe(df.head())  # Pré-visualização do conteúdo
+        st.dataframe(df.head())
 
     except Exception as e:
         st.error(f"Erro ao ler o arquivo: {e}")
         return
 
-    # 🗓️ Conversão de colunas de data
+    # 🗓️ Converte colunas de data para datetime
     colunas_data = [
         'Data de Emissao', 'Previsao de Entrega', 'Entrega Programada',
         'Data da Entrega Realizada'
@@ -594,27 +593,25 @@ def pagina_sincronizacao():
     aplicar_regras_e_preencher_tabelas()
 
 
-#--------------------------############################
-import time
-
 def inserir_em_lote(nome_tabela, df, lote=100, tentativas=3, pausa=0.2):
-    # Converte datetime para string ISO
+    # 🗓️ Converte datetime para string ISO (yyyy-mm-dd)
     for col in df.columns:
         if pd.api.types.is_datetime64_any_dtype(df[col]):
             df[col] = df[col].dt.strftime('%Y-%m-%d')
 
-    # Substitui qualquer NaN ou NaT por None explicitamente
-    df = df.applymap(lambda x: None if pd.isna(x) else x)
+    # 🧹 Substitui NaN, NaT e np.nan por None
+    df = df.where(pd.notnull(df), None)
 
-    # Debug para checar NaNs restantes
-    nan_por_coluna = df.isna().sum()
-    st.write(f"[DEBUG] NaNs por coluna antes da inserção:", nan_por_coluna)
+    # 📊 Debug: checar valores nulos
+    st.write("[DEBUG] Amostra de dados após limpeza:", df.head())
+    st.write("[DEBUG] Quantidade de NaNs por coluna:", df.isna().sum())
 
+    # 📤 Converte DataFrame em dicionários
     dados = df.to_dict(orient="records")
 
+    # 🔁 Inserção em lotes
     for i in range(0, len(dados), lote):
         sublote = dados[i:i + lote]
-
         for tentativa in range(tentativas):
             try:
                 supabase.table(nome_tabela).insert(sublote).execute()
@@ -627,8 +624,6 @@ def inserir_em_lote(nome_tabela, df, lote=100, tentativas=3, pausa=0.2):
             st.error(f"[ERRO] Falha final ao inserir lote {i}–{i + len(sublote) - 1} na tabela '{nome_tabela}'.")
 
         time.sleep(pausa)
-
-
 
 #------------------------------------------------------------------------------
 def limpar_tabelas_relacionadas():
