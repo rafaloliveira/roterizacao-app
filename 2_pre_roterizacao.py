@@ -718,12 +718,6 @@ def inserir_em_lote(nome_tabela, df, lote=100, tentativas=3, pausa=0.2):
         time.sleep(pausa)
 
 
-
-
-
-
-
-
 #------------------------------------------------------------------------------
 def limpar_tabelas_relacionadas():
     tabelas = [
@@ -761,8 +755,7 @@ def aplicar_regras_e_preencher_tabelas():
         df['Entrega Programada'] = pd.to_datetime(df.get('Entrega Programada'), errors='coerce')
 
         st.text(f"[DEBUG] {len(df)} registros carregados de fBaseroter.")
-
-        
+#__________________________________________________________________________________________________________
         # Merge com Micro_Regiao_por_data_embarque
         micro = supabase.table("Micro_Regiao_por_data_embarque").select("*").execute().data
         if micro:
@@ -796,7 +789,7 @@ def aplicar_regras_e_preencher_tabelas():
         else:
             df['Data de Embarque'] = pd.NaT
         st.text("[DEBUG] Mescla com Micro_Regiao_por_data_embarque concluída.")
-
+#______________________________________________________________________________________________________________________
 
         # Merge com Particularidades
         part = supabase.table("Particularidades").select("*").execute().data
@@ -809,19 +802,28 @@ def aplicar_regras_e_preencher_tabelas():
         else:
             df['Particularidade'] = None
         st.text("[DEBUG] Mescla com Particularidades concluída.")
-
+#________________________________________________________________________________________________________________________
+        # Merge com Clientes_Entrega_Agendada
         # Merge com Clientes_Entrega_Agendada
         agendados = supabase.table("Clientes_Entrega_Agendada").select("*").execute().data
         if agendados:
             df_ag = pd.DataFrame(agendados)
             df_ag.columns = df_ag.columns.str.strip()
-            df = df.merge(df_ag[['CNPJ', 'Status']], how='left',
-                          left_on='CNPJ Destinatario', right_on='CNPJ')
-            df.drop(columns=['CNPJ'], inplace=True)
+
+            if 'CNPJ' in df_ag.columns and 'Status' in df_ag.columns:
+                # Filtra somente os CNPJs com Status == 'AGENDAR'
+                cnpjs_agendar = df_ag[df_ag['Status'].str.upper() == 'AGENDAR']['CNPJ'].str.strip().unique()
+
+                # Cria coluna Status com valor 'AGENDAR' apenas onde o CNPJ está na lista
+                df['Status'] = df['CNPJ Destinatario'].str.strip().isin(cnpjs_agendar).map({True: 'AGENDAR', False: None})
+            else:
+                df['Status'] = None
+                st.warning("Colunas esperadas 'CNPJ' e/ou 'Status' não encontradas em Clientes_Entrega_Agendada.")
         else:
             df['Status'] = None
         st.text("[DEBUG] Mescla com Clientes_Entrega_Agendada concluída.")
 
+#________________________________________________________________________________________________________________________
         # Definição da Rota
         rotas = supabase.table("Rotas").select("*").execute().data
         df['Rota'] = None
@@ -838,7 +840,7 @@ def aplicar_regras_e_preencher_tabelas():
                 if not rota.empty:
                     df.at[idx, 'Rota'] = rota.iloc[0]['Rota']
         st.text("[DEBUG] Definição de rotas concluída.")
-
+#__________________________________________________________________________________________________________________________
         # Pré-roterização
         hoje = pd.to_datetime('today').normalize()
         obrigatorias = df[
