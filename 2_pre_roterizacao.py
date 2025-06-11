@@ -529,234 +529,148 @@ def criar_grid_destacado(df, key, selection_mode="multiple", page_size=500, altu
 ##############################
 # Página de sincronização
 ##############################
+from supabase import create_client, Client
+
+# ------------------------
 def pagina_sincronizacao():
-    st.title("🔄 Sincronização de Dados")
-    st.subheader("1. Envie o arquivo Excel com os dados")
+    st.title("🔄 Sincronização de Dados com Supabase")
 
-    uploaded_file = st.file_uploader("📂 Selecione o arquivo .xlsx", type=["xlsx"])
-
-    if uploaded_file is None:
-        st.warning("Por favor, importe o arquivo fBaseroter para continuar.")
+    st.markdown("### Passo 1: Carregar Planilha Excel")
+    arquivo_excel = st.file_uploader("Selecione a planilha da fBaseroter:", type=["xlsx"])
+    if not arquivo_excel:
         return
 
-    data_to_sync = load_and_prepare_data(uploaded_file)
+    try:
+        df = pd.read_excel(arquivo_excel)
+        st.success(f"Arquivo lido com sucesso: {df.shape[0]} linhas")
+        st.write("Prévia dos dados:")
+        st.dataframe(df.head())
+    except Exception as e:
+        st.error(f"Erro ao ler o arquivo: {e}")
+        return
 
-    def remover_colunas(df, colunas_para_remover):
-        for col in colunas_para_remover:
-            if col in df.columns:
-                df = df.drop(columns=[col])
-        return df
+    # Conversão de datas
+    colunas_data = [
+        'Data de Emissao', 'Previsao de Entrega', 'Entrega Programada',
+        'Data da Entrega Realizada'
+    ]
+    for col in colunas_data:
+        if col in df.columns:
+            df[col] = pd.to_datetime(df[col], format='%d/%m/%Y', errors='coerce')
+            st.text(f"[DEBUG] Coluna '{col}' convertida para datetime.")
 
-    def aplicar_rotas_e_particularidades(df):
-        if df.empty:
-            return df
+    st.markdown("### Passo 2: Importando para fBaseroter")
+    try:
+        supabase.table("fBaseroter").delete().neq("Serie_Numero_CTRC", "").execute()
+        inserir_em_lote("fBaseroter", df)
+        st.success("Dados inseridos em fBaseroter com sucesso.")
+    except Exception as e:
+        st.error(f"[ERRO] Inserção na fBaseroter falhou: {e}")
+        return
 
-        df['CNPJ Destinatario'] = df['CNPJ Destinatario'].astype(str).str.strip()
-        df['Cidade de Entrega'] = df['Cidade de Entrega'].astype(str).str.strip().str.upper()
-        df['Bairro do Destinatario'] = df['Bairro do Destinatario'].astype(str).str.strip().str.upper()
+    st.markdown("### Passo 3: Limpando tabelas dependentes")
+    limpar_tabelas_relacionadas()
 
-        # Carrega tabelas auxiliares
-        agendadas = pd.DataFrame(supabase.table("Clientes_Entrega_Agendada").select("*").execute().data)
+    st.markdown("### Passo 4: Aplicando regras de negócio")
+    aplicar_regras_e_preencher_tabelas()
+
+# ------------------------
+def inserir_em_lote(nome_tabela, df):
+    dados = df.to_dict(orient="records")
+    for i in range(0, len(dados), 500):
+        try:
+            resultado = supabase.table(nome_tabela).insert(dados[i:i+500]).execute()
+            st.text(f"[DEBUG] Inseridos {len(dados[i:i+500])} registros na tabela {nome_tabela}.")
+        except Exception as e:
+            st.error(f"[ERRO] Falha ao inserir lote em {nome_tabela}: {e}")
+
+# ------------------------
+def limpar_tabelas_relacionadas():
+    tabelas = [
+        "confirmadas_producao", "aprovacao_diretoria", "pre_roterizacao",
+        "rotas_confirmadas", "cargas_geradas", "aprovacao_custos"
+    ]
+    for tabela in tabelas:
+        try:
+            res = supabase.table(tabela).select("id").limit(1).execute()
+            if res.data:
+                supabase.table(tabela).delete().neq("id", "").execute()
+                st.warning(f"[DEBUG] Dados da tabela '{tabela}' foram apagados.")
+            else:
+                st.info(f"[DEBUG] Tabela '{tabela}' já estava vazia.")
+        except Exception as e:
+            st.error(f"[ERRO] Ao limpar tabela '{tabela}': {e}")
+
+# ------------------------
+def aplicar_regras_e_preencher_tabelas():
+    try:
+        df = pd.DataFrame(supabase.table("fBaseroter").select("*").execute().data)
+        st.text(f"[DEBUG] Carregados {len(df)} registros da fBaseroter.")
+    except Exception as e:
+        st.error(f"[ERRO] Falha ao carregar fBaseroter: {e}")
+        return
+
+    try:
+        micro_regiao = pd.DataFrame(supabase.table("Micro_Regiao_por_data_embarque").select("*").execute().data)
         particularidades = pd.DataFrame(supabase.table("Particularidades").select("*").execute().data)
+        clientes_agendados = pd.DataFrame(supabase.table("Clientes_Entrega_Agendada").select("*").execute().data)
         rotas = pd.DataFrame(supabase.table("Rotas").select("*").execute().data)
-        rotas_poa = pd.DataFrame(supabase.table("RotasPortoAlegre").select("*").execute().data)
+        st.text("[DEBUG] Tabelas auxiliares carregadas.")
+    except Exception as e:
+        st.error(f"[ERRO] Falha ao carregar tabelas auxiliares: {e}")
+        return
 
-        if not agendadas.empty and {'CNPJ', 'Status de Agenda'}.issubset(agendadas.columns):
-            agendadas['CNPJ'] = agendadas['CNPJ'].astype(str).str.strip()
-            df = df.merge(
-                agendadas[['CNPJ', 'Status de Agenda']],
-                how='left',
-                left_on='CNPJ Destinatario',
-                right_on='CNPJ'
-            ).rename(columns={'Status de Agenda': 'Status'})
+    df['Previsao de Entrega'] = pd.to_datetime(df['Previsao de Entrega'], errors='coerce')
+    df = df.merge(micro_regiao[['Dia', 'Data_Embarque']], left_on='Previsao de Entrega', right_on='Dia', how='left')
+    df = df.merge(particularidades[['CNPJ', 'Particularidade']], left_on='CNPJ Destinatario', right_on='CNPJ', how='left')
+    df = df.merge(clientes_agendados[['CNPJ', 'Status']], left_on='CNPJ Destinatario', right_on='CNPJ', how='left')
 
-        if 'Status' not in df.columns:
-            df['Status'] = ''
+    st.text("[DEBUG] Merges realizados com sucesso.")
 
-        if not particularidades.empty and {'CNPJ', 'Particularidade'}.issubset(particularidades.columns):
-            particularidades['CNPJ'] = particularidades['CNPJ'].astype(str).str.strip()
-            df = df.merge(
-                particularidades[['CNPJ', 'Particularidade']],
-                how='left',
-                left_on='CNPJ Destinatario',
-                right_on='CNPJ'
-            ).drop(columns=['CNPJ'], errors='ignore')
+    def definir_rota(row):
+        if row['Cidade de Entrega'] == 'Porto Alegre':
+            rota = rotas[rotas['Bairro'] == row['Bairro do Destinatario']]
+        else:
+            rota = rotas[rotas['Cidade de Entrega'] == row['Cidade de Entrega']]
+        return rota['Rota'].iloc[0] if not rota.empty else None
 
-        # Aplicar rotas
-        rotas['Cidade de Entrega'] = rotas['Cidade de Entrega'].astype(str).str.strip().str.upper()
-        rotas['Bairro do Destinatario'] = rotas['Bairro do Destinatario'].astype(str).str.strip().str.upper()
-        rotas_dict = dict(zip(rotas['Cidade de Entrega'], rotas['Rota']))
+    df['Rota'] = df.apply(definir_rota, axis=1)
+    st.text("[DEBUG] Rotas atribuídas.")
 
-        rotas_poa['Cidade de Entrega'] = rotas_poa['Cidade de Entrega'].astype(str).str.strip().str.upper()
-        rotas_poa['Bairro do Destinatario'] = rotas_poa['Bairro do Destinatario'].astype(str).str.strip().str.upper()
-        rotas_poa_dict = dict(zip(rotas_poa['Bairro do Destinatario'], rotas_poa['Rota']))
+    hoje = pd.Timestamp.today().normalize()
+    d_mais_1 = hoje + pd.Timedelta(days=1)
+    cond_data_embarque = df['Previsao de Entrega'] < d_mais_1
+    cond_agendada_sem_programada = (df['Status'] == 'AGENDADA') & (df['Entrega Programada'].isnull())
+    cond_pre_roterizacao = cond_data_embarque | cond_agendada_sem_programada
 
-        def definir_rota(row):
-            if row.get('Cidade de Entrega') == 'PORTO ALEGRE':
-                return rotas_poa_dict.get(row.get('Bairro do Destinatario'), '')
-            return rotas_dict.get(row.get('Cidade de Entrega'), '')
+    if df['Serie_Numero_CTRC'].duplicated().any():
+        st.error("[ERRO] Duplicatas encontradas em Serie_Numero_CTRC.")
+        return
 
-        df['Rota'] = df.apply(definir_rota, axis=1)
+    colunas_destino = [
+        'Serie_Numero_CTRC', 'Cliente Pagador', 'Chave CT-e', 'Cliente Destinatario', 'Cidade de Entrega',
+        'Bairro do Destinatario', 'Previsao de Entrega', 'Numero da Nota Fiscal', 'Status', 'Entrega Programada',
+        'Particularidade', 'Codigo da Ultima Ocorrencia', 'Peso Real em Kg', 'Peso Calculado em Kg',
+        'Cubagem em m³', 'Quantidade de Volumes', 'Valor do Frete', 'Rota'
+    ]
 
-        return df
+    df_pre = df[cond_pre_roterizacao][colunas_destino].copy()
+    df_conf = df[~cond_pre_roterizacao][colunas_destino].copy()
 
-    if data_to_sync is not None:
-        st.subheader("2. Enviar para o Supabase")
-        st.write("⚠️ As tabelas `pre_roterizacao` e `confirmadas_producao` serão substituídas. A tabela `fBaseroter` não será alterada.")
+    inserir_em_lote("pre_roterizacao", df_pre)
+    inserir_em_lote("confirmadas_producao", df_conf)
 
-        if st.button("🚀 Sincronizar"):
-            try:
-                progress_bar = st.progress(0, text="Iniciando sincronização...")
-                status_text = st.empty()
-                log_area = st.expander("📄 Logs Detalhados", expanded=False)
+    st.success(f"[DEBUG] Inseridos {len(df_pre)} registros em pre_roterizacao.")
+    st.success(f"[DEBUG] Inseridos {len(df_conf)} registros em confirmadas_producao.")
 
-                # ✅ ZERA TODAS AS TABELAS ENVOLVIDAS NO FLUXO
-                tabelas_para_zerar = [
-                    "aprovacao_custos",
-                    "aprovacao_diretoria",
-                    "cargas_aprovadas",
-                    "cargas_geradas",
-                    "confirmadas_producao",
-                    "pre_roterizacao",
-                    "rotas_confirmadas"
-                ]
-                for tabela in tabelas_para_zerar:
-                    supabase.table(tabela).delete().neq("Serie_Numero_CTRC", "---NON_EXISTENT_VALUE---").execute()
-                log_area.write("🧹 Tabelas auxiliares zeradas com sucesso.")
+    destaque = df_pre[cond_agendada_sem_programada]
+    if not destaque.empty:
+        st.subheader("⚠️ Entregas AGENDADAS sem Entrega Programada")
+        st.dataframe(destaque)
+        st.warning(f"[DEBUG] {len(destaque)} entregas agendadas sem entrega programada encontradas.")
 
-                df = pd.DataFrame(data_to_sync)
+    st.success("✔️ Etapa finalizada com sucesso.")
 
-                status_text.info("💾 Enviando base completa para a tabela fBaseroter...")
-                full_base_cleaned = clean_records(df.to_dict(orient="records"))
-                supabase.table("fBaseroter").delete().neq("Serie_Numero_CTRC", "---NON_EXISTENT_VALUE---").execute()
-                try:
-                    insert_response = supabase.table("fBaseroter").insert(full_base_cleaned).execute()
-                    log_area.write(f"✅ {len(full_base_cleaned)} registros inseridos na tabela `fBaseroter`.")
-                except Exception as e:
-                    st.error(f"❌ Falha ao inserir dados na tabela fBaseroter: {e}")
-                    return
-
-
-                df["Previsao de Entrega"] = pd.to_datetime(df["Previsao de Entrega"], errors='coerce')
-                df["Entrega Programada"] = df["Entrega Programada"].fillna('').astype(str)
-
-                # ✅ Conversão robusta de "Valor do Frete"
-                df["Valor do Frete"] = (
-                    df["Valor do Frete"]
-                    .astype(str)
-                    .str.replace(",", ".")
-                    .str.strip()
-                )
-                df["Valor do Frete"] = pd.to_numeric(df["Valor do Frete"], errors="coerce")
-
-                # ✅ Garante que 'Status' exista
-                if 'Status' not in df.columns:
-                    df['Status'] = ''
-
-                d_mais_1 = datetime.now() + timedelta(days=1)
-
-
-
-                colunas_necessarias = ["Previsao de Entrega", "Valor do Frete", "Status", "Entrega Programada"]
-                faltando = [col for col in colunas_necessarias if col not in df.columns]
-
-                if faltando:
-                    st.error(f"❌ As seguintes colunas estão ausentes na base: {', '.join(faltando)}")
-                    return  # ou st.stop()
-                
-
-                # ✅ Critérios obrigatórios
-                # ✅ Aplica critérios obrigatórios
-                obrigatorias = df[
-                    (df["Previsao de Entrega"] < d_mais_1) |
-                    (df["Valor do Frete"] >= 300) |
-                    ((df["Status"].str.lower() == "agendar") & (df["Entrega Programada"].str.strip() == ''))
-                ].copy()
-
-                # ✅ Restantes = tudo que NÃO está em obrigatórias
-                restantes = df[~df["Serie_Numero_CTRC"].isin(obrigatorias["Serie_Numero_CTRC"])].copy()
-
-                # ✅ Garante que nenhuma entrega obrigatória já esteja na Confirmadas Produção
-                confirmadas_existente = pd.DataFrame(
-                    supabase.table("confirmadas_producao").select("Serie_Numero_CTRC").execute().data
-                )
-                if not confirmadas_existente.empty:
-                    confirmadas_existente["Serie_Numero_CTRC"] = confirmadas_existente["Serie_Numero_CTRC"].astype(str).str.strip()
-                    obrigatorias = obrigatorias[~obrigatorias["Serie_Numero_CTRC"].isin(confirmadas_existente["Serie_Numero_CTRC"])]
-
-                # ✅ Garante que nenhuma entrega restante já esteja na Pré Roterização
-                pre_roterizacao_existente = pd.DataFrame(
-                    supabase.table("pre_roterizacao").select("Serie_Numero_CTRC").execute().data
-                )
-                if not pre_roterizacao_existente.empty:
-                    pre_roterizacao_existente["Serie_Numero_CTRC"] = pre_roterizacao_existente["Serie_Numero_CTRC"].astype(str).str.strip()
-                    restantes = restantes[~restantes["Serie_Numero_CTRC"].isin(pre_roterizacao_existente["Serie_Numero_CTRC"])]
-
-
-
-
-                obrigatorias = obrigatorias.where(pd.notnull(obrigatorias), None)
-                restantes = restantes.where(pd.notnull(restantes), None)
-
-                # Colunas que não devem ir para o banco
-                colunas_excluir_pre_roterizacao = [
-                    'Adicional de Frete', 'Bairro', 'Chaves NF-es', 'Cliente Remetente',
-                    'Codigo dos Correios', 'Compr. de Entrega Escaneado', 'Data da Entrega Realizada',
-                    'Data da Ultima Ocorrencia', 'Data de Autorizacao', 'Data de Emissao',
-                    'Data de inclusao da Ultima Ocorrencia', 'Data do Cancelamento', 'Data do Escaneamento',
-                    'Descricao da Ultima Ocorrencia', 'Fone do Pagador', 'Frete Peso', 'Frete Valor',
-                    'Hora do Escaneamento', 'Latitude da Ultima Ocorrencia', 'Local de Entrega',
-                    'Longitude da Ultima Ocorrencia', 'Motivo do Cancelamento', 'Notas Fiscais',
-                    'Numero da Capa de Remessa', 'Numero do Pacote de Arquivamento', 'Numero dos Pedidos',
-                    'Quantidade de Dias de Atraso', 'Segmento do Pagador', 'Serie/Numero CT-e',
-                    'Setor de Destino', 'TDA', 'TDE', 'Tipo do Documento', 'UF de Entrega',
-                    'UF do Destinatario', 'UF do Expedidor', 'UF do Pagador', 'UF do Remetente',
-                    'UF origem da prestacao', 'Unidade Emissora', 'Unidade Receptora',
-                    'Unidade da Ultima Ocorrencia', 'Unnamed: 67', 'Usuario da Ultima Ocorrencia',
-                    'Valor da Mercadoria', 'Valor do ICMS', 'Valor do ISS', 'Volume Cliente/Shipment'
-                ]
-                colunas_excluir_confirmadas = colunas_excluir_pre_roterizacao + ['Localizacao Atual']
-
-                ## ✅ Aplica enriquecimento ANTES de remover colunas
-                obrigatorias = aplicar_rotas_e_particularidades(obrigatorias)
-                restantes = aplicar_rotas_e_particularidades(restantes)
-
-                # 🔧 Remove colunas extras criadas por merge
-                for df_temp in [obrigatorias, restantes]:
-                    df_temp.drop(columns=[col for col in df_temp.columns if col.endswith('_x') or col.endswith('_y') or col == 'CNPJ'], inplace=True, errors='ignore')
-
-                # Agora remove colunas desnecessárias
-                obrigatorias = remover_colunas(obrigatorias, colunas_excluir_pre_roterizacao)
-                restantes = remover_colunas(restantes, colunas_excluir_confirmadas)
-
-                dados_pre_roterizacao = clean_records(obrigatorias.to_dict(orient="records"))
-                dados_confirmadas_producao = clean_records(restantes.to_dict(orient="records"))
-                df = df.replace([np.nan, pd.NaT, pd.NA, np.inf, -np.inf], None)
-
-                status_text.info("🔄 Limpando tabelas `pre_roterizacao` e `confirmadas_producao`...")
-                supabase.table("pre_roterizacao").delete().neq("Serie_Numero_CTRC", "---NON_EXISTENT_VALUE---").execute()
-                supabase.table("confirmadas_producao").delete().neq("Serie_Numero_CTRC", "---NON_EXISTENT_VALUE---").execute()
-                progress_bar.progress(25, text="Tabelas limpas.")
-
-                if dados_pre_roterizacao:
-                    supabase.table("pre_roterizacao").insert(dados_pre_roterizacao).execute()
-                    log_area.write(f"{len(dados_pre_roterizacao)} entregas enviadas para `pre_roterizacao`.")
-                progress_bar.progress(65, text="Entregas obrigatórias inseridas.")
-
-                if dados_confirmadas_producao:
-                    supabase.table("confirmadas_producao").insert(dados_confirmadas_producao).execute()
-                    log_area.write(f"{len(dados_confirmadas_producao)} entregas enviadas para `confirmadas_producao`.")
-                progress_bar.progress(100, text="Entregas restantes inseridas.")
-
-                status_text.success("✅ Sincronização concluída com sucesso!")
-                st.success(f"{len(data_to_sync)} registros processados.")
-                st.cache_data.clear()
-                time.sleep(1.5)
-                st.rerun()
-
-            except Exception as e:
-                st.error(f"❌ Erro durante a sincronização: {e}")
-                log_area.write(e)
 
 
 ###########################################
