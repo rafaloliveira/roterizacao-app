@@ -790,7 +790,7 @@ def pagina_confirmar_producao():
         st.session_state["rerun_confirmacao"] = False
         st.session_state["chaves_confirmadas"] = []
         st.session_state["mensagem_sucesso_confirmacao"] = f"{len(chaves)} entrega(s) confirmada(s) e movida(s) para Aprovação da Diretoria."
-        st.experimental_rerun()
+        st.rerun()
 
     mensagem_sucesso = st.session_state.pop("mensagem_sucesso_confirmacao", None)
 
