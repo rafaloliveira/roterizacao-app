@@ -553,6 +553,7 @@ def pagina_sincronizacao():
 
         renomear_colunas = {
             'Cubagem em m3': 'Cubagem em m³',
+            'Serie/Numero CTRC':'Serie_Numero_CTRC'
             # outros ajustes podem ser adicionados aqui
         }
         colunas_renomeadas = {k: v for k, v in renomear_colunas.items() if k in df.columns}
