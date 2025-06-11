@@ -541,7 +541,10 @@ def pagina_sincronizacao():
         df = pd.read_excel(arquivo_excel)
         df.columns = df.columns.str.strip()  # <- Corrige nomes com espaços
         st.success(f"Arquivo lido com sucesso: {df.shape[0]} linhas")
+         # Mostrar as primeiras linhas para conferir o conteúdo
         st.dataframe(df.head())
+
+
     except Exception as e:
         st.error(f"Erro ao ler o arquivo: {e}")
         return
@@ -572,14 +575,22 @@ def pagina_sincronizacao():
 
 
 def inserir_em_lote(nome_tabela, df):
-    dados = df.where(pd.notnull(df), None)  # <- Trata NaT, NaN para None
-    dados = dados.to_dict(orient="records")
+    # Converte datas para string no formato ISO ou None
+    for col in df.columns:
+        if pd.api.types.is_datetime64_any_dtype(df[col]):
+            df[col] = df[col].dt.strftime('%Y-%m-%d')  # ou '%d/%m/%Y' se quiser manter
+
+    # Substitui NaN e NaT por None
+    dados = df.where(pd.notnull(df), None).to_dict(orient="records")
+
+    # Inserção em lotes
     for i in range(0, len(dados), 500):
         try:
-            supabase.table(nome_tabela).insert(dados[i:i+500]).execute()
+            resposta = supabase.table(nome_tabela).insert(dados[i:i+500]).execute()
             st.text(f"[DEBUG] Inseridos {len(dados[i:i+500])} registros na tabela {nome_tabela}.")
         except Exception as e:
             st.error(f"[ERRO] Falha ao inserir lote em {nome_tabela}: {e}")
+
 
 
 def limpar_tabelas_relacionadas():
