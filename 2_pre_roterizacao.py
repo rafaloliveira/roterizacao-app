@@ -539,36 +539,35 @@ def pagina_sincronizacao():
 
     try:
         df = pd.read_excel(arquivo_excel)
-        df.columns = df.columns.str.strip()  # <- Corrige nomes com espaços
+        df.columns = df.columns.str.strip()  # Remove espaços dos nomes das colunas
 
+        # 🔧 Ajustes de colunas
         colunas_para_remover = [
             'Capa de Canhoto de NF',
-            # 'Outra Coluna Indesejada',  # Exemplo, só descomente/adicione aqui
+            # 'Outra Coluna Indesejada',  # Exemplo adicional
         ]
-
-        # Remove as colunas da lista que existirem no DataFrame
         colunas_existentes_para_remover = [col for col in colunas_para_remover if col in df.columns]
         if colunas_existentes_para_remover:
             df.drop(columns=colunas_existentes_para_remover, inplace=True)
-            st.text(f"Colunas removidas do DataFrame antes da importação: {colunas_existentes_para_remover}")
+            st.text(f"[DEBUG] Colunas removidas: {colunas_existentes_para_remover}")
 
-            # Renomear colunas para bater com o banco
         renomear_colunas = {
             'Cubagem em m3': 'Cubagem m³',
-            # outros ajustes aqui
+            # outros ajustes podem ser adicionados aqui
         }
-        df.rename(columns=renomear_colunas, inplace=True)
+        colunas_renomeadas = {k: v for k, v in renomear_colunas.items() if k in df.columns}
+        if colunas_renomeadas:
+            df.rename(columns=colunas_renomeadas, inplace=True)
+            st.text(f"[DEBUG] Colunas renomeadas: {colunas_renomeadas}")
 
-            
         st.success(f"Arquivo lido com sucesso: {df.shape[0]} linhas")
-         # Mostrar as primeiras linhas para conferir o conteúdo
-        st.dataframe(df.head())
-
+        st.dataframe(df.head())  # Pré-visualização do conteúdo
 
     except Exception as e:
         st.error(f"Erro ao ler o arquivo: {e}")
         return
 
+    # 🗓️ Conversão de colunas de data
     colunas_data = [
         'Data de Emissao', 'Previsao de Entrega', 'Entrega Programada',
         'Data da Entrega Realizada'
@@ -592,6 +591,7 @@ def pagina_sincronizacao():
 
     st.markdown("### Passo 4: Aplicando regras de negócio")
     aplicar_regras_e_preencher_tabelas()
+
 
 
 import time
