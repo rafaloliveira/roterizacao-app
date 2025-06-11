@@ -599,15 +599,17 @@ def inserir_em_lote(nome_tabela, df, lote=100, tentativas=3, pausa=0.2):
         if pd.api.types.is_datetime64_any_dtype(df[col]):
             df[col] = df[col].dt.strftime('%Y-%m-%d')
 
-    # 🧹 Substitui NaN, NaT e np.nan por None
-    df = df.where(pd.notnull(df), None)
+    # 🧹 Substitui todos os NaN/NaT/np.nan por None
+    def limpar_valores(obj):
+        if pd.isna(obj):
+            return None
+        return obj
+
+    dados = df.applymap(limpar_valores).to_dict(orient="records")
 
     # 📊 Debug: checar valores nulos
-    st.write("[DEBUG] Amostra de dados após limpeza:", df.head())
+    st.write("[DEBUG] Primeira linha do lote limpo:", dados[0])
     st.write("[DEBUG] Quantidade de NaNs por coluna:", df.isna().sum())
-
-    # 📤 Converte DataFrame em dicionários
-    dados = df.to_dict(orient="records")
 
     # 🔁 Inserção em lotes
     for i in range(0, len(dados), lote):
@@ -624,6 +626,7 @@ def inserir_em_lote(nome_tabela, df, lote=100, tentativas=3, pausa=0.2):
             st.error(f"[ERRO] Falha final ao inserir lote {i}–{i + len(sublote) - 1} na tabela '{nome_tabela}'.")
 
         time.sleep(pausa)
+
 
 #------------------------------------------------------------------------------
 def limpar_tabelas_relacionadas():
