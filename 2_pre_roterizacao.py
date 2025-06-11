@@ -785,12 +785,14 @@ function(params) {
 def pagina_confirmar_producao():
     st.title("🚛 Confirmar Produção")
 
-    mensagem_sucesso = None
+    if st.session_state.get("rerun_confirmacao", False):
+        chaves = st.session_state.get("chaves_confirmadas", [])
+        st.session_state["rerun_confirmacao"] = False
+        st.session_state["chaves_confirmadas"] = []
+        st.session_state["mensagem_sucesso_confirmacao"] = f"{len(chaves)} entrega(s) confirmada(s) e movida(s) para Aprovação da Diretoria."
+        st.rerun()
 
-    if "mensagem_sucesso_confirmacao" in st.session_state:
-        mensagem_sucesso = st.session_state.pop("mensagem_sucesso_confirmacao")
-
-        mensagem_sucesso = st.session_state.pop("mensagem_sucesso_confirmacao", None)
+    mensagem_sucesso = st.session_state.pop("mensagem_sucesso_confirmacao", None)
 
     df = carregar_base_supabase()
 
@@ -955,10 +957,10 @@ def pagina_confirmar_producao():
 
                             if set(chaves_inseridas) == set(chaves):
                                 supabase.table("confirmadas_producao").delete().in_("Serie_Numero_CTRC", chaves_inseridas).execute()
-
-                                st.success(f"{len(chaves_inseridas)} entrega(s) confirmada(s) e movida(s) para Aprovação da Diretoria.")
-                                st.balloons()
-                                st.stop()
+                                st.session_state["mensagem_sucesso_confirmacao"] = f"{len(chaves_inseridas)} entrega(s) confirmada(s) e movida(s) para Aprovação da Diretoria."
+                                st.session_state["rerun_confirmacao"] = True
+                                time.sleep(0.5)
+                                st.rerun()
                             else:
                                 st.error("❌ Nem todas as entregas foram inseridas corretamente.")
                 except Exception as e:
