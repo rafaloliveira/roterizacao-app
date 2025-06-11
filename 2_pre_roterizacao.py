@@ -785,38 +785,27 @@ function(params) {
 def pagina_confirmar_producao():
     st.title("🚛 Confirmar Produção")
 
-    mensagem_sucesso = st.session_state.pop("mensagem_sucesso_confirmacao", None)
-    if mensagem_sucesso:
-        st.success(mensagem_sucesso)
+    mensagem_sucesso = None
+
+    if "mensagem_sucesso_confirmacao" in st.session_state:
+        mensagem_sucesso = st.session_state.pop("mensagem_sucesso_confirmacao")
+
+        mensagem_sucesso = st.session_state.pop("mensagem_sucesso_confirmacao", None)
 
     df = carregar_base_supabase()
-    df.columns = df.columns.str.strip()  # Remove espaços extras
-
 
     colunas_necessarias = [
         "Chave CT-e", "Cliente Pagador", "Cliente Destinatario",
         "Cidade de Entrega", "Bairro do Destinatario"
     ]
-
-    colunas_faltando = [col for col in colunas_necessarias if col not in df.columns]
-    if colunas_faltando:
-        st.warning(f"As seguintes colunas estão ausentes na base: {', '.join(colunas_faltando)}")
-        return
-
     df = df.dropna(subset=colunas_necessarias)
 
     if df.empty:
         st.info("Nenhuma entrega pendente para confirmação.")
         return
 
-    def carregar_dados_confirmadas():
-        confirmadas_res = supabase.table("confirmadas_producao").select("*").execute()
-        return pd.DataFrame(confirmadas_res.data)
-
-    df_confirmadas = st.session_state.get("dados_confirmadas_producao")
-    if df_confirmadas is None:
-        df_confirmadas = carregar_dados_confirmadas()
-        st.session_state["dados_confirmadas_producao"] = df_confirmadas
+    confirmadas_res = supabase.table("confirmadas_producao").select("*").execute()
+    df_confirmadas = pd.DataFrame(confirmadas_res.data)
 
     if df_confirmadas.empty:
         st.info("Nenhuma entrega confirmada na produção.")
@@ -863,6 +852,9 @@ def pagina_confirmar_producao():
         "Peso Real em Kg", "Peso Calculado em Kg", "Cubagem em m³", "Quantidade de Volumes"
     ]
 
+    if mensagem_sucesso:
+        st.success(mensagem_sucesso)
+
     for cliente in sorted(df_exibir["Cliente Pagador"].fillna("(Vazio)").unique()):
         df_cliente = df_exibir[df_exibir["Cliente Pagador"].fillna("(Vazio)") == cliente].copy()
         if df_cliente.empty:
@@ -904,31 +896,30 @@ def pagina_confirmar_producao():
 
         grid_options = gb.build()
 
-        grid_key_id = f"grid_confirmar_{cliente}"
-        if grid_key_id not in st.session_state:
-            st.session_state[grid_key_id] = str(uuid.uuid4())
+        with st.container():
+            st.markdown("<div style='overflow-x:auto;'>", unsafe_allow_html=True)
 
-        grid_response = AgGrid(
-            df_formatado,
-            gridOptions=grid_options,
-            update_mode=GridUpdateMode.SELECTION_CHANGED,
-            fit_columns_on_grid_load=False,
-            height=500,
-            width=1500,
-            allow_unsafe_jscode=True,
-            key=st.session_state[grid_key_id],
-            data_return_mode="AS_INPUT"
-        )
+            grid_key_id = f"grid_confirmar_{cliente}"
+            if grid_key_id not in st.session_state:
+                st.session_state[grid_key_id] = str(uuid.uuid4())
+
+            grid_response = AgGrid(
+                df_formatado,
+                gridOptions=grid_options,
+                update_mode=GridUpdateMode.SELECTION_CHANGED,
+                fit_columns_on_grid_load=False,
+                height=500,
+                width=1500,
+                allow_unsafe_jscode=True,
+                key=st.session_state[grid_key_id],
+                data_return_mode="AS_INPUT"
+            )
+
+            st.markdown("</div>", unsafe_allow_html=True)
 
         selecionadas = pd.DataFrame(grid_response.get("selected_rows", []))
 
-        entregas_validas = (
-            not selecionadas.empty and
-            "Serie_Numero_CTRC" in selecionadas.columns and
-            selecionadas["Serie_Numero_CTRC"].notna().any()
-        )
-
-        if entregas_validas:
+        if not selecionadas.empty:
             st.info(f"{len(selecionadas)} entrega(s) selecionada(s) para {cliente}.")
 
             if st.button(f"✅ Confirmar entregas de {cliente}", key=f"botao_{cliente}"):
@@ -964,16 +955,14 @@ def pagina_confirmar_producao():
 
                             if set(chaves_inseridas) == set(chaves):
                                 supabase.table("confirmadas_producao").delete().in_("Serie_Numero_CTRC", chaves_inseridas).execute()
-                                st.session_state["mensagem_sucesso_confirmacao"] = f"{len(chaves_inseridas)} entrega(s) confirmada(s) e movida(s) para Aprovação da Diretoria."
-                                st.session_state["dados_confirmadas_producao"] = carregar_dados_confirmadas()
-                                st.rerun()
+
+                                st.success(f"{len(chaves_inseridas)} entrega(s) confirmada(s) e movida(s) para Aprovação da Diretoria.")
+                                st.balloons()
+                                st.stop()
                             else:
                                 st.error("❌ Nem todas as entregas foram inseridas corretamente.")
                 except Exception as e:
                     st.error(f"Erro ao confirmar entregas: {e}")
-
-
-
 
 
 ###########################################
