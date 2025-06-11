@@ -762,6 +762,7 @@ def aplicar_regras_e_preencher_tabelas():
 
         st.text(f"[DEBUG] {len(df)} registros carregados de fBaseroter.")
 
+        
         # Merge com Micro_Regiao_por_data_embarque
         micro = supabase.table("Micro_Regiao_por_data_embarque").select("*").execute().data
         if micro:
@@ -772,24 +773,30 @@ def aplicar_regras_e_preencher_tabelas():
             col_data_micro = [col for col in df_micro.columns if 'relação' in col.lower()]
             if col_data_micro:
                 data_col = col_data_micro[0]
-                df_micro[data_col] = pd.to_datetime(df_micro[data_col], errors='coerce')
+                df_micro[data_col] = pd.to_numeric(df_micro[data_col], errors='coerce')
 
-                # Calcula Data de Embarque = Previsao de Entrega - Dia_relação_ao_entrega_prevista
+                # Corrigir nome da coluna de cidade
+                cidade_col = 'CIDADE DESTINO'
+
+                # Faz merge com base em Cidade de Entrega = CIDADE DESTINO
                 df = df.merge(
-                    df_micro[[data_col, 'Cidade']],
+                    df_micro[[data_col, cidade_col]],
                     how='left',
                     left_on='Cidade de Entrega',
-                    right_on='Cidade'
+                    right_on=cidade_col
                 )
+
+                # Calcula Data de Embarque
                 df['Data de Embarque'] = df['Previsao de Entrega'] - pd.to_timedelta(df[data_col], unit='D')
 
-                df.drop(columns=[data_col, 'Cidade'], inplace=True)
+                df.drop(columns=[data_col, cidade_col], inplace=True)
             else:
                 st.warning("Coluna de data de relação não encontrada.")
                 df['Data de Embarque'] = pd.NaT
         else:
             df['Data de Embarque'] = pd.NaT
         st.text("[DEBUG] Mescla com Micro_Regiao_por_data_embarque concluída.")
+
 
         # Merge com Particularidades
         part = supabase.table("Particularidades").select("*").execute().data
@@ -859,6 +866,7 @@ def aplicar_regras_e_preencher_tabelas():
 
     except Exception as e:
         st.error(f"[ERRO] Regras de sincronização: {e}")
+
 
 
 
