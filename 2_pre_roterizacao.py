@@ -827,20 +827,33 @@ def aplicar_regras_e_preencher_tabelas():
 #________________________________________________________________________________________________________________________
         # Definição da Rota
         rotas = supabase.table("Rotas").select("*").execute().data
+        # Definição da Rota
         df['Rota'] = None
-        if rotas:
-            df_rotas = pd.DataFrame(rotas)
-            df_rotas.columns = df_rotas.columns.str.strip()
 
-            for idx, row in df.iterrows():
-                cidade = row.get('Cidade de Entrega', '').strip()
-                if cidade == 'Porto Alegre':
-                    rota = df_rotas[df_rotas['Bairro'].str.strip() == row.get('Bairro do Destinatario', '').strip()]
-                else:
-                    rota = df_rotas[df_rotas['Cidade de Entrega'].str.strip() == cidade]
-                if not rota.empty:
-                    df.at[idx, 'Rota'] = rota.iloc[0]['Rota']
+        # Tabela geral de rotas
+        rotas = supabase.table("Rotas").select("*").execute().data
+        df_rotas = pd.DataFrame(rotas) if rotas else pd.DataFrame()
+        df_rotas.columns = df_rotas.columns.str.strip()
+
+        # Tabela específica de Porto Alegre
+        rotas_poas = supabase.table("RotasPortoAlegre").select("*").execute().data
+        df_poas = pd.DataFrame(rotas_poas) if rotas_poas else pd.DataFrame()
+        df_poas.columns = df_poas.columns.str.strip()
+
+        for idx, row in df.iterrows():
+            cidade = row.get('Cidade de Entrega', '').strip().upper()
+            bairro = row.get('Bairro do Destinatario', '').strip().upper()
+
+            if cidade == 'PORTO ALEGRE' and not df_poas.empty:
+                match = df_poas[df_poas['Bairro do Destinatario'].str.strip().str.upper() == bairro]
+                if not match.empty:
+                    df.at[idx, 'Rota'] = match.iloc[0]['Rota']
+            elif not df_rotas.empty:
+                match = df_rotas[df_rotas['Cidade de Entrega'].str.strip().str.upper() == cidade]
+                if not match.empty:
+                    df.at[idx, 'Rota'] = match.iloc[0]['Rota']
         st.text("[DEBUG] Definição de rotas concluída.")
+
 #__________________________________________________________________________________________________________________________
         # Pré-roterização
         hoje = pd.to_datetime('today').normalize()
