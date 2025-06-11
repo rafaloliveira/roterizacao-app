@@ -540,6 +540,19 @@ def pagina_sincronizacao():
     try:
         df = pd.read_excel(arquivo_excel)
         df.columns = df.columns.str.strip()  # <- Corrige nomes com espaços
+
+        colunas_para_remover = [
+            'Capa de Canhoto de NF',
+            # 'Outra Coluna Indesejada',  # Exemplo, só descomente/adicione aqui
+        ]
+
+        # Remove as colunas da lista que existirem no DataFrame
+        colunas_existentes_para_remover = [col for col in colunas_para_remover if col in df.columns]
+        if colunas_existentes_para_remover:
+            df.drop(columns=colunas_existentes_para_remover, inplace=True)
+            st.text(f"Colunas removidas do DataFrame antes da importação: {colunas_existentes_para_remover}")
+
+            
         st.success(f"Arquivo lido com sucesso: {df.shape[0]} linhas")
          # Mostrar as primeiras linhas para conferir o conteúdo
         st.dataframe(df.head())
