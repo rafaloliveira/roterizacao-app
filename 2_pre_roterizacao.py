@@ -594,12 +594,19 @@ def pagina_sincronizacao():
 
 
 def inserir_em_lote(nome_tabela, df, lote=100, tentativas=3, pausa=0.2):
-    # 🗓️ Converte datetime para string ISO (yyyy-mm-dd)
+    # 🗓️ Converte strings ou datetimes para formato ISO
     for col in df.columns:
-        if pd.api.types.is_datetime64_any_dtype(df[col]):
-            df[col] = df[col].dt.strftime('%Y-%m-%d')
+        try:
+            df[col] = pd.to_datetime(df[col], errors='coerce')
+            if pd.api.types.is_datetime64_any_dtype(df[col]):
+                df[col] = df[col].dt.strftime('%Y-%m-%d')
+        except Exception:
+            pass
 
-    # 🧹 Substitui todos os NaN/NaT/np.nan por None
+    # 🔎 Debug antes de limpar
+    st.write("[DEBUG] Quantidade de NaNs por coluna (antes do applymap):", df.isna().sum())
+
+    # 🧹 Substitui NaN/NaT/etc. por None
     def limpar_valores(obj):
         if pd.isna(obj):
             return None
@@ -607,9 +614,7 @@ def inserir_em_lote(nome_tabela, df, lote=100, tentativas=3, pausa=0.2):
 
     dados = df.applymap(limpar_valores).to_dict(orient="records")
 
-    # 📊 Debug: checar valores nulos
     st.write("[DEBUG] Primeira linha do lote limpo:", dados[0])
-    st.write("[DEBUG] Quantidade de NaNs por coluna:", df.isna().sum())
 
     # 🔁 Inserção em lotes
     for i in range(0, len(dados), lote):
@@ -624,8 +629,8 @@ def inserir_em_lote(nome_tabela, df, lote=100, tentativas=3, pausa=0.2):
                 time.sleep(1)
         else:
             st.error(f"[ERRO] Falha final ao inserir lote {i}–{i + len(sublote) - 1} na tabela '{nome_tabela}'.")
-
         time.sleep(pausa)
+
 
 
 #------------------------------------------------------------------------------
