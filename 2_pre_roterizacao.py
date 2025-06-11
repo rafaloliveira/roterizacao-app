@@ -564,14 +564,8 @@ def pagina_sincronizacao():
             df.rename(columns=colunas_renomeadas, inplace=True)
             st.text(f"[DEBUG] Colunas renomeadas: {colunas_renomeadas}")
 
-        # ✅ Corrige tipos mal interpretados
-        colunas_data = [
-            'Data de Emissao', 'Previsao de Entrega', 'Entrega Programada',
-            'Data da Entrega Realizada', 'Data de Autorizacao',
-            'Data da Ultima Ocorrencia', 'Data de inclusao da Ultima Ocorrencia',
-            'Data do Cancelamento', 'Data do Escaneamento'
-        ]
-        df = corrigir_tipos(df, colunas_data)
+        # ✅ Corrige tipos com base na definição de colunas texto, número e data
+        df = corrigir_tipos(df)
 
         st.success(f"Arquivo lido com sucesso: {df.shape[0]} linhas")
         st.dataframe(df.head())
@@ -596,24 +590,44 @@ def pagina_sincronizacao():
     aplicar_regras_e_preencher_tabelas()
 
 
-def corrigir_tipos(df, colunas_data):
+def corrigir_tipos(df):
+    # Definições dos tipos conforme seu mapeamento
+    colunas_texto = [
+        "Unnamed", "Serie/Numero CT-e", "Numero da Nota Fiscal",
+        "Codigo da Ultima Ocorrencia", "Quantidade de Dias de Atraso",
+    ]
+
+    colunas_numero = [
+        "Adicional de Frete", "Cubagem em m³", "Frete Peso", "Frete Valor",
+        "Peso Calculado em Kg", "Peso Real em Kg", "Quantidade de Volumes",
+        "TDA", "TDE", "Valor da Mercadoria", "Valor do Frete",
+        "Valor do ICMS", "Valor do ISS",
+    ]
+
+    colunas_data = [
+        "Data da Ultima Ocorrencia", "Data de inclusao da Ultima Ocorrencia",
+        "Entrega Programada", "Previsao de Entrega",
+        "Data de Emissao", "Data de Autorizacao", "Data do Cancelamento", "Data do Escaneamento",
+        "Data da Entrega Realizada"
+    ]
+
+    # Converter para texto (string)
+    for col in colunas_texto:
+        if col in df.columns:
+            df[col] = df[col].astype(str).replace({'nan': None, 'NaT': None})
+
+    # Converter para numérico
+    for col in colunas_numero:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors='coerce')
+
+    # Converter para datetime
     for col in colunas_data:
         if col in df.columns:
-            df[col] = pd.to_datetime(df[col], format="%d/%m/%Y", errors="coerce")
+            df[col] = pd.to_datetime(df[col], errors='coerce', dayfirst=True)
 
-    for col in df.columns:
-        if col not in colunas_data and pd.api.types.is_datetime64_any_dtype(df[col]):
-            proporcao_1970 = (df[col] == pd.Timestamp("1970-01-01")).mean()
-            if proporcao_1970 > 0.3:
-                try:
-                    df[col] = pd.to_numeric(df[col].astype(str), errors="coerce")
-                    if df[col].notna().sum() > 0:
-                        continue
-                except:
-                    pass
-                df[col] = df[col].astype(str)
-                print(f"[CORRIGIDO] Coluna '{col}' não é data. Convertida para string.")
     return df
+
 
 
 def inserir_em_lote(nome_tabela, df, lote=100, tentativas=3, pausa=0.2):
