@@ -631,13 +631,22 @@ def corrigir_tipos(df):
 
 
 def inserir_em_lote(nome_tabela, df, lote=100, tentativas=3, pausa=0.2):
+    # Defina as colunas de data do jeito que você já conhece
+    colunas_data = [
+        "Data da Ultima Ocorrencia", "Data de inclusao da Ultima Ocorrencia",
+        "Entrega Programada", "Previsao de Entrega",
+        "Data de Emissao", "Data de Autorizacao", "Data do Cancelamento",
+        "Data do Escaneamento", "Data da Entrega Realizada"
+    ]
+
     for col in df.columns:
-        try:
-            df[col] = pd.to_datetime(df[col], errors='coerce')
-            if pd.api.types.is_datetime64_any_dtype(df[col]):
+        # Formatar para string só se for coluna de data e coluna existir no df
+        if col in colunas_data:
+            try:
+                df[col] = pd.to_datetime(df[col], errors='coerce')
                 df[col] = df[col].dt.strftime('%Y-%m-%d')
-        except Exception:
-            pass
+            except Exception:
+                pass
 
     st.write("[DEBUG] Quantidade de NaNs por coluna (antes do applymap):", df.isna().sum())
 
@@ -664,6 +673,50 @@ def inserir_em_lote(nome_tabela, df, lote=100, tentativas=3, pausa=0.2):
         else:
             st.error(f"[ERRO] Falha final ao inserir lote {i}–{i + len(sublote) - 1} na tabela '{nome_tabela}'.")
         time.sleep(pausa)
+def inserir_em_lote(nome_tabela, df, lote=100, tentativas=3, pausa=0.2):
+    # Defina as colunas de data do jeito que você já conhece
+    colunas_data = [
+        "Data da Ultima Ocorrencia", "Data de inclusao da Ultima Ocorrencia",
+        "Entrega Programada", "Previsao de Entrega",
+        "Data de Emissao", "Data de Autorizacao", "Data do Cancelamento",
+        "Data do Escaneamento", "Data da Entrega Realizada"
+    ]
+
+    for col in df.columns:
+        # Formatar para string só se for coluna de data e coluna existir no df
+        if col in colunas_data:
+            try:
+                df[col] = pd.to_datetime(df[col], errors='coerce')
+                df[col] = df[col].dt.strftime('%Y-%m-%d')
+            except Exception:
+                pass
+
+    st.write("[DEBUG] Quantidade de NaNs por coluna (antes do applymap):", df.isna().sum())
+
+    def limpar_valores(obj):
+        if pd.isna(obj):
+            return None
+        return obj
+
+    dados = df.applymap(limpar_valores).to_dict(orient="records")
+
+    if dados:
+        st.write("[DEBUG] Primeira linha do lote limpo:", dados[0])
+
+    for i in range(0, len(dados), lote):
+        sublote = dados[i:i + lote]
+        for tentativa in range(tentativas):
+            try:
+                supabase.table(nome_tabela).insert(sublote).execute()
+                st.info(f"[DEBUG] Inseridos {len(sublote)} registros na tabela '{nome_tabela}' (lote {i}–{i + len(sublote) - 1}).")
+                break
+            except Exception as e:
+                st.warning(f"[TENTATIVA {tentativa + 1}] Erro ao inserir lote {i}–{i + len(sublote) - 1}: {e}")
+                time.sleep(1)
+        else:
+            st.error(f"[ERRO] Falha final ao inserir lote {i}–{i + len(sublote) - 1} na tabela '{nome_tabela}'.")
+        time.sleep(pausa)
+
 
 
 
