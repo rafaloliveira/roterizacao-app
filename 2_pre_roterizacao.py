@@ -746,7 +746,7 @@ def limpar_tabelas_relacionadas():
 # ------------------------#############-------------------------------------------
 def aplicar_regras_e_preencher_tabelas():
     st.subheader("🔍 Aplicando Regras de Negócio")
-    
+
     try:
         # Carrega dados base
         df = supabase.table("fBaseroter").select("*").execute().data
@@ -757,33 +757,41 @@ def aplicar_regras_e_preencher_tabelas():
         df = pd.DataFrame(df)
         df.columns = df.columns.str.strip()
 
-        # Conversão de datas
         df['Previsao de Entrega'] = pd.to_datetime(df.get('Previsao de Entrega'), errors='coerce')
         df['Entrega Programada'] = pd.to_datetime(df.get('Entrega Programada'), errors='coerce')
 
         st.text(f"[DEBUG] {len(df)} registros carregados de fBaseroter.")
 
-        # Mescla com Micro_Regiao_por_data_embarque (base para data de embarque)
+        # Merge com Micro_Regiao_por_data_embarque
         micro = supabase.table("Micro_Regiao_por_data_embarque").select("*").execute().data
         if micro:
             df_micro = pd.DataFrame(micro)
             df_micro.columns = df_micro.columns.str.strip()
-            # Corrige tipos datetime para merge
-            df_micro['Dia_relação_ao _entrega_prevista'] = pd.to_datetime(df_micro.get('Dia_relação_ao _entrega_prevista'), errors='coerce')
-            
-            df = df.merge(
-                df_micro[['Dia_relação_ao _entrega_prevista', 'Cidade']],
-                how='left',
-                left_on='Previsao de Entrega',
-                right_on='Dia_relação_ao _entrega_prevista'
-            )
-            df = df.rename(columns={'Dia_relação_ao _entrega_prevista': 'Data de Embarque'})
-            df.drop(columns=['Cidade'], inplace=True)
+
+            # Detectar nome da coluna de data automaticamente
+            col_data_micro = [col for col in df_micro.columns if 'relação' in col.lower()]
+            if col_data_micro:
+                data_col = col_data_micro[0]
+                df_micro[data_col] = pd.to_datetime(df_micro[data_col], errors='coerce')
+
+                # Calcula Data de Embarque = Previsao de Entrega - Dia_relação_ao_entrega_prevista
+                df = df.merge(
+                    df_micro[[data_col, 'Cidade']],
+                    how='left',
+                    left_on='Cidade de Entrega',
+                    right_on='Cidade'
+                )
+                df['Data de Embarque'] = df['Previsao de Entrega'] - pd.to_timedelta(df[data_col], unit='D')
+
+                df.drop(columns=[data_col, 'Cidade'], inplace=True)
+            else:
+                st.warning("Coluna de data de relação não encontrada.")
+                df['Data de Embarque'] = pd.NaT
         else:
             df['Data de Embarque'] = pd.NaT
         st.text("[DEBUG] Mescla com Micro_Regiao_por_data_embarque concluída.")
 
-        # Mescla com Particularidades
+        # Merge com Particularidades
         part = supabase.table("Particularidades").select("*").execute().data
         if part:
             df_part = pd.DataFrame(part)
@@ -795,7 +803,7 @@ def aplicar_regras_e_preencher_tabelas():
             df['Particularidade'] = None
         st.text("[DEBUG] Mescla com Particularidades concluída.")
 
-        # Mescla com Clientes_Entrega_Agendada
+        # Merge com Clientes_Entrega_Agendada
         agendados = supabase.table("Clientes_Entrega_Agendada").select("*").execute().data
         if agendados:
             df_ag = pd.DataFrame(agendados)
@@ -807,27 +815,24 @@ def aplicar_regras_e_preencher_tabelas():
             df['Status'] = None
         st.text("[DEBUG] Mescla com Clientes_Entrega_Agendada concluída.")
 
-        # Definição da rota
+        # Definição da Rota
         rotas = supabase.table("Rotas").select("*").execute().data
         df['Rota'] = None
         if rotas:
             df_rotas = pd.DataFrame(rotas)
             df_rotas.columns = df_rotas.columns.str.strip()
-            df['Cidade de Entrega'] = df['Cidade de Entrega'].str.strip()
-            df_rotas['Cidade de Entrega'] = df_rotas['Cidade de Entrega'].str.strip()
-            df_rotas['Bairro'] = df_rotas['Bairro'].str.strip()
-            df['Bairro do Destinatario'] = df['Bairro do Destinatario'].str.strip()
 
             for idx, row in df.iterrows():
-                if row['Cidade de Entrega'] == 'Porto Alegre':
-                    rota = df_rotas[df_rotas['Bairro'] == row['Bairro do Destinatario']]
+                cidade = row.get('Cidade de Entrega', '').strip()
+                if cidade == 'Porto Alegre':
+                    rota = df_rotas[df_rotas['Bairro'].str.strip() == row.get('Bairro do Destinatario', '').strip()]
                 else:
-                    rota = df_rotas[df_rotas['Cidade de Entrega'] == row['Cidade de Entrega']]
+                    rota = df_rotas[df_rotas['Cidade de Entrega'].str.strip() == cidade]
                 if not rota.empty:
                     df.at[idx, 'Rota'] = rota.iloc[0]['Rota']
         st.text("[DEBUG] Definição de rotas concluída.")
 
-        # Critérios de pré-roterização
+        # Pré-roterização
         hoje = pd.to_datetime('today').normalize()
         obrigatorias = df[
             (df['Data de Embarque'] < hoje + pd.Timedelta(days=1)) |
@@ -836,7 +841,6 @@ def aplicar_regras_e_preencher_tabelas():
 
         confirmadas = df[~df['Serie_Numero_CTRC'].isin(obrigatorias['Serie_Numero_CTRC'])].copy()
 
-        # Remover duplicatas
         obrigatorias.drop_duplicates(subset='Serie_Numero_CTRC', inplace=True)
         confirmadas.drop_duplicates(subset='Serie_Numero_CTRC', inplace=True)
 
@@ -855,6 +859,22 @@ def aplicar_regras_e_preencher_tabelas():
 
     except Exception as e:
         st.error(f"[ERRO] Regras de sincronização: {e}")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 ###########################################
 
