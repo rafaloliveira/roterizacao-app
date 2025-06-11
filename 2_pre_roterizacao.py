@@ -594,22 +594,31 @@ def pagina_sincronizacao():
     aplicar_regras_e_preencher_tabelas()
 
 
-def inserir_em_lote(nome_tabela, df):
-    # Converte datas para string no formato ISO ou None
+import time
+
+def inserir_em_lote(nome_tabela, df, lote=100, tentativas=3, pausa=0.2):
+    # Converte datas para string ISO
     for col in df.columns:
         if pd.api.types.is_datetime64_any_dtype(df[col]):
-            df[col] = df[col].dt.strftime('%Y-%m-%d')  # ou '%d/%m/%Y' se quiser manter
+            df[col] = df[col].dt.strftime('%Y-%m-%d')
 
     # Substitui NaN e NaT por None
     dados = df.where(pd.notnull(df), None).to_dict(orient="records")
 
-    # Inserção em lotes
-    for i in range(0, len(dados), 500):
-        try:
-            resposta = supabase.table(nome_tabela).insert(dados[i:i+500]).execute()
-            st.text(f"[DEBUG] Inseridos {len(dados[i:i+500])} registros na tabela {nome_tabela}.")
-        except Exception as e:
-            st.error(f"[ERRO] Falha ao inserir lote em {nome_tabela}: {e}")
+    for i in range(0, len(dados), lote):
+        sublote = dados[i:i+lote]
+        for tentativa in range(tentativas):
+            try:
+                supabase.table(nome_tabela).insert(sublote).execute()
+                st.text(f"[DEBUG] Inseridos {len(sublote)} registros na tabela {nome_tabela} (lote {i}–{i+len(sublote)-1}).")
+                break  # Sai do loop de tentativas se sucesso
+            except Exception as e:
+                st.warning(f"[TENTATIVA {tentativa+1}] Erro ao inserir lote {i}–{i+len(sublote)-1}: {e}")
+                time.sleep(1)
+        else:
+            st.error(f"[ERRO] Falha final ao inserir lote {i}–{i+len(sublote)-1} em {nome_tabela}.")
+        time.sleep(pausa)
+
 
 
 
