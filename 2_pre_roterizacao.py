@@ -804,24 +804,25 @@ def aplicar_regras_e_preencher_tabelas():
         st.text("[DEBUG] Mescla com Particularidades concluída.")
 #________________________________________________________________________________________________________________________
         # Merge com Clientes_Entrega_Agendada
-        # Merge com Clientes_Entrega_Agendada
         agendados = supabase.table("Clientes_Entrega_Agendada").select("*").execute().data
         if agendados:
             df_ag = pd.DataFrame(agendados)
             df_ag.columns = df_ag.columns.str.strip()
 
-            if 'CNPJ' in df_ag.columns and 'Status' in df_ag.columns:
-                # Filtra somente os CNPJs com Status == 'AGENDAR'
-                cnpjs_agendar = df_ag[df_ag['Status'].str.upper() == 'AGENDAR']['CNPJ'].str.strip().unique()
+            # Corrigir o nome da coluna
+            if 'CNPJ' in df_ag.columns and 'Status de Agenda' in df_ag.columns:
+                # Filtra os CNPJs com 'Status de Agenda' == 'AGENDAR'
+                cnpjs_agendar = df_ag[df_ag['Status de Agenda'].str.upper() == 'AGENDAR']['CNPJ'].str.strip().unique()
 
-                # Cria coluna Status com valor 'AGENDAR' apenas onde o CNPJ está na lista
+                # Marca como 'AGENDAR' na coluna Status se o CNPJ estiver na lista
                 df['Status'] = df['CNPJ Destinatario'].str.strip().isin(cnpjs_agendar).map({True: 'AGENDAR', False: None})
             else:
                 df['Status'] = None
-                st.warning("Colunas esperadas 'CNPJ' e/ou 'Status' não encontradas em Clientes_Entrega_Agendada.")
+                st.warning("Colunas 'CNPJ' e/ou 'Status de Agenda' não encontradas em Clientes_Entrega_Agendada.")
         else:
             df['Status'] = None
         st.text("[DEBUG] Mescla com Clientes_Entrega_Agendada concluída.")
+
 
 #________________________________________________________________________________________________________________________
         # Definição da Rota
