@@ -531,6 +531,10 @@ def criar_grid_destacado(df, key, selection_mode="multiple", page_size=500, altu
 ##############################
 import time
 
+import streamlit as st
+import pandas as pd
+import time
+
 def pagina_sincronizacao():
     st.title("🔄 Sincronização de Dados com Supabase")
 
@@ -560,22 +564,21 @@ def pagina_sincronizacao():
             df.rename(columns=colunas_renomeadas, inplace=True)
             st.text(f"[DEBUG] Colunas renomeadas: {colunas_renomeadas}")
 
+        # ✅ Corrige tipos mal interpretados
+        colunas_data = [
+            'Data de Emissao', 'Previsao de Entrega', 'Entrega Programada',
+            'Data da Entrega Realizada', 'Data de Autorizacao',
+            'Data da Ultima Ocorrencia', 'Data de inclusao da Ultima Ocorrencia',
+            'Data do Cancelamento', 'Data do Escaneamento'
+        ]
+        df = corrigir_tipos(df, colunas_data)
+
         st.success(f"Arquivo lido com sucesso: {df.shape[0]} linhas")
         st.dataframe(df.head())
 
     except Exception as e:
         st.error(f"Erro ao ler o arquivo: {e}")
         return
-
-    # 🗓️ Converte colunas de data para datetime
-    colunas_data = [
-        'Data de Emissao', 'Previsao de Entrega', 'Entrega Programada',
-        'Data da Entrega Realizada'
-    ]
-    for col in colunas_data:
-        if col in df.columns:
-            df[col] = pd.to_datetime(df[col], format='%d/%m/%Y', errors='coerce')
-            st.text(f"[DEBUG] Coluna '{col}' convertida para datetime.")
 
     st.markdown("### Passo 2: Importando para fBaseroter")
     try:
@@ -593,8 +596,27 @@ def pagina_sincronizacao():
     aplicar_regras_e_preencher_tabelas()
 
 
+def corrigir_tipos(df, colunas_data):
+    for col in colunas_data:
+        if col in df.columns:
+            df[col] = pd.to_datetime(df[col], format="%d/%m/%Y", errors="coerce")
+
+    for col in df.columns:
+        if col not in colunas_data and pd.api.types.is_datetime64_any_dtype(df[col]):
+            proporcao_1970 = (df[col] == pd.Timestamp("1970-01-01")).mean()
+            if proporcao_1970 > 0.3:
+                try:
+                    df[col] = pd.to_numeric(df[col].astype(str), errors="coerce")
+                    if df[col].notna().sum() > 0:
+                        continue
+                except:
+                    pass
+                df[col] = df[col].astype(str)
+                print(f"[CORRIGIDO] Coluna '{col}' não é data. Convertida para string.")
+    return df
+
+
 def inserir_em_lote(nome_tabela, df, lote=100, tentativas=3, pausa=0.2):
-    # 🗓️ Converte strings ou datetimes para formato ISO
     for col in df.columns:
         try:
             df[col] = pd.to_datetime(df[col], errors='coerce')
@@ -603,10 +625,8 @@ def inserir_em_lote(nome_tabela, df, lote=100, tentativas=3, pausa=0.2):
         except Exception:
             pass
 
-    # 🔎 Debug antes de limpar
     st.write("[DEBUG] Quantidade de NaNs por coluna (antes do applymap):", df.isna().sum())
 
-    # 🧹 Substitui NaN/NaT/etc. por None
     def limpar_valores(obj):
         if pd.isna(obj):
             return None
@@ -614,9 +634,9 @@ def inserir_em_lote(nome_tabela, df, lote=100, tentativas=3, pausa=0.2):
 
     dados = df.applymap(limpar_valores).to_dict(orient="records")
 
-    st.write("[DEBUG] Primeira linha do lote limpo:", dados[0])
+    if dados:
+        st.write("[DEBUG] Primeira linha do lote limpo:", dados[0])
 
-    # 🔁 Inserção em lotes
     for i in range(0, len(dados), lote):
         sublote = dados[i:i + lote]
         for tentativa in range(tentativas):
@@ -630,6 +650,10 @@ def inserir_em_lote(nome_tabela, df, lote=100, tentativas=3, pausa=0.2):
         else:
             st.error(f"[ERRO] Falha final ao inserir lote {i}–{i + len(sublote) - 1} na tabela '{nome_tabela}'.")
         time.sleep(pausa)
+
+
+
+
 
 
 
