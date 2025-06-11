@@ -960,7 +960,7 @@ def pagina_confirmar_producao():
                                 st.session_state["mensagem_sucesso_confirmacao"] = f"{len(chaves_inseridas)} entrega(s) confirmada(s) e movida(s) para Aprovação da Diretoria."
                                 st.session_state["rerun_confirmacao"] = True
                                 time.sleep(0.5)
-                                st.experimental_rerun()
+                                st.rerun()
                             else:
                                 st.error("❌ Nem todas as entregas foram inseridas corretamente.")
                 except Exception as e:
