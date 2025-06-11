@@ -758,6 +758,12 @@ def pagina_sincronizacao():
                 log_area.write(e)
 
 
+###########################################
+
+# PÁGINA Confirmar Produção
+
+##########################################
+
 def pagina_confirmar_producao():
     st.title("🚛 Confirmar Produção")
 
@@ -799,7 +805,8 @@ def pagina_confirmar_producao():
         st.info("Nenhuma entrega confirmada na produção.")
         return
 
-    df["Previsao de Entrega"] = pd.to_datetime(df["Previsao de Entrega"], errors='coerce')
+    df["Previsao de Entrega"] = pd.to_datetime(df["Previsao de Entrega"], format="%d-%m-%Y", errors='coerce')
+
     d_mais_1 = pd.Timestamp.now().normalize() + pd.Timedelta(days=1)
 
     obrigatorias = df[
