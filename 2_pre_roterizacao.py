@@ -448,7 +448,8 @@ def load_and_prepare_data(uploaded_file):
         for col in date_columns:
             if col in df.columns:
                 df[col] = pd.to_datetime(df[col], format='%d-%m-%Y', errors='coerce')
-                df[col] = df[col].dt.strftime('%Y-%m-%d')
+                df[col] = df[col].apply(lambda x: x.strftime('%Y-%m-%d') if pd.notnull(x) else None)
+
 
         df = df.replace({np.nan: None, pd.NaT: None, pd.NA: None})
 
