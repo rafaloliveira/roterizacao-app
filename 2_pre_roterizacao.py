@@ -785,7 +785,6 @@ function(params) {
 def pagina_confirmar_producao():
     st.title("🚛 Confirmar Produção")
 
-    # Exibir mensagem de sucesso, se houver
     mensagem_sucesso = st.session_state.pop("mensagem_sucesso_confirmacao", None)
     if mensagem_sucesso:
         st.success(mensagem_sucesso)
@@ -796,6 +795,12 @@ def pagina_confirmar_producao():
         "Chave CT-e", "Cliente Pagador", "Cliente Destinatario",
         "Cidade de Entrega", "Bairro do Destinatario"
     ]
+
+    colunas_faltando = [col for col in colunas_necessarias if col not in df.columns]
+    if colunas_faltando:
+        st.warning(f"As seguintes colunas estão ausentes na base: {', '.join(colunas_faltando)}")
+        return
+
     df = df.dropna(subset=colunas_necessarias)
 
     if df.empty:
@@ -915,7 +920,13 @@ def pagina_confirmar_producao():
 
         selecionadas = pd.DataFrame(grid_response.get("selected_rows", []))
 
-        if not selecionadas.empty:
+        entregas_validas = (
+            not selecionadas.empty and
+            "Serie_Numero_CTRC" in selecionadas.columns and
+            selecionadas["Serie_Numero_CTRC"].notna().any()
+        )
+
+        if entregas_validas:
             st.info(f"{len(selecionadas)} entrega(s) selecionada(s) para {cliente}.")
 
             if st.button(f"✅ Confirmar entregas de {cliente}", key=f"botao_{cliente}"):
@@ -953,12 +964,12 @@ def pagina_confirmar_producao():
                                 supabase.table("confirmadas_producao").delete().in_("Serie_Numero_CTRC", chaves_inseridas).execute()
                                 st.session_state["mensagem_sucesso_confirmacao"] = f"{len(chaves_inseridas)} entrega(s) confirmada(s) e movida(s) para Aprovação da Diretoria."
                                 st.session_state["dados_confirmadas_producao"] = carregar_dados_confirmadas()
-                                st.success(st.session_state["mensagem_sucesso_confirmacao"])
-                                st.stop()
+                                st.rerun()
                             else:
                                 st.error("❌ Nem todas as entregas foram inseridas corretamente.")
                 except Exception as e:
                     st.error(f"Erro ao confirmar entregas: {e}")
+
 
 
 
