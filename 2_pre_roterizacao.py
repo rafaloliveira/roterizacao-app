@@ -552,6 +552,13 @@ def pagina_sincronizacao():
             df.drop(columns=colunas_existentes_para_remover, inplace=True)
             st.text(f"Colunas removidas do DataFrame antes da importação: {colunas_existentes_para_remover}")
 
+            # Renomear colunas para bater com o banco
+        renomear_colunas = {
+            'Cubagem em m3': 'Cubagem m³',
+            # outros ajustes aqui
+        }
+        df.rename(columns=renomear_colunas, inplace=True)
+
             
         st.success(f"Arquivo lido com sucesso: {df.shape[0]} linhas")
          # Mostrar as primeiras linhas para conferir o conteúdo
