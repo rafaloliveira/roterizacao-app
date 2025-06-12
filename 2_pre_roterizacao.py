@@ -914,7 +914,6 @@ def aplicar_regras_e_preencher_tabelas():
 def pagina_confirmar_producao():
     st.title("🚛 Confirmar Produção")
 
-    
     # ✅ Dados vindos da sincronização (com fallback)
     df = st.session_state.get("dados_sincronizados")
     if df is None or df.empty:
@@ -939,27 +938,30 @@ def pagina_confirmar_producao():
         return
 
     # 🔄 Recarrega a tabela confirmadas_producao apenas se necessário
-    if st.session_state.get("reload_confirmadas_producao"):
-        st.session_state.pop("reload_confirmadas_producao")
-        df_confirmadas = pd.DataFrame(
-            supabase.table("confirmadas_producao").select("*").execute().data
-        )
-        st.session_state["df_confirmadas_cache"] = df_confirmadas
-    else:
-        df_confirmadas = st.session_state.get("df_confirmadas_cache")
-        if df_confirmadas is None:
+    try:
+        if st.session_state.get("reload_confirmadas_producao"):
+            st.session_state.pop("reload_confirmadas_producao")
             df_confirmadas = pd.DataFrame(
                 supabase.table("confirmadas_producao").select("*").execute().data
             )
             st.session_state["df_confirmadas_cache"] = df_confirmadas
+        else:
+            df_confirmadas = st.session_state.get("df_confirmadas_cache")
+            if df_confirmadas is None:
+                df_confirmadas = pd.DataFrame(
+                    supabase.table("confirmadas_producao").select("*").execute().data
+                )
+                st.session_state["df_confirmadas_cache"] = df_confirmadas
+    except Exception as e:
+        st.error(f"Erro ao carregar entregas confirmadas: {e}")
+        return
 
-
-    if df_confirmadas.empty:
+    if df_confirmadas is None or df_confirmadas.empty:
         st.info("Nenhuma entrega confirmada na produção.")
         return
 
+    # Conversão de data e filtro de obrigatórias
     df["Previsao de Entrega"] = pd.to_datetime(df["Previsao de Entrega"], format="%d-%m-%Y", errors='coerce')
-
     d_mais_1 = pd.Timestamp.now().normalize() + pd.Timedelta(days=1)
 
     obrigatorias = df[
@@ -973,6 +975,10 @@ def pagina_confirmar_producao():
     df_exibir = df_confirmadas[
         ~df_confirmadas["Serie_Numero_CTRC"].isin(obrigatorias["Serie_Numero_CTRC"])
     ].copy()
+
+
+
+
 
     total_clientes = df_exibir["Cliente Pagador"].nunique()
     total_entregas = len(df_exibir)
