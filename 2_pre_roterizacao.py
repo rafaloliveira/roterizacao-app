@@ -401,7 +401,7 @@ def load_and_prepare_data(uploaded_file):
             "Numero da Capa de Remessa", "Numero do Pacote de Arquivamento",
             "Compr. de Entrega Escaneado", "Data do Escaneamento", "Hora do Escaneamento",
             "Notas Fiscais", "Numero dos Pedidos", "Chaves NF-es",
-            "Volume Cliente/Shipment", "Unnamed: 67"
+            "Volume Cliente/Shipment", "Unnamed: 67","CEP de Entrega","CEP do Destinatario" 
         ]
 
         column_mapping = {
@@ -595,13 +595,14 @@ def corrigir_tipos(df):
     colunas_texto = [
         "Unnamed", "Serie/Numero CT-e", "Numero da Nota Fiscal",
         "Codigo da Ultima Ocorrencia", "Quantidade de Dias de Atraso",
+        "CEP de Entrega","CEP do Destinatario" 
     ]
 
     colunas_numero = [
         "Adicional de Frete", "Cubagem em m³", "Frete Peso", "Frete Valor",
         "Peso Calculado em Kg", "Peso Real em Kg", "Quantidade de Volumes",
         "TDA", "TDE", "Valor da Mercadoria", "Valor do Frete",
-        "Valor do ICMS", "Valor do ISS",
+        "Valor do ICMS", "Valor do ISS"
     ]
 
     colunas_data = [
@@ -636,7 +637,7 @@ def inserir_em_lote(nome_tabela, df, lote=100, tentativas=3, pausa=0.2):
         "Data da Ultima Ocorrencia", "Data de inclusao da Ultima Ocorrencia",
         "Entrega Programada", "Previsao de Entrega",
         "Data de Emissao", "Data de Autorizacao", "Data do Cancelamento",
-        "Data do Escaneamento", "Data da Entrega Realizada"
+        "Data do Escaneamento", "Data da Entrega Realizada", "CEP de Entrega","CEP do Destinatario" 
     ]
 
     for col in df.columns:
@@ -679,7 +680,7 @@ def inserir_em_lote(nome_tabela, df, lote=100, tentativas=3, pausa=0.2):
         "Data da Ultima Ocorrencia", "Data de inclusao da Ultima Ocorrencia",
         "Entrega Programada", "Previsao de Entrega",
         "Data de Emissao", "Data de Autorizacao", "Data do Cancelamento",
-        "Data do Escaneamento", "Data da Entrega Realizada"
+        "Data do Escaneamento", "Data da Entrega Realizada","CEP de Entrega","CEP do Destinatario" 
     ]
 
     for col in df.columns:
@@ -872,7 +873,9 @@ def aplicar_regras_e_preencher_tabelas():
             'Cidade de Entrega', 'Bairro do Destinatario', 'Previsao de Entrega',
             'Numero da Nota Fiscal', 'Status', 'Entrega Programada', 'Particularidade',
             'Codigo da Ultima Ocorrencia', 'Peso Real em Kg', 'Peso Calculado em Kg',
-            'Cubagem em m³', 'Quantidade de Volumes', 'Valor do Frete', 'Rota'
+            'Cubagem em m³', 'Quantidade de Volumes', 'Valor do Frete', 'Rota',
+            'CEP de Entrega','CEP do Destinatario' 
+
         ]
 
         inserir_em_lote("pre_roterizacao", obrigatorias[colunas_finais])
