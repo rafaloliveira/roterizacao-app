@@ -914,14 +914,7 @@ def aplicar_regras_e_preencher_tabelas():
 def pagina_confirmar_producao():
     st.title("🚛 Confirmar Produção")
 
-    if st.session_state.get("rerun_confirmacao", False):
-        chaves = st.session_state.get("chaves_confirmadas", [])
-        st.session_state["rerun_confirmacao"] = False
-        st.session_state["chaves_confirmadas"] = []
-        st.success("✅ Entregas confirmadas e movidas para Aprovação Diretoria.")
-        time.sleep(1.5)
-        st.rerun()
-
+    
     # ✅ Dados vindos da sincronização (com fallback)
     df = st.session_state.get("dados_sincronizados")
     if df is None or df.empty:
@@ -1116,16 +1109,23 @@ def pagina_confirmar_producao():
                         if set(chaves_inseridas) == set(chaves):
                             try:
                                 supabase.table("confirmadas_producao").delete().in_("Serie_Numero_CTRC", chaves_inseridas).execute()
-                                st.session_state["rerun_confirmacao"] = True
-                                st.session_state["chaves_confirmadas"] = chaves_inseridas
+
+                                # Limpa estado temporário da sessão
                                 st.session_state.pop(session_key_selecionadas, None)
                                 st.session_state.pop(session_key_sucesso, None)
+
+                                # Mensagem opcional (pode ser substituída por st.toast, se quiser que não bloqueie a interface)
+                                st.success(f"{len(chaves_inseridas)} entregas confirmadas e movidas para Aprovação Diretoria.")
+
+                                # Recarrega a página para refletir as mudanças
+                                st.rerun()
+
                             except Exception as delete_error:
                                 st.error(f"Erro ao deletar entregas: {delete_error}")
                         else:
                             st.error("❌ Nem todas as entregas foram inseridas corretamente em 'aprovacao_diretoria'. Nenhuma foi removida.")
             except Exception as e:
-                st.error(f"Erro ao confirmar entregas: {e}")
+                st.error(f"Erro ao processar confirmação: {e}")
 
 
 
