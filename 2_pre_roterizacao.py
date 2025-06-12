@@ -1094,66 +1094,76 @@ def pagina_confirmar_producao():
         if st.session_state.get(session_key_sucesso):
             st.success(st.session_state[session_key_sucesso])
 
-        if st.button(f"✅ Confirmar entregas de {cliente}", key=f"botao_{cliente}"):
-            try:
-                selecionadas = st.session_state.get(session_key_selecionadas, pd.DataFrame())
-                if selecionadas.empty:
-                    st.warning("⚠️ Nenhuma entrega selecionada.")
-                    return
+            if st.button(f"✅ Confirmar entregas de {cliente}", key=f"botao_{cliente}"):
+                try:
+                    selecionadas = st.session_state.get(session_key_selecionadas, pd.DataFrame())
+                    if selecionadas.empty:
+                        st.warning("⚠️ Nenhuma entrega selecionada.")
+                        return
 
-                chaves = selecionadas["Serie_Numero_CTRC"].dropna().astype(str).str.strip().tolist()
-                df_cliente["Serie_Numero_CTRC"] = df_cliente["Serie_Numero_CTRC"].astype(str).str.strip()
-                df_confirmar = df_cliente[df_cliente["Serie_Numero_CTRC"].isin(chaves)].copy()
-                colunas_validas = [col for col in colunas_exibir if col != "Serie_Numero_CTRC" and col in df_confirmar.columns]
-                df_confirmar = df_confirmar[["Serie_Numero_CTRC"] + colunas_validas]
-                df_confirmar = df_confirmar.replace([np.nan, np.inf, -np.inf], None)
+                    chaves = selecionadas["Serie_Numero_CTRC"].dropna().astype(str).str.strip().tolist()
+                    df_cliente["Serie_Numero_CTRC"] = df_cliente["Serie_Numero_CTRC"].astype(str).str.strip()
+                    df_confirmar = df_cliente[df_cliente["Serie_Numero_CTRC"].isin(chaves)].copy()
+                    colunas_validas = [col for col in colunas_exibir if col != "Serie_Numero_CTRC" and col in df_confirmar.columns]
+                    df_confirmar = df_confirmar[["Serie_Numero_CTRC"] + colunas_validas]
+                    df_confirmar = df_confirmar.replace([np.nan, np.inf, -np.inf], None)
 
-                for col in df_confirmar.select_dtypes(include=['datetime64[ns]']).columns:
-                    df_confirmar[col] = df_confirmar[col].dt.strftime('%Y-%m-%d %H:%M:%S')
+                    for col in df_confirmar.select_dtypes(include=['datetime64[ns]']).columns:
+                        df_confirmar[col] = df_confirmar[col].dt.strftime('%Y-%m-%d %H:%M:%S')
 
-                if df_confirmar.empty or df_confirmar["Serie_Numero_CTRC"].isnull().all():
-                    st.warning("⚠️ Nenhuma entrega válida para confirmar.")
-                else:
-                    dados_confirmar = df_confirmar.to_dict(orient="records")
-                    dados_confirmar = [d for d in dados_confirmar if d.get("Serie_Numero_CTRC")]
-
-                    if not dados_confirmar:
-                        st.warning("⚠️ Nenhum registro com 'Serie_Numero_CTRC' válido.")
+                    if df_confirmar.empty or df_confirmar["Serie_Numero_CTRC"].isnull().all():
+                        st.warning("⚠️ Nenhuma entrega válida para confirmar.")
                     else:
-                        resultado_insercao = supabase.table("aprovacao_diretoria").insert(dados_confirmar).execute()
-                        chaves_inseridas = [
-                            str(item.get("Serie_Numero_CTRC")).strip()
-                            for item in resultado_insercao.data
-                            if item.get("Serie_Numero_CTRC")
-                        ]
+                        dados_confirmar = df_confirmar.to_dict(orient="records")
+                        dados_confirmar = [d for d in dados_confirmar if d.get("Serie_Numero_CTRC")]
 
-                        if set(chaves_inseridas) == set(chaves):
-                            try:
-                                supabase.table("confirmadas_producao").delete().in_("Serie_Numero_CTRC", chaves_inseridas).execute()
-
-                                # Atualiza os dados na sessão
-                                st.session_state["dados_sincronizados"] = carregar_base_supabase()
-
-                                # 🔄 Força recarregamento da tabela confirmadas_producao
-                                # 🔄 Força recarregamento da tabela confirmadas_producao
-                                st.session_state["reload_confirmadas_producao"] = True
-
-                                # Limpa seleções da sessão
-                                st.session_state.pop(session_key_selecionadas, None)
-                                st.session_state.pop(session_key_sucesso, None)
-
-                                st.success(f"{len(chaves_inseridas)} entregas confirmadas e movidas para Aprovação Diretoria.")
-
-                                # 🔄 Gatilho para recarregar toda a interface
-                                st.rerun()
-
-
-                            except Exception as delete_error:
-                                st.error(f"Erro ao deletar entregas: {delete_error}")
+                        if not dados_confirmar:
+                            st.warning("⚠️ Nenhum registro com 'Serie_Numero_CTRC' válido.")
                         else:
-                            st.error("❌ Nem todas as entregas foram inseridas corretamente em 'aprovacao_diretoria'. Nenhuma foi removida.")
-            except Exception as e:
-                st.error(f"Erro ao processar confirmação: {e}")
+                            resultado_insercao = supabase.table("aprovacao_diretoria").insert(dados_confirmar).execute()
+                            chaves_inseridas = [
+                                str(item.get("Serie_Numero_CTRC")).strip()
+                                for item in resultado_insercao.data
+                                if item.get("Serie_Numero_CTRC")
+                            ]
+
+                            if set(chaves_inseridas) == set(chaves):
+                                try:
+                                    supabase.table("confirmadas_producao").delete().in_("Serie_Numero_CTRC", chaves_inseridas).execute()
+
+                                    # Limpa caches e seleções para forçar reload total
+                                    st.session_state.pop("df_confirmadas_cache", None)
+                                    st.session_state.pop("dados_sincronizados", None)
+                                    for key in list(st.session_state.keys()):
+                                        if key.startswith("grid_confirmar_") or key.startswith("selecionadas_") or key.startswith("sucesso_"):
+                                            st.session_state.pop(key, None)
+
+                                    # Gatilho para recarregar a tabela confirmadas_producao
+                                    st.session_state["reload_confirmadas_producao"] = True
+
+                                    st.success(f"{len(chaves_inseridas)} entregas confirmadas e movidas para Aprovação Diretoria.")
+
+                                    st.rerun()
+
+                                except Exception as delete_error:
+                                    st.error(f"Erro ao deletar entregas: {delete_error}")
+                            else:
+                                st.error("❌ Nem todas as entregas foram inseridas corretamente em 'aprovacao_diretoria'. Nenhuma foi removida.")
+                except Exception as e:
+                    st.error(f"Erro ao processar confirmação: {e}")
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
