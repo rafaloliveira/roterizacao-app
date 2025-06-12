@@ -548,7 +548,7 @@ def pagina_sincronizacao():
         df.columns = df.columns.str.strip()
 
         # 🔧 Remove colunas indesejadas
-        colunas_para_remover = ['Capa de Canhoto de NF']
+        colunas_para_remover = ['Capa de Canhoto de NF','Unnamed: 70']
         colunas_existentes_para_remover = [col for col in colunas_para_remover if col in df.columns]
         if colunas_existentes_para_remover:
             df.drop(columns=colunas_existentes_para_remover, inplace=True)
