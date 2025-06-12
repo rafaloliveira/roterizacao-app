@@ -938,8 +938,21 @@ def pagina_confirmar_producao():
         st.info("Nenhuma entrega pendente para confirmação após filtragem.")
         return
 
-    confirmadas_res = supabase.table("confirmadas_producao").select("*").execute()
-    df_confirmadas = pd.DataFrame(confirmadas_res.data)
+    # 🔄 Recarrega a tabela confirmadas_producao apenas se necessário
+    if st.session_state.get("reload_confirmadas_producao"):
+        st.session_state.pop("reload_confirmadas_producao")
+        df_confirmadas = pd.DataFrame(
+            supabase.table("confirmadas_producao").select("*").execute().data
+        )
+        st.session_state["df_confirmadas_cache"] = df_confirmadas
+    else:
+        df_confirmadas = st.session_state.get("df_confirmadas_cache")
+        if df_confirmadas is None:
+            df_confirmadas = pd.DataFrame(
+                supabase.table("confirmadas_producao").select("*").execute().data
+            )
+            st.session_state["df_confirmadas_cache"] = df_confirmadas
+
 
     if df_confirmadas.empty:
         st.info("Nenhuma entrega confirmada na produção.")
@@ -1113,19 +1126,20 @@ def pagina_confirmar_producao():
                                 # Atualiza os dados na sessão
                                 st.session_state["dados_sincronizados"] = carregar_base_supabase()
 
+                                # 🔄 Força recarregamento da tabela confirmadas_producao
+                                st.session_state["reload_confirmadas_producao"] = True
+
                                 st.session_state.pop(session_key_selecionadas, None)
                                 st.session_state.pop(session_key_sucesso, None)
                                 st.success(f"{len(chaves_inseridas)} entregas confirmadas e movidas para Aprovação Diretoria.")
                                 st.rerun()
+
                             except Exception as delete_error:
                                 st.error(f"Erro ao deletar entregas: {delete_error}")
                         else:
                             st.error("❌ Nem todas as entregas foram inseridas corretamente em 'aprovacao_diretoria'. Nenhuma foi removida.")
             except Exception as e:
                 st.error(f"Erro ao processar confirmação: {e}")
-
-
-
 
 ###########################################
 
