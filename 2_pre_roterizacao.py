@@ -1133,12 +1133,18 @@ def pagina_confirmar_producao():
                                 st.session_state["dados_sincronizados"] = carregar_base_supabase()
 
                                 # 🔄 Força recarregamento da tabela confirmadas_producao
+                                # 🔄 Força recarregamento da tabela confirmadas_producao
                                 st.session_state["reload_confirmadas_producao"] = True
 
+                                # Limpa seleções da sessão
                                 st.session_state.pop(session_key_selecionadas, None)
                                 st.session_state.pop(session_key_sucesso, None)
+
                                 st.success(f"{len(chaves_inseridas)} entregas confirmadas e movidas para Aprovação Diretoria.")
+
+                                # 🔄 Gatilho para recarregar toda a interface
                                 st.rerun()
+
 
                             except Exception as delete_error:
                                 st.error(f"Erro ao deletar entregas: {delete_error}")
@@ -1146,6 +1152,8 @@ def pagina_confirmar_producao():
                             st.error("❌ Nem todas as entregas foram inseridas corretamente em 'aprovacao_diretoria'. Nenhuma foi removida.")
             except Exception as e:
                 st.error(f"Erro ao processar confirmação: {e}")
+
+
 
 ###########################################
 
