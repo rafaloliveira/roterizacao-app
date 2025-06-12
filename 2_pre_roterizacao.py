@@ -1110,16 +1110,13 @@ def pagina_confirmar_producao():
                             try:
                                 supabase.table("confirmadas_producao").delete().in_("Serie_Numero_CTRC", chaves_inseridas).execute()
 
-                                # Limpa estado temporário da sessão
+                                # Atualiza os dados na sessão
+                                st.session_state["dados_sincronizados"] = carregar_base_supabase()
+
                                 st.session_state.pop(session_key_selecionadas, None)
                                 st.session_state.pop(session_key_sucesso, None)
-
-                                # Mensagem opcional (pode ser substituída por st.toast, se quiser que não bloqueie a interface)
                                 st.success(f"{len(chaves_inseridas)} entregas confirmadas e movidas para Aprovação Diretoria.")
-
-                                # Recarrega a página para refletir as mudanças
                                 st.rerun()
-
                             except Exception as delete_error:
                                 st.error(f"Erro ao deletar entregas: {delete_error}")
                         else:
