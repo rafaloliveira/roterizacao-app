@@ -1051,8 +1051,6 @@ def pagina_confirmar_producao():
 
         df_formatado = df_cliente[[col for col in colunas_exibir if col in df_cliente.columns]].copy()
 
-        
-
         gb = GridOptionsBuilder.from_dataframe(df_formatado)
         gb.configure_default_column(minWidth=150)
         gb.configure_selection('multiple', use_checkbox=True)
@@ -1062,33 +1060,30 @@ def pagina_confirmar_producao():
         grid_options = gb.build()
         grid_options["getRowStyle"] = linha_destacar
 
-        with st.container():
-            st.markdown("<div style='overflow-x:auto;'>", unsafe_allow_html=True)
-            grid_key_id = f"grid_confirmar_{cliente}"
-            if st.session_state.get("reload_confirmadas_producao", False):
-                st.session_state[grid_key_id] = str(uuid.uuid4())
-            elif grid_key_id not in st.session_state:
-                st.session_state[grid_key_id] = str(uuid.uuid4())
+        grid_key_id = f"grid_confirmar_{cliente}"
+        if st.session_state.get("reload_confirmadas_producao", False):
+            st.session_state[grid_key_id] = str(uuid.uuid4())
+        elif grid_key_id not in st.session_state:
+            st.session_state[grid_key_id] = str(uuid.uuid4())
 
-            # Calcular altura dinâmica para exibir de 10 a 15 linhas
-            num_linhas_exibir = min(max(len(df_formatado), 10), 15)  # no mínimo 10, máximo 15 linhas
-            altura_linha = 30  # px, ajuste se quiser
-            altura_total = altura_linha * num_linhas_exibir + 40  # 40 px extra para cabeçalho
+        # Calcular altura dinâmica para exibir de 10 a 15 linhas
+        num_linhas_exibir = min(max(len(df_formatado), 10), 15)  # no mínimo 10, máximo 15 linhas
+        altura_linha = 30  # px, ajuste se quiser
+        altura_total = altura_linha * num_linhas_exibir + 40  # 40 px extra para cabeçalho
 
-            grid_response = AgGrid(
-                df_formatado,
-                gridOptions=grid_options,
-                update_mode=GridUpdateMode.SELECTION_CHANGED,
-                fit_columns_on_grid_load=False,
-                height=altura_total,
-                width=1500,
-                allow_unsafe_jscode=True,
-                key=st.session_state[grid_key_id],
-                data_return_mode="AS_INPUT"
-            )
-            st.markdown("</div>", unsafe_allow_html=True)
+        grid_response = AgGrid(
+            df_formatado,
+            gridOptions=grid_options,
+            update_mode=GridUpdateMode.SELECTION_CHANGED,
+            fit_columns_on_grid_load=False,
+            height=altura_total,
+            width=1500,
+            allow_unsafe_jscode=True,
+            key=st.session_state[grid_key_id],
+            data_return_mode="AS_INPUT"
+        )
 
-
+        # Agora a parte das seleções:
         selecionadas = pd.DataFrame(grid_response.get("selected_rows", []))
         session_key_selecionadas = f"selecionadas_{cliente}"
         session_key_sucesso = f"sucesso_{cliente}"
@@ -1102,6 +1097,9 @@ def pagina_confirmar_producao():
 
         if st.session_state.get(session_key_sucesso):
             st.success(st.session_state[session_key_sucesso])
+
+
+
 
             if st.button(f"✅ Confirmar entregas de {cliente}", key=f"botao_{cliente}"):
                 try:
