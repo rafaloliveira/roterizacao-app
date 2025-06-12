@@ -1051,11 +1051,13 @@ def pagina_confirmar_producao():
 
         df_formatado = df_cliente[[col for col in colunas_exibir if col in df_cliente.columns]].copy()
 
+        
+
         gb = GridOptionsBuilder.from_dataframe(df_formatado)
         gb.configure_default_column(minWidth=150)
         gb.configure_selection('multiple', use_checkbox=True)
         gb.configure_grid_options(paginationPageSize=12)
-        gb.configure_grid_options(domLayout="autoHeight")
+        # gb.configure_grid_options(domLayout="autoHeight")  # comentado
         gb.configure_grid_options(alwaysShowHorizontalScroll=True)
         grid_options = gb.build()
         grid_options["getRowStyle"] = linha_destacar
@@ -1067,18 +1069,25 @@ def pagina_confirmar_producao():
                 st.session_state[grid_key_id] = str(uuid.uuid4())
             elif grid_key_id not in st.session_state:
                 st.session_state[grid_key_id] = str(uuid.uuid4())
+
+            # Calcular altura dinâmica para exibir de 10 a 15 linhas
+            num_linhas_exibir = min(max(len(df_formatado), 10), 15)  # no mínimo 10, máximo 15 linhas
+            altura_linha = 30  # px, ajuste se quiser
+            altura_total = altura_linha * num_linhas_exibir + 40  # 40 px extra para cabeçalho
+
             grid_response = AgGrid(
                 df_formatado,
                 gridOptions=grid_options,
                 update_mode=GridUpdateMode.SELECTION_CHANGED,
                 fit_columns_on_grid_load=False,
-                height=500,
+                height=altura_total,
                 width=1500,
                 allow_unsafe_jscode=True,
                 key=st.session_state[grid_key_id],
                 data_return_mode="AS_INPUT"
             )
             st.markdown("</div>", unsafe_allow_html=True)
+
 
         selecionadas = pd.DataFrame(grid_response.get("selected_rows", []))
         session_key_selecionadas = f"selecionadas_{cliente}"
