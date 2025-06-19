@@ -1017,29 +1017,42 @@ def pagina_confirmar_producao():
         volumes = df_cliente['Quantidade de Volumes'].sum()
 
         st.markdown(f"""
-        <div style="background-color: #444; padding: 8px 16px; border-radius: 6px; margin-top: 20px; margin-bottom: 8px;">
-            <div style="color: white; margin: 0; font-size: 15px; font-weight: bold;">🏭 Cliente: {cliente}</div>
-        </div>
+            <div style="background-color: #444; padding: 8px 16px; border-radius: 6px; margin-top: 20px; margin-bottom: 8px;">
+                <div style="color: white; margin: 0; font-size: 15px; font-weight: bold;">🏭 Cliente: {cliente}</div>
+            </div>
 
-        <div style="display: flex; flex-wrap: wrap; gap: 20px; font-size: 16px; margin-bottom: 20px;">
-            <div><strong>Quantidade de Entregas:</strong> {total_entregas}</div>
-            <div><strong>Peso Calculado (kg):</strong> {formatar_brasileiro(peso_calculado)}</div>
-            <div><strong>Peso Real (kg):</strong> {formatar_brasileiro(peso_real)}</div>
-            <div><strong>Valor do Frete:</strong> R$ {formatar_brasileiro(valor_frete)}</div>
-            <div><strong>Cubagem (m³):</strong> {formatar_brasileiro(cubagem)}</div>
-            <div><strong>Volumes:</strong> {int(volumes) if pd.notnull(volumes) else 0}</div>
-        </div>
+            <div style="display: flex; flex-wrap: wrap; gap: 20px; font-size: 16px; margin-bottom: 20px;">
+                <div><strong>Quantidade de Entregas:</strong> {total_entregas}</div>
+                <div><strong>Peso Calculado (kg):</strong> {formatar_brasileiro(peso_calculado)}</div>
+                <div><strong>Peso Real (kg):</strong> {formatar_brasileiro(peso_real)}</div>
+                <div><strong>Valor do Frete:</strong> R$ {formatar_brasileiro(valor_frete)}</div>
+                <div><strong>Cubagem (m³):</strong> {formatar_brasileiro(cubagem)}</div>
+                <div><strong>Volumes:</strong> {int(volumes) if pd.notnull(volumes) else 0}</div>
+            </div>
         """, unsafe_allow_html=True)
 
         df_formatado = df_cliente[[col for col in colunas_exibir if col in df_cliente.columns]].copy()
 
-        # Estilo extra para garantir rolagem horizontal
+        # Estilo global para correção de scroll, altura e margem no AgGrid
         st.markdown("""
-            <style>
-                .ag-root-wrapper {
-                    overflow-x: auto !important;
-                }
-            </style>
+        <style>
+        .ag-theme-streamlit .ag-root-wrapper {
+            margin-bottom: 0px !important;
+            padding-bottom: 0px !important;
+            overflow-x: auto !important;
+            overflow-y: auto !important;
+        }
+
+        .ag-body-horizontal-scroll-viewport {
+            overflow-x: scroll !important;
+            height: 17px !important;
+        }
+
+        .ag-root {
+            padding-bottom: 0px !important;
+            margin-bottom: 0px !important;
+        }
+        </style>
         """, unsafe_allow_html=True)
 
         # Configuração da grid
@@ -1048,20 +1061,21 @@ def pagina_confirmar_producao():
         gb.configure_selection('multiple', use_checkbox=True)
         gb.configure_grid_options(paginationPageSize=12)
         gb.configure_grid_options(alwaysShowHorizontalScroll=True)
-        # NÃO usar autoHeight agora
-        # gb.configure_grid_options(domLayout="autoHeight")
+        # gb.configure_grid_options(domLayout="autoHeight")  # desabilitado conforme necessário
         grid_options = gb.build()
         grid_options["getRowStyle"] = linha_destacar
 
+        # Chave única da grid
         grid_key_id = f"grid_confirmar_{cliente}"
         if st.session_state.get("reload_confirmadas_producao", False):
             st.session_state[grid_key_id] = str(uuid.uuid4())
         elif grid_key_id not in st.session_state:
             st.session_state[grid_key_id] = str(uuid.uuid4())
 
-        # Altura fixa padrão (ajustável)
+        # Altura fixa da grid
         altura_total = 480
 
+        # Renderiza a grid
         grid_response = AgGrid(
             df_formatado,
             gridOptions=grid_options,
@@ -1073,6 +1087,8 @@ def pagina_confirmar_producao():
             key=st.session_state[grid_key_id],
             data_return_mode="AS_INPUT"
         )
+
+
 
 
 
