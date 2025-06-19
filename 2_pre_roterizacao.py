@@ -1052,20 +1052,22 @@ def pagina_confirmar_producao():
 
         # 🔹 Renderiza a grid dentro de um container com rolagem horizontal
         with st.container():
-            st.markdown("<div style='overflow-x: auto;'>", unsafe_allow_html=True)
+            st.markdown("<div style='max-height: 480px; overflow: auto;'>", unsafe_allow_html=True)
             grid_response = AgGrid(
                 df_formatado,
                 gridOptions=grid_options,
                 update_mode=GridUpdateMode.SELECTION_CHANGED,
                 fit_columns_on_grid_load=False,
-                width=1500,  # ⬅️ aumente aqui para acomodar mais colunas se necessário
+                width=1500,
                 allow_unsafe_jscode=True,
                 key=st.session_state[grid_key_id],
                 data_return_mode="AS_INPUT",
                 theme="streamlit",
-                show_toolbar=False  # ✅ Desativa o gridToolBar e elimina padding
+                show_toolbar=False,
+                height=460  # opcional, apenas para evitar que passe do limite
             )
             st.markdown("</div>", unsafe_allow_html=True)
+
 
 
 
