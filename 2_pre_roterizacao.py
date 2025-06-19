@@ -1033,35 +1033,7 @@ def pagina_confirmar_producao():
 
         df_formatado = df_cliente[[col for col in colunas_exibir if col in df_cliente.columns]].copy()
 
-        # Injetar CSS para garantir estilo
-        st.markdown("""
-        <style>
-        div[id="gridToolBar"] {
-            padding-bottom: 0px !important;
-            height: 0px !important;
-            min-height: 0px !important;
-        }
-        </style>
-        """, unsafe_allow_html=True)
-
-        # Injetar JS para garantir que estilo seja aplicado após render
-        st.markdown("""
-        <script>
-        function removerPaddingGrid() {
-            const toolbars = document.querySelectorAll("#gridToolBar");
-            toolbars.forEach(el => el.style.paddingBottom = "0px");
-        }
-        const observer = new MutationObserver(removerPaddingGrid);
-        observer.observe(document.body, { childList: true, subtree: true });
-        setInterval(removerPaddingGrid, 200);
-        </script>
-        """, unsafe_allow_html=True)
-
-
-
-
-
-        # 🔹 Configuração da grid — natural, sem CSS extra
+        # 🔹 Configuração da grid — modo nativo do Streamlit
         gb = GridOptionsBuilder.from_dataframe(df_formatado)
         gb.configure_default_column(minWidth=150)
         gb.configure_selection('multiple', use_checkbox=True)
@@ -1079,9 +1051,9 @@ def pagina_confirmar_producao():
             st.session_state[grid_key_id] = str(uuid.uuid4())
 
         # 🔹 Altura fixa padrão
-        altura_total = 479  # 1px a menos que 480, ajustado por você
+        altura_total = 479  # levemente ajustado para visual estável
 
-        # 🔹 Renderiza a grid
+        # 🔹 Renderiza a grid com toolbar desativada (resolve o padding-bottom)
         grid_response = AgGrid(
             df_formatado,
             gridOptions=grid_options,
@@ -1091,11 +1063,10 @@ def pagina_confirmar_producao():
             width=1500,
             allow_unsafe_jscode=True,
             key=st.session_state[grid_key_id],
-            data_return_mode="AS_INPUT"
-        )
-
-
-
+            data_return_mode="AS_INPUT",
+            theme="streamlit",
+            show_toolbar=False  # ✅ ESSENCIAL para remover o gridToolBar
+)
 
 
 
