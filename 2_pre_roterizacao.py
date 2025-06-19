@@ -1051,7 +1051,7 @@ def pagina_confirmar_producao():
             st.session_state[grid_key_id] = str(uuid.uuid4())
 
         # 🔹 Altura fixa e padrão
-        altura_total = 480
+        altura_total = 479
 
         # 🔹 Renderização da grid no modo natural
         grid_response = AgGrid(
