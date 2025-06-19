@@ -1060,7 +1060,7 @@ def pagina_confirmar_producao():
             update_mode=GridUpdateMode.SELECTION_CHANGED,
             fit_columns_on_grid_load=False,
             height=altura_total,
-            width=1500,
+            width=350,
             allow_unsafe_jscode=True,
             key=st.session_state[grid_key_id],
             data_return_mode="AS_INPUT",
