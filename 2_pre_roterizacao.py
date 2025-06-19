@@ -1033,12 +1033,13 @@ def pagina_confirmar_producao():
 
         df_formatado = df_cliente[[col for col in colunas_exibir if col in df_cliente.columns]].copy()
 
-        # 🔹 Altura dinâmica da grid com base no número de linhas
-        row_height = 30
-        header_height = 40
+# 🔹 Altura precisa da grid para 10–12 linhas
+        row_height = 32
+        header_height = 56
         scrollbar_height = 17
+        margem_extra = 10
         linhas_visiveis = min(max(len(df_formatado), 10), 12)
-        altura_total = (linhas_visiveis * row_height) + header_height + scrollbar_height + 8  # margem extra
+        altura_total = (linhas_visiveis * row_height) + header_height + scrollbar_height + margem_extra
 
         # 🔹 Configuração da grid
         gb = GridOptionsBuilder.from_dataframe(df_formatado)
@@ -1050,14 +1051,14 @@ def pagina_confirmar_producao():
         grid_options = gb.build()
         grid_options["getRowStyle"] = linha_destacar
 
-        # 🔹 Chave única para controle de cache
+        # 🔹 Cache do grid
         grid_key_id = f"grid_confirmar_{cliente}"
         if st.session_state.get("reload_confirmadas_producao", False):
             st.session_state[grid_key_id] = str(uuid.uuid4())
         elif grid_key_id not in st.session_state:
             st.session_state[grid_key_id] = str(uuid.uuid4())
 
-        # 🔹 Renderiza a grid com rolagem horizontal garantida
+        # 🔹 Renderização segura com barra visível
         with st.container():
             st.markdown("<div style='overflow-x: auto;'>", unsafe_allow_html=True)
             grid_response = AgGrid(
@@ -1066,7 +1067,7 @@ def pagina_confirmar_producao():
                 update_mode=GridUpdateMode.SELECTION_CHANGED,
                 fit_columns_on_grid_load=False,
                 width=1500,
-                height=altura_total,  # ✅ altura dinâmica controlada
+                height=altura_total,  # ✅ agora respeita a altura real das linhas
                 allow_unsafe_jscode=True,
                 key=st.session_state[grid_key_id],
                 data_return_mode="AS_INPUT",
@@ -1074,6 +1075,7 @@ def pagina_confirmar_producao():
                 show_toolbar=False
             )
             st.markdown("</div>", unsafe_allow_html=True)
+
 
         # 🔹 Seleção
         selecionadas = pd.DataFrame(grid_response.get("selected_rows", []))
@@ -1089,9 +1091,6 @@ def pagina_confirmar_producao():
 
         if st.session_state.get(session_key_sucesso):
             st.success(st.session_state[session_key_sucesso])
-
-
-
 
 
             if st.button(f"✅ Confirmar entregas de {cliente}", key=f"botao_{cliente}"):
