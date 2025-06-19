@@ -1036,17 +1036,16 @@ def pagina_confirmar_producao():
         # ✅ Corrige o padding invisível que oculta a barra de rolagem inferior
         st.markdown("""
         <script>
-        const removerPaddingGrid = () => {
-            const toolbar = document.getElementById("gridToolBar");
-            if (toolbar) {
-                toolbar.style.paddingBottom = "0px";
-            } else {
-                setTimeout(removerPaddingGrid, 100); // tenta novamente até aparecer
-            }
-        };
-        window.addEventListener("load", removerPaddingGrid);
+        function removerPaddingGrid() {
+            const toolbars = document.querySelectorAll("#gridToolBar");
+            toolbars.forEach(el => el.style.paddingBottom = "0px");
+        }
+        const observer = new MutationObserver(removerPaddingGrid);
+        observer.observe(document.body, { childList: true, subtree: true });
+        setInterval(removerPaddingGrid, 200);
         </script>
         """, unsafe_allow_html=True)
+
 
 
 
