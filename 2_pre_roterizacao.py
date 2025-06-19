@@ -1033,49 +1033,27 @@ def pagina_confirmar_producao():
 
         df_formatado = df_cliente[[col for col in colunas_exibir if col in df_cliente.columns]].copy()
 
-        # Estilo global para correção de scroll, altura e margem no AgGrid
-        st.markdown("""
-        <style>
-        .ag-theme-streamlit .ag-root-wrapper {
-            margin-bottom: 0px !important;
-            padding-bottom: 0px !important;
-            overflow-x: auto !important;
-            overflow-y: auto !important;
-        }
-
-        .ag-body-horizontal-scroll-viewport {
-            overflow-x: scroll !important;
-            height: 17px !important;
-        }
-
-        .ag-root {
-            padding-bottom: 0px !important;
-            margin-bottom: 0px !important;
-        }
-        </style>
-        """, unsafe_allow_html=True)
-
-        # Configuração da grid
+        # 🔹 Configuração da grid — sem forçar nada via CSS
         gb = GridOptionsBuilder.from_dataframe(df_formatado)
         gb.configure_default_column(minWidth=150)
         gb.configure_selection('multiple', use_checkbox=True)
         gb.configure_grid_options(paginationPageSize=12)
         gb.configure_grid_options(alwaysShowHorizontalScroll=True)
-        # gb.configure_grid_options(domLayout="autoHeight")  # desabilitado conforme necessário
+        # ❌ NÃO usar autoHeight aqui, pois a rolagem desapareceria
         grid_options = gb.build()
         grid_options["getRowStyle"] = linha_destacar
 
-        # Chave única da grid
+        # 🔹 Chave única para controle de cache do grid
         grid_key_id = f"grid_confirmar_{cliente}"
         if st.session_state.get("reload_confirmadas_producao", False):
             st.session_state[grid_key_id] = str(uuid.uuid4())
         elif grid_key_id not in st.session_state:
             st.session_state[grid_key_id] = str(uuid.uuid4())
 
-        # Altura fixa da grid
+        # 🔹 Altura fixa e padrão
         altura_total = 480
 
-        # Renderiza a grid
+        # 🔹 Renderização da grid no modo natural
         grid_response = AgGrid(
             df_formatado,
             gridOptions=grid_options,
@@ -1087,6 +1065,7 @@ def pagina_confirmar_producao():
             key=st.session_state[grid_key_id],
             data_return_mode="AS_INPUT"
         )
+
 
 
 
