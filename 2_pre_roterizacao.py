@@ -1033,27 +1033,37 @@ def pagina_confirmar_producao():
 
         df_formatado = df_cliente[[col for col in colunas_exibir if col in df_cliente.columns]].copy()
 
-        # 🔹 Configuração da grid — sem forçar nada via CSS
+        # ✅ Corrige o padding invisível que oculta a barra de rolagem inferior
+        st.markdown("""
+        <style>
+        /* Remove espaço residual que esconde a barra inferior */
+        #gridToolBar {
+            padding-bottom: 0px !important;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+
+        # 🔹 Configuração da grid — natural, sem CSS extra
         gb = GridOptionsBuilder.from_dataframe(df_formatado)
         gb.configure_default_column(minWidth=150)
         gb.configure_selection('multiple', use_checkbox=True)
         gb.configure_grid_options(paginationPageSize=12)
         gb.configure_grid_options(alwaysShowHorizontalScroll=True)
-        # ❌ NÃO usar autoHeight aqui, pois a rolagem desapareceria
+        # ❌ NÃO usar autoHeight aqui
         grid_options = gb.build()
         grid_options["getRowStyle"] = linha_destacar
 
-        # 🔹 Chave única para controle de cache do grid
+        # 🔹 Chave única para controle de cache da grid
         grid_key_id = f"grid_confirmar_{cliente}"
         if st.session_state.get("reload_confirmadas_producao", False):
             st.session_state[grid_key_id] = str(uuid.uuid4())
         elif grid_key_id not in st.session_state:
             st.session_state[grid_key_id] = str(uuid.uuid4())
 
-        # 🔹 Altura fixa e padrão
-        altura_total = 479
+        # 🔹 Altura fixa padrão
+        altura_total = 479  # 1px a menos que 480, ajustado por você
 
-        # 🔹 Renderização da grid no modo natural
+        # 🔹 Renderiza a grid
         grid_response = AgGrid(
             df_formatado,
             gridOptions=grid_options,
