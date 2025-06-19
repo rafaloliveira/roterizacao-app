@@ -1036,12 +1036,18 @@ def pagina_confirmar_producao():
         # ✅ Corrige o padding invisível que oculta a barra de rolagem inferior
         st.markdown("""
         <style>
-        /* Remove espaço residual que esconde a barra inferior */
+        /* Corrige o container da grid */
+        #gridContainer {
+            height: 420px !important;  /* ou 100% se quiser adaptar */
+        }
+
+        /* Remove padding que empurra a grid */
         #gridToolBar {
             padding-bottom: 0px !important;
         }
         </style>
         """, unsafe_allow_html=True)
+
 
         # 🔹 Configuração da grid — natural, sem CSS extra
         gb = GridOptionsBuilder.from_dataframe(df_formatado)
