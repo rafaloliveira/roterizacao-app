@@ -1033,7 +1033,7 @@ def pagina_confirmar_producao():
 
         df_formatado = df_cliente[[col for col in colunas_exibir if col in df_cliente.columns]].copy()
 
-        # Estilo extra para forçar scroll horizontal visível (apenas uma vez por app idealmente)
+        # Estilo extra para garantir rolagem horizontal
         st.markdown("""
             <style>
                 .ag-root-wrapper {
@@ -1042,34 +1042,38 @@ def pagina_confirmar_producao():
             </style>
         """, unsafe_allow_html=True)
 
-        # Configurações do Grid
+        # Configuração da grid
         gb = GridOptionsBuilder.from_dataframe(df_formatado)
         gb.configure_default_column(minWidth=150)
         gb.configure_selection('multiple', use_checkbox=True)
         gb.configure_grid_options(paginationPageSize=12)
         gb.configure_grid_options(alwaysShowHorizontalScroll=True)
-        gb.configure_grid_options(domLayout="autoHeight")  # ✅ Altura dinâmica
+        # NÃO usar autoHeight agora
+        # gb.configure_grid_options(domLayout="autoHeight")
         grid_options = gb.build()
         grid_options["getRowStyle"] = linha_destacar
 
-        # Key único por cliente
         grid_key_id = f"grid_confirmar_{cliente}"
         if st.session_state.get("reload_confirmadas_producao", False):
             st.session_state[grid_key_id] = str(uuid.uuid4())
         elif grid_key_id not in st.session_state:
             st.session_state[grid_key_id] = str(uuid.uuid4())
 
-        # Renderiza a grid sem altura fixa
+        # Altura fixa padrão (ajustável)
+        altura_total = 480
+
         grid_response = AgGrid(
             df_formatado,
             gridOptions=grid_options,
             update_mode=GridUpdateMode.SELECTION_CHANGED,
             fit_columns_on_grid_load=False,
+            height=altura_total,
             width=1500,
             allow_unsafe_jscode=True,
             key=st.session_state[grid_key_id],
             data_return_mode="AS_INPUT"
         )
+
 
 
         # Agora a parte das seleções:
