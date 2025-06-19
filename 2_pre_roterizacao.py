@@ -1033,13 +1033,13 @@ def pagina_confirmar_producao():
 
         df_formatado = df_cliente[[col for col in colunas_exibir if col in df_cliente.columns]].copy()
 
-        # 🔹 Configuração da grid — modo nativo do Streamlit
+        # 🔹 Configuração da grid — modo nativo do Streamlit com rolagem garantida
         gb = GridOptionsBuilder.from_dataframe(df_formatado)
         gb.configure_default_column(minWidth=150)
         gb.configure_selection('multiple', use_checkbox=True)
         gb.configure_grid_options(paginationPageSize=12)
         gb.configure_grid_options(alwaysShowHorizontalScroll=True)
-        # ❌ NÃO usar autoHeight aqui
+        gb.configure_grid_options(domLayout="autoHeight")  # ✅ Altura automática e natural
         grid_options = gb.build()
         grid_options["getRowStyle"] = linha_destacar
 
@@ -1050,23 +1050,23 @@ def pagina_confirmar_producao():
         elif grid_key_id not in st.session_state:
             st.session_state[grid_key_id] = str(uuid.uuid4())
 
-        # 🔹 Altura fixa padrão
-        altura_total = 479  # levemente ajustado para visual estável
+        # 🔹 Renderiza a grid dentro de um container com rolagem horizontal
+        with st.container():
+            st.markdown("<div style='overflow-x: auto;'>", unsafe_allow_html=True)
+            grid_response = AgGrid(
+                df_formatado,
+                gridOptions=grid_options,
+                update_mode=GridUpdateMode.SELECTION_CHANGED,
+                fit_columns_on_grid_load=False,
+                width=1500,  # ⬅️ aumente aqui para acomodar mais colunas se necessário
+                allow_unsafe_jscode=True,
+                key=st.session_state[grid_key_id],
+                data_return_mode="AS_INPUT",
+                theme="streamlit",
+                show_toolbar=False  # ✅ Desativa o gridToolBar e elimina padding
+            )
+            st.markdown("</div>", unsafe_allow_html=True)
 
-        # 🔹 Renderiza a grid com toolbar desativada (resolve o padding-bottom)
-        grid_response = AgGrid(
-            df_formatado,
-            gridOptions=grid_options,
-            update_mode=GridUpdateMode.SELECTION_CHANGED,
-            fit_columns_on_grid_load=False,
-            height=altura_total,
-            width=350,
-            allow_unsafe_jscode=True,
-            key=st.session_state[grid_key_id],
-            data_return_mode="AS_INPUT",
-            theme="streamlit",
-            show_toolbar=True  # ✅ ESSENCIAL para remover o gridToolBar
-)
 
 
 
