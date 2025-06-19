@@ -1035,18 +1035,19 @@ def pagina_confirmar_producao():
 
         # ✅ Corrige o padding invisível que oculta a barra de rolagem inferior
         st.markdown("""
-        <style>
-        /* Corrige o container da grid */
-        #gridContainer {
-            height: 420px !important;  /* ou 100% se quiser adaptar */
-        }
-
-        /* Remove padding que empurra a grid */
-        #gridToolBar {
-            padding-bottom: 0px !important;
-        }
-        </style>
+        <script>
+        const removerPaddingGrid = () => {
+            const toolbar = document.getElementById("gridToolBar");
+            if (toolbar) {
+                toolbar.style.paddingBottom = "0px";
+            } else {
+                setTimeout(removerPaddingGrid, 100); // tenta novamente até aparecer
+            }
+        };
+        window.addEventListener("load", removerPaddingGrid);
+        </script>
         """, unsafe_allow_html=True)
+
 
 
         # 🔹 Configuração da grid — natural, sem CSS extra
