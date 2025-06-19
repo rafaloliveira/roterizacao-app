@@ -1033,46 +1033,49 @@ def pagina_confirmar_producao():
 
         df_formatado = df_cliente[[col for col in colunas_exibir if col in df_cliente.columns]].copy()
 
-        # 🔹 Configuração da grid — modo nativo do Streamlit com rolagem garantida
+        # 🔹 Altura dinâmica da grid com base no número de linhas
+        row_height = 30
+        header_height = 40
+        scrollbar_height = 17
+        linhas_visiveis = min(max(len(df_formatado), 10), 12)
+        altura_total = (linhas_visiveis * row_height) + header_height + scrollbar_height + 8  # margem extra
+
+        # 🔹 Configuração da grid
         gb = GridOptionsBuilder.from_dataframe(df_formatado)
         gb.configure_default_column(minWidth=150)
         gb.configure_selection('multiple', use_checkbox=True)
         gb.configure_grid_options(paginationPageSize=12)
         gb.configure_grid_options(alwaysShowHorizontalScroll=True)
-        gb.configure_grid_options(domLayout="autoHeight")  # ✅ Altura automática e natural
+        # ❌ NÃO usar autoHeight
         grid_options = gb.build()
         grid_options["getRowStyle"] = linha_destacar
 
-        # 🔹 Chave única para controle de cache da grid
+        # 🔹 Chave única para controle de cache
         grid_key_id = f"grid_confirmar_{cliente}"
         if st.session_state.get("reload_confirmadas_producao", False):
             st.session_state[grid_key_id] = str(uuid.uuid4())
         elif grid_key_id not in st.session_state:
             st.session_state[grid_key_id] = str(uuid.uuid4())
 
-        # 🔹 Renderiza a grid dentro de um container com rolagem horizontal
+        # 🔹 Renderiza a grid com rolagem horizontal garantida
         with st.container():
-            st.markdown("<div style='max-height: 480px; overflow: auto;'>", unsafe_allow_html=True)
+            st.markdown("<div style='overflow-x: auto;'>", unsafe_allow_html=True)
             grid_response = AgGrid(
                 df_formatado,
                 gridOptions=grid_options,
                 update_mode=GridUpdateMode.SELECTION_CHANGED,
                 fit_columns_on_grid_load=False,
                 width=1500,
+                height=altura_total,  # ✅ altura dinâmica controlada
                 allow_unsafe_jscode=True,
                 key=st.session_state[grid_key_id],
                 data_return_mode="AS_INPUT",
                 theme="streamlit",
-                show_toolbar=False,
-                height=460  # opcional, apenas para evitar que passe do limite
+                show_toolbar=False
             )
             st.markdown("</div>", unsafe_allow_html=True)
 
-
-
-
-
-        # Agora a parte das seleções:
+        # 🔹 Seleção
         selecionadas = pd.DataFrame(grid_response.get("selected_rows", []))
         session_key_selecionadas = f"selecionadas_{cliente}"
         session_key_sucesso = f"sucesso_{cliente}"
@@ -1086,6 +1089,7 @@ def pagina_confirmar_producao():
 
         if st.session_state.get(session_key_sucesso):
             st.success(st.session_state[session_key_sucesso])
+
 
 
 
