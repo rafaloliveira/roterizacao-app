@@ -1065,7 +1065,7 @@ def pagina_confirmar_producao():
             key=st.session_state[grid_key_id],
             data_return_mode="AS_INPUT",
             theme="streamlit",
-            show_toolbar=False  # ✅ ESSENCIAL para remover o gridToolBar
+            show_toolbar=True  # ✅ ESSENCIAL para remover o gridToolBar
 )
 
 
