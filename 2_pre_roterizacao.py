@@ -892,9 +892,74 @@ def aplicar_regras_e_preencher_tabelas():
 
 ###########################################
 
-# PÁGINA Confirmar Produção
+import streamlit as st
+import pandas as pd
+import numpy as np
+from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, JsCode
+import uuid # Importa o módulo uuid
 
-##########################################
+# --- IMPORTANTE ---
+# Certifique-se de que 'supabase', 'carregar_base_supabase' e 'formatar_brasileiro'
+# estão definidos e importados corretamente de seus respectivos módulos.
+# Exemplo (ajuste conforme a sua estrutura de arquivos):
+# from database_utils import supabase, carregar_base_supabase
+# from helper_functions import formatar_brasileiro
+
+# Se você não tem essas funções, aqui estão exemplos de placeholders
+# APENAS PARA TESTE. REMOVA-OS E USE SUAS FUNÇÕES REAIS NO PROJETO FINAL.
+
+# from supabase_client import supabase # Exemplo de importação
+# class MockSupabaseTable:
+#     def select(self, *args, **kwargs):
+#         # Simula dados de retorno para 'confirmadas_producao'
+#         return self
+#     def execute(self):
+#         # Retorna um objeto com uma propriedade 'data'
+#         # Para 'confirmadas_producao', pode ser vazio inicialmente ou com alguns dados
+#         return type('obj', (object,), {'data': []})() # Retorna lista vazia por padrão
+#     def delete(self):
+#         return self
+#     def in_(self, *args, **kwargs):
+#         return self
+#     def insert(self, *args, **kwargs):
+#         # Simula o retorno de dados inseridos, essencial para as chaves_inseridas
+#         mock_data = [{'Serie_Numero_CTRC': d.get('Serie_Numero_CTRC')} for d in args[0] if d.get('Serie_Numero_CTRC')]
+#         return type('obj', (object,), {'data': mock_data})()
+
+# class MockSupabase:
+#     def table(self, table_name):
+#         return MockSupabaseTable()
+# supabase = MockSupabase()
+
+# def carregar_base_supabase():
+#     # Simula o carregamento de dados do Supabase
+#     data = {
+#         "Chave CT-e": [f"CHAVE{i}" for i in range(20)],
+#         "Cliente Pagador": [f"Cliente A" if i % 2 == 0 else f"Cliente B" for i in range(20)],
+#         "Cliente Destinatario": [f"Destinatário {i}" for i in range(20)],
+#         "Cidade de Entrega": [f"Cidade {i}" for i in range(20)],
+#         "Bairro do Destinatario": [f"Bairro {i}" for i in range(20)],
+#         "Previsao de Entrega": [pd.Timestamp.now().strftime("%d-%m-%Y") if i % 4 == 0 else (pd.Timestamp.now() + pd.Timedelta(days=i)).strftime("%d-%m-%Y") for i in range(20)],
+#         "Status": ["AGENDAR" if i % 3 == 0 else "ENTREGUE" for i in range(20)],
+#         "Entrega Programada": ["" if i % 3 == 0 else "2025-01-01" for i in range(20)],
+#         "Particularidade": ["" if i % 4 != 0 else "ATENCAO" for i in range(20)],
+#         "Serie_Numero_CTRC": [f"CTRC{i}" for i in range(20)],
+#         "Rota": [f"Rota {i}" for i in range(20)],
+#         "Valor do Frete": [100.0 * i for i in range(20)],
+#         "Numero da Nota Fiscal": [f"NF{i}" for i in range(20)],
+#         "Codigo da Ultima Ocorrencia": [f"OC{i}" for i in range(20)],
+#         "Peso Real em Kg": [10.0 * i for i in range(20)],
+#         "Peso Calculado em Kg": [12.0 * i for i in range(20)],
+#         "Cubagem em m³": [0.5 * i for i in range(20)],
+#         "Quantidade de Volumes": [i + 1 for i in range(20)],
+#     }
+#     return pd.DataFrame(data)
+
+# def formatar_brasileiro(valor):
+#     if pd.isna(valor):
+#         return "0,00"
+#     return f"{valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
 
 def pagina_confirmar_producao():
     st.title("🚛 Confirmar Produção")
@@ -919,7 +984,7 @@ def pagina_confirmar_producao():
 
     df = df.dropna(subset=colunas_necessarias)
     if df.empty:
-        st.info("Nenhuma entrega pendente para confirmação após filtragem.")
+        st.info("Nenhuma entrega pendente para confirmação após filtragem inicial.")
         return
 
     # 🔄 Recarrega a tabela confirmadas_producao apenas se necessário
@@ -941,9 +1006,8 @@ def pagina_confirmar_producao():
         st.error(f"Erro ao carregar entregas confirmadas: {e}")
         return
 
-    if df_confirmadas is None or df_confirmadas.empty:
-        st.info("Nenhuma entrega confirmada na produção.")
-        return
+    if df_confirmadas is None:
+        df_confirmadas = pd.DataFrame() # Garante que df_confirmadas é um DataFrame para evitar erros.
 
     # Conversão de data e filtro de obrigatórias
     df["Previsao de Entrega"] = pd.to_datetime(df["Previsao de Entrega"], format="%d-%m-%Y", errors='coerce')
@@ -951,15 +1015,19 @@ def pagina_confirmar_producao():
 
     obrigatorias = df[
         (df["Previsao de Entrega"] < d_mais_1) |
-        ((df["Status"] == "AGENDAR") & (df["Entrega Programada"].isnull() | (df["Entrega Programada"].str.strip() == "")))
+        ((df["Status"] == "AGENDAR") & (df["Entrega Programada"].isnull() | (df["Entrega Programada"].astype(str).str.strip() == "")))
     ].copy()
 
+    # Filtra as "obrigatorias" removendo as que já estão em "confirmadas_producao"
     if not df_confirmadas.empty:
         obrigatorias = obrigatorias[~obrigatorias["Serie_Numero_CTRC"].isin(df_confirmadas["Serie_Numero_CTRC"])]
 
-    df_exibir = df_confirmadas[
-        ~df_confirmadas["Serie_Numero_CTRC"].isin(obrigatorias["Serie_Numero_CTRC"])
-    ].copy()
+    # df_exibir agora contém as entregas que precisam ser confirmadas
+    df_exibir = obrigatorias.copy()
+
+    if df_exibir.empty:
+        st.info("Todas as entregas obrigatórias já foram confirmadas ou não há entregas obrigatórias pendentes no momento.")
+        return # Sai da função se não há nada para exibir/confirmar
 
 
     total_clientes = df_exibir["Cliente Pagador"].nunique()
@@ -991,13 +1059,14 @@ def pagina_confirmar_producao():
     linha_destacar = JsCode("""
     function(params) {
         const status = params.data.Status;
-        const entregaProg = params.data["Entrega Programada"];
-        const particularidade = params.data.Particularidade;
+        // Converte para string e remove espaços em branco para comparação segura
+        const entregaProg = String(params.data["Entrega Programada"] || "").trim();
+        const particularidade = String(params.data.Particularidade || "").trim();
 
-        if (status === "AGENDAR" && (entregaProg === null || entregaProg === undefined || entregaProg.trim() === "")) {
+        if (status === "AGENDAR" && (entregaProg === null || entregaProg === undefined || entregaProg === "")) {
             return { 'background-color': 'orange', 'color': 'black', 'font-weight': 'bold' };
         }
-        if (particularidade !== null && particularidade !== undefined && particularidade.trim() !== "") {
+        if (particularidade !== null && particularidade !== undefined && particularidade !== "") {
             return { 'background-color': 'yellow', 'color': 'black', 'font-weight': 'bold' };
         }
         return null;
@@ -1036,137 +1105,178 @@ def pagina_confirmar_producao():
         # Estilo global para correção de scroll, altura e margem no AgGrid
         st.markdown("""
         <style>
-        .ag-theme-streamlit .ag-root-wrapper {
-            margin-bottom: 0px !important;
-            padding-bottom: 0px !important;
-            overflow-x: auto !important;
-            overflow-y: auto !important;
+        /* Ajustes para o cabeçalho não achatar */
+        .ag-header-cell {
+            height: auto !important;
+            min-height: 30px !important;
+            line-height: normal !important;
         }
 
+        /* Garante que a barra de rolagem horizontal seja visível com altura padrão */
         .ag-body-horizontal-scroll-viewport {
-            overflow-x: scroll !important;
             height: 17px !important;
+            overflow-x: scroll !important;
         }
 
+        /* Garante que a barra de rolagem vertical seja visível com largura padrão */
+        .ag-body-vertical-scroll {
+            width: 17px !important;
+            overflow-y: scroll !important;
+        }
+
+        /* Removendo ou ajustando os estilos que podem interferir com as barras de rolagem */
+        .ag-theme-streamlit .ag-root-wrapper {
+            /* overflow-x e overflow-y aqui podem ser removidos,
+               pois as barras de rolagem específicas já foram configuradas. */
+        }
         .ag-root {
-            padding-bottom: 0px !important;
-            margin-bottom: 0px !important;
+            /* padding-bottom e margin-bottom podem ser úteis para espaçamento externo,
+               mas cuidado para não encolher o conteúdo interno da grid. */
         }
         </style>
         """, unsafe_allow_html=True)
 
         # Configuração da grid
         gb = GridOptionsBuilder.from_dataframe(df_formatado)
-        gb.configure_default_column(minWidth=150)
+        # Adicionado resizable, sortable e filter para melhor UX
+        gb.configure_default_column(minWidth=150, resizable=True, sortable=True, filter=True)
         gb.configure_selection('multiple', use_checkbox=True)
-        gb.configure_grid_options(paginationPageSize=12)
         gb.configure_grid_options(alwaysShowHorizontalScroll=True)
-        # gb.configure_grid_options(domLayout="autoHeight")  # desabilitado conforme necessário
+        # Manter domLayout="autoHeight" desabilitado para que a altura fixa funcione
+        # gb.configure_grid_options(domLayout="autoHeight")
+
         grid_options = gb.build()
         grid_options["getRowStyle"] = linha_destacar
+        
+        # Cálculo da altura para exibir 10 a 12 linhas
+        # Uma linha de dados tem aprox. 30px de altura.
+        # O cabeçalho da grid tem aprox. 38px (pode variar ligeiramente).
+        # Multiplicamos o número de linhas desejado pela altura da linha e adicionamos o cabeçalho.
+        rows_to_show = 12 # Definimos um máximo de 12 linhas para visualização
+        row_height_px = 30
+        header_height_px = 38 # Altura aproximada do cabeçalho do AgGrid
+
+        # Calcula a altura total necessária:
+        # Se o DataFrame tiver menos linhas que `rows_to_show`, mostramos todas as linhas.
+        # Caso contrário, mostramos `rows_to_show` linhas e a barra de rolagem.
+        if len(df_formatado) <= rows_to_show:
+            altura_total = (len(df_formatado) * row_height_px) + header_height_px + 2 # +2 para bordas/pequeno ajuste
+        else:
+            altura_total = (rows_to_show * row_height_px) + header_height_px + 2
 
         # Chave única da grid
         grid_key_id = f"grid_confirmar_{cliente}"
+        # A chave deve mudar apenas quando houver um 'reload_confirmadas_producao'
+        # ou se a grid ainda não existe na session_state para este cliente.
         if st.session_state.get("reload_confirmadas_producao", False):
             st.session_state[grid_key_id] = str(uuid.uuid4())
         elif grid_key_id not in st.session_state:
             st.session_state[grid_key_id] = str(uuid.uuid4())
-
-        # Altura fixa da grid
-        altura_total = 480
 
         # Renderiza a grid
         grid_response = AgGrid(
             df_formatado,
             gridOptions=grid_options,
             update_mode=GridUpdateMode.SELECTION_CHANGED,
-            fit_columns_on_grid_load=False,
-            height=altura_total,
-            width=1500,
+            fit_columns_on_grid_load=False, # Não ajusta automaticamente a largura das colunas
+            height=altura_total, # Altura calculada para 10-12 linhas
+            width='100%', # Usa 100% da largura disponível
             allow_unsafe_jscode=True,
-            key=st.session_state[grid_key_id],
+            key=st.session_state[grid_key_id], # Usa a chave única
             data_return_mode="AS_INPUT"
         )
-
-
-
-
 
         # Agora a parte das seleções:
         selecionadas = pd.DataFrame(grid_response.get("selected_rows", []))
         session_key_selecionadas = f"selecionadas_{cliente}"
         session_key_sucesso = f"sucesso_{cliente}"
 
+        # Atualiza o estado da sessão com as linhas selecionadas
         if not selecionadas.empty:
             st.session_state[session_key_selecionadas] = selecionadas
             st.session_state[session_key_sucesso] = f"{len(selecionadas)} entregas selecionadas para {cliente}."
         else:
+            # Limpa o estado se nenhuma linha estiver selecionada
             st.session_state.pop(session_key_selecionadas, None)
             st.session_state.pop(session_key_sucesso, None)
 
         if st.session_state.get(session_key_sucesso):
             st.success(st.session_state[session_key_sucesso])
 
-
-
-
+            # Botão de confirmação
             if st.button(f"✅ Confirmar entregas de {cliente}", key=f"botao_{cliente}"):
                 try:
                     selecionadas = st.session_state.get(session_key_selecionadas, pd.DataFrame())
                     if selecionadas.empty:
-                        st.warning("⚠️ Nenhuma entrega selecionada.")
+                        st.warning("⚠️ Nenhuma entrega selecionada para confirmar.")
                         return
 
+                    # Prepara os dados para inserção
                     chaves = selecionadas["Serie_Numero_CTRC"].dropna().astype(str).str.strip().tolist()
                     df_cliente["Serie_Numero_CTRC"] = df_cliente["Serie_Numero_CTRC"].astype(str).str.strip()
                     df_confirmar = df_cliente[df_cliente["Serie_Numero_CTRC"].isin(chaves)].copy()
-                    colunas_validas = [col for col in colunas_exibir if col != "Serie_Numero_CTRC" and col in df_confirmar.columns]
+                    
+                    # Garante que apenas colunas válidas e necessárias sejam incluídas
+                    colunas_validas = [col for col in colunas_exibir if col in df_confirmar.columns]
+                    # Garante que 'Serie_Numero_CTRC' esteja sempre na primeira posição
+                    if "Serie_Numero_CTRC" in colunas_validas:
+                         colunas_validas.remove("Serie_Numero_CTRC")
                     df_confirmar = df_confirmar[["Serie_Numero_CTRC"] + colunas_validas]
+                    
+                    # Substitui NaN, Inf por None para compatibilidade com Supabase
                     df_confirmar = df_confirmar.replace([np.nan, np.inf, -np.inf], None)
 
+                    # Formata datas para string se necessário para o Supabase
                     for col in df_confirmar.select_dtypes(include=['datetime64[ns]']).columns:
                         df_confirmar[col] = df_confirmar[col].dt.strftime('%Y-%m-%d %H:%M:%S')
 
                     if df_confirmar.empty or df_confirmar["Serie_Numero_CTRC"].isnull().all():
-                        st.warning("⚠️ Nenhuma entrega válida para confirmar.")
+                        st.warning("⚠️ Nenhuma entrega válida para confirmar na base de dados.")
+                        return
                     else:
                         dados_confirmar = df_confirmar.to_dict(orient="records")
+                        # Filtra quaisquer registros sem 'Serie_Numero_CTRC' válido
                         dados_confirmar = [d for d in dados_confirmar if d.get("Serie_Numero_CTRC")]
 
                         if not dados_confirmar:
-                            st.warning("⚠️ Nenhum registro com 'Serie_Numero_CTRC' válido.")
+                            st.warning("⚠️ Nenhum registro com 'Serie_Numero_CTRC' válido para inserção.")
+                            return
                         else:
+                            # Inserção na tabela 'aprovacao_diretoria'
                             resultado_insercao = supabase.table("aprovacao_diretoria").insert(dados_confirmar).execute()
+                            
                             chaves_inseridas = [
                                 str(item.get("Serie_Numero_CTRC")).strip()
                                 for item in resultado_insercao.data
                                 if item.get("Serie_Numero_CTRC")
                             ]
 
+                            # Verifica se todas as chaves foram inseridas com sucesso
                             if set(chaves_inseridas) == set(chaves):
                                 try:
+                                    # Deleta da tabela 'confirmadas_producao'
                                     supabase.table("confirmadas_producao").delete().in_("Serie_Numero_CTRC", chaves_inseridas).execute()
 
-                                    # Limpa caches e seleções para forçar reload total
+                                    # Limpa caches e seleções para forçar reload completo da página
                                     st.session_state.pop("df_confirmadas_cache", None)
                                     st.session_state.pop("dados_sincronizados", None)
                                     for key in list(st.session_state.keys()):
                                         if key.startswith("grid_confirmar_") or key.startswith("selecionadas_") or key.startswith("sucesso_"):
                                             st.session_state.pop(key, None)
 
-                                    # Gatilho para recarregar a tabela confirmadas_producao
+                                    # Gatilho para recarregar a tabela 'confirmadas_producao'
                                     st.session_state["reload_confirmadas_producao"] = True
 
                                     st.success(f"{len(chaves_inseridas)} entregas confirmadas e movidas para Aprovação Diretoria.")
 
-                                    st.rerun()
+                                    st.rerun() # Recarrega a aplicação para refletir as mudanças
 
                                 except Exception as delete_error:
-                                    st.error(f"Erro ao deletar entregas: {delete_error}")
+                                    st.error(f"Erro ao deletar entregas de 'confirmadas_producao': {delete_error}")
                             else:
-                                st.error("❌ Nem todas as entregas foram inseridas corretamente em 'aprovacao_diretoria'. Nenhuma foi removida.")
+                                st.error("❌ Nem todas as entregas foram inseridas corretamente em 'aprovacao_diretoria'. Nenhuma foi removida de 'confirmadas_producao'.")
                 except Exception as e:
-                    st.error(f"Erro ao processar confirmação: {e}")
+                    st.error(f"Erro inesperado ao processar confirmação: {e}")
 
 
 
