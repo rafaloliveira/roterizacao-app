@@ -1033,7 +1033,18 @@ def pagina_confirmar_producao():
 
         df_formatado = df_cliente[[col for col in colunas_exibir if col in df_cliente.columns]].copy()
 
-        # ✅ Corrige o padding invisível que oculta a barra de rolagem inferior
+        # Injetar CSS para garantir estilo
+        st.markdown("""
+        <style>
+        div[id="gridToolBar"] {
+            padding-bottom: 0px !important;
+            height: 0px !important;
+            min-height: 0px !important;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+
+        # Injetar JS para garantir que estilo seja aplicado após render
         st.markdown("""
         <script>
         function removerPaddingGrid() {
@@ -1045,6 +1056,7 @@ def pagina_confirmar_producao():
         setInterval(removerPaddingGrid, 200);
         </script>
         """, unsafe_allow_html=True)
+
 
 
 
