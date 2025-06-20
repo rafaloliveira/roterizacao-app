@@ -732,12 +732,19 @@ def limpar_tabelas_relacionadas():
             res = supabase.table(tabela).select("*").limit(1).execute()
             if res.data:
                 chave = list(res.data[0].keys())[0]  # Pega primeira chave (coluna)
-                supabase.table(tabela).delete().neq(chave, "").execute()
+                
+                # Tenta deletar tudo SEM filtro se for UUID
+                if any(str(res.data[0][chave]).startswith(val) for val in ["0000", "a", "b", "c", "d", "e", "f"]) and len(str(res.data[0][chave])) == 36:
+                    supabase.table(tabela).delete().execute()
+                else:
+                    supabase.table(tabela).delete().neq(chave, "").execute()
+
                 st.warning(f"[DEBUG] Dados da tabela '{tabela}' foram apagados.")
             else:
                 st.info(f"[DEBUG] Tabela '{tabela}' já estava vazia.")
         except Exception as e:
             st.error(f"[ERRO] Ao limpar tabela '{tabela}': {e}")
+
 
 
 # ------------------------#############-------------------------------------------
