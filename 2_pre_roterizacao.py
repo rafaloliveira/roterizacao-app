@@ -897,9 +897,8 @@ def aplicar_regras_e_preencher_tabelas():
 ##########################################
 
 def pagina_confirmar_producao():
-    st.title("🚛 Confirmar Produção")
+    st.markdown("## Confirmar Entregas")
 
-    # ✅ Dados vindos da sincronização (com fallback)
     df = st.session_state.get("dados_sincronizados")
     if df is None or df.empty:
         df = carregar_base_supabase()
@@ -914,15 +913,14 @@ def pagina_confirmar_producao():
     ]
     colunas_faltantes = [col for col in colunas_necessarias if col not in df.columns]
     if colunas_faltantes:
-        st.error(f"❌ As seguintes colunas não existem na base carregada: {', '.join(colunas_faltantes)}")
+        st.error(f"❌ Faltam colunas: {', '.join(colunas_faltantes)}")
         return
 
     df = df.dropna(subset=colunas_necessarias)
     if df.empty:
-        st.info("Nenhuma entrega pendente para confirmação após filtragem.")
+        st.info("Nenhuma entrega pendente após filtragem.")
         return
 
-    # 🔄 Recarrega a tabela confirmadas_producao apenas se necessário
     try:
         if st.session_state.get("reload_confirmadas_producao"):
             st.session_state.pop("reload_confirmadas_producao")
@@ -945,7 +943,6 @@ def pagina_confirmar_producao():
         st.info("Nenhuma entrega confirmada na produção.")
         return
 
-    # Conversão de data e filtro de obrigatórias
     df["Previsao de Entrega"] = pd.to_datetime(df["Previsao de Entrega"], format="%d-%m-%Y", errors='coerce')
     d_mais_1 = pd.Timestamp.now().normalize() + pd.Timedelta(days=1)
 
@@ -961,25 +958,21 @@ def pagina_confirmar_producao():
         ~df_confirmadas["Serie_Numero_CTRC"].isin(obrigatorias["Serie_Numero_CTRC"])
     ].copy()
 
-
     total_clientes = df_exibir["Cliente Pagador"].nunique()
     total_entregas = len(df_exibir)
 
+    card = lambda title, value: f"""
+    <div style='background:#f8f9fa;padding:12px 16px;border-radius:8px;border:1px solid #ddd;'>
+        <div style='font-weight:600;color:#333;font-size:15px'>{title}</div>
+        <div style='font-size:22px;color:#111;margin-top:4px'>{value}</div>
+    </div>
+    """
+
     col1, col2 = st.columns(2)
     with col1:
-        st.markdown(
-            f"<div style='background:#2f2f2f;padding:8px;border-radius:8px'>"
-            f"<span style='color:white;font-weight:bold;font-size:18px;'>Total de Clientes:</span>"
-            f"<span style='color:white;font-size:24px;'> {total_clientes}</span></div>",
-            unsafe_allow_html=True
-        )
+        st.markdown(card("Total de Clientes", total_clientes), unsafe_allow_html=True)
     with col2:
-        st.markdown(
-            f"<div style='background:#2f2f2f;padding:8px;border-radius:8px'>"
-            f"<span style='color:white;font-weight:bold;font-size:18px;'>Total de Entregas:</span>"
-            f"<span style='color:white;font-size:24px;'> {total_entregas}</span></div>",
-            unsafe_allow_html=True
-        )
+        st.markdown(card("Total de Entregas", total_entregas), unsafe_allow_html=True)
 
     colunas_exibir = [
         "Serie_Numero_CTRC", "Rota", "Valor do Frete", "Cliente Pagador", "Chave CT-e",
@@ -993,12 +986,11 @@ def pagina_confirmar_producao():
         const status = params.data.Status;
         const entregaProg = params.data["Entrega Programada"];
         const particularidade = params.data.Particularidade;
-
-        if (status === "AGENDAR" && (entregaProg === null || entregaProg === undefined || entregaProg.trim() === "")) {
-            return { 'background-color': 'orange', 'color': 'black', 'font-weight': 'bold' };
+        if (status === "AGENDAR" && (!entregaProg || entregaProg.trim() === "")) {
+            return { 'background-color': '#ffe0b2', 'color': '#333' };
         }
-        if (particularidade !== null && particularidade !== undefined && particularidade.trim() !== "") {
-            return { 'background-color': 'yellow', 'color': 'black', 'font-weight': 'bold' };
+        if (particularidade && particularidade.trim() !== "") {
+            return { 'background-color': '#fff59d', 'color': '#333' };
         }
         return null;
     }
@@ -1009,85 +1001,55 @@ def pagina_confirmar_producao():
         if df_cliente.empty:
             continue
 
-        total_entregas = len(df_cliente)
-        peso_calculado = df_cliente['Peso Calculado em Kg'].sum()
-        peso_real = df_cliente['Peso Real em Kg'].sum()
-        valor_frete = df_cliente['Valor do Frete'].sum()
-        cubagem = df_cliente['Cubagem em m³'].sum()
-        volumes = df_cliente['Quantidade de Volumes'].sum()
-
         st.markdown(f"""
-            <div style="background-color: #444; padding: 8px 16px; border-radius: 6px; margin-top: 20px; margin-bottom: 8px;">
-                <div style="color: white; margin: 0; font-size: 15px; font-weight: bold;">🏭 Cliente: {cliente}</div>
-            </div>
-
-            <div style="display: flex; flex-wrap: wrap; gap: 20px; font-size: 16px; margin-bottom: 20px;">
-                <div><strong>Quantidade de Entregas:</strong> {total_entregas}</div>
-                <div><strong>Peso Calculado (kg):</strong> {formatar_brasileiro(peso_calculado)}</div>
-                <div><strong>Peso Real (kg):</strong> {formatar_brasileiro(peso_real)}</div>
-                <div><strong>Valor do Frete:</strong> R$ {formatar_brasileiro(valor_frete)}</div>
-                <div><strong>Cubagem (m³):</strong> {formatar_brasileiro(cubagem)}</div>
-                <div><strong>Volumes:</strong> {int(volumes) if pd.notnull(volumes) else 0}</div>
+            <div style="margin-top:20px;padding:10px;background:#e8f0fe;border-left:4px solid #4285f4;border-radius:6px;">
+                <strong>Cliente:</strong> {cliente}
             </div>
         """, unsafe_allow_html=True)
 
+        def badge(label):
+            return f"<span style='background:#eef2f7;border-radius:12px;padding:6px 12px;margin:4px;display:inline-block;'>{label}</span>"
+
+        st.markdown(
+            badge(f"{len(df_cliente)} entregas") +
+            badge(f"{formatar_brasileiro(df_cliente['Peso Calculado em Kg'].sum())} kg calc") +
+            badge(f"{formatar_brasileiro(df_cliente['Peso Real em Kg'].sum())} kg real") +
+            badge(f"R$ {formatar_brasileiro(df_cliente['Valor do Frete'].sum())}") +
+            badge(f"{formatar_brasileiro(df_cliente['Cubagem em m³'].sum())} m³") +
+            badge(f"{int(df_cliente['Quantidade de Volumes'].sum())} volumes"),
+            unsafe_allow_html=True
+        )
+
         df_formatado = df_cliente[[col for col in colunas_exibir if col in df_cliente.columns]].copy()
 
-        # 🔹 Configuração da grid
         gb = GridOptionsBuilder.from_dataframe(df_formatado)
         gb.configure_default_column(minWidth=150)
         gb.configure_selection('multiple', use_checkbox=True)
         gb.configure_grid_options(paginationPageSize=12)
         gb.configure_grid_options(alwaysShowHorizontalScroll=True)
-        # ❌ NÃO usar autoHeight
         grid_options = gb.build()
         grid_options["getRowStyle"] = linha_destacar
 
-        # 🔹 Cache do grid
         grid_key_id = f"grid_confirmar_{cliente}"
         if st.session_state.get("reload_confirmadas_producao", False):
             st.session_state[grid_key_id] = str(uuid.uuid4())
         elif grid_key_id not in st.session_state:
             st.session_state[grid_key_id] = str(uuid.uuid4())
 
-        # 🔹 Injeção de JS para eliminar o padding do gridToolBar (ambiente produção)
-        st.markdown("""
-        <script>
-        function removerPaddingToolbar() {
-        const toolbar = document.getElementById("gridToolBar");
-        if (toolbar) {
-            toolbar.style.paddingBottom = "0px";
-            toolbar.style.marginBottom = "0px";
-        }
-        }
-        new MutationObserver(removerPaddingToolbar)
-        .observe(document.body, { childList: true, subtree: true });
-        setInterval(removerPaddingToolbar, 500);
-        </script>
-        """, unsafe_allow_html=True)
+        grid_response = AgGrid(
+            df_formatado,
+            gridOptions=grid_options,
+            update_mode=GridUpdateMode.SELECTION_CHANGED,
+            fit_columns_on_grid_load=False,
+            width=1500,
+            height=400,
+            allow_unsafe_jscode=True,
+            key=st.session_state[grid_key_id],
+            data_return_mode="AS_INPUT",
+            theme="light",
+            show_toolbar=False
+        )
 
-        # 🔹 Renderiza a grid com altura ideal confirmada
-        with st.container():
-            st.markdown("<div style='overflow-x: auto;'>", unsafe_allow_html=True)
-            grid_response = AgGrid(
-                df_formatado,
-                gridOptions=grid_options,
-                update_mode=GridUpdateMode.SELECTION_CHANGED,
-                fit_columns_on_grid_load=False,
-                width=1500,
-                height=400,  # ✅ valor ideal comprovado
-                allow_unsafe_jscode=True,
-                key=st.session_state[grid_key_id],
-                data_return_mode="AS_INPUT",
-                theme="streamlit",
-                show_toolbar=False  # ✅ remove o toolbar problemático
-            )
-            st.markdown("</div>", unsafe_allow_html=True)
-
-
-
-
-        # 🔹 Seleção
         selecionadas = pd.DataFrame(grid_response.get("selected_rows", []))
         session_key_selecionadas = f"selecionadas_{cliente}"
         session_key_sucesso = f"sucesso_{cliente}"
@@ -1102,7 +1064,21 @@ def pagina_confirmar_producao():
         if st.session_state.get(session_key_sucesso):
             st.success(st.session_state[session_key_sucesso])
 
+            st.markdown("""
+                <style>
+                .stButton>button {
+                    background-color: #34a853;
+                    color: white;
+                    padding: 8px 20px;
+                    border-radius: 6px;
+                    border: none;
+                    font-weight: 600;
+                    font-size: 15px;
+                }
+                </style>
+            """, unsafe_allow_html=True)
 
+           
             if st.button(f"✅ Confirmar entregas de {cliente}", key=f"botao_{cliente}"):
                 try:
                     selecionadas = st.session_state.get(session_key_selecionadas, pd.DataFrame())
