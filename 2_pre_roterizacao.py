@@ -1206,18 +1206,7 @@ def pagina_confirmar_producao():
 ##########################################
 
 def pagina_aprovacao_diretoria():
-    st.markdown("""
-    <style>
-        html, body, [data-testid="stAppViewContainer"] {
-            font-size: 0.90rem !important;
-        }
-        .stMarkdown > div {
-            color: inherit !important;
-        }
-    </style>
-    """, unsafe_allow_html=True)
-
-    st.markdown("## Aprovação da Diretoria")
+    st.title("📋 Aprovação da Diretoria")
 
     usuario = st.session_state.get("username")
     dados_usuario = supabase.table("usuarios").select("classe").eq("nome_usuario", usuario).execute().data
@@ -1240,11 +1229,21 @@ def pagina_aprovacao_diretoria():
     total_clientes = df["Cliente Pagador"].nunique()
     total_entregas = len(df)
 
-    col1, col2, _ = st.columns([1, 1, 8])
+    col1, col2 = st.columns(2)
     with col1:
-        st.metric("Total de Clientes", total_clientes)
+        st.markdown(
+            f"<div style='background:#2f2f2f;padding:8px;border-radius:8px'>"
+            f"<span style='color:white;font-weight:bold;font-size:18px;'>Total de Clientes:</span>"
+            f"<span style='color:white;font-size:24px;'> {total_clientes}</span></div>",
+            unsafe_allow_html=True
+        )
     with col2:
-        st.metric("Total de Entregas", total_entregas)
+        st.markdown(
+            f"<div style='background:#2f2f2f;padding:8px;border-radius:8px'>"
+            f"<span style='color:white;font-weight:bold;font-size:18px;'>Total de Entregas:</span>"
+            f"<span style='color:white;font-size:24px;'> {total_entregas}</span></div>",
+            unsafe_allow_html=True
+        )
 
     colunas_exibir = [
         "Serie_Numero_CTRC", "Rota", "Valor do Frete", "Cliente Pagador", "Chave CT-e",
@@ -1253,53 +1252,92 @@ def pagina_aprovacao_diretoria():
         "Peso Real em Kg", "Peso Calculado em Kg", "Cubagem em m³", "Quantidade de Volumes"
     ]
 
-    linha_destacar = JsCode("""
-    function(params) {
-        const status = params.data.Status;
-        const entregaProg = params.data["Entrega Programada"];
-        const particularidade = params.data.Particularidade;
-        if (status === "AGENDAR" && (!entregaProg || entregaProg.trim() === "")) {
-            return { 'background-color': '#ffe0b2', 'color': '#333' };
+    formatter_brasileiro = JsCode("""
+        function(params) {
+            if (!params.value) return '';
+            return Number(params.value).toLocaleString('pt-BR', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            });
         }
-        if (particularidade && particularidade.trim() !== "") {
-            return { 'background-color': '#fff59d', 'color': '#333' };
-        }
-        return null;
-    }
     """)
-
-    def badge(label):
-        return f"<span style='background:#eef2f7;border-radius:12px;padding:6px 12px;margin:4px;color:inherit;display:inline-block;'>{label}</span>"
 
     for cliente in sorted(df["Cliente Pagador"].unique()):
         df_cliente = df[df["Cliente Pagador"] == cliente].copy()
-        if df_cliente.empty:
-            continue
+
+        total_entregas = len(df_cliente)
+        peso_calculado = df_cliente['Peso Calculado em Kg'].sum()
+        peso_real = df_cliente['Peso Real em Kg'].sum()
+        valor_frete = df_cliente['Valor do Frete'].sum()
+        cubagem = df_cliente['Cubagem em m³'].sum()
+        volumes = df_cliente['Quantidade de Volumes'].sum()
 
         st.markdown(f"""
-            <div style="margin-top:20px;padding:10px;background:#e8f0fe;border-left:4px solid #4285f4;border-radius:6px;display:inline-block;max-width:100%;">
-                <strong>Cliente:</strong> {cliente}
-            </div>
+        <div style=\"background-color: #444; padding: 8px 16px; border-radius: 6px; margin-top: 20px; margin-bottom: 8px;\">
+            <div style=\"color: white; margin: 0; font-size: 15px; font-weight: bold;\">📦 Cliente: {cliente}</div>
+        </div>
+
+        <div style=\"display: flex; flex-wrap: wrap; gap: 20px; font-size: 16px; margin-bottom: 20px;\">
+            <div><strong>Quantidade de Entregas:</strong> {total_entregas}</div>
+            <div><strong>Peso Calculado (kg):</strong> {formatar_brasileiro(peso_calculado)}</div>
+            <div><strong>Peso Real (kg):</strong> {formatar_brasileiro(peso_real)}</div>
+            <div><strong>Valor do Frete:</strong> R$ {formatar_brasileiro(valor_frete)}</div>
+            <div><strong>Cubagem (m³):</strong> {formatar_brasileiro(cubagem)}</div>
+            <div><strong>Volumes:</strong> {int(volumes) if pd.notnull(volumes) else 0}</div>
+        </div>
         """, unsafe_allow_html=True)
 
-        st.markdown(
-            badge(f"{len(df_cliente)} entregas") +
-            badge(f"{formatar_brasileiro(df_cliente['Peso Calculado em Kg'].sum())} kg calc") +
-            badge(f"{formatar_brasileiro(df_cliente['Peso Real em Kg'].sum())} kg real") +
-            badge(f"R$ {formatar_brasileiro(df_cliente['Valor do Frete'].sum())}") +
-            badge(f"{formatar_brasileiro(df_cliente['Cubagem em m³'].sum())} m³") +
-            badge(f"{int(df_cliente['Quantidade de Volumes'].sum())} volumes"),
-            unsafe_allow_html=True
-        )
-
         df_formatado = df_cliente[[col for col in colunas_exibir if col in df_cliente.columns]].copy()
+
+        formatter_brasileiro = JsCode("""
+            function(params) {
+                if (!params.value) return '';
+                return Number(params.value).toLocaleString('pt-BR', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2
+                });
+            }
+        """)
+
+        linha_destacar = JsCode("""
+            function(params) {
+                const status = params.data['Status'];
+                const entrega = params.data['Entrega Programada'];
+                const particularidade = params.data['Particularidade'];
+                if (status && status.toUpperCase() === 'AGENDAR' && (!entrega || entrega.toString().trim() === '')) {
+                    return {
+                        'background-color': '#ffe0b2',
+                        'color': '#333'
+                    };
+                }
+                if (particularidade && particularidade.trim() !== "") {
+                    return {
+                        'background-color': '#fff59d',
+                        'color': '#333'
+                    };
+                }
+                return {};
+            }
+        """)
 
         gb = GridOptionsBuilder.from_dataframe(df_formatado)
         gb.configure_default_column(minWidth=150)
         gb.configure_selection("multiple", use_checkbox=True)
         gb.configure_grid_options(paginationPageSize=12)
         gb.configure_grid_options(alwaysShowHorizontalScroll=True)
+        gb.configure_grid_options(domLayout='normal')
         gb.configure_grid_options(rowStyle={'font-size': '8px'})
+
+        for col in ["Peso Real em Kg", "Peso Calculado em Kg", "Cubagem em m³", "Quantidade de Volumes", "Valor do Frete"]:
+            if col in df_formatado.columns:
+                gb.configure_column(col, type=["numericColumn"], valueFormatter=formatter_brasileiro)
+
+        grid_key_id = f"grid_aprovacao_{cliente}"
+        if st.session_state.get("reload_confirmadas_producao", False):
+            st.session_state[grid_key_id] = str(uuid.uuid4())
+        elif grid_key_id not in st.session_state:
+            st.session_state[grid_key_id] = str(uuid.uuid4())
+
         grid_options = gb.build()
         grid_options["getRowStyle"] = linha_destacar
 
@@ -1311,7 +1349,7 @@ def pagina_aprovacao_diretoria():
             width="100%",
             height=400,
             allow_unsafe_jscode=True,
-            key=f"grid_aprovacao_{cliente}",
+            key=st.session_state[grid_key_id],
             data_return_mode="AS_INPUT",
             theme=AgGridTheme.MATERIAL,
             show_toolbar=False,
@@ -1342,59 +1380,12 @@ def pagina_aprovacao_diretoria():
                 },
                 ".ag-center-cols-container": {
                     "min-width": "1800px !important"
+                },
+                "#gridToolBar": {
+                    "padding-bottom": "0px !important"
                 }
             }
         )
-
-        selecionadas = pd.DataFrame(grid_response.get("selected_rows", []))
-        session_key_selecionadas = f"selecionadas_{cliente}"
-
-        if not selecionadas.empty:
-            st.session_state[session_key_selecionadas] = selecionadas
-            st.success(f"{len(selecionadas)} entregas selecionadas para {cliente}.")
-
-            st.markdown("""
-                <style>
-                .stButton>button {
-                    background-color: #34a853;
-                    color: white;
-                    padding: 8px 20px;
-                    border-radius: 6px;
-                    border: none;
-                    font-weight: 600;
-                    font-size: 15px;
-                }
-                </style>
-            """, unsafe_allow_html=True)
-
-            if st.button(f"✅ Aprovar entregas de {cliente}", key=f"botao_aprovar_{cliente}"):
-                try:
-                    aprovadas = st.session_state.get(session_key_selecionadas, pd.DataFrame())
-                    if aprovadas.empty:
-                        st.warning("⚠️ Nenhuma entrega selecionada.")
-                        return
-
-                    aprovadas.drop(columns=["_selectedRowNodeInfo"], errors="ignore", inplace=True)
-                    colunas_numericas = ["Peso Real em Kg", "Peso Calculado em Kg", "Cubagem em m³", "Quantidade de Volumes", "Valor do Frete"]
-                    for col in colunas_numericas:
-                        if col in aprovadas.columns:
-                            aprovadas[col] = aprovadas[col].astype(str).str.replace(".", "", regex=False).str.replace(",", ".", regex=False).astype(float)
-
-                    ctrcs_existentes = supabase.table("pre_roterizacao").select("Serie_Numero_CTRC").execute().data
-                    ctrcs_existentes = {item["Serie_Numero_CTRC"] for item in ctrcs_existentes}
-                    aprovadas = aprovadas[~aprovadas["Serie_Numero_CTRC"].isin(ctrcs_existentes)]
-
-                    if not aprovadas.empty:
-                        supabase.table("pre_roterizacao").insert(aprovadas.to_dict(orient="records")).execute()
-                        ctrcs = aprovadas["Serie_Numero_CTRC"].astype(str).tolist()
-                        supabase.table("aprovacao_diretoria").delete().in_("Serie_Numero_CTRC", ctrcs).execute()
-                        st.success("✅ Entregas aprovadas e movidas para Pré Roteirização.")
-                        time.sleep(1.5)
-                        st.rerun()
-                    else:
-                        st.info("Todas as entregas selecionadas já estavam na Pré-Roterização.")
-                except Exception as e:
-                    st.error(f"Erro ao aprovar entregas: {e}")
 
 
 
