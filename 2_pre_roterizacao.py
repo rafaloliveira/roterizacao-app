@@ -1067,10 +1067,10 @@ def pagina_confirmar_producao():
             show_toolbar=False,
             custom_css={
 
-                ".ag-theme-material": {
-                    "border": "1px solid black",          # ✅ contorno preto no grid
-                    "border-radius": "6px",               # opcional: cantos arredondados
-                    "padding": "6px",                     # opcional: espaço interno
+                ".ag-theme-material .ag-root-wrapper": {
+                    "border": "1px solid black",   # ✅ borda acompanha todo o conteúdo
+                    "border-radius": "6px",
+                    "padding": "4px",                   # opcional: espaço interno
                 },
 
                 ".ag-theme-material .ag-cell": {
