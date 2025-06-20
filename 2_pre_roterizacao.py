@@ -1033,14 +1033,6 @@ def pagina_confirmar_producao():
 
         df_formatado = df_cliente[[col for col in colunas_exibir if col in df_cliente.columns]].copy()
 
-        # 🔹 Altura precisa da grid para 10–12 linhas
-        row_height = 32
-        header_height = 56
-        scrollbar_height = 17
-        margem_extra = 10
-        linhas_visiveis = min(max(len(df_formatado), 10), 12)
-        altura_total = (linhas_visiveis * row_height) + header_height + scrollbar_height + margem_extra
-
         # 🔹 Configuração da grid
         gb = GridOptionsBuilder.from_dataframe(df_formatado)
         gb.configure_default_column(minWidth=150)
@@ -1058,7 +1050,7 @@ def pagina_confirmar_producao():
         elif grid_key_id not in st.session_state:
             st.session_state[grid_key_id] = str(uuid.uuid4())
 
-        # 🔹 Injeção de JS para remover padding do gridToolBar (⚠️ ambiente de produção)
+        # 🔹 Injeção de JS para eliminar o padding do gridToolBar (ambiente produção)
         st.markdown("""
         <script>
         function removerPaddingToolbar() {
@@ -1074,7 +1066,7 @@ def pagina_confirmar_producao():
         </script>
         """, unsafe_allow_html=True)
 
-        # 🔹 Renderização segura com barra visível
+        # 🔹 Renderiza a grid com altura ideal confirmada
         with st.container():
             st.markdown("<div style='overflow-x: auto;'>", unsafe_allow_html=True)
             grid_response = AgGrid(
@@ -1083,14 +1075,15 @@ def pagina_confirmar_producao():
                 update_mode=GridUpdateMode.SELECTION_CHANGED,
                 fit_columns_on_grid_load=False,
                 width=1500,
-                height=altura_total,  # ✅ agora respeita a altura real das linhas
+                height=400,  # ✅ valor ideal comprovado
                 allow_unsafe_jscode=True,
                 key=st.session_state[grid_key_id],
                 data_return_mode="AS_INPUT",
                 theme="streamlit",
-                show_toolbar=False  # ✅ ESSENCIAL: evita render do gridToolBar
+                show_toolbar=False  # ✅ remove o toolbar problemático
             )
             st.markdown("</div>", unsafe_allow_html=True)
+
 
 
 
