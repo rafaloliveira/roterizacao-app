@@ -1038,7 +1038,7 @@ def pagina_confirmar_producao():
         gb.configure_selection('multiple', use_checkbox=True)
         gb.configure_grid_options(paginationPageSize=12)
         gb.configure_grid_options(alwaysShowHorizontalScroll=True)
-        gb.configure_grid_options(rowStyle={'font-size': '12px'})
+        gb.configure_grid_options(rowStyle={'font-size': '8px'})
         grid_options = gb.build()
         grid_options["getRowStyle"] = linha_destacar
 
