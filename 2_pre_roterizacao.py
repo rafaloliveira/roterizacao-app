@@ -28,7 +28,7 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 from st_aggrid.shared import GridUpdateMode
-
+from st_aggrid.shared import AgGridTheme
 
 from streamlit_cookies_manager import EncryptedCookieManager
 from datetime import datetime
@@ -1036,6 +1036,8 @@ def pagina_confirmar_producao():
         elif grid_key_id not in st.session_state:
             st.session_state[grid_key_id] = str(uuid.uuid4())
 
+        
+
         grid_response = AgGrid(
             df_formatado,
             gridOptions=grid_options,
@@ -1046,9 +1048,10 @@ def pagina_confirmar_producao():
             allow_unsafe_jscode=True,
             key=st.session_state[grid_key_id],
             data_return_mode="AS_INPUT",
-            theme="light",
+            theme=AgGridTheme.MATERIAL,  # ✅ use um dos temas válidos
             show_toolbar=False
         )
+
 
         selecionadas = pd.DataFrame(grid_response.get("selected_rows", []))
         session_key_selecionadas = f"selecionadas_{cliente}"
