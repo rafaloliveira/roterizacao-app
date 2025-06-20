@@ -1066,17 +1066,22 @@ def pagina_confirmar_producao():
             theme=AgGridTheme.MATERIAL,
             show_toolbar=False,
             custom_css={
-
-                ".ag-theme-material .ag-root-wrapper": {
-                    "border": "1px solid black",   # ✅ borda acompanha todo o conteúdo
-                    "border-radius": "6px",
-                    "padding": "4px",                   # opcional: espaço interno
-                },  "border-right": "1px solid #ccc",  # 👉 linha vertical entre colunas
-
                 ".ag-theme-material .ag-cell": {
                     "font-size": "11px",
                     "line-height": "18px",
-
+                    "border-right": "1px solid #ccc",  # 👉 linha vertical entre colunas
+                },
+                ".ag-theme-material .ag-row:last-child .ag-cell": {
+                    "border-bottom": "1px solid #ccc",  # última linha com borda inferior
+                },
+                ".ag-theme-material .ag-header-cell": {
+                    "border-right": "1px solid #ccc",   # 👉 linha vertical no cabeçalho
+                    "border-bottom": "1px solid #ccc",  # opcional: reforça separação de header
+                },
+                ".ag-theme-material .ag-root-wrapper": {
+                    "border": "1px solid black",
+                    "border-radius": "6px",
+                    "padding": "4px",
                 },
                 ".ag-theme-material .ag-header-cell-label": {
                     "font-size": "11px",
