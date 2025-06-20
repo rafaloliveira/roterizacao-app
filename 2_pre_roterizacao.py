@@ -1049,12 +1049,14 @@ def pagina_confirmar_producao():
         elif grid_key_id not in st.session_state:
             st.session_state[grid_key_id] = str(uuid.uuid4())
 
+        gb.configure_grid_options(domLayout='normal')  # <- chave para permitir scroll!
+
         grid_response = AgGrid(
         df_formatado,
         gridOptions=grid_options,
         update_mode=GridUpdateMode.SELECTION_CHANGED,
         fit_columns_on_grid_load=False,
-        width=1500,
+        width="100%",
         height=400,
         allow_unsafe_jscode=True,
         key=st.session_state[grid_key_id],
@@ -1069,14 +1071,16 @@ def pagina_confirmar_producao():
             ".ag-theme-material .ag-header-cell-label": {
                 "font-size": "11px",
             },
-            ".ag-theme-material .ag-center-cols-viewport": {
+            ".ag-center-cols-viewport": {
                 "overflow-x": "auto !important",
+                "overflow-y": "hidden",
             },
-            ".ag-theme-material .ag-center-cols-container": {
-                "min-width": "100% !important"
-            }
+            ".ag-center-cols-container": {
+                "min-width": "1500px !important",  # ou valor maior dependendo do número de colunas
+            },
         }
     )
+
 
 
 
