@@ -979,11 +979,14 @@ def pagina_confirmar_producao():
     </div>
     """
 
-    col1, col2 = st.columns(2)
-    with col1:
-        st.markdown(card("Total de Clientes", total_clientes), unsafe_allow_html=True)
-    with col2:
-        st.markdown(card("Total de Entregas", total_entregas), unsafe_allow_html=True)
+    with st.container():
+        st.markdown("### 📊 Resumo das Entregas")
+
+        col = st.columns(2)
+        with col[0]:
+            st.metric("Total de Clientes", total_clientes)
+        with col[1]:
+            st.metric("Total de Entregas", total_entregas)
 
     colunas_exibir = [
         "Serie_Numero_CTRC", "Rota", "Valor do Frete", "Cliente Pagador", "Chave CT-e",
