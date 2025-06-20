@@ -1068,9 +1068,16 @@ def pagina_confirmar_producao():
             },
             ".ag-theme-material .ag-header-cell-label": {
                 "font-size": "11px",
+            },
+            ".ag-theme-material .ag-center-cols-viewport": {
+                "overflow-x": "auto !important",
+            },
+            ".ag-theme-material .ag-center-cols-container": {
+                "min-width": "100% !important"
             }
         }
     )
+
 
 
         selecionadas = pd.DataFrame(grid_response.get("selected_rows", []))
