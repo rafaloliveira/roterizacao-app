@@ -1033,7 +1033,7 @@ def pagina_confirmar_producao():
 
         df_formatado = df_cliente[[col for col in colunas_exibir if col in df_cliente.columns]].copy()
 
-# 🔹 Altura precisa da grid para 10–12 linhas
+        # 🔹 Altura precisa da grid para 10–12 linhas
         row_height = 32
         header_height = 56
         scrollbar_height = 17
@@ -1058,6 +1058,22 @@ def pagina_confirmar_producao():
         elif grid_key_id not in st.session_state:
             st.session_state[grid_key_id] = str(uuid.uuid4())
 
+        # 🔹 Injeção de JS para remover padding do gridToolBar (⚠️ ambiente de produção)
+        st.markdown("""
+        <script>
+        function removerPaddingToolbar() {
+        const toolbar = document.getElementById("gridToolBar");
+        if (toolbar) {
+            toolbar.style.paddingBottom = "0px";
+            toolbar.style.marginBottom = "0px";
+        }
+        }
+        new MutationObserver(removerPaddingToolbar)
+        .observe(document.body, { childList: true, subtree: true });
+        setInterval(removerPaddingToolbar, 500);
+        </script>
+        """, unsafe_allow_html=True)
+
         # 🔹 Renderização segura com barra visível
         with st.container():
             st.markdown("<div style='overflow-x: auto;'>", unsafe_allow_html=True)
@@ -1072,9 +1088,10 @@ def pagina_confirmar_producao():
                 key=st.session_state[grid_key_id],
                 data_return_mode="AS_INPUT",
                 theme="streamlit",
-                show_toolbar=False
+                show_toolbar=False  # ✅ ESSENCIAL: evita render do gridToolBar
             )
             st.markdown("</div>", unsafe_allow_html=True)
+
 
 
         # 🔹 Seleção
