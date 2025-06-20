@@ -979,14 +979,11 @@ def pagina_confirmar_producao():
     </div>
     """
 
-    with st.container():
-        st.markdown("### 📊 Resumo das Entregas")
-
-        col = st.columns(2)
-        with col[0]:
-            st.metric("Total de Clientes", total_clientes)
-        with col[1]:
-            st.metric("Total de Entregas", total_entregas)
+    col1, col2, _ = st.columns([1, 1, 8])  # Último espaço vazio “empurra” para esquerda
+    with col1:
+        st.metric("Total de Clientes", total_clientes)
+    with col2:
+        st.metric("Total de Entregas", total_entregas)
 
     colunas_exibir = [
         "Serie_Numero_CTRC", "Rota", "Valor do Frete", "Cliente Pagador", "Chave CT-e",
