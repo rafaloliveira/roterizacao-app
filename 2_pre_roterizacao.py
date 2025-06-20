@@ -1049,37 +1049,38 @@ def pagina_confirmar_producao():
         elif grid_key_id not in st.session_state:
             st.session_state[grid_key_id] = str(uuid.uuid4())
 
-        gb.configure_grid_options(domLayout='normal')  # <- chave para permitir scroll!
+        gb.configure_grid_options(domLayout='normal')  # chave para o scroll horizontal
 
         grid_response = AgGrid(
-        df_formatado,
-        gridOptions=grid_options,
-        update_mode=GridUpdateMode.SELECTION_CHANGED,
-        fit_columns_on_grid_load=False,
-        width="100%",
-        height=400,
-        allow_unsafe_jscode=True,
-        key=st.session_state[grid_key_id],
-        data_return_mode="AS_INPUT",
-        theme=AgGridTheme.MATERIAL,
-        show_toolbar=False,
-        custom_css={
-            ".ag-theme-material .ag-cell": {
-                "font-size": "11px",
-                "line-height": "18px",
-            },
-            ".ag-theme-material .ag-header-cell-label": {
-                "font-size": "11px",
-            },
-            ".ag-center-cols-viewport": {
-                "overflow-x": "auto !important",
-                "overflow-y": "hidden",
-            },
-            ".ag-center-cols-container": {
-                "min-width": "1500px !important",  # ou valor maior dependendo do número de colunas
-            },
-        }
-    )
+            df_formatado,
+            gridOptions=grid_options,
+            update_mode=GridUpdateMode.SELECTION_CHANGED,
+            fit_columns_on_grid_load=False,
+            width="100%",
+            height=400,
+            allow_unsafe_jscode=True,
+            key=st.session_state[grid_key_id],
+            data_return_mode="AS_INPUT",
+            theme=AgGridTheme.MATERIAL,
+            show_toolbar=False,
+            custom_css={
+                ".ag-theme-material .ag-cell": {
+                    "font-size": "11px",
+                    "line-height": "18px",
+                },
+                ".ag-theme-material .ag-header-cell-label": {
+                    "font-size": "11px",
+                },
+                ".ag-center-cols-viewport": {
+                    "overflow-x": "auto !important",
+                    "overflow-y": "hidden",
+                },
+                ".ag-center-cols-container": {
+                    "min-width": "1800px !important"  # ajuste conforme seu número de colunas
+                },
+            }
+        )
+
 
 
 
