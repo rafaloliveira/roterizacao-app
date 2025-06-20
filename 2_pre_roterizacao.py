@@ -731,8 +731,12 @@ def limpar_tabelas_relacionadas():
         try:
             res = supabase.table(tabela).select("*").limit(1).execute()
             if res.data:
-                # ⚠️ Use .delete().execute() direto, sem filtro
-                supabase.table(tabela).delete().execute()
+                # Pega a primeira chave da tabela
+                chave = list(res.data[0].keys())[0]
+                
+                # Apaga todos os registros usando filtro WHERE obrigatório
+                supabase.table(tabela).delete().neq(chave, "0").execute()
+
                 st.warning(f"[DEBUG] Dados da tabela '{tabela}' foram apagados.")
             else:
                 st.info(f"[DEBUG] Tabela '{tabela}' já estava vazia.")
