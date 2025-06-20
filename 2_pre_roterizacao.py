@@ -1383,8 +1383,14 @@ def pagina_aprovacao_diretoria():
             }
         )
 
-        # 🚩 Seleção das linhas
-        linhas_selecionadas = grid_response["selected_rows"]
+        # 🚩 Debug para ver colunas e linhas selecionadas
+        st.subheader("🪪 Debug - Colunas no DataFrame")
+        st.write(df_formatado.columns)
+
+        st.subheader("📝 Debug - Linhas Selecionadas")
+        st.write(grid_response)
+
+        linhas_selecionadas = grid_response.get("selected_rows", [])
 
         if linhas_selecionadas:
             st.success(f"🚚 {len(linhas_selecionadas)} entregas selecionadas para aprovação.")
@@ -1392,20 +1398,44 @@ def pagina_aprovacao_diretoria():
             if st.button("✅ Aprovar Entregas"):
                 with st.spinner("Aprovando entregas..."):
                     try:
-                        chaves = [linha["Chave CT-e"] for linha in linhas_selecionadas if "Chave CT-e" in linha]
+                        # ✅ Verifica se a coluna "Chave CT-e" existe nas linhas
+                        chave_col = None
+                        for col in df_formatado.columns:
+                            if col.strip().lower() in ["chave ct-e", "chave_ct-e", "chave_cte", "chavecte"]:
+                                chave_col = col
+                                break
+
+                        if not chave_col:
+                            st.error("❌ A coluna 'Chave CT-e' não foi encontrada no DataFrame.")
+                            st.stop()
+
+                        # 🔍 Extrair as chaves
+                        chaves = [linha.get(chave_col) for linha in linhas_selecionadas if linha.get(chave_col)]
+
+                        if not chaves:
+                            st.warning("⚠️ Nenhuma chave CT-e encontrada nas linhas selecionadas.")
+                            st.stop()
 
                         # 🔥 Remover da tabela de aprovação
                         for chave in chaves:
-                            supabase.table("aprovacao_diretoria").delete().eq("Chave CT-e", chave).execute()
+                            resp_delete = supabase.table("aprovacao_diretoria").delete().eq(chave_col, chave).execute()
+                            if resp_delete.error:
+                                st.error(f"❌ Erro ao remover chave {chave}: {resp_delete.error}")
 
-                        # 🔥 Inserir na tabela de entregas aprovadas (ou outro destino)
-                        supabase.table("entregas_aprovadas").insert(linhas_selecionadas).execute()
-
-                        st.success("✅ Entregas aprovadas com sucesso!")
-                        st.rerun()
+                        # 🔥 Inserir na tabela de entregas aprovadas
+                        resp_insert = supabase.table("entregas_aprovadas").insert(linhas_selecionadas).execute()
+                        if resp_insert.error:
+                            st.error(f"❌ Erro ao inserir na tabela de entregas aprovadas: {resp_insert.error}")
+                        else:
+                            st.success("✅ Entregas aprovadas com sucesso!")
+                            st.rerun()
 
                     except Exception as e:
-                        st.error(f"❌ Erro ao aprovar: {e}")
+                        st.exception(e)
+
+        else:
+            st.info("🔎 Selecione uma ou mais entregas para habilitar a aprovação.")
+
 
 
 
