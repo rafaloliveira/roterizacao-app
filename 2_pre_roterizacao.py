@@ -1383,7 +1383,29 @@ def pagina_aprovacao_diretoria():
             }
         )
 
+        # 🚩 Seleção das linhas
+        linhas_selecionadas = grid_response["selected_rows"]
 
+        if linhas_selecionadas:
+            st.success(f"🚚 {len(linhas_selecionadas)} entregas selecionadas para aprovação.")
+
+            if st.button("✅ Aprovar Entregas"):
+                with st.spinner("Aprovando entregas..."):
+                    try:
+                        chaves = [linha["Chave CT-e"] for linha in linhas_selecionadas if "Chave CT-e" in linha]
+
+                        # 🔥 Remover da tabela de aprovação
+                        for chave in chaves:
+                            supabase.table("aprovacao_diretoria").delete().eq("Chave CT-e", chave).execute()
+
+                        # 🔥 Inserir na tabela de entregas aprovadas (ou outro destino)
+                        supabase.table("entregas_aprovadas").insert(linhas_selecionadas).execute()
+
+                        st.success("✅ Entregas aprovadas com sucesso!")
+                        st.rerun()
+
+                    except Exception as e:
+                        st.error(f"❌ Erro ao aprovar: {e}")
 
 
 
