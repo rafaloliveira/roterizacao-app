@@ -897,6 +897,17 @@ def aplicar_regras_e_preencher_tabelas():
 ##########################################
 
 def pagina_confirmar_producao():
+    st.markdown("""
+    <style>
+        html, body, [data-testid="stAppViewContainer"] {
+            font-size: 0.90rem !important;
+        }
+        .stMarkdown > div {
+            color: inherit !important;
+        }
+    </style>
+    """, unsafe_allow_html=True)
+
     st.markdown("## Confirmar Entregas")
 
     df = st.session_state.get("dados_sincronizados")
@@ -963,8 +974,8 @@ def pagina_confirmar_producao():
 
     card = lambda title, value: f"""
     <div style='background:#f8f9fa;padding:12px 16px;border-radius:8px;border:1px solid #ddd;'>
-        <div style='font-weight:600;color:#333;font-size:15px'>{title}</div>
-        <div style='font-size:22px;color:#111;margin-top:4px'>{value}</div>
+        <div style='font-weight:600;color:inherit;font-size:15px'>{title}</div>
+        <div style='font-size:22px;color:inherit;margin-top:4px'>{value}</div>
     </div>
     """
 
@@ -1002,13 +1013,13 @@ def pagina_confirmar_producao():
             continue
 
         st.markdown(f"""
-            <div style="margin-top:20px;padding:10px;background:#e8f0fe;border-left:4px solid #4285f4;border-radius:6px;">
+            <div style="margin-top:20px;padding:10px;background:#e8f0fe;border-left:4px solid #4285f4;border-radius:6px;display:inline-block;max-width:100%;">
                 <strong>Cliente:</strong> {cliente}
             </div>
         """, unsafe_allow_html=True)
 
         def badge(label):
-            return f"<span style='background:#eef2f7;border-radius:12px;padding:6px 12px;margin:4px;display:inline-block;'>{label}</span>"
+            return f"<span style='background:#eef2f7;border-radius:12px;padding:6px 12px;margin:4px;color:inherit;display:inline-block;'>{label}</span>"
 
         st.markdown(
             badge(f"{len(df_cliente)} entregas") +
@@ -1036,8 +1047,6 @@ def pagina_confirmar_producao():
         elif grid_key_id not in st.session_state:
             st.session_state[grid_key_id] = str(uuid.uuid4())
 
-        
-
         grid_response = AgGrid(
             df_formatado,
             gridOptions=grid_options,
@@ -1048,9 +1057,10 @@ def pagina_confirmar_producao():
             allow_unsafe_jscode=True,
             key=st.session_state[grid_key_id],
             data_return_mode="AS_INPUT",
-            theme=AgGridTheme.MATERIAL,  # ✅ use um dos temas válidos
+            theme=AgGridTheme.MATERIAL,
             show_toolbar=False
         )
+
 
 
         selecionadas = pd.DataFrame(grid_response.get("selected_rows", []))
