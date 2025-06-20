@@ -1071,11 +1071,12 @@ def pagina_confirmar_producao():
                     "border": "1px solid black",   # ✅ borda acompanha todo o conteúdo
                     "border-radius": "6px",
                     "padding": "4px",                   # opcional: espaço interno
-                },
+                },  "border-right": "1px solid #ccc",  # 👉 linha vertical entre colunas
 
                 ".ag-theme-material .ag-cell": {
                     "font-size": "11px",
                     "line-height": "18px",
+
                 },
                 ".ag-theme-material .ag-header-cell-label": {
                     "font-size": "11px",
