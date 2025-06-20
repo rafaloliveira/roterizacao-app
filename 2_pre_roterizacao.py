@@ -1398,7 +1398,7 @@ def pagina_aprovacao_diretoria():
             if st.button("✅ Aprovar Entregas"):
                 with st.spinner("Aprovando entregas..."):
                     try:
-                        # ✅ Verifica se a coluna "Chave CT-e" existe nas linhas
+                        # ✅ Verificar se a coluna "Chave CT-e" existe
                         chave_col = None
                         for col in df_formatado.columns:
                             if col.strip().lower() in ["chave ct-e", "chave_ct-e", "chave_cte", "chavecte"]:
@@ -1419,13 +1419,15 @@ def pagina_aprovacao_diretoria():
                         # 🔥 Remover da tabela de aprovação
                         for chave in chaves:
                             resp_delete = supabase.table("aprovacao_diretoria").delete().eq(chave_col, chave).execute()
-                            if resp_delete.error:
-                                st.error(f"❌ Erro ao remover chave {chave}: {resp_delete.error}")
+
+                            if resp_delete.status_code >= 400:
+                                st.error(f"❌ Erro ao remover chave {chave}: {resp_delete.json()}")
 
                         # 🔥 Inserir na tabela de entregas aprovadas
                         resp_insert = supabase.table("entregas_aprovadas").insert(linhas_selecionadas).execute()
-                        if resp_insert.error:
-                            st.error(f"❌ Erro ao inserir na tabela de entregas aprovadas: {resp_insert.error}")
+
+                        if resp_insert.status_code >= 400:
+                            st.error(f"❌ Erro ao inserir na tabela de entregas aprovadas: {resp_insert.json()}")
                         else:
                             st.success("✅ Entregas aprovadas com sucesso!")
                             st.rerun()
@@ -1435,6 +1437,7 @@ def pagina_aprovacao_diretoria():
 
         else:
             st.info("🔎 Selecione uma ou mais entregas para habilitar a aprovação.")
+
 
 
 
