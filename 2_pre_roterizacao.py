@@ -1051,6 +1051,8 @@ def pagina_confirmar_producao():
 
         gb.configure_grid_options(domLayout='normal')  # chave para o scroll horizontal
 
+        gb.configure_grid_options(domLayout='normal')  # Importante para scroll
+
         grid_response = AgGrid(
             df_formatado,
             gridOptions=grid_options,
@@ -1076,12 +1078,13 @@ def pagina_confirmar_producao():
                     "overflow-y": "hidden",
                 },
                 ".ag-center-cols-container": {
-                    "min-width": "1800px !important"  # ajuste conforme seu número de colunas
+                    "min-width": "1800px !important",
                 },
+                "#gridToolBar": {
+                    "padding-bottom": "0px !important",
+                }
             }
         )
-
-
 
 
 
