@@ -1073,8 +1073,6 @@ def pagina_confirmar_producao():
     )
 
 
-
-
         selecionadas = pd.DataFrame(grid_response.get("selected_rows", []))
         session_key_selecionadas = f"selecionadas_{cliente}"
         session_key_sucesso = f"sucesso_{cliente}"
