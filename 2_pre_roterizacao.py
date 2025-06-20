@@ -1333,10 +1333,6 @@ def pagina_aprovacao_diretoria():
                 gb.configure_column(col, type=["numericColumn"], valueFormatter=formatter_brasileiro)
 
         grid_key_id = f"grid_aprovacao_{cliente}"
-        if st.session_state.get("reload_confirmadas_producao", False):
-            st.session_state[grid_key_id] = str(uuid.uuid4())
-        elif grid_key_id not in st.session_state:
-            st.session_state[grid_key_id] = str(uuid.uuid4())
 
         grid_options = gb.build()
         grid_options["getRowStyle"] = linha_destacar
@@ -1349,7 +1345,7 @@ def pagina_aprovacao_diretoria():
             width="100%",
             height=400,
             allow_unsafe_jscode=True,
-            key=st.session_state[grid_key_id],
+            key=grid_key_id,
             data_return_mode="AS_INPUT",
             theme=AgGridTheme.MATERIAL,
             show_toolbar=False,
@@ -1386,6 +1382,7 @@ def pagina_aprovacao_diretoria():
                 }
             }
         )
+
 
 
 
