@@ -1050,18 +1050,28 @@ def pagina_confirmar_producao():
             st.session_state[grid_key_id] = str(uuid.uuid4())
 
         grid_response = AgGrid(
-            df_formatado,
-            gridOptions=grid_options,
-            update_mode=GridUpdateMode.SELECTION_CHANGED,
-            fit_columns_on_grid_load=False,
-            width=1500,
-            height=400,
-            allow_unsafe_jscode=True,
-            key=st.session_state[grid_key_id],
-            data_return_mode="AS_INPUT",
-            theme=AgGridTheme.MATERIAL,
-            show_toolbar=False
-        )
+        df_formatado,
+        gridOptions=grid_options,
+        update_mode=GridUpdateMode.SELECTION_CHANGED,
+        fit_columns_on_grid_load=False,
+        width=1500,
+        height=400,
+        allow_unsafe_jscode=True,
+        key=st.session_state[grid_key_id],
+        data_return_mode="AS_INPUT",
+        theme=AgGridTheme.MATERIAL,
+        show_toolbar=False,
+        custom_css={
+            ".ag-theme-material .ag-cell": {
+                "font-size": "11px",
+                "line-height": "18px",
+            },
+            ".ag-theme-material .ag-header-cell-label": {
+                "font-size": "11px",
+            }
+        }
+    )
+
 
 
 
