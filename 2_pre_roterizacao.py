@@ -1066,6 +1066,13 @@ def pagina_confirmar_producao():
             theme=AgGridTheme.MATERIAL,
             show_toolbar=False,
             custom_css={
+
+                ".ag-theme-material": {
+                    "border": "1px solid black",          # ✅ contorno preto no grid
+                    "border-radius": "6px",               # opcional: cantos arredondados
+                    "padding": "6px",                     # opcional: espaço interno
+                },
+
                 ".ag-theme-material .ag-cell": {
                     "font-size": "11px",
                     "line-height": "18px",
@@ -1481,7 +1488,7 @@ def carregar_base_supabase():
         st.error(f"Erro ao consultar as tabelas do Supabase: {e}")
         return pd.DataFrame()
 
-
+##########################################
 # Função PÁGINA PRÉ ROTERIZAÇÃO
 ##########################################
 
