@@ -1038,8 +1038,10 @@ def pagina_confirmar_producao():
         gb.configure_selection('multiple', use_checkbox=True)
         gb.configure_grid_options(paginationPageSize=12)
         gb.configure_grid_options(alwaysShowHorizontalScroll=True)
+        gb.configure_grid_options(rowStyle={'font-size': '12px'})
         grid_options = gb.build()
         grid_options["getRowStyle"] = linha_destacar
+
 
         grid_key_id = f"grid_confirmar_{cliente}"
         if st.session_state.get("reload_confirmadas_producao", False):
