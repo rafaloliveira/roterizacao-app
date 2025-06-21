@@ -1383,13 +1383,6 @@ def pagina_aprovacao_diretoria():
             }
         )
 
-        # 🚩 Debug para ver colunas e linhas selecionadas
-        st.subheader("🪪 Debug - Colunas no DataFrame")
-        st.write(df_formatado.columns)
-
-        st.subheader("📝 Debug - Linhas Selecionadas")
-        st.write(grid_response)
-
         linhas_selecionadas = grid_response.get("selected_rows", [])
 
         if linhas_selecionadas:
