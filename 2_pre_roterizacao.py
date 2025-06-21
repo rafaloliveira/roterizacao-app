@@ -1383,53 +1383,74 @@ def pagina_aprovacao_diretoria():
             }
         )
 
-        linhas_selecionadas = grid_response.get("selected_rows", [])
+        selecionadas = pd.DataFrame(grid_response.get("selected_rows", []))
+        session_key_selecionadas = f"selecionadas_{cliente}"
+        session_key_sucesso = f"sucesso_{cliente}"
 
-        if linhas_selecionadas:
-            st.success(f"🚚 {len(linhas_selecionadas)} entregas selecionadas para aprovação.")
-
-            if st.button("✅ Aprovar Entregas"):
-                with st.spinner("Aprovando entregas..."):
-                    try:
-                        # ✅ Detectar coluna correta da chave
-                        chave_col = None
-                        for col in df_formatado.columns:
-                            if col.strip().lower() in ["chave ct-e", "chave_ct-e", "chave_cte", "chavecte"]:
-                                chave_col = col
-                                break
-
-                        if not chave_col:
-                            st.error("❌ A coluna 'Chave CT-e' não foi encontrada no DataFrame.")
-                            st.stop()
-
-                        # 🔍 Extrair chaves
-                        chaves = [linha.get(chave_col) for linha in linhas_selecionadas if linha.get(chave_col)]
-
-                        if not chaves:
-                            st.warning("⚠️ Nenhuma chave CT-e encontrada nas linhas selecionadas.")
-                            st.stop()
-
-                        # 🔥 Deletar da tabela de aprovação
-                        for chave in chaves:
-                            resp_delete = supabase.table("aprovacao_diretoria").delete().eq(chave_col, chave).execute()
-
-                            if resp_delete.get('error'):
-                                st.error(f"❌ Erro ao remover chave {chave}: {resp_delete['error']}")
-
-                        # 🔥 Inserir na tabela de entregas aprovadas
-                        resp_insert = supabase.table("entregas_aprovadas").insert(linhas_selecionadas).execute()
-
-                        if resp_insert.get('error'):
-                            st.error(f"❌ Erro ao inserir na tabela de entregas aprovadas: {resp_insert['error']}")
-                        else:
-                            st.success("✅ Entregas aprovadas com sucesso!")
-                            st.rerun()
-
-                    except Exception as e:
-                        st.exception(e)
-
+        if not selecionadas.empty:
+            st.session_state[session_key_selecionadas] = selecionadas
+            st.session_state[session_key_sucesso] = f"{len(selecionadas)} entregas selecionadas para {cliente}."
         else:
-            st.info("🔎 Selecione uma ou mais entregas para habilitar a aprovação.")
+            st.session_state.pop(session_key_selecionadas, None)
+            st.session_state.pop(session_key_sucesso, None)
+
+        if st.session_state.get(session_key_sucesso):
+            st.success(st.session_state[session_key_sucesso])
+
+            if st.button(f"✅ Aprovar entregas de {cliente}", key=f"botao_{cliente}"):
+                try:
+                    selecionadas = st.session_state.get(session_key_selecionadas, pd.DataFrame())
+                    if selecionadas.empty:
+                        st.warning("⚠️ Nenhuma entrega selecionada.")
+                        return
+
+                    chaves = selecionadas["Serie_Numero_CTRC"].dropna().astype(str).str.strip().tolist()
+                    df_cliente["Serie_Numero_CTRC"] = df_cliente["Serie_Numero_CTRC"].astype(str).str.strip()
+
+                    df_aprovar = df_cliente[df_cliente["Serie_Numero_CTRC"].isin(chaves)].copy()
+
+                    colunas_validas = [col for col in colunas_exibir if col != "Serie_Numero_CTRC" and col in df_aprovar.columns]
+                    df_aprovar = df_aprovar[["Serie_Numero_CTRC"] + colunas_validas]
+                    df_aprovar = df_aprovar.replace([np.nan, np.inf, -np.inf], None)
+
+                    for col in df_aprovar.select_dtypes(include=['datetime64[ns]']).columns:
+                        df_aprovar[col] = df_aprovar[col].dt.strftime('%Y-%m-%d %H:%M:%S')
+
+                    if df_aprovar.empty or df_aprovar["Serie_Numero_CTRC"].isnull().all():
+                        st.warning("⚠️ Nenhuma entrega válida para aprovar.")
+                    else:
+                        dados_aprovar = df_aprovar.to_dict(orient="records")
+                        dados_aprovar = [d for d in dados_aprovar if d.get("Serie_Numero_CTRC")]
+
+                        if not dados_aprovar:
+                            st.warning("⚠️ Nenhum registro com 'Serie_Numero_CTRC' válido.")
+                        else:
+                            resultado_insercao = supabase.table("pre_roterizacao").insert(dados_aprovar).execute()
+
+                            chaves_inseridas = [
+                                str(item.get("Serie_Numero_CTRC")).strip()
+                                for item in resultado_insercao.data
+                                if item.get("Serie_Numero_CTRC")
+                            ]
+
+                            if set(chaves_inseridas) == set(chaves):
+                                try:
+                                    supabase.table("aprovacao_diretoria").delete().in_("Serie_Numero_CTRC", chaves_inseridas).execute()
+
+                                    # Limpar sessão e recarregar
+                                    for key in list(st.session_state.keys()):
+                                        if key.startswith("grid_aprovacao_") or key.startswith("selecionadas_") or key.startswith("sucesso_"):
+                                            st.session_state.pop(key, None)
+
+                                    st.success(f"✅ {len(chaves_inseridas)} entregas aprovadas e movidas para Pré-Roteirização.")
+                                    st.rerun()
+
+                                except Exception as delete_error:
+                                    st.error(f"Erro ao deletar entregas: {delete_error}")
+                            else:
+                                st.error("❌ Nem todas as entregas foram inseridas corretamente em 'pre_roterizacao'. Nenhuma foi removida.")
+                except Exception as e:
+                    st.error(f"Erro ao processar a aprovação: {e}")
 
 
 
