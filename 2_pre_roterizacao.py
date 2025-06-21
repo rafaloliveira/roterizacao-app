@@ -1398,7 +1398,7 @@ def pagina_aprovacao_diretoria():
             if st.button("✅ Aprovar Entregas"):
                 with st.spinner("Aprovando entregas..."):
                     try:
-                        # ✅ Verificar se a coluna "Chave CT-e" existe
+                        # ✅ Detectar coluna correta da chave
                         chave_col = None
                         for col in df_formatado.columns:
                             if col.strip().lower() in ["chave ct-e", "chave_ct-e", "chave_cte", "chavecte"]:
@@ -1409,25 +1409,25 @@ def pagina_aprovacao_diretoria():
                             st.error("❌ A coluna 'Chave CT-e' não foi encontrada no DataFrame.")
                             st.stop()
 
-                        # 🔍 Extrair as chaves
+                        # 🔍 Extrair chaves
                         chaves = [linha.get(chave_col) for linha in linhas_selecionadas if linha.get(chave_col)]
 
                         if not chaves:
                             st.warning("⚠️ Nenhuma chave CT-e encontrada nas linhas selecionadas.")
                             st.stop()
 
-                        # 🔥 Remover da tabela de aprovação
+                        # 🔥 Deletar da tabela de aprovação
                         for chave in chaves:
                             resp_delete = supabase.table("aprovacao_diretoria").delete().eq(chave_col, chave).execute()
 
-                            if resp_delete.status_code >= 400:
-                                st.error(f"❌ Erro ao remover chave {chave}: {resp_delete.json()}")
+                            if resp_delete.get('error'):
+                                st.error(f"❌ Erro ao remover chave {chave}: {resp_delete['error']}")
 
                         # 🔥 Inserir na tabela de entregas aprovadas
                         resp_insert = supabase.table("entregas_aprovadas").insert(linhas_selecionadas).execute()
 
-                        if resp_insert.status_code >= 400:
-                            st.error(f"❌ Erro ao inserir na tabela de entregas aprovadas: {resp_insert.json()}")
+                        if resp_insert.get('error'):
+                            st.error(f"❌ Erro ao inserir na tabela de entregas aprovadas: {resp_insert['error']}")
                         else:
                             st.success("✅ Entregas aprovadas com sucesso!")
                             st.rerun()
