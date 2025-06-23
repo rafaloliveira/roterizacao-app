@@ -1348,39 +1348,7 @@ def pagina_aprovacao_diretoria():
             key=grid_key_id,
             data_return_mode="AS_INPUT",
             theme=AgGridTheme.MATERIAL,
-            show_toolbar=False,
-            custom_css={
-                ".ag-theme-material .ag-cell": {
-                    "font-size": "11px",
-                    "line-height": "18px",
-                    "border-right": "1px solid #ccc"
-                },
-                ".ag-theme-material .ag-row:last-child .ag-cell": {
-                    "border-bottom": "1px solid #ccc"
-                },
-                ".ag-theme-material .ag-header-cell": {
-                    "border-right": "1px solid #ccc",
-                    "border-bottom": "1px solid #ccc"
-                },
-                ".ag-theme-material .ag-root-wrapper": {
-                    "border": "1px solid black",
-                    "border-radius": "6px",
-                    "padding": "4px"
-                },
-                ".ag-theme-material .ag-header-cell-label": {
-                    "font-size": "11px"
-                },
-                ".ag-center-cols-viewport": {
-                    "overflow-x": "auto !important",
-                    "overflow-y": "hidden"
-                },
-                ".ag-center-cols-container": {
-                    "min-width": "1800px !important"
-                },
-                "#gridToolBar": {
-                    "padding-bottom": "0px !important"
-                }
-            }
+            show_toolbar=False
         )
 
         selecionadas = pd.DataFrame(grid_response.get("selected_rows", []))
@@ -1418,42 +1386,41 @@ def pagina_aprovacao_diretoria():
 
                     if df_aprovar.empty or df_aprovar["Serie_Numero_CTRC"].isnull().all():
                         st.warning("⚠️ Nenhuma entrega válida para aprovar.")
+                        return
+
+                    dados_aprovar = df_aprovar.to_dict(orient="records")
+                    dados_aprovar = [d for d in dados_aprovar if d.get("Serie_Numero_CTRC")]
+
+                    if not dados_aprovar:
+                        st.warning("⚠️ Nenhum registro com 'Serie_Numero_CTRC' válido.")
+                        return
+
+                    resultado_insercao = supabase.table("pre_roterizacao").insert(dados_aprovar).execute()
+
+                    chaves_inseridas = [
+                        str(item.get("Serie_Numero_CTRC")).strip()
+                        for item in resultado_insercao.data
+                        if item.get("Serie_Numero_CTRC")
+                    ]
+
+                    if set(chaves_inseridas) == set(chaves):
+                        try:
+                            supabase.table("aprovacao_diretoria").delete().in_("Serie_Numero_CTRC", chaves_inseridas).execute()
+
+                            for key in list(st.session_state.keys()):
+                                if key.startswith("grid_aprovacao_") or key.startswith("selecionadas_") or key.startswith("sucesso_"):
+                                    st.session_state.pop(key, None)
+
+                            st.success(f"✅ {len(chaves_inseridas)} entregas aprovadas e movidas para Pré-Roteirização.")
+                            st.rerun()
+
+                        except Exception as delete_error:
+                            st.error(f"❌ Erro ao remover entregas da tabela 'aprovacao_diretoria': {delete_error}")
                     else:
-                        dados_aprovar = df_aprovar.to_dict(orient="records")
-                        dados_aprovar = [d for d in dados_aprovar if d.get("Serie_Numero_CTRC")]
+                        st.error("❌ Nem todas as entregas foram inseridas corretamente em 'pre_roterizacao'. Nenhuma foi removida.")
 
-                        if not dados_aprovar:
-                            st.warning("⚠️ Nenhum registro com 'Serie_Numero_CTRC' válido.")
-                        else:
-                            resultado_insercao = supabase.table("pre_roterizacao").insert(dados_aprovar).execute()
-
-                            chaves_inseridas = [
-                                str(item.get("Serie_Numero_CTRC")).strip()
-                                for item in resultado_insercao.data
-                                if item.get("Serie_Numero_CTRC")
-                            ]
-
-                            if set(chaves_inseridas) == set(chaves):
-                                try:
-                                    supabase.table("aprovacao_diretoria").delete().in_("Serie_Numero_CTRC", chaves_inseridas).execute()
-
-                                    # Limpar sessão e recarregar
-                                    for key in list(st.session_state.keys()):
-                                        if key.startswith("grid_aprovacao_") or key.startswith("selecionadas_") or key.startswith("sucesso_"):
-                                            st.session_state.pop(key, None)
-
-                                    st.success(f"✅ {len(chaves_inseridas)} entregas aprovadas e movidas para Pré-Roteirização.")
-                                    st.rerun()
-
-                                except Exception as delete_error:
-                                    st.error(f"Erro ao deletar entregas: {delete_error}")
-                            else:
-                                st.error("❌ Nem todas as entregas foram inseridas corretamente em 'pre_roterizacao'. Nenhuma foi removida.")
                 except Exception as e:
-                    st.error(f"Erro ao processar a aprovação: {e}")
-
-
-
+                    st.error(f"❌ Erro ao processar a aprovação: {e}")
 
 
 
