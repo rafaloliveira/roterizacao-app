@@ -1208,16 +1208,22 @@ def pagina_confirmar_producao():
 def pagina_aprovacao_diretoria():
     st.title("📋 Aprovação da Diretoria")
 
+    # ✅ Verificação de permissão
     usuario = st.session_state.get("username")
     dados_usuario = supabase.table("usuarios").select("classe").eq("nome_usuario", usuario).execute().data
     if not dados_usuario or dados_usuario[0].get("classe") != "aprovador":
         st.warning("🔒 Apenas usuários com classe **aprovador** podem acessar esta página.")
         return
 
-    df = pd.DataFrame(supabase.table("aprovacao_diretoria").select("*").execute().data)
-    if df.empty:
-        st.info("Nenhuma entrega pendente para aprovação.")
-        return
+    # ✅ Carregar dados uma única vez na sessão
+    if "dados_aprovacao" not in st.session_state:
+        dados = supabase.table("aprovacao_diretoria").select("*").execute().data
+        if not dados:
+            st.info("Nenhuma entrega pendente para aprovação.")
+            return
+        st.session_state["dados_aprovacao"] = pd.DataFrame(dados)
+
+    df = st.session_state["dados_aprovacao"].copy()
 
     df["Cliente Pagador"] = df["Cliente Pagador"].astype(str).str.strip().fillna("(Vazio)")
 
@@ -1231,19 +1237,9 @@ def pagina_aprovacao_diretoria():
 
     col1, col2 = st.columns(2)
     with col1:
-        st.markdown(
-            f"<div style='background:#2f2f2f;padding:8px;border-radius:8px'>"
-            f"<span style='color:white;font-weight:bold;font-size:18px;'>Total de Clientes:</span>"
-            f"<span style='color:white;font-size:24px;'> {total_clientes}</span></div>",
-            unsafe_allow_html=True
-        )
+        st.metric("Total de Clientes", total_clientes)
     with col2:
-        st.markdown(
-            f"<div style='background:#2f2f2f;padding:8px;border-radius:8px'>"
-            f"<span style='color:white;font-weight:bold;font-size:18px;'>Total de Entregas:</span>"
-            f"<span style='color:white;font-size:24px;'> {total_entregas}</span></div>",
-            unsafe_allow_html=True
-        )
+        st.metric("Total de Entregas", total_entregas)
 
     colunas_exibir = [
         "Serie_Numero_CTRC", "Rota", "Valor do Frete", "Cliente Pagador", "Chave CT-e",
@@ -1262,96 +1258,62 @@ def pagina_aprovacao_diretoria():
         }
     """)
 
+    linha_destacar = JsCode("""
+        function(params) {
+            const status = params.data['Status'];
+            const entrega = params.data['Entrega Programada'];
+            const particularidade = params.data['Particularidade'];
+            if (status && status.toUpperCase() === 'AGENDAR' && (!entrega || entrega.toString().trim() === '')) {
+                return {
+                    'background-color': '#ffe0b2',
+                    'color': '#333'
+                };
+            }
+            if (particularidade && particularidade.trim() !== "") {
+                return {
+                    'background-color': '#fff59d',
+                    'color': '#333'
+                };
+            }
+            return {};
+        }
+    """)
+
     for cliente in sorted(df["Cliente Pagador"].unique()):
         df_cliente = df[df["Cliente Pagador"] == cliente].copy()
 
-        total_entregas = len(df_cliente)
-        peso_calculado = df_cliente['Peso Calculado em Kg'].sum()
-        peso_real = df_cliente['Peso Real em Kg'].sum()
-        valor_frete = df_cliente['Valor do Frete'].sum()
-        cubagem = df_cliente['Cubagem em m³'].sum()
-        volumes = df_cliente['Quantidade de Volumes'].sum()
+        st.subheader(f"📦 Cliente: {cliente}")
 
-        st.markdown(f"""
-        <div style=\"background-color: #444; padding: 8px 16px; border-radius: 6px; margin-top: 20px; margin-bottom: 8px;\">
-            <div style=\"color: white; margin: 0; font-size: 15px; font-weight: bold;\">📦 Cliente: {cliente}</div>
-        </div>
-
-        <div style=\"display: flex; flex-wrap: wrap; gap: 20px; font-size: 16px; margin-bottom: 20px;\">
-            <div><strong>Quantidade de Entregas:</strong> {total_entregas}</div>
-            <div><strong>Peso Calculado (kg):</strong> {formatar_brasileiro(peso_calculado)}</div>
-            <div><strong>Peso Real (kg):</strong> {formatar_brasileiro(peso_real)}</div>
-            <div><strong>Valor do Frete:</strong> R$ {formatar_brasileiro(valor_frete)}</div>
-            <div><strong>Cubagem (m³):</strong> {formatar_brasileiro(cubagem)}</div>
-            <div><strong>Volumes:</strong> {int(volumes) if pd.notnull(volumes) else 0}</div>
-        </div>
-        """, unsafe_allow_html=True)
-
-        df_formatado = df_cliente[[col for col in colunas_exibir if col in df_cliente.columns]].copy()
-
-        formatter_brasileiro = JsCode("""
-            function(params) {
-                if (!params.value) return '';
-                return Number(params.value).toLocaleString('pt-BR', {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2
-                });
-            }
-        """)
-
-        linha_destacar = JsCode("""
-            function(params) {
-                const status = params.data['Status'];
-                const entrega = params.data['Entrega Programada'];
-                const particularidade = params.data['Particularidade'];
-                if (status && status.toUpperCase() === 'AGENDAR' && (!entrega || entrega.toString().trim() === '')) {
-                    return {
-                        'background-color': '#ffe0b2',
-                        'color': '#333'
-                    };
-                }
-                if (particularidade && particularidade.trim() !== "") {
-                    return {
-                        'background-color': '#fff59d',
-                        'color': '#333'
-                    };
-                }
-                return {};
-            }
-        """)
-
-        gb = GridOptionsBuilder.from_dataframe(df_formatado)
+        gb = GridOptionsBuilder.from_dataframe(df_cliente[colunas_exibir])
         gb.configure_default_column(minWidth=150)
         gb.configure_selection("multiple", use_checkbox=True)
         gb.configure_grid_options(paginationPageSize=12)
         gb.configure_grid_options(alwaysShowHorizontalScroll=True)
         gb.configure_grid_options(domLayout='normal')
-        gb.configure_grid_options(rowStyle={'font-size': '8px'})
+        gb.configure_grid_options(rowStyle={'font-size': '9px'})
+        gb.configure_grid_options(getRowStyle=linha_destacar)
 
         for col in ["Peso Real em Kg", "Peso Calculado em Kg", "Cubagem em m³", "Quantidade de Volumes", "Valor do Frete"]:
-            if col in df_formatado.columns:
+            if col in df_cliente.columns:
                 gb.configure_column(col, type=["numericColumn"], valueFormatter=formatter_brasileiro)
 
         grid_key_id = f"grid_aprovacao_{cliente}"
 
-        grid_options = gb.build()
-        grid_options["getRowStyle"] = linha_destacar
-
         grid_response = AgGrid(
-            df_formatado,
-            gridOptions=grid_options,
+            df_cliente[colunas_exibir],
+            gridOptions=gb.build(),
             update_mode=GridUpdateMode.SELECTION_CHANGED,
+            data_return_mode="AS_INPUT",
             fit_columns_on_grid_load=False,
             width="100%",
             height=400,
             allow_unsafe_jscode=True,
             key=grid_key_id,
-            data_return_mode="AS_INPUT",
-            theme=AgGridTheme.MATERIAL,
-            show_toolbar=False
+            theme=AgGridTheme.MATERIAL
         )
 
         selecionadas = pd.DataFrame(grid_response.get("selected_rows", []))
+
         session_key_selecionadas = f"selecionadas_{cliente}"
         session_key_sucesso = f"sucesso_{cliente}"
 
@@ -1373,54 +1335,36 @@ def pagina_aprovacao_diretoria():
                         return
 
                     chaves = selecionadas["Serie_Numero_CTRC"].dropna().astype(str).str.strip().tolist()
-                    df_cliente["Serie_Numero_CTRC"] = df_cliente["Serie_Numero_CTRC"].astype(str).str.strip()
 
                     df_aprovar = df_cliente[df_cliente["Serie_Numero_CTRC"].isin(chaves)].copy()
 
-                    colunas_validas = [col for col in colunas_exibir if col != "Serie_Numero_CTRC" and col in df_aprovar.columns]
-                    df_aprovar = df_aprovar[["Serie_Numero_CTRC"] + colunas_validas]
                     df_aprovar = df_aprovar.replace([np.nan, np.inf, -np.inf], None)
-
-                    for col in df_aprovar.select_dtypes(include=['datetime64[ns]']).columns:
-                        df_aprovar[col] = df_aprovar[col].dt.strftime('%Y-%m-%d %H:%M:%S')
-
-                    if df_aprovar.empty or df_aprovar["Serie_Numero_CTRC"].isnull().all():
-                        st.warning("⚠️ Nenhuma entrega válida para aprovar.")
-                        return
 
                     dados_aprovar = df_aprovar.to_dict(orient="records")
                     dados_aprovar = [d for d in dados_aprovar if d.get("Serie_Numero_CTRC")]
 
                     if not dados_aprovar:
-                        st.warning("⚠️ Nenhum registro com 'Serie_Numero_CTRC' válido.")
+                        st.warning("⚠️ Nenhum registro válido para aprovar.")
                         return
 
-                    resultado_insercao = supabase.table("pre_roterizacao").insert(dados_aprovar).execute()
+                    supabase.table("pre_roterizacao").insert(dados_aprovar).execute()
+                    supabase.table("aprovacao_diretoria").delete().in_("Serie_Numero_CTRC", chaves).execute()
 
-                    chaves_inseridas = [
-                        str(item.get("Serie_Numero_CTRC")).strip()
-                        for item in resultado_insercao.data
-                        if item.get("Serie_Numero_CTRC")
+                    # Remove também do dataframe local da sessão
+                    st.session_state["dados_aprovacao"] = st.session_state["dados_aprovacao"][
+                        ~st.session_state["dados_aprovacao"]["Serie_Numero_CTRC"].isin(chaves)
                     ]
 
-                    if set(chaves_inseridas) == set(chaves):
-                        try:
-                            supabase.table("aprovacao_diretoria").delete().in_("Serie_Numero_CTRC", chaves_inseridas).execute()
+                    for key in list(st.session_state.keys()):
+                        if key.startswith("grid_aprovacao_") or key.startswith("selecionadas_") or key.startswith("sucesso_"):
+                            st.session_state.pop(key, None)
 
-                            for key in list(st.session_state.keys()):
-                                if key.startswith("grid_aprovacao_") or key.startswith("selecionadas_") or key.startswith("sucesso_"):
-                                    st.session_state.pop(key, None)
-
-                            st.success(f"✅ {len(chaves_inseridas)} entregas aprovadas e movidas para Pré-Roteirização.")
-                            st.rerun()
-
-                        except Exception as delete_error:
-                            st.error(f"❌ Erro ao remover entregas da tabela 'aprovacao_diretoria': {delete_error}")
-                    else:
-                        st.error("❌ Nem todas as entregas foram inseridas corretamente em 'pre_roterizacao'. Nenhuma foi removida.")
+                    st.success(f"✅ {len(chaves)} entregas aprovadas e movidas para Pré-Roteirização.")
+                    st.rerun()
 
                 except Exception as e:
-                    st.error(f"❌ Erro ao processar a aprovação: {e}")
+                    st.error(f"❌ Erro ao aprovar entregas: {e}")
+
 
 
 
