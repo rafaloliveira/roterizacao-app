@@ -1025,8 +1025,8 @@ def pagina_confirmar_producao():
             unsafe_allow_html=True
         )
 
-    with st.expander("🔽 Selecionar entregas", expanded=False):
-        df_formatado = df_cliente[[col for col in colunas_exibir if col in df_cliente.columns]].copy()
+        with st.expander("🔽 Selecionar entregas", expanded=False):
+            df_formatado = df_cliente[[col for col in colunas_exibir if col in df_cliente.columns]].copy()
 
 
         if not df_formatado.empty:    
