@@ -1484,7 +1484,7 @@ def pagina_pre_roterizacao():
         return f"<span style='background:#eef2f7;border-radius:12px;padding:6px 12px;margin:4px;color:inherit;display:inline-block;'>{label}</span>"
 
     colunas_exibir = [
-        "Serie_Numero_CTRC", "Cliente Pagador", "Chave CT-e", "Cliente Destinatario",
+        "Serie_Numero_CTRC", "Rota", "Cliente Pagador", "Chave CT-e", "Cliente Destinatario",
         "Cidade de Entrega", "Bairro do Destinatario", "Previsao de Entrega",
         "Numero da Nota Fiscal", "Status", "Entrega Programada", "Particularidade",
         "Codigo da Ultima Ocorrencia", "Peso Real em Kg", "Peso Calculado em Kg",
@@ -1605,7 +1605,13 @@ def pagina_pre_roterizacao():
                         try:
                             df_selecionadas = selecionadas.copy()
                             df_selecionadas = df_selecionadas.drop(columns=["_selectedRowNodeInfo"], errors="ignore")
+
+                            # 🔧 Garante que a coluna 'Rota' será enviada
+                            df_selecionadas["Rota"] = rota
+
                             supabase.table("rotas_confirmadas").insert(df_selecionadas.to_dict(orient="records")).execute()
+
+
                             st.success("Entregas confirmadas com sucesso!")
                             st.rerun()
                         except Exception as e:
