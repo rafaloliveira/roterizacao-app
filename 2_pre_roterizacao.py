@@ -1510,7 +1510,7 @@ def pagina_pre_roterizacao():
             badge(f"{int(df_rota['Quantidade de Volumes'].sum())} volumes"),
             unsafe_allow_html=True
         )
-
+    with st.expander("🔽 Selecionar entregas", expanded=False):
         df_formatado = df_rota[[col for col in colunas_exibir if col in df_rota.columns]].copy()
 
         gb = GridOptionsBuilder.from_dataframe(df_formatado)
