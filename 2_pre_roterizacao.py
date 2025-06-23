@@ -1630,7 +1630,7 @@ def pagina_pre_roterizacao():
 ##########################################
 
 def pagina_rotas_confirmadas():
-    st.markdown("## 🚚 Entregas Confirmadas por Rota")
+    st.markdown("## Entregas Confirmadas por Rota")
 
     try:
         df = pd.DataFrame(supabase.table("rotas_confirmadas").select("*").execute().data)
@@ -1702,6 +1702,7 @@ def pagina_rotas_confirmadas():
                 gb.configure_grid_options(paginationPageSize=12)
                 gb.configure_grid_options(alwaysShowHorizontalScroll=True)
                 gb.configure_grid_options(rowStyle={"font-size": "11px"})
+                gb.configure_grid_options(getRowStyle=linha_destacar)  # ✅ Aqui é o local correto
 
                 formatter = JsCode("""
                     function(params) {
@@ -1718,7 +1719,6 @@ def pagina_rotas_confirmadas():
                         gb.configure_column(col, type=["numericColumn"], valueFormatter=formatter)
 
                 grid_options = gb.build()
-                grid_options["getRowStyle"] = linha_destacar
 
                 grid_key = f"grid_rotas_confirmadas_{rota}"
                 if grid_key not in st.session_state:
@@ -1789,6 +1789,7 @@ def pagina_rotas_confirmadas():
 
     except Exception as e:
         st.error(f"Erro ao carregar rotas confirmadas: {e}")
+
 
 
 
