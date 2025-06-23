@@ -1004,10 +1004,10 @@ def pagina_confirmar_producao():
             continue
 
         st.markdown(f"""
-    <div style="margin-top:20px;padding:10px;background:#e8f0fe;border-left:4px solid #4285f4;border-radius:6px;display:inline-block;max-width:100%;">
-        <strong>Cliente:</strong> {cliente}
-    </div>
-""", unsafe_allow_html=True)
+        <div style="margin-top:20px;padding:10px;background:#e8f0fe;border-left:4px solid #4285f4;border-radius:6px;display:inline-block;max-width:100%;">
+            <strong>Cliente:</strong> {cliente}
+        </div>
+        """, unsafe_allow_html=True)
 
         st.markdown(
             badge(f"{len(df_cliente)} entregas") +
@@ -1022,105 +1022,98 @@ def pagina_confirmar_producao():
         with st.expander("🔽 Selecionar entregas", expanded=False):
             df_formatado = df_cliente[[col for col in colunas_exibir if col in df_cliente.columns]].copy()
 
-        gb = GridOptionsBuilder.from_dataframe(df_formatado)
-        gb.configure_default_column(minWidth=150)
-        gb.configure_selection('multiple', use_checkbox=True)
-        gb.configure_grid_options(paginationPageSize=12)
-        gb.configure_grid_options(alwaysShowHorizontalScroll=True)
-        gb.configure_grid_options(rowStyle={'font-size': '8px'})
-        grid_options = gb.build()
-        grid_options["getRowStyle"] = linha_destacar
+            gb = GridOptionsBuilder.from_dataframe(df_formatado)
+            gb.configure_default_column(minWidth=150)
+            gb.configure_selection('multiple', use_checkbox=True)
+            gb.configure_grid_options(paginationPageSize=12)
+            gb.configure_grid_options(alwaysShowHorizontalScroll=True)
+            gb.configure_grid_options(rowStyle={'font-size': '8px'})
+            grid_options = gb.build()
+            grid_options["getRowStyle"] = linha_destacar
 
+            grid_key_id = f"grid_confirmar_{cliente}"
+            if st.session_state.get("reload_confirmadas_producao", False):
+                st.session_state[grid_key_id] = str(uuid.uuid4())
+            elif grid_key_id not in st.session_state:
+                st.session_state[grid_key_id] = str(uuid.uuid4())
 
-        grid_key_id = f"grid_confirmar_{cliente}"
-        if st.session_state.get("reload_confirmadas_producao", False):
-            st.session_state[grid_key_id] = str(uuid.uuid4())
-        elif grid_key_id not in st.session_state:
-            st.session_state[grid_key_id] = str(uuid.uuid4())
+            gb.configure_grid_options(domLayout='normal')
 
-        gb.configure_grid_options(domLayout='normal')  # chave para o scroll horizontal
-
-        gb.configure_grid_options(domLayout='normal')  # Importante para scroll
-
-        grid_response = AgGrid(
-            df_formatado,
-            gridOptions=grid_options,
-            update_mode=GridUpdateMode.SELECTION_CHANGED,
-            fit_columns_on_grid_load=False,
-            width="100%",
-            height=400,
-            allow_unsafe_jscode=True,
-            key=st.session_state[grid_key_id],
-            data_return_mode="AS_INPUT",
-            theme=AgGridTheme.MATERIAL,
-            show_toolbar=False,
-            custom_css={
-                ".ag-theme-material .ag-cell": {
-                    "font-size": "11px",
-                    "line-height": "18px",
-                    "border-right": "1px solid #ccc",  # 👉 linha vertical entre colunas
-                },
-                ".ag-theme-material .ag-row:last-child .ag-cell": {
-                    "border-bottom": "1px solid #ccc",  # última linha com borda inferior
-                },
-                ".ag-theme-material .ag-header-cell": {
-                    "border-right": "1px solid #ccc",   # 👉 linha vertical no cabeçalho
-                    "border-bottom": "1px solid #ccc",  # opcional: reforça separação de header
-                },
-                ".ag-theme-material .ag-root-wrapper": {
-                    "border": "1px solid black",
-                    "border-radius": "6px",
-                    "padding": "4px",
-                },
-                ".ag-theme-material .ag-header-cell-label": {
-                    "font-size": "11px",
-                },
-                ".ag-center-cols-viewport": {
-                    "overflow-x": "auto !important",
-                    "overflow-y": "hidden",
-                },
-                ".ag-center-cols-container": {
-                    "min-width": "1800px !important",
-                },
-                "#gridToolBar": {
-                    "padding-bottom": "0px !important",
+            grid_response = AgGrid(
+                df_formatado,
+                gridOptions=grid_options,
+                update_mode=GridUpdateMode.SELECTION_CHANGED,
+                fit_columns_on_grid_load=False,
+                width="100%",
+                height=400,
+                allow_unsafe_jscode=True,
+                key=st.session_state[grid_key_id],
+                data_return_mode="AS_INPUT",
+                theme=AgGridTheme.MATERIAL,
+                show_toolbar=False,
+                custom_css={
+                    ".ag-theme-material .ag-cell": {
+                        "font-size": "11px",
+                        "line-height": "18px",
+                        "border-right": "1px solid #ccc",
+                    },
+                    ".ag-theme-material .ag-row:last-child .ag-cell": {
+                        "border-bottom": "1px solid #ccc",
+                    },
+                    ".ag-theme-material .ag-header-cell": {
+                        "border-right": "1px solid #ccc",
+                        "border-bottom": "1px solid #ccc",
+                    },
+                    ".ag-theme-material .ag-root-wrapper": {
+                        "border": "1px solid black",
+                        "border-radius": "6px",
+                        "padding": "4px",
+                    },
+                    ".ag-theme-material .ag-header-cell-label": {
+                        "font-size": "11px",
+                    },
+                    ".ag-center-cols-viewport": {
+                        "overflow-x": "auto !important",
+                        "overflow-y": "hidden",
+                    },
+                    ".ag-center-cols-container": {
+                        "min-width": "1800px !important",
+                    },
+                    "#gridToolBar": {
+                        "padding-bottom": "0px !important",
+                    }
                 }
-            }
-        )
+            )
 
+            selecionadas = pd.DataFrame(grid_response.get("selected_rows", []))
+            if not selecionadas.empty:
+                if st.button(f"✅ Confirmar entregas de {cliente}", key=f"botao_{cliente}"):
+                    try:
+                        chaves = selecionadas["Serie_Numero_CTRC"].dropna().astype(str).str.strip().tolist()
+                        df_cliente["Serie_Numero_CTRC"] = df_cliente["Serie_Numero_CTRC"].astype(str).str.strip()
+                        df_confirmar = df_cliente[df_cliente["Serie_Numero_CTRC"].isin(chaves)].copy()
+                        df_confirmar = df_confirmar.replace([np.nan, np.inf, -np.inf], None)
 
-        selecionadas = pd.DataFrame(grid_response.get("selected_rows", []))
-        if not selecionadas.empty:
-            if st.button(f"✅ Confirmar entregas de {cliente}", key=f"botao_{cliente}"):
-                try:
-                    chaves = selecionadas["Serie_Numero_CTRC"].dropna().astype(str).str.strip().tolist()
-                    df_cliente["Serie_Numero_CTRC"] = df_cliente["Serie_Numero_CTRC"].astype(str).str.strip()
-                    df_confirmar = df_cliente[df_cliente["Serie_Numero_CTRC"].isin(chaves)].copy()
-                    df_confirmar = df_confirmar.replace([np.nan, np.inf, -np.inf], None)
+                        for col in df_confirmar.select_dtypes(include=['datetime64[ns]']).columns:
+                            df_confirmar[col] = df_confirmar[col].dt.strftime('%Y-%m-%d %H:%M:%S')
 
-                    for col in df_confirmar.select_dtypes(include=['datetime64[ns]']).columns:
-                        df_confirmar[col] = df_confirmar[col].dt.strftime('%Y-%m-%d %H:%M:%S')
+                        dados_confirmar = df_confirmar.to_dict(orient="records")
+                        dados_confirmar = [d for d in dados_confirmar if d.get("Serie_Numero_CTRC")]
 
-                    dados_confirmar = df_confirmar.to_dict(orient="records")
-                    dados_confirmar = [d for d in dados_confirmar if d.get("Serie_Numero_CTRC")]
+                        resultado_insercao = supabase.table("aprovacao_diretoria").insert(dados_confirmar).execute()
+                        chaves_inseridas = [str(item.get("Serie_Numero_CTRC")).strip() for item in resultado_insercao.data if item.get("Serie_Numero_CTRC")]
 
-                    resultado_insercao = supabase.table("aprovacao_diretoria").insert(dados_confirmar).execute()
-                    chaves_inseridas = [str(item.get("Serie_Numero_CTRC")).strip() for item in resultado_insercao.data if item.get("Serie_Numero_CTRC")]
-
-                    if set(chaves_inseridas) == set(chaves):
-                        supabase.table("confirmadas_producao").delete().in_("Serie_Numero_CTRC", chaves_inseridas).execute()
-                        st.session_state.pop("df_confirmadas_cache", None)
-                        st.session_state.pop("dados_sincronizados", None)
-                        st.session_state["reload_confirmadas_producao"] = True
-                        st.success(f"{len(chaves_inseridas)} entregas confirmadas para {cliente}.")
-                        st.rerun()
-                    else:
-                        st.error("❌ Nem todas as entregas foram inseridas corretamente.")
-                except Exception as e:
-                    st.error(f"Erro ao processar confirmação: {e}")
-
-
-
+                        if set(chaves_inseridas) == set(chaves):
+                            supabase.table("confirmadas_producao").delete().in_("Serie_Numero_CTRC", chaves_inseridas).execute()
+                            st.session_state.pop("df_confirmadas_cache", None)
+                            st.session_state.pop("dados_sincronizados", None)
+                            st.session_state["reload_confirmadas_producao"] = True
+                            st.success(f"{len(chaves_inseridas)} entregas confirmadas para {cliente}.")
+                            st.rerun()
+                        else:
+                            st.error("❌ Nem todas as entregas foram inseridas corretamente.")
+                    except Exception as e:
+                        st.error(f"Erro ao processar confirmação: {e}")
 
 
 ###########################################
