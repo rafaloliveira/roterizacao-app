@@ -1510,96 +1510,97 @@ def pagina_pre_roterizacao():
             badge(f"{int(df_rota['Quantidade de Volumes'].sum())} volumes"),
             unsafe_allow_html=True
         )
-    with st.expander("🔽 Selecionar entregas", expanded=False):
-        df_formatado = df_rota[[col for col in colunas_exibir if col in df_rota.columns]].copy()
 
-        gb = GridOptionsBuilder.from_dataframe(df_formatado)
-        gb.configure_default_column(minWidth=150)
-        gb.configure_selection('multiple', use_checkbox=True)
-        gb.configure_grid_options(paginationPageSize=12)
-        gb.configure_grid_options(alwaysShowHorizontalScroll=True)
-        grid_options = gb.build()
+        with st.expander("🔽 Selecionar entregas", expanded=False):
+            df_formatado = df_rota[[col for col in colunas_exibir if col in df_rota.columns]].copy()
 
-        grid_key = f"grid_pre_rota_{rota}"
-        if grid_key not in st.session_state:
-            st.session_state[grid_key] = str(uuid.uuid4())
+            gb = GridOptionsBuilder.from_dataframe(df_formatado)
+            gb.configure_default_column(minWidth=150)
+            gb.configure_selection('multiple', use_checkbox=True)
+            gb.configure_grid_options(paginationPageSize=12)
+            gb.configure_grid_options(alwaysShowHorizontalScroll=True)
+            grid_options = gb.build()
 
-        grid_response = AgGrid(
-            df_formatado,
-            gridOptions=grid_options,
-            update_mode=GridUpdateMode.SELECTION_CHANGED,
-            fit_columns_on_grid_load=False,
-            width="100%",
-            height=400,
-            allow_unsafe_jscode=True,
-            key=st.session_state[grid_key],
-            data_return_mode="AS_INPUT",
-            theme=AgGridTheme.MATERIAL,
-            show_toolbar=False,
-            custom_css={
-                ".ag-theme-material .ag-cell": {
-                    "font-size": "11px",
-                    "line-height": "18px",
-                    "border-right": "1px solid #ccc",
-                },
-                ".ag-theme-material .ag-row:last-child .ag-cell": {
-                    "border-bottom": "1px solid #ccc",
-                },
-                ".ag-theme-material .ag-header-cell": {
-                    "border-right": "1px solid #ccc",
-                    "border-bottom": "1px solid #ccc",
-                },
-                ".ag-theme-material .ag-root-wrapper": {
-                    "border": "1px solid black",
-                    "border-radius": "6px",
-                    "padding": "4px",
-                },
-                ".ag-theme-material .ag-header-cell-label": {
-                    "font-size": "11px",
-                },
-                ".ag-center-cols-viewport": {
-                    "overflow-x": "auto !important",
-                    "overflow-y": "hidden",
-                },
-                ".ag-center-cols-container": {
-                    "min-width": "100% !important",
-                },
-                "#gridToolBar": {
-                    "padding-bottom": "0px !important",
+            grid_key = f"grid_pre_rota_{rota}"
+            if grid_key not in st.session_state:
+                st.session_state[grid_key] = str(uuid.uuid4())
+
+            grid_response = AgGrid(
+                df_formatado,
+                gridOptions=grid_options,
+                update_mode=GridUpdateMode.SELECTION_CHANGED,
+                fit_columns_on_grid_load=False,
+                width="100%",
+                height=400,
+                allow_unsafe_jscode=True,
+                key=st.session_state[grid_key],
+                data_return_mode="AS_INPUT",
+                theme=AgGridTheme.MATERIAL,
+                show_toolbar=False,
+                custom_css={
+                    ".ag-theme-material .ag-cell": {
+                        "font-size": "11px",
+                        "line-height": "18px",
+                        "border-right": "1px solid #ccc",
+                    },
+                    ".ag-theme-material .ag-row:last-child .ag-cell": {
+                        "border-bottom": "1px solid #ccc",
+                    },
+                    ".ag-theme-material .ag-header-cell": {
+                        "border-right": "1px solid #ccc",
+                        "border-bottom": "1px solid #ccc",
+                    },
+                    ".ag-theme-material .ag-root-wrapper": {
+                        "border": "1px solid black",
+                        "border-radius": "6px",
+                        "padding": "4px",
+                    },
+                    ".ag-theme-material .ag-header-cell-label": {
+                        "font-size": "11px",
+                    },
+                    ".ag-center-cols-viewport": {
+                        "overflow-x": "auto !important",
+                        "overflow-y": "hidden",
+                    },
+                    ".ag-center-cols-container": {
+                        "min-width": "100% !important",
+                    },
+                    "#gridToolBar": {
+                        "padding-bottom": "0px !important",
+                    }
                 }
-            }
-        )
+            )
 
-        selecionadas = pd.DataFrame(grid_response.get("selected_rows", []))
+            selecionadas = pd.DataFrame(grid_response.get("selected_rows", []))
 
-        if not selecionadas.empty:
-            st.warning(f"{len(selecionadas)} entrega(s) selecionada(s).")
+            if not selecionadas.empty:
+                st.warning(f"{len(selecionadas)} entrega(s) selecionada(s).")
 
-            confirmar = st.checkbox("Confirmar seleção de entregas", key=f"confirmar_rota_{rota}")
+                confirmar = st.checkbox("Confirmar seleção de entregas", key=f"confirmar_rota_{rota}")
 
-            col_conf, col_ret = st.columns(2)
-            with col_conf:
-                if st.button(f"✅ Enviar para Rota Confirmada", key=f"btn_confirma_rota_{rota}") and confirmar:
-                    try:
-                        df_selecionadas = selecionadas.copy()
-                        df_selecionadas = df_selecionadas.drop(columns=["_selectedRowNodeInfo"], errors="ignore")
-                        supabase.table("rotas_confirmadas").insert(df_selecionadas.to_dict(orient="records")).execute()
-                        st.success("Entregas confirmadas com sucesso!")
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Erro ao confirmar entregas: {e}")
+                col_conf, col_ret = st.columns(2)
+                with col_conf:
+                    if st.button(f"✅ Enviar para Rota Confirmada", key=f"btn_confirma_rota_{rota}") and confirmar:
+                        try:
+                            df_selecionadas = selecionadas.copy()
+                            df_selecionadas = df_selecionadas.drop(columns=["_selectedRowNodeInfo"], errors="ignore")
+                            supabase.table("rotas_confirmadas").insert(df_selecionadas.to_dict(orient="records")).execute()
+                            st.success("Entregas confirmadas com sucesso!")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Erro ao confirmar entregas: {e}")
 
-            with col_ret:
-                if st.button(f"❌ Retornar à Produção", key=f"btn_retorna_rota_{rota}") and confirmar:
-                    try:
-                        for ctrc in selecionadas["Serie_Numero_CTRC"]:
-                            supabase.table("rotas_confirmadas").delete().eq("Serie_Numero_CTRC", ctrc).execute()
-                        registros_confirmar = [{"Serie_Numero_CTRC": ctrc} for ctrc in selecionadas["Serie_Numero_CTRC"]]
-                        supabase.table("confirmadas_producao").insert(registros_confirmar).execute()
-                        st.success("Entregas retornadas à produção.")
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Erro ao retornar entregas: {e}")
+                with col_ret:
+                    if st.button(f"❌ Retornar à Produção", key=f"btn_retorna_rota_{rota}") and confirmar:
+                        try:
+                            for ctrc in selecionadas["Serie_Numero_CTRC"]:
+                                supabase.table("rotas_confirmadas").delete().eq("Serie_Numero_CTRC", ctrc).execute()
+                            registros_confirmar = [{"Serie_Numero_CTRC": ctrc} for ctrc in selecionadas["Serie_Numero_CTRC"]]
+                            supabase.table("confirmadas_producao").insert(registros_confirmar).execute()
+                            st.success("Entregas retornadas à produção.")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Erro ao retornar entregas: {e}")
 
 
 
