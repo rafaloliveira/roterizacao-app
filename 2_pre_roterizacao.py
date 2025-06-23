@@ -906,7 +906,7 @@ def aplicar_regras_e_preencher_tabelas():
 
 
 def pagina_confirmar_producao():
-    st.markdown("## Confirmar Entregas")
+    st.markdown("## Confirmar Produção")
 
     df = st.session_state.get("dados_sincronizados")
     if df is None or df.empty:
@@ -1163,44 +1163,28 @@ def pagina_confirmar_producao():
 ##########################################
 
 def pagina_aprovacao_diretoria():
-    st.title("📋 Aprovação da Diretoria")
+    st.markdown("## Aprovação da Diretoria")
 
-    # ✅ Verificação de permissão
     usuario = st.session_state.get("username")
     dados_usuario = supabase.table("usuarios").select("classe").eq("nome_usuario", usuario).execute().data
     if not dados_usuario or dados_usuario[0].get("classe") != "aprovador":
-        st.warning("🔒 Apenas usuários com classe **aprovador** podem acessar esta página.")
+        st.warning("🔒 Apenas usuários com classe 'aprovador' podem acessar esta página.")
         return
 
-    # ✅ Carregar dados uma única vez na sessão
-    if "dados_aprovacao" not in st.session_state:
-        dados = supabase.table("aprovacao_diretoria").select("*").execute().data
-        if not dados:
+    try:
+        df_aprovacao = pd.DataFrame(supabase.table("aprovacao_diretoria").select("*").execute().data)
+        if df_aprovacao.empty:
             st.info("Nenhuma entrega pendente para aprovação.")
             return
-        st.session_state["dados_aprovacao"] = pd.DataFrame(dados)
+    except Exception as e:
+        st.error(f"Erro ao carregar dados da aprovação: {e}")
+        return
 
-    df = st.session_state["dados_aprovacao"].copy()
+    df_aprovacao["Cliente Pagador"] = df_aprovacao["Cliente Pagador"].astype(str).str.strip().fillna("(Vazio)")
 
-    df["Cliente Pagador"] = df["Cliente Pagador"].astype(str).str.strip().fillna("(Vazio)")
+    def badge(label):
+        return f"<span style='background:#eef2f7;border-radius:12px;padding:6px 12px;margin:4px;color:inherit;display:inline-block;'>{label}</span>"
 
-    clientes = sorted(df["Cliente Pagador"].unique())
-    cliente_selecionado = st.selectbox("🔎 Selecione o Cliente:", clientes)
-
-    df_cliente = df[df["Cliente Pagador"] == cliente_selecionado].copy()
-
-    st.markdown(f"## 📦 Entregas do Cliente: {cliente_selecionado}")
-
-    # 🔢 Totais
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.metric("Qtd Entregas", len(df_cliente))
-    with col2:
-        st.metric("Peso Calculado", f'{df_cliente["Peso Calculado em Kg"].sum():,.2f}'.replace(",", "X").replace(".", ",").replace("X", "."))
-    with col3:
-        st.metric("Cubagem (m³)", f'{df_cliente["Cubagem em m³"].sum():,.2f}'.replace(",", "X").replace(".", ",").replace("X", "."))
-
-    # 🔥 Grid
     colunas_exibir = [
         "Serie_Numero_CTRC", "Rota", "Valor do Frete", "Cliente Pagador", "Chave CT-e",
         "Cliente Destinatario", "Cidade de Entrega", "Bairro do Destinatario", "Previsao de Entrega",
@@ -1208,97 +1192,101 @@ def pagina_aprovacao_diretoria():
         "Peso Real em Kg", "Peso Calculado em Kg", "Cubagem em m³", "Quantidade de Volumes"
     ]
 
-    formatter_brasileiro = JsCode("""
-        function(params) {
-            if (!params.value) return '';
-            return Number(params.value).toLocaleString('pt-BR', {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2
-            });
-        }
-    """)
-
     linha_destacar = JsCode("""
         function(params) {
             const status = params.data['Status'];
             const entrega = params.data['Entrega Programada'];
             const particularidade = params.data['Particularidade'];
-            if (status && status.toUpperCase() === 'AGENDAR' && (!entrega || entrega.toString().trim() === '')) {
-                return {
-                    'background-color': '#ffe0b2',
-                    'color': '#333'
-                };
+            if (status === 'AGENDAR' && (!entrega || entrega.trim() === '')) {
+                return { 'background-color': '#ffe0b2', 'color': '#333' };
             }
             if (particularidade && particularidade.trim() !== "") {
-                return {
-                    'background-color': '#fff59d',
-                    'color': '#333'
-                };
+                return { 'background-color': '#fff59d', 'color': '#333' };
             }
-            return {};
+            return null;
         }
     """)
 
-    gb = GridOptionsBuilder.from_dataframe(df_cliente[colunas_exibir])
-    gb.configure_default_column(minWidth=150)
-    gb.configure_selection("multiple", use_checkbox=True)
-    gb.configure_grid_options(paginationPageSize=15)
-    gb.configure_grid_options(alwaysShowHorizontalScroll=True)
-    gb.configure_grid_options(domLayout='normal')
-    gb.configure_grid_options(rowStyle={'font-size': '9px'})
-    gb.configure_grid_options(getRowStyle=linha_destacar)
+    for cliente in sorted(df_aprovacao["Cliente Pagador"].unique()):
+        df_cliente = df_aprovacao[df_aprovacao["Cliente Pagador"] == cliente].copy()
+        if df_cliente.empty:
+            continue
 
-    for col in ["Peso Real em Kg", "Peso Calculado em Kg", "Cubagem em m³", "Quantidade de Volumes", "Valor do Frete"]:
-        if col in df_cliente.columns:
-            gb.configure_column(col, type=["numericColumn"], valueFormatter=formatter_brasileiro)
+        st.markdown(f"""
+        <div style="margin-top:20px;padding:10px;background:#e8f0fe;border-left:4px solid #4285f4;border-radius:6px;display:inline-block;max-width:100%;">
+            <strong>Cliente:</strong> {cliente}
+        </div>
+        """, unsafe_allow_html=True)
 
-    grid_response = AgGrid(
-        df_cliente[colunas_exibir],
-        gridOptions=gb.build(),
-        update_mode=GridUpdateMode.SELECTION_CHANGED,
-        data_return_mode="AS_INPUT",
-        fit_columns_on_grid_load=False,
-        width="100%",
-        height=450,
-        allow_unsafe_jscode=True,
-        key=f"grid_{cliente_selecionado}",
-        theme=AgGridTheme.MATERIAL
-    )
+        st.markdown(
+            badge(f"{len(df_cliente)} entregas") +
+            badge(f"{formatar_brasileiro(df_cliente['Peso Calculado em Kg'].sum())} kg calc") +
+            badge(f"{formatar_brasileiro(df_cliente['Peso Real em Kg'].sum())} kg real") +
+            badge(f"R$ {formatar_brasileiro(df_cliente['Valor do Frete'].sum())}") +
+            badge(f"{formatar_brasileiro(df_cliente['Cubagem em m³'].sum())} m³") +
+            badge(f"{int(df_cliente['Quantidade de Volumes'].sum())} volumes"),
+            unsafe_allow_html=True
+        )
 
-    selecionadas = pd.DataFrame(grid_response.get("selected_rows", []))
+        with st.expander("🔽 Selecionar entregas", expanded=False):
+            df_formatado = df_cliente[[col for col in colunas_exibir if col in df_cliente.columns]].copy()
 
-    if not selecionadas.empty:
-        st.success(f"✅ {len(selecionadas)} entregas selecionadas.")
+            if not df_formatado.empty:
+                gb = GridOptionsBuilder.from_dataframe(df_formatado)
+                gb.configure_default_column(minWidth=150)
+                gb.configure_selection("multiple", use_checkbox=True)
+                gb.configure_grid_options(paginationPageSize=12)
+                gb.configure_grid_options(alwaysShowHorizontalScroll=True)
+                gb.configure_grid_options(rowStyle={'font-size': '9px'})
+                grid_options = gb.build()
+                grid_options["getRowStyle"] = linha_destacar
 
-        if st.button("🚀 Aprovar e enviar para Pré-Roteirização"):
-            try:
-                chaves = selecionadas["Serie_Numero_CTRC"].dropna().astype(str).str.strip().tolist()
+                grid_key_id = f"grid_aprovar_{cliente}"
+                if grid_key_id not in st.session_state:
+                    st.session_state[grid_key_id] = str(uuid.uuid4())
 
-                df_aprovar = df_cliente[df_cliente["Serie_Numero_CTRC"].isin(chaves)].copy()
+                grid_response = AgGrid(
+                    df_formatado,
+                    gridOptions=grid_options,
+                    update_mode=GridUpdateMode.SELECTION_CHANGED,
+                    fit_columns_on_grid_load=False,
+                    width="100%",
+                    height=400,
+                    allow_unsafe_jscode=True,
+                    key=st.session_state[grid_key_id],
+                    data_return_mode="AS_INPUT",
+                    theme=AgGridTheme.MATERIAL
+                )
 
-                df_aprovar = df_aprovar.replace([np.nan, np.inf, -np.inf], None)
+                selecionadas = pd.DataFrame(grid_response.get("selected_rows", []))
 
-                dados_aprovar = df_aprovar.to_dict(orient="records")
-                dados_aprovar = [d for d in dados_aprovar if d.get("Serie_Numero_CTRC")]
+                if not selecionadas.empty:
+                    if st.button(f"🚀 Aprovar entregas", key=f"btn_aprovar_{cliente}"):
+                        try:
+                            chaves = selecionadas["Serie_Numero_CTRC"].dropna().astype(str).str.strip().tolist()
+                            df_aprovar = df_cliente[df_cliente["Serie_Numero_CTRC"].isin(chaves)].copy()
 
-                if not dados_aprovar:
-                    st.warning("⚠️ Nenhum registro válido para aprovar.")
-                    return
+                            df_aprovar = df_aprovar.replace([np.nan, np.inf, -np.inf], None)
 
-                supabase.table("pre_roterizacao").insert(dados_aprovar).execute()
-                supabase.table("aprovacao_diretoria").delete().in_("Serie_Numero_CTRC", chaves).execute()
+                            for col in df_aprovar.select_dtypes(include=['datetime64[ns]']).columns:
+                                df_aprovar[col] = df_aprovar[col].dt.strftime('%Y-%m-%d %H:%M:%S')
 
-                st.session_state["dados_aprovacao"] = st.session_state["dados_aprovacao"][
-                    ~st.session_state["dados_aprovacao"]["Serie_Numero_CTRC"].isin(chaves)
-                ]
+                            registros = df_aprovar.to_dict(orient="records")
+                            registros = [r for r in registros if r.get("Serie_Numero_CTRC")]
 
-                st.success(f"✅ {len(chaves)} entregas aprovadas e movidas para Pré-Roteirização.")
-                st.rerun()
+                            supabase.table("pre_roterizacao").insert(registros).execute()
+                            supabase.table("aprovacao_diretoria").delete().in_("Serie_Numero_CTRC", chaves).execute()
 
-            except Exception as e:
-                st.error(f"❌ Erro ao aprovar entregas: {e}")
-    else:
-        st.info("🔔 Selecione entregas no grid acima para aprovar.")
+                            # Limpa sessão e força reload
+                            for key in list(st.session_state.keys()):
+                                if key.startswith("grid_aprovar_") or key.startswith("sucesso_"):
+                                    st.session_state.pop(key, None)
+                            st.success(f"✅ {len(chaves)} entregas aprovadas e enviadas para Pré-Roteirização.")
+                            st.rerun()
+
+                        except Exception as e:
+                            st.error(f"❌ Erro ao aprovar entregas: {e}")
+
 
 
 
