@@ -1085,7 +1085,7 @@ def pagina_confirmar_producao():
                             "overflow-y": "hidden",
                         },
                         ".ag-center-cols-container": {
-                            "min-width": "1800px !important",
+                            "min-width": "100% !important",
                         },
                         "#gridToolBar": {
                             "padding-bottom": "0px !important",
