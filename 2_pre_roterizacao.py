@@ -1464,14 +1464,24 @@ def pagina_aprovacao_diretoria():
 def pagina_pre_roterizacao():
     st.markdown("## Pré-Roteirização")
 
-    df = carregar_base_supabase()
-    if df is None or df.empty:
+    try:
+        df = carregar_base_supabase()
+
+        # 🔒 Apenas uma chamada ao Supabase aqui
+        dados_confirmados_raw = supabase.table("rotas_confirmadas").select("*").execute().data
+        dados_confirmados = pd.DataFrame(dados_confirmados_raw)
+
+    except Exception as e:
+        st.error(f"Erro ao consultar as tabelas do Supabase: {e}")
         return
 
-    # Remover entregas já confirmadas
-    dados_confirmados = pd.DataFrame(supabase.table("rotas_confirmadas").select("*").execute().data)
+    if df is None or df.empty:
+        st.info("Nenhuma entrega disponível.")
+        return
+
     if not dados_confirmados.empty:
         df = df[~df["Serie_Numero_CTRC"].isin(dados_confirmados["Serie_Numero_CTRC"].astype(str))]
+
 
     # Painel inicial de totais
     col1, col2, _ = st.columns([1, 1, 8])
@@ -1603,31 +1613,36 @@ def pagina_pre_roterizacao():
                 with col_conf:
                     if st.button(f"✅ Enviar para Rota Confirmada", key=f"btn_confirma_rota_{rota}") and confirmar:
                         try:
-                            df_selecionadas = selecionadas.copy()
-                            df_selecionadas = df_selecionadas.drop(columns=["_selectedRowNodeInfo"], errors="ignore")
+                            df_confirmar = selecionadas.copy()
+                            df_confirmar = df_confirmar.drop(columns=["_selectedRowNodeInfo"], errors="ignore")
+                            df_confirmar["Rota"] = rota
 
-                            # 🔧 Garante que a coluna 'Rota' será enviada
-                            df_selecionadas["Rota"] = rota
+                            # Garante consistência de datas e valores nulos
+                            df_confirmar = df_confirmar.replace([np.nan, np.inf, -np.inf], None)
+                            for col in df_confirmar.select_dtypes(include=["datetime64[ns]"]).columns:
+                                df_confirmar[col] = df_confirmar[col].dt.strftime("%Y-%m-%d %H:%M:%S")
 
-                            supabase.table("rotas_confirmadas").insert(df_selecionadas.to_dict(orient="records")).execute()
+                            registros = df_confirmar.to_dict(orient="records")
+                            registros = [r for r in registros if r.get("Serie_Numero_CTRC")]
 
+                            # ✅ Insere na tabela final
+                            supabase.table("rotas_confirmadas").insert(registros).execute()
 
-                            st.success("Entregas confirmadas com sucesso!")
+                            # ✅ Remove da pré-roterização (como no caso da diretoria)
+                            chaves = [r["Serie_Numero_CTRC"] for r in registros]
+                            supabase.table("pre_roterizacao").delete().in_("Serie_Numero_CTRC", chaves).execute()
+
+                            # ✅ Limpa estados de grid e força reload
+                            for key in list(st.session_state.keys()):
+                                if key.startswith("grid_pre_rota_") or key.startswith("confirmar_rota_") or key.startswith("sucesso_"):
+                                    st.session_state.pop(key, None)
+
+                            st.success(f"✅ {len(chaves)} entregas enviadas para Rotas Confirmadas.")
                             st.rerun()
-                        except Exception as e:
-                            st.error(f"Erro ao confirmar entregas: {e}")
 
-                with col_ret:
-                    if st.button(f"❌ Retornar à Produção", key=f"btn_retorna_rota_{rota}") and confirmar:
-                        try:
-                            for ctrc in selecionadas["Serie_Numero_CTRC"]:
-                                supabase.table("rotas_confirmadas").delete().eq("Serie_Numero_CTRC", ctrc).execute()
-                            registros_confirmar = [{"Serie_Numero_CTRC": ctrc} for ctrc in selecionadas["Serie_Numero_CTRC"]]
-                            supabase.table("confirmadas_producao").insert(registros_confirmar).execute()
-                            st.success("Entregas retornadas à produção.")
-                            st.rerun()
                         except Exception as e:
-                            st.error(f"Erro ao retornar entregas: {e}")
+                            st.error(f"❌ Erro ao confirmar entregas: {e}")
+
 
 
 ##########################################
