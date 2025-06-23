@@ -1237,7 +1237,7 @@ def pagina_aprovacao_diretoria():
                 gb.configure_selection("multiple", use_checkbox=True)
                 gb.configure_grid_options(paginationPageSize=12)
                 gb.configure_grid_options(alwaysShowHorizontalScroll=True)
-                gb.configure_grid_options(rowStyle={'font-size': '9px'})
+                gb.configure_grid_options(rowStyle={'font-size': '11px'})
                 grid_options = gb.build()
                 grid_options["getRowStyle"] = linha_destacar
 
@@ -1255,7 +1255,40 @@ def pagina_aprovacao_diretoria():
                     allow_unsafe_jscode=True,
                     key=st.session_state[grid_key_id],
                     data_return_mode="AS_INPUT",
-                    theme=AgGridTheme.MATERIAL
+                    theme=AgGridTheme.MATERIAL,
+                    show_toolbar=False,
+                    custom_css={
+                        ".ag-theme-material .ag-cell": {
+                            "font-size": "11px",
+                            "line-height": "18px",
+                            "border-right": "1px solid #ccc",
+                        },
+                        ".ag-theme-material .ag-row:last-child .ag-cell": {
+                            "border-bottom": "1px solid #ccc",
+                        },
+                        ".ag-theme-material .ag-header-cell": {
+                            "border-right": "1px solid #ccc",
+                            "border-bottom": "1px solid #ccc",
+                        },
+                        ".ag-theme-material .ag-root-wrapper": {
+                            "border": "1px solid black",
+                            "border-radius": "6px",
+                            "padding": "4px",
+                        },
+                        ".ag-theme-material .ag-header-cell-label": {
+                            "font-size": "11px",
+                        },
+                        ".ag-center-cols-viewport": {
+                            "overflow-x": "auto !important",
+                            "overflow-y": "hidden",
+                        },
+                        ".ag-center-cols-container": {
+                            "min-width": "100% !important",
+                        },
+                        "#gridToolBar": {
+                            "padding-bottom": "0px !important",
+                        }
+                    }
                 )
 
                 selecionadas = pd.DataFrame(grid_response.get("selected_rows", []))
@@ -1286,6 +1319,7 @@ def pagina_aprovacao_diretoria():
 
                         except Exception as e:
                             st.error(f"❌ Erro ao aprovar entregas: {e}")
+
 
 
 
