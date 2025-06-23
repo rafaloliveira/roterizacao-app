@@ -1003,17 +1003,23 @@ def pagina_confirmar_producao():
         if df_cliente.empty:
             continue
 
-        with st.expander(f"📦 Cliente: {cliente}", expanded=False):
-            st.markdown(
-                badge(f"{len(df_cliente)} entregas") +
-                badge(f"{formatar_brasileiro(df_cliente['Peso Calculado em Kg'].sum())} kg calc") +
-                badge(f"{formatar_brasileiro(df_cliente['Peso Real em Kg'].sum())} kg real") +
-                badge(f"R$ {formatar_brasileiro(df_cliente['Valor do Frete'].sum())}") +
-                badge(f"{formatar_brasileiro(df_cliente['Cubagem em m³'].sum())} m³") +
-                badge(f"{int(df_cliente['Quantidade de Volumes'].sum())} volumes"),
-                unsafe_allow_html=True
-            )
+        st.markdown(f"""
+    <div style="margin-top:20px;padding:10px;background:#e8f0fe;border-left:4px solid #4285f4;border-radius:6px;display:inline-block;max-width:100%;">
+        <strong>Cliente:</strong> {cliente}
+    </div>
+""", unsafe_allow_html=True)
 
+        st.markdown(
+            badge(f"{len(df_cliente)} entregas") +
+            badge(f"{formatar_brasileiro(df_cliente['Peso Calculado em Kg'].sum())} kg calc") +
+            badge(f"{formatar_brasileiro(df_cliente['Peso Real em Kg'].sum())} kg real") +
+            badge(f"R$ {formatar_brasileiro(df_cliente['Valor do Frete'].sum())}") +
+            badge(f"{formatar_brasileiro(df_cliente['Cubagem em m³'].sum())} m³") +
+            badge(f"{int(df_cliente['Quantidade de Volumes'].sum())} volumes"),
+            unsafe_allow_html=True
+        )
+
+        with st.expander("🔽 Selecionar entregas", expanded=False):
             df_formatado = df_cliente[[col for col in colunas_exibir if col in df_cliente.columns]].copy()
 
         gb = GridOptionsBuilder.from_dataframe(df_formatado)
