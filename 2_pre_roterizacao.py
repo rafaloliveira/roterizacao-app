@@ -905,118 +905,74 @@ def aplicar_regras_e_preencher_tabelas():
 ##########################################
 
 
-####################################
-# PAGINA CONFIRMAR PRODUÇÃO
-#####################################
-
 def pagina_confirmar_producao():
-  
-    st.title("🏭 Confirmar Produção")
+    st.title("🚛 Confirmar Produção")
 
+    # ✅ Dados vindos da sincronização (com fallback)
+    df = st.session_state.get("dados_sincronizados")
+    if df is None or df.empty:
+        df = carregar_base_supabase()
 
-    def carregar_entregas_base():
-        # Carregamento da tabela confirmadas_producao diretamente
-        base = pd.DataFrame(supabase.table("confirmadas_producao").select("*").execute().data)
-
-        # Função auxiliar para encontrar nomes de colunas semelhantes
-        def encontrar_coluna_similar(df, nome_alvo):
-            nome_alvo_clean = nome_alvo.strip().lower()
-            colunas_encontradas = []
-
-            for col in df.columns:
-                col_clean = str(col).strip().lower()
-                if col_clean == nome_alvo_clean:
-                    return col  # retorna a coluna real
-                colunas_encontradas.append(col_clean)
-
-            st.warning(f"⚠️ Coluna '{nome_alvo}' não encontrada. Colunas disponíveis: {df.columns.tolist()}")
-            return None
-
-
-        # Verificar e corrigir nome da coluna "Previsao de Entrega"
-        col_previsao = encontrar_coluna_similar(base, "Previsao de Entrega")
-        if not col_previsao:
-            st.error("❌ A coluna 'Previsao de Entrega' está ausente da tabela 'confirmadas_producao'. Verifique os dados sincronizados.")
-            return pd.DataFrame()
-
-        base[col_previsao] = pd.to_datetime(base[col_previsao], errors='coerce')
-        base.rename(columns={col_previsao: "Previsao de Entrega"}, inplace=True)
-
-        # Remover entregas que já estão na aprovacao_diretoria
-        aprovadas = pd.DataFrame(supabase.table("aprovacao_diretoria").select("Serie_Numero_CTRC").execute().data)
-        if not aprovadas.empty:
-            aprovadas["Serie_Numero_CTRC"] = aprovadas["Serie_Numero_CTRC"].astype(str).str.strip()
-            base = base[~base["Serie_Numero_CTRC"].isin(aprovadas["Serie_Numero_CTRC"])]
-
-        if base.empty:
-            return base
-
-        # Verificar se colunas essenciais estão presentes
-        colunas_essenciais = [
-            "Valor do Frete", "Status", "Entrega Programada",
-            "CNPJ Destinatario", "Cidade de Entrega", "Bairro do Destinatario", "Cliente Pagador"
-        ]
-        faltando = [col for col in colunas_essenciais if col not in base.columns]
-        if faltando:
-            st.error(f"❌ As seguintes colunas estão ausentes da base: {', '.join(faltando)}")
-            return pd.DataFrame()
-
-        # Normalização de campos
-        base['CNPJ Destinatario'] = base['CNPJ Destinatario'].astype(str).str.strip()
-        base['Cidade de Entrega'] = base['Cidade de Entrega'].astype(str).str.strip().str.upper()
-        base['Bairro do Destinatario'] = base['Bairro do Destinatario'].astype(str).str.strip().str.upper()
-        base['Cliente Pagador'] = base['Cliente Pagador'].fillna("(Vazio)").astype(str).str.strip()
-
-        if 'Codigo da Ultima Ocorrencia' not in base.columns:
-            base['Codigo da Ultima Ocorrencia'] = None
-
-        # Aplicar rotas
-        rotas = pd.DataFrame(supabase.table("Rotas").select("*").execute().data)
-        rotas_poa = pd.DataFrame(supabase.table("RotasPortoAlegre").select("*").execute().data)
-
-        rotas['Cidade de Entrega'] = rotas['Cidade de Entrega'].astype(str).str.strip().str.upper()
-        rotas['Bairro do Destinatario'] = rotas['Bairro do Destinatario'].astype(str).str.strip().str.upper()
-        rotas_dict = dict(zip(rotas['Cidade de Entrega'], rotas['Rota']))
-
-        rotas_poa['Cidade de Entrega'] = rotas_poa['Cidade de Entrega'].astype(str).str.strip().str.upper()
-        rotas_poa['Bairro do Destinatario'] = rotas_poa['Bairro do Destinatario'].astype(str).str.strip().str.upper()
-        rotas_poa_dict = dict(zip(rotas_poa['Bairro do Destinatario'], rotas_poa['Rota']))
-
-        def definir_rota(row):
-            if row.get('Cidade de Entrega') == 'PORTO ALEGRE':
-                return rotas_poa_dict.get(row.get('Bairro do Destinatario'), '')
-            return rotas_dict.get(row.get('Cidade de Entrega'), '')
-
-        base['Rota'] = base.apply(definir_rota, axis=1)
-        base['Indice'] = base.index
-
-
-
-       # Garantir que não haja valores inválidos em 'Previsao de Entrega'
-        base = base[pd.notnull(base['Previsao de Entrega'])]
-
-        # Retornar tudo que não está na aprovacao_diretoria (já foi filtrado acima)
-        return base.copy()
-    
-
-    # ✅ Carregar dados
-    # Inicializa o estado se não existir ainda
-    if "rerun_confirmacao" not in st.session_state:
-        st.session_state["rerun_confirmacao"] = False
-
-    # Executa rerun apenas uma vez após a alteração
-    if st.session_state["rerun_confirmacao"]:
-        st.session_state["rerun_confirmacao"] = False
-        st.rerun()
-
-
-    df = carregar_entregas_base()
-    if df.empty:
-        st.info("Nenhuma entrega pendente para confirmação.")
+    if df is None or df.empty:
+        st.warning("⚠️ Nenhuma entrega encontrada na base de dados.")
         return
 
-    total_clientes = df["Cliente Pagador"].nunique()
-    total_entregas = len(df)
+    colunas_necessarias = [
+        "Chave CT-e", "Cliente Pagador", "Cliente Destinatario",
+        "Cidade de Entrega", "Bairro do Destinatario"
+    ]
+    colunas_faltantes = [col for col in colunas_necessarias if col not in df.columns]
+    if colunas_faltantes:
+        st.error(f"❌ As seguintes colunas não existem na base carregada: {', '.join(colunas_faltantes)}")
+        return
+
+    df = df.dropna(subset=colunas_necessarias)
+    if df.empty:
+        st.info("Nenhuma entrega pendente para confirmação após filtragem.")
+        return
+
+    # 🔄 Recarrega a tabela confirmadas_producao apenas se necessário
+    try:
+        if st.session_state.get("reload_confirmadas_producao"):
+            st.session_state.pop("reload_confirmadas_producao")
+            df_confirmadas = pd.DataFrame(
+                supabase.table("confirmadas_producao").select("*").execute().data
+            )
+            st.session_state["df_confirmadas_cache"] = df_confirmadas
+        else:
+            df_confirmadas = st.session_state.get("df_confirmadas_cache")
+            if df_confirmadas is None:
+                df_confirmadas = pd.DataFrame(
+                    supabase.table("confirmadas_producao").select("*").execute().data
+                )
+                st.session_state["df_confirmadas_cache"] = df_confirmadas
+    except Exception as e:
+        st.error(f"Erro ao carregar entregas confirmadas: {e}")
+        return
+
+    if df_confirmadas is None or df_confirmadas.empty:
+        st.info("Nenhuma entrega confirmada na produção.")
+        return
+
+    # Conversão de data e filtro de obrigatórias
+    df["Previsao de Entrega"] = pd.to_datetime(df["Previsao de Entrega"], format="%d-%m-%Y", errors='coerce')
+    d_mais_1 = pd.Timestamp.now().normalize() + pd.Timedelta(days=1)
+
+    obrigatorias = df[
+        (df["Previsao de Entrega"] < d_mais_1) |
+        ((df["Status"] == "AGENDAR") & (df["Entrega Programada"].isnull() | (df["Entrega Programada"].str.strip() == "")))
+    ].copy()
+
+    if not df_confirmadas.empty:
+        obrigatorias = obrigatorias[~obrigatorias["Serie_Numero_CTRC"].isin(df_confirmadas["Serie_Numero_CTRC"])]
+
+    df_exibir = df_confirmadas[
+        ~df_confirmadas["Serie_Numero_CTRC"].isin(obrigatorias["Serie_Numero_CTRC"])
+    ].copy()
+
+
+    total_clientes = df_exibir["Cliente Pagador"].nunique()
+    total_entregas = len(df_exibir)
 
     col1, col2 = st.columns(2)
     with col1:
@@ -1035,26 +991,32 @@ def pagina_confirmar_producao():
         )
 
     colunas_exibir = [
-        "Serie_Numero_CTRC","Rota","Valor do Frete", "Cliente Pagador", "Chave CT-e", "Cliente Destinatario",
-        "Cidade de Entrega", "Bairro do Destinatario", "Previsao de Entrega",
-        "Numero da Nota Fiscal", "Status", "Entrega Programada",
-        "Particularidade", "Codigo da Ultima Ocorrencia",
-        "Peso Real em Kg", "Peso Calculado em Kg", "Cubagem em m³",
-        "Quantidade de Volumes"
+        "Serie_Numero_CTRC", "Rota", "Valor do Frete", "Cliente Pagador", "Chave CT-e",
+        "Cliente Destinatario", "Cidade de Entrega", "Bairro do Destinatario", "Previsao de Entrega",
+        "Numero da Nota Fiscal", "Status", "Entrega Programada", "Particularidade", "Codigo da Ultima Ocorrencia",
+        "Peso Real em Kg", "Peso Calculado em Kg", "Cubagem em m³", "Quantidade de Volumes"
     ]
 
-    formatter_brasileiro = JsCode("""
-        function(params) {
-            if (!params.value) return '';
-            return Number(params.value).toLocaleString('pt-BR', {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2
-            });
+    linha_destacar = JsCode("""
+    function(params) {
+        const status = params.data.Status;
+        const entregaProg = params.data["Entrega Programada"];
+        const particularidade = params.data.Particularidade;
+
+        if (status === "AGENDAR" && (entregaProg === null || entregaProg === undefined || entregaProg.trim() === "")) {
+            return { 'background-color': 'orange', 'color': 'black', 'font-weight': 'bold' };
         }
+        if (particularidade !== null && particularidade !== undefined && particularidade.trim() !== "") {
+            return { 'background-color': 'yellow', 'color': 'black', 'font-weight': 'bold' };
+        }
+        return null;
+    }
     """)
 
-    for cliente in sorted(df["Cliente Pagador"].fillna("(Vazio)").unique()):
-        df_cliente = df[df["Cliente Pagador"].fillna("(Vazio)") == cliente].copy()
+    for cliente in sorted(df_exibir["Cliente Pagador"].fillna("(Vazio)").unique()):
+        df_cliente = df_exibir[df_exibir["Cliente Pagador"].fillna("(Vazio)") == cliente].copy()
+        if df_cliente.empty:
+            continue
 
         total_entregas = len(df_cliente)
         peso_calculado = df_cliente['Peso Calculado em Kg'].sum()
@@ -1064,91 +1026,103 @@ def pagina_confirmar_producao():
         volumes = df_cliente['Quantidade de Volumes'].sum()
 
         st.markdown(f"""
-        <div style=\"background-color: #444; padding: 8px 16px; border-radius: 6px; margin-top: 20px; margin-bottom: 8px;\">
-            <div style=\"color: white; margin: 0; font-size: 15px; font-weight: bold;\">🏭 Cliente: {cliente}</div>
-        </div>
+            <div style="background-color: #444; padding: 8px 16px; border-radius: 6px; margin-top: 20px; margin-bottom: 8px;">
+                <div style="color: white; margin: 0; font-size: 15px; font-weight: bold;">🏭 Cliente: {cliente}</div>
+            </div>
 
-        <div style=\"display: flex; flex-wrap: wrap; gap: 20px; font-size: 16px; margin-bottom: 20px;\">
-            <div><strong>Quantidade de Entregas:</strong> {total_entregas}</div>
-            <div><strong>Peso Calculado (kg):</strong> {formatar_brasileiro(peso_calculado)}</div>
-            <div><strong>Peso Real (kg):</strong> {formatar_brasileiro(peso_real)}</div>
-            <div><strong>Valor do Frete:</strong> R$ {formatar_brasileiro(valor_frete)}</div>
-            <div><strong>Cubagem (m³):</strong> {formatar_brasileiro(cubagem)}</div>
-            <div><strong>Volumes:</strong> {int(volumes) if pd.notnull(volumes) else 0}</div>
-        </div>
+            <div style="display: flex; flex-wrap: wrap; gap: 20px; font-size: 16px; margin-bottom: 20px;">
+                <div><strong>Quantidade de Entregas:</strong> {total_entregas}</div>
+                <div><strong>Peso Calculado (kg):</strong> {formatar_brasileiro(peso_calculado)}</div>
+                <div><strong>Peso Real (kg):</strong> {formatar_brasileiro(peso_real)}</div>
+                <div><strong>Valor do Frete:</strong> R$ {formatar_brasileiro(valor_frete)}</div>
+                <div><strong>Cubagem (m³):</strong> {formatar_brasileiro(cubagem)}</div>
+                <div><strong>Volumes:</strong> {int(volumes) if pd.notnull(volumes) else 0}</div>
+            </div>
         """, unsafe_allow_html=True)
 
         df_formatado = df_cliente[[col for col in colunas_exibir if col in df_cliente.columns]].copy()
 
-        linha_destacar = JsCode("""
-        function(params) {
-            if (params.data['Particularidade'] && params.data['Particularidade'].trim() !== '') {
-                return {
-                    'backgroundColor': '#808000',
-                    'fontWeight': 'bold'
-                }
-            } else if (params.data['Status'] === 'AGENDAR' &&
-                    (!params.data['Entrega Programada'] || params.data['Entrega Programada'].trim() === '')) {
-                return {
-                    'backgroundColor': '#8B4513',
-                    'fontWeight': 'bold'
-                }
-            }
-            return {};
-        }
-        """)
-        
-
+        # 🔹 Configuração da grid
         gb = GridOptionsBuilder.from_dataframe(df_formatado)
         gb.configure_default_column(minWidth=150)
         gb.configure_selection('multiple', use_checkbox=True)
         gb.configure_grid_options(paginationPageSize=12)
-        gb.configure_grid_options(domLayout="autoHeight")
         gb.configure_grid_options(alwaysShowHorizontalScroll=True)
-        gb.configure_grid_options(suppressHorizontalScroll=False)
-        gb.configure_grid_options(suppressScrollOnNewData=False)
-
+        # ❌ NÃO usar autoHeight
         grid_options = gb.build()
-        grid_options["getRowStyle"] = linha_destacar  # ✅ aplica o destaque de linhas
+        grid_options["getRowStyle"] = linha_destacar
 
-        # Renderiza o grid
+        # 🔹 Cache do grid
+        grid_key_id = f"grid_confirmar_{cliente}"
+        if st.session_state.get("reload_confirmadas_producao", False):
+            st.session_state[grid_key_id] = str(uuid.uuid4())
+        elif grid_key_id not in st.session_state:
+            st.session_state[grid_key_id] = str(uuid.uuid4())
+
+        # 🔹 Injeção de JS para eliminar o padding do gridToolBar (ambiente produção)
+        st.markdown("""
+        <script>
+        function removerPaddingToolbar() {
+        const toolbar = document.getElementById("gridToolBar");
+        if (toolbar) {
+            toolbar.style.paddingBottom = "0px";
+            toolbar.style.marginBottom = "0px";
+        }
+        }
+        new MutationObserver(removerPaddingToolbar)
+        .observe(document.body, { childList: true, subtree: true });
+        setInterval(removerPaddingToolbar, 500);
+        </script>
+        """, unsafe_allow_html=True)
+
+        # 🔹 Renderiza a grid com altura ideal confirmada
         with st.container():
-            st.markdown("<div style='overflow-x:auto;'>", unsafe_allow_html=True)
-            
-
-            # Gera um key único se ainda não existir para o cliente
-            grid_key_id = f"grid_confirmar_{cliente}"
-            if grid_key_id not in st.session_state:
-                st.session_state[grid_key_id] = str(uuid.uuid4())
-
+            st.markdown("<div style='overflow-x: auto;'>", unsafe_allow_html=True)
             grid_response = AgGrid(
                 df_formatado,
                 gridOptions=grid_options,
                 update_mode=GridUpdateMode.SELECTION_CHANGED,
                 fit_columns_on_grid_load=False,
-                height=500,
                 width=1500,
+                height=400,  # ✅ valor ideal comprovado
                 allow_unsafe_jscode=True,
-                key=st.session_state[grid_key_id],  # <-- aqui está a mudança
-                data_return_mode="AS_INPUT"
+                key=st.session_state[grid_key_id],
+                data_return_mode="AS_INPUT",
+                theme="streamlit",
+                show_toolbar=False  # ✅ remove o toolbar problemático
             )
-
             st.markdown("</div>", unsafe_allow_html=True)
 
+
+
+
+        # 🔹 Seleção
         selecionadas = pd.DataFrame(grid_response.get("selected_rows", []))
+        session_key_selecionadas = f"selecionadas_{cliente}"
+        session_key_sucesso = f"sucesso_{cliente}"
 
         if not selecionadas.empty:
-            st.success(f"{len(selecionadas)} entregas selecionadas para {cliente}.")
+            st.session_state[session_key_selecionadas] = selecionadas
+            st.session_state[session_key_sucesso] = f"{len(selecionadas)} entregas selecionadas para {cliente}."
+        else:
+            st.session_state.pop(session_key_selecionadas, None)
+            st.session_state.pop(session_key_sucesso, None)
 
+        if st.session_state.get(session_key_sucesso):
+            st.success(st.session_state[session_key_sucesso])
 
 
             if st.button(f"✅ Confirmar entregas de {cliente}", key=f"botao_{cliente}"):
                 try:
+                    selecionadas = st.session_state.get(session_key_selecionadas, pd.DataFrame())
+                    if selecionadas.empty:
+                        st.warning("⚠️ Nenhuma entrega selecionada.")
+                        return
+
                     chaves = selecionadas["Serie_Numero_CTRC"].dropna().astype(str).str.strip().tolist()
                     df_cliente["Serie_Numero_CTRC"] = df_cliente["Serie_Numero_CTRC"].astype(str).str.strip()
-
                     df_confirmar = df_cliente[df_cliente["Serie_Numero_CTRC"].isin(chaves)].copy()
-                    colunas_validas = [col for col in colunas_exibir if col != "Serie_Numero_CTRC"]
+                    colunas_validas = [col for col in colunas_exibir if col != "Serie_Numero_CTRC" and col in df_confirmar.columns]
                     df_confirmar = df_confirmar[["Serie_Numero_CTRC"] + colunas_validas]
                     df_confirmar = df_confirmar.replace([np.nan, np.inf, -np.inf], None)
 
@@ -1164,32 +1138,37 @@ def pagina_confirmar_producao():
                         if not dados_confirmar:
                             st.warning("⚠️ Nenhum registro com 'Serie_Numero_CTRC' válido.")
                         else:
-                            # Inserir no destino
-                            supabase.table("aprovacao_diretoria").insert(dados_confirmar).execute()
+                            resultado_insercao = supabase.table("aprovacao_diretoria").insert(dados_confirmar).execute()
+                            chaves_inseridas = [
+                                str(item.get("Serie_Numero_CTRC")).strip()
+                                for item in resultado_insercao.data
+                                if item.get("Serie_Numero_CTRC")
+                            ]
 
-                            # Remover da origem
-                            supabase.table("confirmadas_producao") \
-                                .delete() \
-                                .in_("Serie_Numero_CTRC", chaves) \
-                                .execute()
+                            if set(chaves_inseridas) == set(chaves):
+                                try:
+                                    supabase.table("confirmadas_producao").delete().in_("Serie_Numero_CTRC", chaves_inseridas).execute()
 
-                            # Verificar se ainda há registros
-                            check_response = supabase.table("confirmadas_producao") \
-                                .select("Serie_Numero_CTRC") \
-                                .in_("Serie_Numero_CTRC", chaves) \
-                                .execute()
+                                    # Limpa caches e seleções para forçar reload total
+                                    st.session_state.pop("df_confirmadas_cache", None)
+                                    st.session_state.pop("dados_sincronizados", None)
+                                    for key in list(st.session_state.keys()):
+                                        if key.startswith("grid_confirmar_") or key.startswith("selecionadas_") or key.startswith("sucesso_"):
+                                            st.session_state.pop(key, None)
 
-                            if check_response.data:
-                                chaves_nao_removidas = [r["Serie_Numero_CTRC"] for r in check_response.data]
-                                st.warning(f"⚠️ Algumas entregas não foram removidas da base: {chaves_nao_removidas}")
+                                    # Gatilho para recarregar a tabela confirmadas_producao
+                                    st.session_state["reload_confirmadas_producao"] = True
+
+                                    st.success(f"{len(chaves_inseridas)} entregas confirmadas e movidas para Aprovação Diretoria.")
+
+                                    st.rerun()
+
+                                except Exception as delete_error:
+                                    st.error(f"Erro ao deletar entregas: {delete_error}")
                             else:
-                                st.success("✅ Entregas confirmadas e removidas com sucesso!")
-                                st.rerun() 
-
-                            st.session_state["rerun_confirmacao"] = True
-
+                                st.error("❌ Nem todas as entregas foram inseridas corretamente em 'aprovacao_diretoria'. Nenhuma foi removida.")
                 except Exception as e:
-                    st.error(f"❌ Erro ao confirmar entregas: {e}")
+                    st.error(f"Erro ao processar confirmação: {e}")
 
 
 
