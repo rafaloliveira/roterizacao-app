@@ -1139,6 +1139,8 @@ def pagina_confirmar_producao():
 
                                 # ✅ Define flag e força recarregamento da página
                                 st.session_state["reload_confirmadas_producao"] = True
+                                st.session_state.pop("dados_sincronizados", None)
+
                                 st.rerun()
 
                             else:
