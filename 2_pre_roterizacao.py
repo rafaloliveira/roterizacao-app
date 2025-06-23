@@ -637,7 +637,7 @@ def carregar_base_supabase():
         confirmadas = confirmadas[colunas_comuns]
         obrigatorias = obrigatorias[colunas_comuns]
 
-        df_final = obrigatorias.copy()
+        df_final = base.copy()
         df_final['Indice'] = df_final.index
         
 
