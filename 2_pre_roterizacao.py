@@ -1316,6 +1316,23 @@ def pagina_aprovacao_diretoria():
         st.metric("Total de Entregas", len(df_exibir))
 
 
+
+    linha_destacar = JsCode("""
+    function(params) {
+        const status = params.data.Status;
+        const entregaProg = params.data["Entrega Programada"];
+        const particularidade = params.data.Particularidade;
+        if (status === "AGENDAR" && (!entregaProg || entregaProg.trim() === "")) {
+            return { 'background-color': '#ffe0b2', 'color': '#333' };
+        }
+        if (particularidade && particularidade.trim() !== "") {
+            return { 'background-color': '#fff59d', 'color': '#333' };
+        }
+        return null;
+    }
+    """)
+
+
     def badge(label):
         return f"<span style='background:#eef2f7;border-radius:12px;padding:6px 12px;margin:4px;color:inherit;display:inline-block;'>{label}</span>"
 
