@@ -1112,10 +1112,10 @@ def pagina_confirmar_producao():
                             for tentativa in range(2):
                                 try:
                                     resultado_insercao = supabase.table("aprovacao_diretoria").insert(dados_confirmar).execute()
-                                    break  # sucesso
+                                    break
                                 except Exception as e:
                                     if tentativa == 1:
-                                        raise e  # segunda falha, lança erro
+                                        raise e
                                     st.warning("Erro temporário ao inserir. Tentando novamente em 2s...")
                                     time.sleep(2)
 
@@ -1137,11 +1137,10 @@ def pagina_confirmar_producao():
                                         st.warning("Erro temporário ao remover entregas. Tentando novamente em 2s...")
                                         time.sleep(2)
 
-                                st.session_state.pop("df_confirmadas_cache", None)
-                                st.session_state.pop("dados_sincronizados", None)
+                                # ✅ Define flag e força recarregamento da página
                                 st.session_state["reload_confirmadas_producao"] = True
-                                st.success(f"{len(chaves_inseridas)} entregas confirmadas para {cliente}.")
                                 st.rerun()
+
                             else:
                                 st.error("❌ Nem todas as entregas foram inseridas corretamente.")
                         except Exception as e:
