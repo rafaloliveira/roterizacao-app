@@ -931,22 +931,22 @@ def pagina_confirmar_producao():
         return
 
     try:
-        if st.session_state.get("reload_confirmadas_producao"):
-            st.session_state.pop("reload_confirmadas_producao")
+        # ✅ Captura a flag e remove do session_state
+        recarregar = st.session_state.pop("reload_confirmadas_producao", False)
+
+        # ✅ Recarrega do Supabase se necessário
+        if recarregar or "df_confirmadas_cache" not in st.session_state:
             df_confirmadas = pd.DataFrame(
                 supabase.table("confirmadas_producao").select("*").execute().data
             )
             st.session_state["df_confirmadas_cache"] = df_confirmadas
         else:
-            df_confirmadas = st.session_state.get("df_confirmadas_cache")
-            if df_confirmadas is None:
-                df_confirmadas = pd.DataFrame(
-                    supabase.table("confirmadas_producao").select("*").execute().data
-                )
-                st.session_state["df_confirmadas_cache"] = df_confirmadas
+            df_confirmadas = st.session_state["df_confirmadas_cache"]
+
     except Exception as e:
         st.error(f"Erro ao carregar entregas confirmadas: {e}")
         return
+
 
     if df_confirmadas is None or df_confirmadas.empty:
         st.info("Nenhuma entrega confirmada na produção.")
