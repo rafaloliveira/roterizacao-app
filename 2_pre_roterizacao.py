@@ -1085,6 +1085,8 @@ def pagina_confirmar_producao():
                 }
             )
 
+            import time
+
             selecionadas = pd.DataFrame(grid_response.get("selected_rows", []))
             if not selecionadas.empty:
                 if st.button(f"✅ Confirmar entregas de {cliente}", key=f"botao_{cliente}"):
@@ -1100,11 +1102,35 @@ def pagina_confirmar_producao():
                         dados_confirmar = df_confirmar.to_dict(orient="records")
                         dados_confirmar = [d for d in dados_confirmar if d.get("Serie_Numero_CTRC")]
 
-                        resultado_insercao = supabase.table("aprovacao_diretoria").insert(dados_confirmar).execute()
-                        chaves_inseridas = [str(item.get("Serie_Numero_CTRC")).strip() for item in resultado_insercao.data if item.get("Serie_Numero_CTRC")]
+                        # Tentativa com retry (até 2 tentativas)
+                        for tentativa in range(2):
+                            try:
+                                resultado_insercao = supabase.table("aprovacao_diretoria").insert(dados_confirmar).execute()
+                                break  # sucesso
+                            except Exception as e:
+                                if tentativa == 1:
+                                    raise e  # segunda falha, lança erro
+                                st.warning("Erro temporário ao inserir. Tentando novamente em 2s...")
+                                time.sleep(2)
+
+                        chaves_inseridas = [
+                            str(item.get("Serie_Numero_CTRC")).strip()
+                            for item in resultado_insercao.data
+                            if item.get("Serie_Numero_CTRC")
+                        ]
 
                         if set(chaves_inseridas) == set(chaves):
-                            supabase.table("confirmadas_producao").delete().in_("Serie_Numero_CTRC", chaves_inseridas).execute()
+                            # Tentativa com retry para DELETE
+                            for tentativa in range(2):
+                                try:
+                                    supabase.table("confirmadas_producao").delete().in_("Serie_Numero_CTRC", chaves_inseridas).execute()
+                                    break
+                                except Exception as e:
+                                    if tentativa == 1:
+                                        raise e
+                                    st.warning("Erro temporário ao remover entregas. Tentando novamente em 2s...")
+                                    time.sleep(2)
+
                             st.session_state.pop("df_confirmadas_cache", None)
                             st.session_state.pop("dados_sincronizados", None)
                             st.session_state["reload_confirmadas_producao"] = True
@@ -1114,6 +1140,7 @@ def pagina_confirmar_producao():
                             st.error("❌ Nem todas as entregas foram inseridas corretamente.")
                     except Exception as e:
                         st.error(f"Erro ao processar confirmação: {e}")
+
 
 
 
