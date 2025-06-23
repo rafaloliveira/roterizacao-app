@@ -897,15 +897,22 @@ def aplicar_regras_e_preencher_tabelas():
         st.error(f"[ERRO] Regras de sincronização: {e}")
 
 
-
-###########################################
-# PÁGINA Confirmar Produção
-
 ##########################################
-def pagina_confirmar_producao():
-    st.markdown("## 🚚 Confirmar Entregas")
+# PÁGINA Confirmar Produção
+##########################################
 
-    # ✅ Carregar dados
+def pagina_confirmar_producao():
+    st.markdown("""
+    <style>
+        html, body, [data-testid="stAppViewContainer"] {
+            font-size: 0.90rem !important;
+        }
+    </style>
+    """, unsafe_allow_html=True)
+
+    st.title("🚛 Confirmar Produção")
+
+    # 🔄 Carregar dados
     df = st.session_state.get("dados_sincronizados")
     if df is None or df.empty:
         df = carregar_base_supabase()
@@ -914,22 +921,22 @@ def pagina_confirmar_producao():
         st.warning("⚠️ Nenhuma entrega encontrada na base de dados.")
         return
 
-    # 🔎 Verificar colunas obrigatórias
-    obrigatorias = [
+    # ✅ Validar colunas obrigatórias
+    colunas_obrigatorias = [
         "Chave CT-e", "Cliente Pagador", "Cliente Destinatario",
         "Cidade de Entrega", "Bairro do Destinatario"
     ]
-    faltantes = [col for col in obrigatorias if col not in df.columns]
-    if faltantes:
-        st.error(f"❌ Faltam colunas: {', '.join(faltantes)}")
+    colunas_faltantes = [col for col in colunas_obrigatorias if col not in df.columns]
+    if colunas_faltantes:
+        st.error(f"❌ As seguintes colunas estão ausentes na base: {', '.join(colunas_faltantes)}")
         return
 
-    df = df.dropna(subset=obrigatorias)
+    df = df.dropna(subset=colunas_obrigatorias)
     if df.empty:
         st.info("Nenhuma entrega pendente após filtragem.")
         return
 
-    # ✅ Carregar entregas já confirmadas
+    # 🔄 Carregar tabela de confirmadas_producao com cache
     try:
         if st.session_state.get("reload_confirmadas_producao"):
             st.session_state.pop("reload_confirmadas_producao")
@@ -948,30 +955,41 @@ def pagina_confirmar_producao():
         st.error(f"Erro ao carregar entregas confirmadas: {e}")
         return
 
-    if df_confirmadas.empty:
+    if df_confirmadas is None or df_confirmadas.empty:
         st.info("Nenhuma entrega confirmada na produção.")
         return
 
-    # ✅ Filtrar dados para exibir
-    df["Cliente Pagador"] = df["Cliente Pagador"].astype(str).str.strip()
-    clientes = sorted(df["Cliente Pagador"].unique())
+    # 🔥 Tratamento de datas
+    df["Previsao de Entrega"] = pd.to_datetime(
+        df["Previsao de Entrega"], format="%d-%m-%Y", errors='coerce'
+    )
+    d_mais_1 = pd.Timestamp.now().normalize() + pd.Timedelta(days=1)
 
-    cliente_selecionado = st.selectbox("🔎 Selecione o Cliente:", clientes)
+    obrigatorias = df[
+        (df["Previsao de Entrega"] < d_mais_1) |
+        ((df["Status"] == "AGENDAR") & (
+            df["Entrega Programada"].isnull() | (df["Entrega Programada"].str.strip() == "")
+        ))
+    ].copy()
 
-    df_cliente = df[df["Cliente Pagador"] == cliente_selecionado].copy()
+    if not df_confirmadas.empty:
+        obrigatorias = obrigatorias[
+            ~obrigatorias["Serie_Numero_CTRC"].isin(df_confirmadas["Serie_Numero_CTRC"])
+        ]
 
-    st.markdown(f"## 📦 Entregas do Cliente: {cliente_selecionado}")
+    df_exibir = df_confirmadas[
+        ~df_confirmadas["Serie_Numero_CTRC"].isin(obrigatorias["Serie_Numero_CTRC"])
+    ].copy()
 
-    # 🔢 Totais
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.metric("Qtd Entregas", len(df_cliente))
-    with col2:
-        st.metric("Peso Calculado (kg)", f"{df_cliente['Peso Calculado em Kg'].sum():,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
-    with col3:
-        st.metric("Cubagem (m³)", f"{df_cliente['Cubagem em m³'].sum():,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
+    # ✅ Totais gerais
+    total_clientes = df_exibir["Cliente Pagador"].nunique()
+    total_entregas = len(df_exibir)
 
-    # ✅ Configurar grid
+    col1, col2 = st.columns(2)
+    col1.metric("Total de Clientes", total_clientes)
+    col2.metric("Total de Entregas", total_entregas)
+
+    # 📋 Colunas a exibir no grid
     colunas_exibir = [
         "Serie_Numero_CTRC", "Rota", "Valor do Frete", "Cliente Pagador", "Chave CT-e",
         "Cliente Destinatario", "Cidade de Entrega", "Bairro do Destinatario", "Previsao de Entrega",
@@ -980,91 +998,139 @@ def pagina_confirmar_producao():
     ]
 
     linha_destacar = JsCode("""
-        function(params) {
-            const status = params.data.Status;
-            const entregaProg = params.data["Entrega Programada"];
-            const particularidade = params.data.Particularidade;
-            if (status === "AGENDAR" && (!entregaProg || entregaProg.trim() === "")) {
-                return { 'background-color': '#ffe0b2', 'color': '#333' };
-            }
-            if (particularidade && particularidade.trim() !== "") {
-                return { 'background-color': '#fff59d', 'color': '#333' };
-            }
-            return null;
+    function(params) {
+        const status = params.data.Status;
+        const entregaProg = params.data["Entrega Programada"];
+        const particularidade = params.data.Particularidade;
+        if (status === "AGENDAR" && (!entregaProg || entregaProg.trim() === "")) {
+            return { 'background-color': '#ffe0b2', 'color': '#333' };
         }
+        if (particularidade && particularidade.trim() !== "") {
+            return { 'background-color': '#fff59d', 'color': '#333' };
+        }
+        return null;
+    }
     """)
 
-    formatter_brasileiro = JsCode("""
-        function(params) {
-            if (!params.value) return '';
-            return Number(params.value).toLocaleString('pt-BR', {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2
-            });
-        }
-    """)
+    for cliente in sorted(df_exibir["Cliente Pagador"].fillna("(Vazio)").unique()):
+        df_cliente = df_exibir[
+            df_exibir["Cliente Pagador"].fillna("(Vazio)") == cliente
+        ].copy()
 
-    gb = GridOptionsBuilder.from_dataframe(df_cliente[colunas_exibir])
-    gb.configure_default_column(minWidth=150)
-    gb.configure_selection('multiple', use_checkbox=True)
-    gb.configure_grid_options(paginationPageSize=15)
-    gb.configure_grid_options(alwaysShowHorizontalScroll=True)
-    gb.configure_grid_options(domLayout='normal')
-    gb.configure_grid_options(rowStyle={'font-size': '9px'})
-    gb.configure_grid_options(getRowStyle=linha_destacar)
+        if df_cliente.empty:
+            continue
 
-    for col in ["Peso Real em Kg", "Peso Calculado em Kg", "Cubagem em m³", "Quantidade de Volumes", "Valor do Frete"]:
-        if col in df_cliente.columns:
-            gb.configure_column(col, type=["numericColumn"], valueFormatter=formatter_brasileiro)
+        st.markdown(f"### Cliente: {cliente}")
 
-    grid_response = AgGrid(
-        df_cliente[colunas_exibir],
-        gridOptions=gb.build(),
-        update_mode=GridUpdateMode.SELECTION_CHANGED,
-        data_return_mode="AS_INPUT",
-        fit_columns_on_grid_load=False,
-        width="100%",
-        height=450,
-        allow_unsafe_jscode=True,
-        key=f"grid_confirmar_{cliente_selecionado}",
-        theme=AgGridTheme.MATERIAL
-    )
+        st.markdown(
+            f"<div style='background:#f0f2f6;border-radius:8px;padding:6px 12px;margin-bottom:8px;'>"
+            f"<b>{len(df_cliente)} entregas</b> • "
+            f"<b>{formatar_brasileiro(df_cliente['Peso Calculado em Kg'].sum())} kg calc</b> • "
+            f"<b>{formatar_brasileiro(df_cliente['Peso Real em Kg'].sum())} kg real</b> • "
+            f"<b>R$ {formatar_brasileiro(df_cliente['Valor do Frete'].sum())}</b> • "
+            f"<b>{formatar_brasileiro(df_cliente['Cubagem em m³'].sum())} m³</b> • "
+            f"<b>{int(df_cliente['Quantidade de Volumes'].sum())} volumes</b>"
+            f"</div>",
+            unsafe_allow_html=True
+        )
 
-    selecionadas = pd.DataFrame(grid_response.get("selected_rows", []))
+        # 🔧 Proteção contra erro de coluna inexistente
+        colunas_validas = [col for col in colunas_exibir if col in df_cliente.columns]
 
-    if not selecionadas.empty:
-        st.success(f"✅ {len(selecionadas)} entregas selecionadas.")
+        gb = GridOptionsBuilder.from_dataframe(df_cliente[colunas_validas])
+        gb.configure_default_column(minWidth=150)
+        gb.configure_selection('multiple', use_checkbox=True)
+        gb.configure_grid_options(paginationPageSize=12)
+        gb.configure_grid_options(alwaysShowHorizontalScroll=True)
+        gb.configure_grid_options(rowStyle={'font-size': '8px'})
+        gb.configure_grid_options(domLayout='normal')
+        grid_options = gb.build()
+        grid_options["getRowStyle"] = linha_destacar
 
-        if st.button("🚀 Confirmar e enviar para Aprovação Diretoria"):
-            try:
-                chaves = selecionadas["Serie_Numero_CTRC"].dropna().astype(str).str.strip().tolist()
+        grid_key_id = f"grid_confirmar_{cliente}"
+        if grid_key_id not in st.session_state:
+            st.session_state[grid_key_id] = str(uuid.uuid4())
 
-                df_confirmar = df_cliente[df_cliente["Serie_Numero_CTRC"].isin(chaves)].copy()
+        grid_response = AgGrid(
+            df_cliente[colunas_validas],
+            gridOptions=grid_options,
+            update_mode=GridUpdateMode.SELECTION_CHANGED,
+            fit_columns_on_grid_load=False,
+            width="100%",
+            height=400,
+            allow_unsafe_jscode=True,
+            key=st.session_state[grid_key_id],
+            data_return_mode="AS_INPUT",
+            theme=AgGridTheme.MATERIAL,
+            show_toolbar=False,
+        )
 
-                df_confirmar = df_confirmar.replace([np.nan, np.inf, -np.inf], None)
+        selecionadas = pd.DataFrame(grid_response.get("selected_rows", []))
+        session_key_selecionadas = f"selecionadas_{cliente}"
+        session_key_sucesso = f"sucesso_{cliente}"
 
-                dados_confirmar = df_confirmar.to_dict(orient="records")
-                dados_confirmar = [d for d in dados_confirmar if d.get("Serie_Numero_CTRC")]
+        if not selecionadas.empty:
+            st.session_state[session_key_selecionadas] = selecionadas
+            st.session_state[session_key_sucesso] = f"{len(selecionadas)} entregas selecionadas para {cliente}."
+        else:
+            st.session_state.pop(session_key_selecionadas, None)
+            st.session_state.pop(session_key_sucesso, None)
 
-                if not dados_confirmar:
-                    st.warning("⚠️ Nenhum registro válido para confirmar.")
-                    return
+        if st.session_state.get(session_key_sucesso):
+            st.success(st.session_state[session_key_sucesso])
 
-                supabase.table("aprovacao_diretoria").insert(dados_confirmar).execute()
-                supabase.table("confirmadas_producao").delete().in_("Serie_Numero_CTRC", chaves).execute()
+            if st.button(f"✅ Confirmar entregas de {cliente}", key=f"botao_{cliente}"):
+                try:
+                    selecionadas = st.session_state.get(session_key_selecionadas, pd.DataFrame())
+                    if selecionadas.empty:
+                        st.warning("⚠️ Nenhuma entrega selecionada.")
+                        return
 
-                # Atualizar dados locais
-                st.session_state["df_confirmadas_cache"] = st.session_state["df_confirmadas_cache"][
-                    ~st.session_state["df_confirmadas_cache"]["Serie_Numero_CTRC"].isin(chaves)
-                ]
+                    chaves = selecionadas["Serie_Numero_CTRC"].dropna().astype(str).str.strip().tolist()
+                    df_cliente["Serie_Numero_CTRC"] = df_cliente["Serie_Numero_CTRC"].astype(str).str.strip()
+                    df_confirmar = df_cliente[df_cliente["Serie_Numero_CTRC"].isin(chaves)].copy()
 
-                st.success(f"✅ {len(chaves)} entregas confirmadas e movidas para Aprovação Diretoria.")
-                st.rerun()
+                    colunas_validas = [col for col in colunas_exibir if col != "Serie_Numero_CTRC" and col in df_confirmar.columns]
+                    df_confirmar = df_confirmar[["Serie_Numero_CTRC"] + colunas_validas]
+                    df_confirmar = df_confirmar.replace([np.nan, np.inf, -np.inf], None)
 
-            except Exception as e:
-                st.error(f"❌ Erro ao confirmar entregas: {e}")
-    else:
-        st.info("🔔 Selecione entregas no grid acima para confirmar.")
+                    for col in df_confirmar.select_dtypes(include=['datetime64[ns]']).columns:
+                        df_confirmar[col] = df_confirmar[col].dt.strftime('%Y-%m-%d %H:%M:%S')
+
+                    if df_confirmar.empty or df_confirmar["Serie_Numero_CTRC"].isnull().all():
+                        st.warning("⚠️ Nenhuma entrega válida para confirmar.")
+                    else:
+                        dados_confirmar = df_confirmar.to_dict(orient="records")
+                        dados_confirmar = [d for d in dados_confirmar if d.get("Serie_Numero_CTRC")]
+
+                        resultado_insercao = supabase.table("aprovacao_diretoria").insert(dados_confirmar).execute()
+                        chaves_inseridas = [
+                            str(item.get("Serie_Numero_CTRC")).strip()
+                            for item in resultado_insercao.data
+                            if item.get("Serie_Numero_CTRC")
+                        ]
+
+                        if set(chaves_inseridas) == set(chaves):
+                            try:
+                                supabase.table("confirmadas_producao").delete().in_("Serie_Numero_CTRC", chaves_inseridas).execute()
+
+                                for key in list(st.session_state.keys()):
+                                    if key.startswith("grid_confirmar_") or key.startswith("selecionadas_") or key.startswith("sucesso_"):
+                                        st.session_state.pop(key, None)
+
+                                st.session_state.pop("df_confirmadas_cache", None)
+                                st.session_state.pop("dados_sincronizados", None)
+                                st.session_state["reload_confirmadas_producao"] = True
+
+                                st.success(f"✅ {len(chaves_inseridas)} entregas confirmadas e movidas para Aprovação Diretoria.")
+                                st.rerun()
+
+                            except Exception as delete_error:
+                                st.error(f"Erro ao deletar entregas: {delete_error}")
+                        else:
+                            st.error("❌ Nem todas as entregas foram inseridas corretamente. Nenhuma foi removida.")
+                except Exception as e:
+                    st.error(f"Erro ao processar confirmação: {e}")
 
 
 
