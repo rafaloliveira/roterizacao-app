@@ -1597,11 +1597,11 @@ def pagina_pre_roterizacao():
             if not selecionadas.empty:
                 st.warning(f"{len(selecionadas)} entrega(s) selecionada(s).")
 
-                confirmar = st.checkbox("Confirmar seleção de entregas", key=f"confirmar_rota_{rota}")
+                #confirmar = st.checkbox("Confirmar seleção de entregas", key=f"confirmar_rota_{rota}")
 
                 col_conf, col_ret = st.columns(2)
                 with col_conf:
-                    if st.button(f"✅ Enviar para Rota Confirmada", key=f"btn_confirma_rota_{rota}") and confirmar:
+                    #if st.button(f"✅ Enviar para Rota Confirmada", key=f"btn_confirma_rota_{rota}") and confirmar:
                         try:
                             df_selecionadas = selecionadas.copy()
                             df_selecionadas = df_selecionadas.drop(columns=["_selectedRowNodeInfo"], errors="ignore")
@@ -1612,7 +1612,7 @@ def pagina_pre_roterizacao():
                             st.error(f"Erro ao confirmar entregas: {e}")
 
                 with col_ret:
-                    if st.button(f"❌ Retornar à Produção", key=f"btn_retorna_rota_{rota}") and confirmar:
+                    #if st.button(f"❌ Retornar à Produção", key=f"btn_retorna_rota_{rota}") and confirmar:
                         try:
                             for ctrc in selecionadas["Serie_Numero_CTRC"]:
                                 supabase.table("rotas_confirmadas").delete().eq("Serie_Numero_CTRC", ctrc).execute()
