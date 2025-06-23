@@ -963,9 +963,15 @@ def pagina_confirmar_producao():
     if not df_confirmadas.empty:
         obrigatorias = obrigatorias[~obrigatorias["Serie_Numero_CTRC"].isin(df_confirmadas["Serie_Numero_CTRC"])]
 
+    df_aprovadas = pd.DataFrame(
+        supabase.table("aprovacao_diretoria").select("Serie_Numero_CTRC").execute().data
+    )
+    chaves_aprovadas = df_aprovadas["Serie_Numero_CTRC"].dropna().unique().tolist()
+
     df_exibir = df_confirmadas[
-        ~df_confirmadas["Serie_Numero_CTRC"].isin(obrigatorias["Serie_Numero_CTRC"])
+        ~df_confirmadas["Serie_Numero_CTRC"].isin(chaves_aprovadas)
     ].copy()
+
 
     col1, col2, _ = st.columns([1, 1, 8])
     with col1:
