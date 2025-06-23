@@ -1538,6 +1538,7 @@ def pagina_pre_roterizacao():
             gb.configure_selection('multiple', use_checkbox=True)
             gb.configure_grid_options(paginationPageSize=12)
             gb.configure_grid_options(alwaysShowHorizontalScroll=True)
+            grid_options["getRowStyle"] = linha_destacar
             grid_options = gb.build()
 
             grid_key = f"grid_pre_rota_{rota}"
