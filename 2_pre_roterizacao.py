@@ -1770,7 +1770,7 @@ def pagina_rotas_confirmadas():
                 selecionadas = pd.DataFrame(grid_response.get("selected_rows", []))
 
                 if not selecionadas.empty:
-                    st.warning(f"{len(selecionadas)} entrega(s) selecionada(s). Clique abaixo para remover da rota confirmada.")
+                    #st.warning(f"{len(selecionadas)} entrega(s) selecionada(s). Clique abaixo para remover da rota confirmada.")
 
                     confirmar = st.checkbox("Confirmar remoção das entregas selecionadas", key=f"confirmar_remocao_{rota}")
                     if st.button(f"❌ Remover selecionadas da Rota {rota}", key=f"remover_{rota}") and confirmar:
