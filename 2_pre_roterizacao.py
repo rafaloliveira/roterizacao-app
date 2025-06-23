@@ -1182,6 +1182,15 @@ def pagina_aprovacao_diretoria():
 
     df_aprovacao["Cliente Pagador"] = df_aprovacao["Cliente Pagador"].astype(str).str.strip().fillna("(Vazio)")
 
+
+    df_exibir = df_aprovacao.copy()
+    col1, col2, _ = st.columns([1, 1, 8])
+    with col1:
+        st.metric("Total de Clientes", df_exibir["Cliente Pagador"].nunique())
+    with col2:
+        st.metric("Total de Entregas", len(df_exibir))
+
+
     def badge(label):
         return f"<span style='background:#eef2f7;border-radius:12px;padding:6px 12px;margin:4px;color:inherit;display:inline-block;'>{label}</span>"
 
