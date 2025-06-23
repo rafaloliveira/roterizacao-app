@@ -1028,6 +1028,8 @@ def pagina_confirmar_producao():
         with st.expander("🔽 Selecionar entregas", expanded=False):
             df_formatado = df_cliente[[col for col in colunas_exibir if col in df_cliente.columns]].copy()
 
+
+        if not df_formatado.empty:    
             gb = GridOptionsBuilder.from_dataframe(df_formatado)
             gb.configure_default_column(minWidth=150)
             gb.configure_selection('multiple', use_checkbox=True)
@@ -1095,7 +1097,7 @@ def pagina_confirmar_producao():
 
             selecionadas = pd.DataFrame(grid_response.get("selected_rows", []))
             if not selecionadas.empty:
-                if st.button(f"✅ Confirmar entregas de {cliente}", key=f"botao_{cliente}"):
+                if st.button(f"✅ Confirmar entregas"):
                     try:
                         chaves = selecionadas["Serie_Numero_CTRC"].dropna().astype(str).str.strip().tolist()
                         df_cliente["Serie_Numero_CTRC"] = df_cliente["Serie_Numero_CTRC"].astype(str).str.strip()
