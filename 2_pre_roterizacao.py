@@ -1227,20 +1227,23 @@ def pagina_aprovacao_diretoria():
 
     df["Cliente Pagador"] = df["Cliente Pagador"].astype(str).str.strip().fillna("(Vazio)")
 
-    clientes = ["Todos"] + sorted(df["Cliente Pagador"].unique())
-    cliente_selecionado = st.selectbox("🔎 Filtrar por Cliente:", clientes)
-    if cliente_selecionado != "Todos":
-        df = df[df["Cliente Pagador"] == cliente_selecionado]
+    clientes = sorted(df["Cliente Pagador"].unique())
+    cliente_selecionado = st.selectbox("🔎 Selecione o Cliente:", clientes)
 
-    total_clientes = df["Cliente Pagador"].nunique()
-    total_entregas = len(df)
+    df_cliente = df[df["Cliente Pagador"] == cliente_selecionado].copy()
 
-    col1, col2 = st.columns(2)
+    st.markdown(f"## 📦 Entregas do Cliente: {cliente_selecionado}")
+
+    # 🔢 Totais
+    col1, col2, col3 = st.columns(3)
     with col1:
-        st.metric("Total de Clientes", total_clientes)
+        st.metric("Qtd Entregas", len(df_cliente))
     with col2:
-        st.metric("Total de Entregas", total_entregas)
+        st.metric("Peso Calculado", f'{df_cliente["Peso Calculado em Kg"].sum():,.2f}'.replace(",", "X").replace(".", ",").replace("X", "."))
+    with col3:
+        st.metric("Cubagem (m³)", f'{df_cliente["Cubagem em m³"].sum():,.2f}'.replace(",", "X").replace(".", ",").replace("X", "."))
 
+    # 🔥 Grid
     colunas_exibir = [
         "Serie_Numero_CTRC", "Rota", "Valor do Frete", "Cliente Pagador", "Chave CT-e",
         "Cliente Destinatario", "Cidade de Entrega", "Bairro do Destinatario", "Previsao de Entrega",
@@ -1279,91 +1282,67 @@ def pagina_aprovacao_diretoria():
         }
     """)
 
-    for cliente in sorted(df["Cliente Pagador"].unique()):
-        df_cliente = df[df["Cliente Pagador"] == cliente].copy()
+    gb = GridOptionsBuilder.from_dataframe(df_cliente[colunas_exibir])
+    gb.configure_default_column(minWidth=150)
+    gb.configure_selection("multiple", use_checkbox=True)
+    gb.configure_grid_options(paginationPageSize=15)
+    gb.configure_grid_options(alwaysShowHorizontalScroll=True)
+    gb.configure_grid_options(domLayout='normal')
+    gb.configure_grid_options(rowStyle={'font-size': '9px'})
+    gb.configure_grid_options(getRowStyle=linha_destacar)
 
-        st.subheader(f"📦 Cliente: {cliente}")
+    for col in ["Peso Real em Kg", "Peso Calculado em Kg", "Cubagem em m³", "Quantidade de Volumes", "Valor do Frete"]:
+        if col in df_cliente.columns:
+            gb.configure_column(col, type=["numericColumn"], valueFormatter=formatter_brasileiro)
 
-        gb = GridOptionsBuilder.from_dataframe(df_cliente[colunas_exibir])
-        gb.configure_default_column(minWidth=150)
-        gb.configure_selection("multiple", use_checkbox=True)
-        gb.configure_grid_options(paginationPageSize=12)
-        gb.configure_grid_options(alwaysShowHorizontalScroll=True)
-        gb.configure_grid_options(domLayout='normal')
-        gb.configure_grid_options(rowStyle={'font-size': '9px'})
-        gb.configure_grid_options(getRowStyle=linha_destacar)
+    grid_response = AgGrid(
+        df_cliente[colunas_exibir],
+        gridOptions=gb.build(),
+        update_mode=GridUpdateMode.SELECTION_CHANGED,
+        data_return_mode="AS_INPUT",
+        fit_columns_on_grid_load=False,
+        width="100%",
+        height=450,
+        allow_unsafe_jscode=True,
+        key=f"grid_{cliente_selecionado}",
+        theme=AgGridTheme.MATERIAL
+    )
 
-        for col in ["Peso Real em Kg", "Peso Calculado em Kg", "Cubagem em m³", "Quantidade de Volumes", "Valor do Frete"]:
-            if col in df_cliente.columns:
-                gb.configure_column(col, type=["numericColumn"], valueFormatter=formatter_brasileiro)
+    selecionadas = pd.DataFrame(grid_response.get("selected_rows", []))
 
-        grid_key_id = f"grid_aprovacao_{cliente}"
+    if not selecionadas.empty:
+        st.success(f"✅ {len(selecionadas)} entregas selecionadas.")
 
-        grid_response = AgGrid(
-            df_cliente[colunas_exibir],
-            gridOptions=gb.build(),
-            update_mode=GridUpdateMode.SELECTION_CHANGED,
-            data_return_mode="AS_INPUT",
-            fit_columns_on_grid_load=False,
-            width="100%",
-            height=400,
-            allow_unsafe_jscode=True,
-            key=grid_key_id,
-            theme=AgGridTheme.MATERIAL
-        )
+        if st.button("🚀 Aprovar e enviar para Pré-Roteirização"):
+            try:
+                chaves = selecionadas["Serie_Numero_CTRC"].dropna().astype(str).str.strip().tolist()
 
-        selecionadas = pd.DataFrame(grid_response.get("selected_rows", []))
+                df_aprovar = df_cliente[df_cliente["Serie_Numero_CTRC"].isin(chaves)].copy()
 
-        session_key_selecionadas = f"selecionadas_{cliente}"
-        session_key_sucesso = f"sucesso_{cliente}"
+                df_aprovar = df_aprovar.replace([np.nan, np.inf, -np.inf], None)
 
-        if not selecionadas.empty:
-            st.session_state[session_key_selecionadas] = selecionadas
-            st.session_state[session_key_sucesso] = f"{len(selecionadas)} entregas selecionadas para {cliente}."
-        else:
-            st.session_state.pop(session_key_selecionadas, None)
-            st.session_state.pop(session_key_sucesso, None)
+                dados_aprovar = df_aprovar.to_dict(orient="records")
+                dados_aprovar = [d for d in dados_aprovar if d.get("Serie_Numero_CTRC")]
 
-        if st.session_state.get(session_key_sucesso):
-            st.success(st.session_state[session_key_sucesso])
+                if not dados_aprovar:
+                    st.warning("⚠️ Nenhum registro válido para aprovar.")
+                    return
 
-            if st.button(f"✅ Aprovar entregas de {cliente}", key=f"botao_{cliente}"):
-                try:
-                    selecionadas = st.session_state.get(session_key_selecionadas, pd.DataFrame())
-                    if selecionadas.empty:
-                        st.warning("⚠️ Nenhuma entrega selecionada.")
-                        return
+                supabase.table("pre_roterizacao").insert(dados_aprovar).execute()
+                supabase.table("aprovacao_diretoria").delete().in_("Serie_Numero_CTRC", chaves).execute()
 
-                    chaves = selecionadas["Serie_Numero_CTRC"].dropna().astype(str).str.strip().tolist()
+                st.session_state["dados_aprovacao"] = st.session_state["dados_aprovacao"][
+                    ~st.session_state["dados_aprovacao"]["Serie_Numero_CTRC"].isin(chaves)
+                ]
 
-                    df_aprovar = df_cliente[df_cliente["Serie_Numero_CTRC"].isin(chaves)].copy()
+                st.success(f"✅ {len(chaves)} entregas aprovadas e movidas para Pré-Roteirização.")
+                st.rerun()
 
-                    df_aprovar = df_aprovar.replace([np.nan, np.inf, -np.inf], None)
+            except Exception as e:
+                st.error(f"❌ Erro ao aprovar entregas: {e}")
+    else:
+        st.info("🔔 Selecione entregas no grid acima para aprovar.")
 
-                    dados_aprovar = df_aprovar.to_dict(orient="records")
-                    dados_aprovar = [d for d in dados_aprovar if d.get("Serie_Numero_CTRC")]
-
-                    if not dados_aprovar:
-                        st.warning("⚠️ Nenhum registro válido para aprovar.")
-                        return
-
-                    supabase.table("pre_roterizacao").insert(dados_aprovar).execute()
-                    supabase.table("aprovacao_diretoria").delete().in_("Serie_Numero_CTRC", chaves).execute()
-
-                    # Remove também do dataframe local da sessão
-                    st.session_state["dados_aprovacao"] = st.session_state["dados_aprovacao"][
-                        ~st.session_state["dados_aprovacao"]["Serie_Numero_CTRC"].isin(chaves)
-                    ]
-
-                    for key in list(st.session_state.keys()):
-                        if key.startswith("grid_aprovacao_") or key.startswith("selecionadas_") or key.startswith("sucesso_"):
-                            st.session_state.pop(key, None)
-
-                    st.success(f"✅ {len(chaves)} entregas aprovadas e movidas para Pré-Roteirização.")
-                    st.rerun()
-
-                except Exception as e:
-                    st.error(f"❌ Erro ao aprovar entregas: {e}")
 
 
 
