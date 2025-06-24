@@ -1140,29 +1140,35 @@ def pagina_confirmar_producao():
         </div>
         """, unsafe_allow_html=True)
 
-        st.markdown(
-            badge(f"{len(df_cliente)} entregas") +
-            badge(f"{formatar_brasileiro(df_cliente['Peso Calculado em Kg'].sum())} kg calc") +
-            badge(f"{formatar_brasileiro(df_cliente['Peso Real em Kg'].sum())} kg real") +
-            badge(f"R$ {formatar_brasileiro(df_cliente['Valor do Frete'].sum())}") +
-            badge(f"{formatar_brasileiro(df_cliente['Cubagem em m³'].sum())} m³") +
-            badge(f"{int(df_cliente['Quantidade de Volumes'].sum())} volumes"),
-            unsafe_allow_html=True
-        )
+            # Badge e checkbox master
+        col_badge, col_check = st.columns([5, 1])
+        with col_badge:
+            st.markdown(
+                badge(f"{len(df_cliente)} entregas") +
+                badge(f"{formatar_brasileiro(df_cliente['Peso Calculado em Kg'].sum())} kg calc") +
+                badge(f"{formatar_brasileiro(df_cliente['Peso Real em Kg'].sum())} kg real") +
+                badge(f"R$ {formatar_brasileiro(df_cliente['Valor do Frete'].sum())}") +
+                badge(f"{formatar_brasileiro(df_cliente['Cubagem em m³'].sum())} m³") +
+                badge(f"{int(df_cliente['Quantidade de Volumes'].sum())} volumes"),
+                unsafe_allow_html=True
+            )
+
+        marcar_todas = col_check.checkbox("Marcar todas", key=f"marcar_todas_{cliente}")
 
         with st.expander("🔽 Selecionar entregas", expanded=False):
             df_formatado = df_cliente[[col for col in colunas_exibir if col in df_cliente.columns]].copy()
 
-
             if not df_formatado.empty:    
                 gb = GridOptionsBuilder.from_dataframe(df_formatado)
                 gb.configure_default_column(minWidth=150)
-                gb.configure_selection('multiple', use_checkbox=True)
+                gb.configure_selection('multiple', use_checkbox=True, pre_selected_rows=list(range(len(df_formatado))) if marcar_todas else [])
                 gb.configure_grid_options(paginationPageSize=12)
                 gb.configure_grid_options(alwaysShowHorizontalScroll=True)
                 gb.configure_grid_options(rowStyle={'font-size': '8px'})
                 grid_options = gb.build()
                 grid_options["getRowStyle"] = linha_destacar
+
+
 
                 grid_key_id = f"grid_confirmar_{cliente}"
                 if st.session_state.get("reload_confirmadas_producao", False):
