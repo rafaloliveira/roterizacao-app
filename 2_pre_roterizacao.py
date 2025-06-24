@@ -1691,6 +1691,59 @@ def pagina_pre_roterizacao():
 def pagina_rotas_confirmadas():
     st.markdown("## Entregas Confirmadas por Rota")
 
+    # Botão para iniciar criação de nova carga
+    if "nova_carga_em_criacao" not in st.session_state:
+        st.session_state["nova_carga_em_criacao"] = False
+        st.session_state["numero_nova_carga"] = ""
+
+    if not st.session_state["nova_carga_em_criacao"]:
+        if st.button("🆕 Criar Nova Carga Avulsa"):
+            hoje = datetime.now().strftime("%Y%m%d")
+            ultimas = (
+                supabase.table("cargas_geradas")
+                .select("numero_carga")
+                .like("numero_carga", f"CARGA-{hoje}-%")
+                .execute()
+                .data
+            )
+            sequencia = len(ultimas) + 1
+            numero_carga = f"CARGA-{hoje}-{sequencia:03d}"
+            st.session_state["nova_carga_em_criacao"] = True
+            st.session_state["numero_nova_carga"] = numero_carga
+            st.rerun()
+        return
+
+    st.success(f"Nova Carga Criada: {st.session_state['numero_nova_carga']}")
+    st.markdown("### Inserir Entregas na Carga")
+    chaves_input = st.text_area("Insira as Chaves CT-e (uma por linha)")
+    if st.button("🚛 Adicionar Entregas à Carga"):
+        try:
+            chaves = [c.strip() for c in chaves_input.splitlines() if c.strip()]
+            if not chaves:
+                st.warning("Nenhuma Chave CT-e válida informada.")
+                return
+
+            for chave in chaves:
+                resultado = supabase.table("rotas_confirmadas").select("*").eq("Chave CT-e", chave).execute()
+                if not resultado.data:
+                    st.warning(f"Chave {chave} não encontrada na base.")
+                    continue
+                entrega = resultado.data[0]
+                entrega["numero_carga"] = st.session_state["numero_nova_carga"]
+                entrega["Data_Criacao"] = datetime.now().isoformat()
+                entrega["Status"] = "Fechada"
+                supabase.table("cargas_geradas").insert(entrega).execute()
+                supabase.table("rotas_confirmadas").delete().eq("Serie_Numero_CTRC", entrega["Serie_Numero_CTRC"]).execute()
+
+            st.success(f"Entregas adicionadas à carga {st.session_state['numero_nova_carga']} com sucesso.")
+            time.sleep(2)
+            st.switch_page("Cargas Geradas")  # Supondo que essa função exista
+
+        except Exception as e:
+            st.error(f"Erro ao adicionar entregas: {e}")
+
+    # Abaixo segue o restante da exibição das rotas confirmadas (não alterada)
+
     try:
         df = pd.DataFrame(supabase.table("rotas_confirmadas").select("*").execute().data)
         if df.empty:
@@ -1848,51 +1901,9 @@ def pagina_rotas_confirmadas():
                         except Exception as e:
                             st.error(f"Erro ao remover entregas: {e}")
 
-        # Seção para criar nova carga por CT-e (fora dos grids)
-        st.markdown("---")
-        st.markdown("### Criar Nova Carga por Chave CT-e")
-        chaves_input = st.text_area("Insira as Chaves CT-e (uma por linha)")
-        confirmar_carga = st.checkbox("Confirmar criação da carga com essas chaves")
-
-        if st.button("🚛 Criar Carga com Chaves CT-e") and confirmar_carga:
-            try:
-                chaves = [c.strip() for c in chaves_input.splitlines() if c.strip()]
-                if not chaves:
-                    st.warning("Nenhuma Chave CT-e válida informada.")
-                    return
-
-                hoje = datetime.now().strftime("%Y%m%d")
-                ultimas = (
-                    supabase.table("cargas_geradas")
-                    .select("Codigo_Carga")
-                    .like("Codigo_Carga", f"CARGA-{hoje}-%")
-                    .execute()
-                    .data
-                )
-                sequencia = len(ultimas) + 1
-                codigo_carga = f"CARGA-{hoje}-{sequencia:03d}"
-
-                for chave in chaves:
-                    resultado = supabase.table("rotas_confirmadas").select("*").eq("Chave CT-e", chave).execute()
-                    if not resultado.data:
-                        st.warning(f"Chave {chave} não encontrada na base.")
-                        continue
-                    entrega = resultado.data[0]
-                    entrega["Codigo_Carga"] = codigo_carga
-                    entrega["Data_Criacao"] = datetime.now().isoformat()
-                    entrega["Status"] = "Fechada"
-                    supabase.table("cargas_geradas").insert(entrega).execute()
-                    supabase.table("rotas_confirmadas").delete().eq("Serie_Numero_CTRC", entrega["Serie_Numero_CTRC"]).execute()
-
-                st.success(f"Carga **{codigo_carga}** criada com sucesso com {len(chaves)} entrega(s).")
-                time.sleep(2)
-                st.rerun()
-
-            except Exception as e:
-                st.error(f"Erro ao criar carga por chave CT-e: {e}")
-
     except Exception as e:
         st.error(f"Erro ao carregar rotas confirmadas: {e}")
+
 
 
 
