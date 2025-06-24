@@ -1233,7 +1233,7 @@ def pagina_confirmar_producao():
                 st.markdown(f"**📦 Entregas selecionadas:** {quantidade}")
 
                 if not selecionadas.empty:
-                    if st.button(f"✅ Confirmar entregas"):
+                    if st.button(f"✅ Confirmar entregas", key=f"btn_confirmar_{cliente}"):
                         try:
                             chaves = selecionadas["Serie_Numero_CTRC"].dropna().astype(str).str.strip().tolist()
                             df_cliente["Serie_Numero_CTRC"] = df_cliente["Serie_Numero_CTRC"].astype(str).str.strip()
