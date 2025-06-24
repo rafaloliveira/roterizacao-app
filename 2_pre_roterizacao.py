@@ -1704,8 +1704,7 @@ def pagina_rotas_confirmadas():
                 .select("numero_carga")
                 .like("numero_carga", f"CARGA-{hoje}-%")
                 .execute()
-                .data
-            )
+            ).data
             sequencia = len(ultimas) + 1
             numero_carga = f"CARGA-{hoje}-{sequencia:03d}"
             st.session_state["nova_carga_em_criacao"] = True
@@ -1737,7 +1736,7 @@ def pagina_rotas_confirmadas():
 
                 st.success(f"Entregas adicionadas à carga {st.session_state['numero_nova_carga']} com sucesso.")
                 time.sleep(2)
-                st.switch_page("Cargas Geradas")
+                st.switch_page("pages/cargas_geradas.py")
 
             except Exception as e:
                 st.error(f"Erro ao adicionar entregas: {e}")
@@ -1903,6 +1902,7 @@ def pagina_rotas_confirmadas():
 
     except Exception as e:
         st.error(f"Erro ao carregar rotas confirmadas: {e}")
+
 
 
 
