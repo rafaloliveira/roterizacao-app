@@ -1684,6 +1684,10 @@ def pagina_pre_roterizacao():
 
 ##########################################
 
+# PÁGINA ROTAS CONFIRMADAS
+
+##########################################
+
 def pagina_rotas_confirmadas():
     st.markdown("## Entregas Confirmadas por Rota")
 
@@ -1832,31 +1836,6 @@ def pagina_rotas_confirmadas():
                 if not selecionadas.empty:
                     st.success(f"{len(selecionadas)} entrega(s) selecionada(s). Pronto para gerar nova carga.")
 
-                    confirmar_criacao = st.checkbox("Confirmar criação da carga", key=f"confirmar_criar_carga_{rota}")
-
-                    if st.button("🚚 Criar Nova Carga", key=f"btn_criar_carga_{rota}") and confirmar_criacao:
-                        try:
-                            hoje = datetime.datetime.now().strftime("%Y%m%d")
-                            ultimas = supabase.table("cargas_geradas").select("Codigo_Carga").like(f"CARGA-{hoje}-%").execute().data
-                            sequencia = len(ultimas) + 1
-                            codigo_carga = f"CARGA-{hoje}-{sequencia:03d}"
-
-                            entregas = selecionadas.to_dict(orient="records")
-                            for entrega in entregas:
-                                entrega["Codigo_Carga"] = codigo_carga
-                                entrega["Data_Criacao"] = datetime.datetime.now().isoformat()
-                                entrega["Status"] = "Fechada"
-
-                                supabase.table("cargas_geradas").insert(entrega).execute()
-                                supabase.table("rotas_confirmadas").delete().eq("Serie_Numero_CTRC", entrega["Serie_Numero_CTRC"]).execute()
-
-                            st.success(f"Carga **{codigo_carga}** criada com sucesso!")
-                            time.sleep(2)
-                            st.rerun()
-
-                        except Exception as e:
-                            st.error(f"Erro ao criar a carga: {e}")
-
                     confirmar = st.checkbox("Confirmar remoção das entregas selecionadas", key=f"confirmar_remocao_{rota}")
                     if st.button(f"❌ Remover selecionadas da Rota {rota}", key=f"remover_{rota}") and confirmar:
                         try:
@@ -1869,8 +1848,46 @@ def pagina_rotas_confirmadas():
                         except Exception as e:
                             st.error(f"Erro ao remover entregas: {e}")
 
+        # Seção para criar nova carga por CT-e (fora dos grids)
+        st.markdown("---")
+        st.markdown("### Criar Nova Carga por Chave CT-e")
+        chaves_input = st.text_area("Insira as Chaves CT-e (uma por linha)")
+        confirmar_carga = st.checkbox("Confirmar criação da carga com essas chaves")
+
+        if st.button("🚛 Criar Carga com Chaves CT-e") and confirmar_carga:
+            try:
+                chaves = [c.strip() for c in chaves_input.splitlines() if c.strip()]
+                if not chaves:
+                    st.warning("Nenhuma Chave CT-e válida informada.")
+                    return
+
+                hoje = datetime.datetime.now().strftime("%Y%m%d")
+                ultimas = supabase.table("cargas_geradas").select("Codigo_Carga").like(f"CARGA-{hoje}-%").execute().data
+                sequencia = len(ultimas) + 1
+                codigo_carga = f"CARGA-{hoje}-{sequencia:03d}"
+
+                for chave in chaves:
+                    resultado = supabase.table("rotas_confirmadas").select("*").eq("Chave CT-e", chave).execute()
+                    if not resultado.data:
+                        st.warning(f"Chave {chave} não encontrada na base.")
+                        continue
+                    entrega = resultado.data[0]
+                    entrega["Codigo_Carga"] = codigo_carga
+                    entrega["Data_Criacao"] = datetime.datetime.now().isoformat()
+                    entrega["Status"] = "Fechada"
+                    supabase.table("cargas_geradas").insert(entrega).execute()
+                    supabase.table("rotas_confirmadas").delete().eq("Serie_Numero_CTRC", entrega["Serie_Numero_CTRC"]).execute()
+
+                st.success(f"Carga **{codigo_carga}** criada com sucesso com {len(chaves)} entrega(s).")
+                time.sleep(2)
+                st.rerun()
+
+            except Exception as e:
+                st.error(f"Erro ao criar carga por chave CT-e: {e}")
+
     except Exception as e:
         st.error(f"Erro ao carregar rotas confirmadas: {e}")
+
 
 
 
