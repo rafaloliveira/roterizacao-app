@@ -1699,18 +1699,18 @@ def pagina_rotas_confirmadas():
         if st.button("🆕 Criar Nova Carga Avulsa"):
             hoje = datetime.now().strftime("%Y%m%d")
             try:
-                ultimas = (
-                    supabase.table("cargas_geradas")
-                    .select("numero_carga")
-                    .like("numero_carga", f"CARGA-{hoje}-%")
-                    .execute()
-                ).data
+                ultimas = supabase.table("cargas_geradas").select("numero_carga") \
+                    .like("numero_carga", f"CARGA-{hoje}-%").execute().data
+                sequencias_existentes = [
+                    int(c["numero_carga"].split("-")[-1])
+                    for c in ultimas if c.get("numero_carga", "").startswith(f"CARGA-{hoje}")
+                ]
+                proximo_num = max(sequencias_existentes + [0]) + 1
+                numero_carga = f"CARGA-{hoje}-{proximo_num:03d}"
             except Exception as e:
                 st.error(f"Erro ao buscar cargas existentes: {e}")
-                ultimas = []
+                return
 
-            sequencia = len(ultimas) + 1
-            numero_carga = f"CARGA-{hoje}-{sequencia:03d}"
             st.session_state["nova_carga_em_criacao"] = True
             st.session_state["numero_nova_carga"] = numero_carga
             st.rerun()
@@ -1735,7 +1735,7 @@ def pagina_rotas_confirmadas():
                             continue
                     entrega = resultado.data[0]
                     entrega["numero_carga"] = st.session_state["numero_nova_carga"]
-                    entrega["Data_Criacao"] = datetime.now().isoformat()
+                    entrega["Data_Hora_Gerada"] = datetime.now().isoformat()
                     entrega["Status"] = "Fechada"
                     supabase.table("cargas_geradas").insert(entrega).execute()
                     if "Serie_Numero_CTRC" in entrega:
@@ -1750,8 +1750,7 @@ def pagina_rotas_confirmadas():
             except Exception as e:
                 st.error(f"Erro ao adicionar entregas: {e}")
 
-    # Abaixo segue o restante da exibição das rotas confirmadas (não alterada)
-
+    # Exibição das rotas confirmadas
     try:
         df = pd.DataFrame(supabase.table("rotas_confirmadas").select("*").execute().data)
         if df.empty:
@@ -1857,60 +1856,51 @@ def pagina_rotas_confirmadas():
                     key=st.session_state[grid_key],
                     data_return_mode="AS_INPUT",
                     theme=AgGridTheme.MATERIAL,
-                    show_toolbar=False,
-                    custom_css={
-                        ".ag-theme-material .ag-cell": {
-                            "font-size": "11px",
-                            "line-height": "18px",
-                            "border-right": "1px solid #ccc",
-                        },
-                        ".ag-theme-material .ag-row:last-child .ag-cell": {
-                            "border-bottom": "1px solid #ccc",
-                        },
-                        ".ag-theme-material .ag-header-cell": {
-                            "border-right": "1px solid #ccc",
-                            "border-bottom": "1px solid #ccc",
-                        },
-                        ".ag-theme-material .ag-root-wrapper": {
-                            "border": "1px solid black",
-                            "border-radius": "6px",
-                            "padding": "4px",
-                        },
-                        ".ag-theme-material .ag-header-cell-label": {
-                            "font-size": "11px",
-                        },
-                        ".ag-center-cols-viewport": {
-                            "overflow-x": "auto !important",
-                            "overflow-y": "hidden",
-                        },
-                        ".ag-center-cols-container": {
-                            "min-width": "100% !important",
-                        },
-                        "#gridToolBar": {
-                            "padding-bottom": "0px !important",
-                        }
-                    }
+                    show_toolbar=False
                 )
 
                 selecionadas = pd.DataFrame(grid_response.get("selected_rows", []))
 
                 if not selecionadas.empty:
-                    st.success(f"{len(selecionadas)} entrega(s) selecionada(s). Pronto para gerar nova carga.")
-
-                    confirmar = st.checkbox("Confirmar remoção das entregas selecionadas", key=f"confirmar_remocao_{rota}")
-                    if st.button(f"❌ Remover selecionadas da Rota {rota}", key=f"remover_{rota}") and confirmar:
+                    if st.button(f"🚛 Gerar Carga com Selecionadas da Rota {rota}", key=f"btn_gerar_carga_{rota}"):
                         try:
-                            chaves = selecionadas["Serie_Numero_CTRC"].dropna().astype(str).tolist()
+                            hoje = datetime.now().strftime("%Y%m%d")
+                            cargas_hoje = supabase.table("cargas_geradas") \
+                                .select("numero_carga") \
+                                .like("numero_carga", f"CARGA-{hoje}-%") \
+                                .execute().data
+
+                            sequencias_existentes = [
+                                int(c["numero_carga"].split("-")[-1])
+                                for c in cargas_hoje if c.get("numero_carga", "").startswith(f"CARGA-{hoje}")
+                            ]
+                            proximo_num = max(sequencias_existentes + [0]) + 1
+                            numero_carga = f"CARGA-{hoje}-{proximo_num:03d}"
+
+                            registros = selecionadas.copy()
+                            registros = registros.drop(columns=["_selectedRowNodeInfo"], errors="ignore")
+                            registros["numero_carga"] = numero_carga
+                            registros["Data_Hora_Gerada"] = datetime.now().isoformat()
+                            registros["Status"] = "Fechada"
+
+                            dados = registros.replace([np.nan, np.inf, -np.inf], None).to_dict(orient="records")
+                            supabase.table("cargas_geradas").insert(dados).execute()
+
+                            chaves = registros["Serie_Numero_CTRC"].dropna().astype(str).tolist()
                             for ctrc in chaves:
                                 supabase.table("rotas_confirmadas").delete().eq("Serie_Numero_CTRC", ctrc).execute()
-                            st.success("✅ Entregas removidas com sucesso!")
+
+                            st.success(f"🚛 Carga {numero_carga} criada com {len(chaves)} entregas.")
                             time.sleep(2)
-                            st.rerun()
+                            st.switch_page("cargas_geradas")  # ou st.rerun() se preferir
+
                         except Exception as e:
-                            st.error(f"Erro ao remover entregas: {e}")
+                            st.error(f"❌ Erro ao gerar carga: {e}")
 
     except Exception as e:
         st.error(f"Erro ao carregar rotas confirmadas: {e}")
+
+
 
 ##########################################
 
