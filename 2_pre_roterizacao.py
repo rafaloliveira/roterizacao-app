@@ -1553,15 +1553,20 @@ def pagina_pre_roterizacao():
         </div>
         """, unsafe_allow_html=True)
 
-        st.markdown(
-            badge(f"{len(df_rota)} entregas") +
-            badge(f"{formatar_brasileiro(df_rota['Peso Calculado em Kg'].sum())} kg calc") +
-            badge(f"{formatar_brasileiro(df_rota['Peso Real em Kg'].sum())} kg real") +
-            badge(f"R$ {formatar_brasileiro(df_rota['Valor do Frete'].sum())}") +
-            badge(f"{formatar_brasileiro(df_rota['Cubagem em m³'].sum())} m³") +
-            badge(f"{int(df_rota['Quantidade de Volumes'].sum())} volumes"),
-            unsafe_allow_html=True
-        )
+        col_badge, col_check = st.columns([5, 1])
+        with col_badge:
+            st.markdown(
+                badge(f"{len(df_rota)} entregas") +
+                badge(f"{formatar_brasileiro(df_rota['Peso Calculado em Kg'].sum())} kg calc") +
+                badge(f"{formatar_brasileiro(df_rota['Peso Real em Kg'].sum())} kg real") +
+                badge(f"R$ {formatar_brasileiro(df_rota['Valor do Frete'].sum())}") +
+                badge(f"{formatar_brasileiro(df_rota['Cubagem em m³'].sum())} m³") +
+                badge(f"{int(df_rota['Quantidade de Volumes'].sum())} volumes"),
+                unsafe_allow_html=True
+            )
+
+        marcar_todas = col_check.checkbox("Marcar todas", key=f"marcar_todas_pre_rota_{rota}")
+
 
         with st.expander("🔽 Selecionar entregas", expanded=False):
             df_formatado = df_rota[[col for col in colunas_exibir if col in df_rota.columns]].copy()
@@ -1625,7 +1630,12 @@ def pagina_pre_roterizacao():
                 }
             )
 
-            selecionadas = pd.DataFrame(grid_response.get("selected_rows", []))
+            if marcar_todas:
+                selecionadas = df_formatado[df_formatado["Serie_Numero_CTRC"].notna()].copy()
+            else:
+                selecionadas = pd.DataFrame(grid_response.get("selected_rows", []))
+
+            st.markdown(f"**📦 Entregas selecionadas:** {len(selecionadas)}")
 
             if not selecionadas.empty:
                 st.warning(f"{len(selecionadas)} entrega(s) selecionada(s).")
