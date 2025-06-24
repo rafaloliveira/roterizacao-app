@@ -1862,7 +1862,13 @@ def pagina_rotas_confirmadas():
                     return
 
                 hoje = datetime.now().strftime("%Y%m%d")
-                ultimas = supabase.table("cargas_geradas").select("Codigo_Carga").like(f"CARGA-{hoje}-%").execute().data
+                ultimas = (
+                    supabase.table("cargas_geradas")
+                    .select("Codigo_Carga")
+                    .like("Codigo_Carga", f"CARGA-{hoje}-%")
+                    .execute()
+                    .data
+                )
                 sequencia = len(ultimas) + 1
                 codigo_carga = f"CARGA-{hoje}-{sequencia:03d}"
 
