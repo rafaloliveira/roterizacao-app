@@ -1760,7 +1760,7 @@ def pagina_rotas_confirmadas():
                 gb.configure_grid_options(paginationPageSize=12)
                 gb.configure_grid_options(alwaysShowHorizontalScroll=True)
                 gb.configure_grid_options(rowStyle={"font-size": "11px"})
-                gb.configure_grid_options(getRowStyle=linha_destacar)  # ✅ Aqui é o local correto
+                gb.configure_grid_options(getRowStyle=linha_destacar)
 
                 formatter = JsCode("""
                     function(params) {
@@ -1831,7 +1831,36 @@ def pagina_rotas_confirmadas():
                 selecionadas = pd.DataFrame(grid_response.get("selected_rows", []))
 
                 if not selecionadas.empty:
-                    st.warning(f"{len(selecionadas)} entrega(s) selecionada(s). Clique abaixo para remover da rota confirmada.")
+                    st.success(f"{len(selecionadas)} entrega(s) selecionada(s). Pronto para gerar nova carga.")
+
+                    col1, col2 = st.columns([2, 1])
+                    with col1:
+                        nome_custom = st.text_input("Nome personalizado da Carga (opcional)", key=f"nome_custom_{rota}")
+                    with col2:
+                        confirmar_criacao = st.checkbox("Confirmar criação da carga", key=f"confirmar_criar_carga_{rota}")
+
+                    if st.button("🚚 Criar Nova Carga", key=f"btn_criar_carga_{rota}") and confirmar_criacao:
+                        try:
+                            hoje = datetime.datetime.now().strftime("%Y%m%d")
+                            ultimas = supabase.table("cargas_geradas").select("Codigo_Carga").like(f"CARGA-{hoje}-%").execute().data
+                            sequencia = len(ultimas) + 1
+                            codigo_carga = f"CARGA-{hoje}-{sequencia:03d}"
+
+                            entregas = selecionadas.to_dict(orient="records")
+                            for entrega in entregas:
+                                entrega["Codigo_Carga"] = nome_custom if nome_custom else codigo_carga
+                                entrega["Data_Criacao"] = datetime.datetime.now().isoformat()
+                                entrega["Status"] = "Fechada"
+
+                                supabase.table("cargas_geradas").insert(entrega).execute()
+                                supabase.table("rotas_confirmadas").delete().eq("Serie_Numero_CTRC", entrega["Serie_Numero_CTRC"]).execute()
+
+                            st.success(f"Carga **{codigo_carga}** criada com sucesso!")
+                            time.sleep(2)
+                            st.rerun()
+
+                        except Exception as e:
+                            st.error(f"Erro ao criar a carga: {e}")
 
                     confirmar = st.checkbox("Confirmar remoção das entregas selecionadas", key=f"confirmar_remocao_{rota}")
                     if st.button(f"❌ Remover selecionadas da Rota {rota}", key=f"remover_{rota}") and confirmar:
@@ -1847,6 +1876,7 @@ def pagina_rotas_confirmadas():
 
     except Exception as e:
         st.error(f"Erro ao carregar rotas confirmadas: {e}")
+
 
 
 
