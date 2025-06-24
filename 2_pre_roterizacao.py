@@ -1684,9 +1684,6 @@ def pagina_pre_roterizacao():
 
 ##########################################
 
-# Função PÁGINA ROTAS CONFIRMADAS
-##########################################
-
 def pagina_rotas_confirmadas():
     st.markdown("## Entregas Confirmadas por Rota")
 
@@ -1761,6 +1758,8 @@ def pagina_rotas_confirmadas():
                 gb.configure_grid_options(alwaysShowHorizontalScroll=True)
                 gb.configure_grid_options(rowStyle={"font-size": "11px"})
                 gb.configure_grid_options(getRowStyle=linha_destacar)
+                gb.configure_grid_options(headerCheckboxSelection=True)
+                gb.configure_grid_options(rowSelection='multiple')
 
                 formatter = JsCode("""
                     function(params) {
@@ -1833,11 +1832,7 @@ def pagina_rotas_confirmadas():
                 if not selecionadas.empty:
                     st.success(f"{len(selecionadas)} entrega(s) selecionada(s). Pronto para gerar nova carga.")
 
-                    col1, col2 = st.columns([2, 1])
-                    with col1:
-                        nome_custom = st.text_input("Nome personalizado da Carga (opcional)", key=f"nome_custom_{rota}")
-                    with col2:
-                        confirmar_criacao = st.checkbox("Confirmar criação da carga", key=f"confirmar_criar_carga_{rota}")
+                    confirmar_criacao = st.checkbox("Confirmar criação da carga", key=f"confirmar_criar_carga_{rota}")
 
                     if st.button("🚚 Criar Nova Carga", key=f"btn_criar_carga_{rota}") and confirmar_criacao:
                         try:
@@ -1848,7 +1843,7 @@ def pagina_rotas_confirmadas():
 
                             entregas = selecionadas.to_dict(orient="records")
                             for entrega in entregas:
-                                entrega["Codigo_Carga"] = nome_custom if nome_custom else codigo_carga
+                                entrega["Codigo_Carga"] = codigo_carga
                                 entrega["Data_Criacao"] = datetime.datetime.now().isoformat()
                                 entrega["Status"] = "Fechada"
 
@@ -1876,6 +1871,7 @@ def pagina_rotas_confirmadas():
 
     except Exception as e:
         st.error(f"Erro ao carregar rotas confirmadas: {e}")
+
 
 
 
