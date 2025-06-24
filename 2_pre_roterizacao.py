@@ -1225,9 +1225,13 @@ def pagina_confirmar_producao():
                 )
 
                 if marcar_todas:
-                    selecionadas = df_formatado.copy()
+                    selecionadas = df_formatado[df_formatado["Serie_Numero_CTRC"].notna()].copy()
                 else:
                     selecionadas = pd.DataFrame(grid_response.get("selected_rows", []))
+
+                quantidade = len(selecionadas)
+                st.markdown(f"**📦 Entregas selecionadas:** {quantidade}")
+
                 if not selecionadas.empty:
                     if st.button(f"✅ Confirmar entregas"):
                         try:
