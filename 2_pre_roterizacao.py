@@ -2073,7 +2073,8 @@ menu_principal = [
     "Confirmar Produção",
     "Aprovação Diretoria",
     "Pré Roterização",
-    "Rotas Confirmadas"
+    "Rotas Confirmadas",
+    "Cargas Geradas"
 ]
 
 menu_avancado = ["Alterar Senha"]
