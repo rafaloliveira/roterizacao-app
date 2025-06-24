@@ -1861,7 +1861,7 @@ def pagina_rotas_confirmadas():
                     st.warning("Nenhuma Chave CT-e válida informada.")
                     return
 
-                hoje = datetime.datetime.now().strftime("%Y%m%d")
+                hoje = datetime.now().strftime("%Y%m%d")
                 ultimas = supabase.table("cargas_geradas").select("Codigo_Carga").like(f"CARGA-{hoje}-%").execute().data
                 sequencia = len(ultimas) + 1
                 codigo_carga = f"CARGA-{hoje}-{sequencia:03d}"
@@ -1873,7 +1873,7 @@ def pagina_rotas_confirmadas():
                         continue
                     entrega = resultado.data[0]
                     entrega["Codigo_Carga"] = codigo_carga
-                    entrega["Data_Criacao"] = datetime.datetime.now().isoformat()
+                    entrega["Data_Criacao"] = datetime.now().isoformat()
                     entrega["Status"] = "Fechada"
                     supabase.table("cargas_geradas").insert(entrega).execute()
                     supabase.table("rotas_confirmadas").delete().eq("Serie_Numero_CTRC", entrega["Serie_Numero_CTRC"]).execute()
