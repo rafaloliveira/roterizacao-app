@@ -1912,8 +1912,132 @@ def pagina_rotas_confirmadas():
     except Exception as e:
         st.error(f"Erro ao carregar rotas confirmadas: {e}")
 
+##########################################
+
+# PÁGINA CARGAS GERADAS
+
+##########################################
 
 
+def pagina_cargas_geradas():
+    st.markdown("## 🚛 Cargas Geradas")
+
+    try:
+        df_cargas = pd.DataFrame(supabase.table("cargas_geradas").select("*").execute().data)
+    except Exception as e:
+        st.error(f"Erro ao carregar dados de cargas: {e}")
+        return
+
+    if df_cargas.empty:
+        st.info("Nenhuma carga gerada encontrada.")
+        return
+
+    df_cargas["numero_carga"] = df_cargas["numero_carga"].fillna("(Sem Número)")
+    cargas_unicas = sorted(df_cargas["numero_carga"].unique())
+
+    def badge(label):
+        return f"<span style='background:#eef2f7;border-radius:12px;padding:6px 12px;margin:4px;color:inherit;display:inline-block;'>{label}</span>"
+
+    colunas_exibir = [
+        "Serie_Numero_CTRC", "Rota", "Valor do Frete", "Cliente Pagador", "Chave CT-e",
+        "Cliente Destinatario", "Cidade de Entrega", "Bairro do Destinatario", "Previsao de Entrega",
+        "Numero da Nota Fiscal", "Status", "Entrega Programada", "Particularidade",
+        "Codigo da Ultima Ocorrencia", "Peso Real em Kg", "Peso Calculado em Kg",
+        "Cubagem em m³", "Quantidade de Volumes", "numero_carga", "Localizacao Atual"
+    ]
+
+    linha_destacar = JsCode("""
+        function(params) {
+            const status = params.data.Status;
+            const entregaProg = params.data["Entrega Programada"];
+            const particularidade = params.data.Particularidade;
+            if (status === "AGENDAR" && (!entregaProg || entregaProg.trim() === "")) {
+                return { 'background-color': '#ffe0b2', 'color': '#333' };
+            }
+            if (particularidade && particularidade.trim() !== "") {
+                return { 'background-color': '#fff59d', 'color': '#333' };
+            }
+            return null;
+        }
+    """)
+
+    for carga in cargas_unicas:
+        df_carga = df_cargas[df_cargas["numero_carga"] == carga].copy()
+        if df_carga.empty:
+            continue
+
+        st.markdown(f"""
+        <div style="margin-top:20px;padding:10px;background:#e8f0fe;border-left:4px solid #4285f4;border-radius:6px;display:inline-block;max-width:100%;">
+            <strong>Número da Carga:</strong> {carga}
+        </div>
+        """, unsafe_allow_html=True)
+
+        col_badge, col_check = st.columns([5, 1])
+        with col_badge:
+            st.markdown(
+                badge(f"{len(df_carga)} entregas") +
+                badge(f"{formatar_brasileiro(df_carga['Peso Calculado em Kg'].sum())} kg calc") +
+                badge(f"{formatar_brasileiro(df_carga['Peso Real em Kg'].sum())} kg real") +
+                badge(f"R$ {formatar_brasileiro(df_carga['Valor do Frete'].sum())}") +
+                badge(f"{formatar_brasileiro(df_carga['Cubagem em m³'].sum())} m³") +
+                badge(f"{int(df_carga['Quantidade de Volumes'].sum())} volumes"),
+                unsafe_allow_html=True
+            )
+
+        marcar_todas = col_check.checkbox("Marcar todas", key=f"marcar_todas_carga_{carga}")
+
+        with st.expander("🔽 Visualizar entregas da carga", expanded=False):
+            df_formatado = df_carga[[col for col in colunas_exibir if col in df_carga.columns]].copy()
+
+            gb = GridOptionsBuilder.from_dataframe(df_formatado)
+            gb.configure_default_column(minWidth=150)
+            gb.configure_selection("multiple", use_checkbox=True,
+                pre_selected_rows=list(range(len(df_formatado))) if marcar_todas else [])
+            gb.configure_grid_options(paginationPageSize=12)
+            gb.configure_grid_options(alwaysShowHorizontalScroll=True)
+            grid_options = gb.build()
+            grid_options["getRowStyle"] = linha_destacar
+
+            grid_key = f"grid_carga_{carga}"
+            if grid_key not in st.session_state:
+                st.session_state[grid_key] = str(uuid.uuid4())
+
+            grid_response = AgGrid(
+                df_formatado,
+                gridOptions=grid_options,
+                update_mode=GridUpdateMode.SELECTION_CHANGED,
+                fit_columns_on_grid_load=False,
+                width="100%",
+                height=400,
+                allow_unsafe_jscode=True,
+                key=st.session_state[grid_key],
+                data_return_mode="AS_INPUT",
+                theme=AgGridTheme.MATERIAL,
+                show_toolbar=False,
+                custom_css={
+                    ".ag-theme-material .ag-cell": {
+                        "font-size": "11px", "line-height": "18px", "border-right": "1px solid #ccc",
+                    },
+                    ".ag-theme-material .ag-row:last-child .ag-cell": {
+                        "border-bottom": "1px solid #ccc",
+                    },
+                    ".ag-theme-material .ag-header-cell": {
+                        "border-right": "1px solid #ccc", "border-bottom": "1px solid #ccc",
+                    },
+                    ".ag-theme-material .ag-root-wrapper": {
+                        "border": "1px solid black", "border-radius": "6px", "padding": "4px",
+                    },
+                    ".ag-theme-material .ag-header-cell-label": {
+                        "font-size": "11px",
+                    },
+                    ".ag-center-cols-container": {
+                        "min-width": "100% !important",
+                    }
+                }
+            )
+
+            selecionadas = pd.DataFrame(grid_response.get("selected_rows", []))
+            st.markdown(f"**📦 Entregas selecionadas:** {len(selecionadas)}")
 
 
 
@@ -1990,6 +2114,8 @@ elif st.session_state.pagina == "Pré Roterização":
     pagina_pre_roterizacao()
 elif st.session_state.pagina == "Rotas Confirmadas":
     pagina_rotas_confirmadas()
+elif st.session_state.pagina == "Cargas Geradas":
+    pagina_cargas_geradas()
 elif st.session_state.pagina == "Alterar Senha":
     pagina_trocar_senha()
 elif st.session_state.pagina == "Gerenciar Usuários":
