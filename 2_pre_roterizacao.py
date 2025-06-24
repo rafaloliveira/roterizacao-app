@@ -1691,7 +1691,6 @@ def pagina_pre_roterizacao():
 def pagina_rotas_confirmadas():
     st.markdown("## Entregas Confirmadas por Rota")
 
-    # Botão para iniciar criação de nova carga
     if "nova_carga_em_criacao" not in st.session_state:
         st.session_state["nova_carga_em_criacao"] = False
         st.session_state["numero_nova_carga"] = ""
@@ -1709,6 +1708,7 @@ def pagina_rotas_confirmadas():
             except Exception as e:
                 st.error(f"Erro ao buscar cargas existentes: {e}")
                 ultimas = []
+
             sequencia = len(ultimas) + 1
             numero_carga = f"CARGA-{hoje}-{sequencia:03d}"
             st.session_state["nova_carga_em_criacao"] = True
@@ -1729,18 +1729,23 @@ def pagina_rotas_confirmadas():
                 for chave in chaves:
                     resultado = supabase.table("rotas_confirmadas").select("*").eq("Chave CT-e", chave).execute()
                     if not resultado.data:
-                        st.warning(f"Chave {chave} não encontrada na base.")
-                        continue
+                        resultado = supabase.table("pre_roterizacao").select("*").eq("Chave CT-e", chave).execute()
+                        if not resultado.data:
+                            st.warning(f"Chave {chave} não encontrada na base.")
+                            continue
                     entrega = resultado.data[0]
                     entrega["numero_carga"] = st.session_state["numero_nova_carga"]
                     entrega["Data_Criacao"] = datetime.now().isoformat()
                     entrega["Status"] = "Fechada"
                     supabase.table("cargas_geradas").insert(entrega).execute()
-                    supabase.table("rotas_confirmadas").delete().eq("Serie_Numero_CTRC", entrega["Serie_Numero_CTRC"]).execute()
+                    if "Serie_Numero_CTRC" in entrega:
+                        supabase.table("rotas_confirmadas").delete().eq("Serie_Numero_CTRC", entrega["Serie_Numero_CTRC"]).execute()
+                    elif "Chave CT-e" in entrega:
+                        supabase.table("pre_roterizacao").delete().eq("Chave CT-e", entrega["Chave CT-e"]).execute()
 
                 st.success(f"Entregas adicionadas à carga {st.session_state['numero_nova_carga']} com sucesso.")
                 time.sleep(2)
-                st.switch_page("pages/cargas_geradas.py")
+                st.switch_page("cargas_geradas")
 
             except Exception as e:
                 st.error(f"Erro ao adicionar entregas: {e}")
