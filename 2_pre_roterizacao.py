@@ -1224,7 +1224,10 @@ def pagina_confirmar_producao():
                     }
                 )
 
-                selecionadas = pd.DataFrame(grid_response.get("selected_rows", []))
+                if marcar_todas:
+                    selecionadas = df_formatado.copy()
+                else:
+                    selecionadas = pd.DataFrame(grid_response.get("selected_rows", []))
                 if not selecionadas.empty:
                     if st.button(f"✅ Confirmar entregas"):
                         try:
