@@ -1905,8 +1905,13 @@ if "pagina" not in st.session_state:
     st.session_state.pagina = "Sincronização"
 
 # ========== MENU UNIFICADO ==========
-menu_principal = ["Sincronização", "Confirmar Produção", "Aprovação Diretoria", "Pré Roterização", "Rotas Confirmadas"]
-
+menu_principal = [
+    "Sincronização",
+    "Confirmar Produção",
+    "Aprovação Diretoria",
+    "Pré Roterização",
+    "Rotas Confirmadas"
+]
 
 menu_avancado = ["Alterar Senha"]
 if st.session_state.get("is_admin", False):
@@ -1919,7 +1924,7 @@ separador = "──────────────────────�
 menu_total = menu_principal + [separador] + menu_avancado
 
 # Garante que a opção atual esteja na lista (evita erros ao abrir Gerenciar direto)
-if st.session_state.pagina not in menu_total:
+if st.session_state.get("pagina") not in menu_total:
     st.session_state.pagina = "Sincronização"
 
 # Define índice atual com base na página ativa
@@ -1928,11 +1933,12 @@ index_atual = menu_total.index(st.session_state.pagina)
 # Radio unificado
 escolha = st.sidebar.radio("📁 Menu", menu_total, index=index_atual)
 
-# Impede seleção do separador
+# Impede seleção do separador e força rerun ao mudar de página
 if escolha == separador:
     pass  # Ignora, mantém a página atual
 elif escolha != st.session_state.pagina:
     st.session_state.pagina = escolha
+    st.rerun()  # 🔁 Faz a troca de página acontecer imediatamente
 
 # ========== ROTEAMENTO ==========
 if st.session_state.pagina == "Sincronização":
