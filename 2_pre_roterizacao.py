@@ -653,25 +653,26 @@ def carregar_base_supabase():
 
 def gerar_proximo_numero_carga(supabase):
     try:
-        resultado = supabase.table("cargas_geradas") \
-            .select("numero_carga") \
-            .order("created_at", desc=True) \
-            .limit(1) \
-            .execute()
+        # Seleciona todos os números de carga existentes
+        cargas = supabase.table("cargas_geradas").select("numero_carga").execute().data
 
-        dados = resultado.data
-        if dados:
-            numero = dados[0].get("numero_carga")
-            if numero is not None and str(numero).isdigit():
-                return str(int(numero) + 1).zfill(5)
-        
-        # ✅ Nenhum dado ou número inválido
-        return "00001"
+        # Extrai os números como inteiros (removendo zeros à esquerda)
+        numeros_existentes = []
+        for c in cargas:
+            numero = str(c.get("numero_carga", "")).strip()
+            if numero.isdigit():
+                numeros_existentes.append(int(numero))
+
+        # Define o próximo número com base no maior valor encontrado
+        proximo_numero = max(numeros_existentes) + 1 if numeros_existentes else 1
+
+        # Retorna como string com 6 dígitos
+        return str(proximo_numero).zfill(6)
 
     except Exception as e:
-        st.error("❌ Erro ao gerar número da nova carga")
-        st.exception(e)
-        return "00001"  # Mesmo em erro, retorna "00001"
+        st.error(f"Erro ao gerar número da carga: {e}")
+        return "000001"  # fallback de segurança
+
 
 
 
