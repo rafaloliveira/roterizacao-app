@@ -1761,7 +1761,7 @@ def adicionar_entregas_a_carga(chaves_cte):
 def pagina_rotas_confirmadas():
     st.markdown("## Entregas Confirmadas por Rota")
 
-    chaves_input = ""  # Garante que a variável esteja definida
+    chaves_input = ""
 
     if "nova_carga_em_criacao" not in st.session_state:
         st.session_state["nova_carga_em_criacao"] = False
@@ -1789,7 +1789,14 @@ def pagina_rotas_confirmadas():
                 entregas_encontradas = []
                 for chave in chaves:
                     try:
+                        print("🔍 Procurando chave:", repr(chave))
                         origem = None
+
+                        # Debug das colunas da tabela
+                        df_debug = pd.DataFrame(supabase.table("rotas_confirmadas").select("*").limit(1).execute().data)
+                        df_debug.columns = df_debug.columns.str.strip()
+                        print("🧾 Colunas disponíveis:", list(df_debug.columns))
+
                         resultado = supabase.table("rotas_confirmadas").select("*").eq("Chave CT-e", chave).execute()
                         if resultado.data:
                             origem = "rotas_confirmadas"
@@ -1815,7 +1822,7 @@ def pagina_rotas_confirmadas():
                         ) for k, v in entrega.items()}
 
                         supabase.table("cargas_geradas").insert(entrega).execute()
-                        time.sleep(0.1)  # pausa para evitar erro de recurso temporariamente indisponível
+                        time.sleep(0.1)
                         entregas_encontradas.append(entrega)
 
                         if origem == "rotas_confirmadas" and "Serie_Numero_CTRC" in entrega:
@@ -1841,6 +1848,7 @@ def pagina_rotas_confirmadas():
 
     try:
         df = pd.DataFrame(supabase.table("rotas_confirmadas").select("*").execute().data)
+        df.columns = df.columns.str.strip()  # <<< Normaliza nomes de colunas
         if df.empty:
             st.info("Nenhuma entrega foi confirmada ainda.")
             return
@@ -1947,8 +1955,7 @@ def pagina_rotas_confirmadas():
                     show_toolbar=False
                 )
 
-                # Apenas visualização
-                _ = pd.DataFrame(grid_response.get("selected_rows", []))
+                _ = pd.DataFrame(grid_response.get("selected_rows", []))  # Apenas visualização
 
     except Exception as e:
         st.error("❌ Erro ao carregar entregas confirmadas:")
