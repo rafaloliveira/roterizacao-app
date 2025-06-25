@@ -1890,12 +1890,15 @@ def pagina_rotas_confirmadas():
                             entregas_adicionadas = []
 
                             for chave in chaves:
+                                origem = None
                                 resultado = supabase.table("rotas_confirmadas").select("*").eq("Chave CT-e", chave).execute()
-                                origem = "rotas_confirmadas"
 
-                                if not resultado.data:
+                                if resultado.data:
+                                    origem = "rotas_confirmadas"
+                                else:
                                     resultado = supabase.table("pre_roterizacao").select("*").eq("Chave CT-e", chave).execute()
-                                    origem = "pre_roterizacao"
+                                    if resultado.data:
+                                        origem = "pre_roterizacao"
 
                                 if not resultado.data:
                                     st.warning(f"❌ Chave {chave} não encontrada na base.")
@@ -1903,12 +1906,11 @@ def pagina_rotas_confirmadas():
 
                                 entrega = resultado.data[0]
 
-                                # Adiciona informações da carga
                                 entrega["numero_carga"] = st.session_state["numero_nova_carga"]
                                 entrega["Data_Hora_Gerada"] = datetime.now().isoformat()
                                 entrega["Status"] = "Fechada"
 
-                                # Serializações seguras
+                                # Serialização segura
                                 for k, v in entrega.items():
                                     if isinstance(v, (pd.Timestamp, datetime)):
                                         entrega[k] = v.isoformat()
@@ -1917,7 +1919,6 @@ def pagina_rotas_confirmadas():
                                     elif isinstance(v, dict):
                                         entrega[k] = json.dumps(v)
 
-                                # Inserir na tabela cargas_geradas
                                 try:
                                     supabase.table("cargas_geradas").insert(entrega).execute()
                                     entregas_adicionadas.append(entrega)
@@ -1929,7 +1930,7 @@ def pagina_rotas_confirmadas():
                                         supabase.table("pre_roterizacao").delete().eq("Chave CT-e", entrega["Chave CT-e"]).execute()
 
                                 except Exception as e:
-                                    st.error(f"❌ Erro ao inserir a chave {chave} na carga:")
+                                    st.error(f"❌ Erro ao processar a chave {chave}")
                                     st.exception(e)
 
                             if entregas_adicionadas:
@@ -1938,7 +1939,8 @@ def pagina_rotas_confirmadas():
                                 st.experimental_set_query_params(page="cargas_geradas")
                                 st.rerun()
                             else:
-                                st.warning("Nenhuma entrega válida foi adicionada.")
+                                st.warning("⚠️ Nenhuma entrega válida foi adicionada.")
+
 
     except Exception as e:
             st.error("❌ Erro ao carregar entregas confirmadas:")
