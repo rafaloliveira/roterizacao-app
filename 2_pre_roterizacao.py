@@ -1761,7 +1761,7 @@ def pagina_rotas_confirmadas():
 
                 st.success(f"Entregas adicionadas à carga {st.session_state['numero_nova_carga']} com sucesso.")
                 time.sleep(2)
-                st.experimental_set_query_params(page="cargas_geradas")
+                st.query_params.update()(page="cargas_geradas")
                 st.rerun()
 
             except Exception as e:
@@ -1934,8 +1934,8 @@ def pagina_rotas_confirmadas():
 
                             st.success(f"🚛 Carga {numero_carga} criada com {len(chaves)} entregas.")
                             time.sleep(2)
-                            st.experimental_set_query_params(page="cargas_geradas")
-                            st.experimental_rerun()
+                            st.query_params.update()(page="cargas_geradas")
+                            st.rerun()
 
                         except Exception as e:
                             st.error(f"❌ Erro ao gerar carga: {e}")
