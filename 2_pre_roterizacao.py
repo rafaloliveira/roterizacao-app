@@ -1787,16 +1787,20 @@ def pagina_rotas_confirmadas():
         st.success(f"Nova Carga Criada: {st.session_state['numero_nova_carga']}")
         st.markdown("### Inserir Entregas na Carga")
 
-        col1, col2 = st.columns([3, 1])
-        with col1:
-            chaves_input = st.text_area("Insira as Chaves CT-e (uma por linha)")
-        with col2:
-            if st.button("❌ Cancelar Nova Carga"):
-                st.session_state["nova_carga_em_criacao"] = False
-                st.session_state["numero_nova_carga"] = ""
-                st.rerun()
+        chaves_input = st.text_area("Insira as Chaves CT-e (uma por linha)")
 
-        if st.button("🚛 Adicionar Entregas à Carga", key="botao_manual"):
+        col1, col2 = st.columns([1, 1])
+        with col1:
+            adicionar = st.button("🚛 Adicionar Entregas à Carga", key="botao_manual")
+        with col2:
+            cancelar = st.button("❌ Cancelar Nova Carga")
+
+        if cancelar:
+            st.session_state["nova_carga_em_criacao"] = False
+            st.session_state["numero_nova_carga"] = ""
+            st.rerun()
+
+        if adicionar:
             try:
                 chaves = [re.sub(r"\s+", "", c) for c in chaves_input.splitlines() if c.strip()]
                 if not chaves:
@@ -1868,6 +1872,7 @@ def pagina_rotas_confirmadas():
 
             except Exception as e:
                 st.error(f"Erro ao adicionar entregas: {e}")
+
 
     # ... restante do código permanece o mesmo (grid etc.)
 
