@@ -1769,96 +1769,107 @@ def pagina_rotas_confirmadas():
         st.session_state["numero_nova_carga"] = ""
 
     if not st.session_state["nova_carga_em_criacao"]:
-        if st.button("🆕 Criar Nova Carga Avulsa"):
-            try:
-                # Buscar última carga criada
-                cargas = supabase.table("cargas_geradas").select("numero_carga").order("numero_carga", desc=True).limit(1).execute().data
-                ultimo_numero = int(cargas[0]["numero_carga"]) if cargas else 0
-                numero_carga = str(ultimo_numero + 1).zfill(6)
+        col1, col2 = st.columns([1, 1])
+        with col1:
+            if st.button("🆕 Criar Nova Carga Avulsa"):
+                try:
+                    cargas = supabase.table("cargas_geradas").select("numero_carga").order("numero_carga", desc=True).limit(1).execute().data
+                    ultimo_numero = int(cargas[0]["numero_carga"]) if cargas else 0
+                    numero_carga = str(ultimo_numero + 1).zfill(6)
 
-                st.session_state["nova_carga_em_criacao"] = True
-                st.session_state["numero_nova_carga"] = numero_carga
-                st.rerun()
-            except Exception as e:
-                st.error(f"Erro ao criar nova carga: {e}")
+                    st.session_state["nova_carga_em_criacao"] = True
+                    st.session_state["numero_nova_carga"] = numero_carga
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Erro ao criar nova carga: {e}")
 
     if st.session_state["nova_carga_em_criacao"]:
         st.success(f"Nova Carga Criada: {st.session_state['numero_nova_carga']}")
-        st.markdown("### Inserir Entregas na Carga")
-        chaves_input = st.text_area("Insira as Chaves CT-e (uma por linha)")
+        col1, col2 = st.columns([1, 1])
+        with col1:
+            st.markdown("### Inserir Entregas na Carga")
+            chaves_input = st.text_area("Insira as Chaves CT-e (uma por linha)")
+            if st.button("🚛 Adicionar Entregas à Carga", key="botao_manual"):
+                try:
+                    chaves = [re.sub(r"\s+", "", c) for c in chaves_input.splitlines() if c.strip()]
+                    if not chaves:
+                        st.warning("Nenhuma Chave CT-e válida informada.")
+                        return
 
-        if st.button("🚛 Adicionar Entregas à Carga", key="botao_manual"):
-            try:
-                chaves = [re.sub(r"\s+", "", c) for c in chaves_input.splitlines() if c.strip()]
-                if not chaves:
-                    st.warning("Nenhuma Chave CT-e válida informada.")
-                    return
+                    entregas_encontradas = []
 
-                entregas_encontradas = []
+                    def detectar_coluna_chave(tabela):
+                        dados = supabase.table(tabela).select("*").limit(1).execute().data
+                        if not dados:
+                            return None
+                        return next((k for k in dados[0].keys() if "chave" in k.lower() and "ct" in k.lower()), None)
 
-                def detectar_coluna_chave(tabela):
-                    dados = supabase.table(tabela).select("*").limit(1).execute().data
-                    if not dados:
-                        return None
-                    return next((k for k in dados[0].keys() if "chave" in k.lower() and "ct" in k.lower()), None)
+                    chave_coluna_rotas = detectar_coluna_chave("rotas_confirmadas") or "Chave CT-e"
+                    chave_coluna_pre = detectar_coluna_chave("pre_roterizacao") or "Chave CT-e"
 
-                chave_coluna_rotas = detectar_coluna_chave("rotas_confirmadas") or "Chave CT-e"
-                chave_coluna_pre = detectar_coluna_chave("pre_roterizacao") or "Chave CT-e"
+                    for chave in chaves:
+                        try:
+                            origem = None
 
-                for chave in chaves:
-                    try:
-                        origem = None
-
-                        resultado = supabase.table("rotas_confirmadas").select("*").eq(chave_coluna_rotas, chave).execute()
-                        if resultado.data:
-                            origem = "rotas_confirmadas"
-                            entrega = resultado.data[0]
-                            entrega.pop("id", None)
-                        else:
-                            resultado = supabase.table("pre_roterizacao").select("*").eq(chave_coluna_pre, chave).execute()
+                            resultado = supabase.table("rotas_confirmadas").select("*").eq(chave_coluna_rotas, chave).execute()
                             if resultado.data:
-                                origem = "pre_roterizacao"
+                                origem = "rotas_confirmadas"
                                 entrega = resultado.data[0]
                                 entrega.pop("id", None)
                             else:
-                                st.warning(f"⚠️ Chave {chave} não encontrada em nenhuma tabela.")
-                                continue
+                                resultado = supabase.table("pre_roterizacao").select("*").eq(chave_coluna_pre, chave).execute()
+                                if resultado.data:
+                                    origem = "pre_roterizacao"
+                                    entrega = resultado.data[0]
+                                    entrega.pop("id", None)
+                                else:
+                                    st.warning(f"⚠️ Chave {chave} não encontrada em nenhuma tabela.")
+                                    continue
 
-                        entrega["numero_carga"] = st.session_state["numero_nova_carga"]
-                        entrega["Data_Hora_Gerada"] = datetime.now().isoformat()
-                        entrega["Status"] = "Fechada"
+                            entrega["numero_carga"] = st.session_state["numero_nova_carga"]
+                            entrega["Data_Hora_Gerada"] = datetime.now().isoformat()
+                            entrega["Status"] = "Fechada"
 
-                        entrega = {k: (
-                            v.isoformat() if isinstance(v, (pd.Timestamp, datetime)) else
-                            None if isinstance(v, float) and (np.isnan(v) or np.isinf(v)) else
-                            json.dumps(v) if isinstance(v, dict) else
-                            v
-                        ) for k, v in entrega.items()}
+                            entrega = {k: (
+                                v.isoformat() if isinstance(v, (pd.Timestamp, datetime)) else
+                                None if isinstance(v, float) and (np.isnan(v) or np.isinf(v)) else
+                                json.dumps(v) if isinstance(v, dict) else
+                                v
+                            ) for k, v in entrega.items()}
 
-                        supabase.table("cargas_geradas").insert(entrega).execute()
-                        time.sleep(0.1)
-                        entregas_encontradas.append(entrega)
-
-                        if origem == "rotas_confirmadas" and "Serie_Numero_CTRC" in entrega:
-                            supabase.table("rotas_confirmadas").delete().eq("Serie_Numero_CTRC", entrega["Serie_Numero_CTRC"]).execute()
+                            supabase.table("cargas_geradas").insert(entrega).execute()
                             time.sleep(0.1)
-                        elif origem == "pre_roterizacao" and chave in entrega.values():
-                            supabase.table("pre_roterizacao").delete().eq(chave_coluna_pre, chave).execute()
-                            time.sleep(0.1)
+                            entregas_encontradas.append(entrega)
 
-                    except Exception as e_inner:
-                        st.warning(f"Erro ao processar chave {chave}: {e_inner}")
+                            if origem == "rotas_confirmadas" and "Serie_Numero_CTRC" in entrega:
+                                supabase.table("rotas_confirmadas").delete().eq("Serie_Numero_CTRC", entrega["Serie_Numero_CTRC"]).execute()
+                                time.sleep(0.1)
+                            elif origem == "pre_roterizacao" and chave in entrega.values():
+                                supabase.table("pre_roterizacao").delete().eq(chave_coluna_pre, chave).execute()
+                                time.sleep(0.1)
 
-                if entregas_encontradas:
-                    st.success(f"✅ {len(entregas_encontradas)} entrega(s) adicionada(s) à carga {st.session_state['numero_nova_carga']} com sucesso.")
-                    time.sleep(2)
-                    st.experimental_set_query_params(page="cargas_geradas")
-                    st.rerun()
-                else:
-                    st.warning("⚠️ Nenhuma entrega válida foi adicionada.")
+                        except Exception as e_inner:
+                            st.warning(f"Erro ao processar chave {chave}: {e_inner}")
 
-            except Exception as e:
-                st.error(f"Erro ao adicionar entregas: {e}")
+                    if entregas_encontradas:
+                        st.success(f"✅ {len(entregas_encontradas)} entrega(s) adicionada(s) à carga {st.session_state['numero_nova_carga']} com sucesso.")
+                        time.sleep(2)
+                        st.experimental_set_query_params(page="cargas_geradas")
+                        st.rerun()
+                    else:
+                        st.warning("⚠️ Nenhuma entrega válida foi adicionada.")
+
+                except Exception as e:
+                    st.error(f"Erro ao adicionar entregas: {e}")
+
+        with col2:
+            if st.button("❌ Cancelar Nova Carga"):
+                st.session_state["nova_carga_em_criacao"] = False
+                st.session_state["numero_nova_carga"] = ""
+                st.rerun()
+
+    # ... restante do código permanece o mesmo (grid etc.)
+
 
 
     try:
