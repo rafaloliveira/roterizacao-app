@@ -1757,17 +1757,6 @@ def adicionar_entregas_a_carga(chaves_cte):
 
 ##########################################
 
-
-import streamlit as st
-from datetime import datetime
-import pandas as pd
-import numpy as np
-import json
-import time
-import uuid
-import re
-from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, JsCode
-
 def pagina_rotas_confirmadas():
     st.markdown("## Entregas Confirmadas por Rota")
 
@@ -1798,35 +1787,39 @@ def pagina_rotas_confirmadas():
 
                 entregas_encontradas = []
 
-                # Captura o nome exato da coluna de chave no Supabase
-                amostra = supabase.table("rotas_confirmadas").select("*").limit(1).execute().data
-                print("📦 Amostra de dados:", amostra)
+                # Captura o nome da coluna de chave tanto de rotas_confirmadas quanto de pre_roterizacao
+                def detectar_coluna_chave(tabela):
+                    dados = supabase.table(tabela).select("*").limit(1).execute().data
+                    if not dados:
+                        return None
+                    return next((k for k in dados[0].keys() if "chave" in k.lower() and "ct" in k.lower()), None)
 
-                if amostra:
-                    chave_coluna = next((k for k in amostra[0].keys() if "chave" in k.lower() and "ct" in k.lower()), "Chave CT-e")
-                    print("🔑 Coluna real de chave encontrada:", repr(chave_coluna))
-                else:
-                    print("⚠️ Nenhuma amostra encontrada na tabela rotas_confirmadas")
-                    chave_coluna = "Chave CT-e"
+                chave_coluna_rotas = detectar_coluna_chave("rotas_confirmadas") or "Chave CT-e"
+                chave_coluna_pre = detectar_coluna_chave("pre_roterizacao") or "Chave CT-e"
+
+                print("📌 Coluna em rotas_confirmadas:", chave_coluna_rotas)
+                print("📌 Coluna em pre_roterizacao:", chave_coluna_pre)
 
                 for chave in chaves:
                     try:
                         print("🔍 Procurando chave:", repr(chave))
                         origem = None
 
-                        resultado = supabase.table("rotas_confirmadas").select("*").eq(chave_coluna, chave).execute()
+                        resultado = supabase.table("rotas_confirmadas").select("*").eq(chave_coluna_rotas, chave).execute()
                         if resultado.data:
                             origem = "rotas_confirmadas"
+                            entrega = resultado.data[0]
+                            entrega.pop("id", None)
                         else:
-                            resultado = supabase.table("pre_roterizacao").select("*").eq(chave_coluna, chave).execute()
+                            resultado = supabase.table("pre_roterizacao").select("*").eq(chave_coluna_pre, chave).execute()
                             if resultado.data:
                                 origem = "pre_roterizacao"
+                                entrega = resultado.data[0]
+                                entrega.pop("id", None)
+                            else:
+                                st.warning(f"⚠️ Chave {chave} não encontrada em nenhuma tabela.")
+                                continue
 
-                        if not resultado.data:
-                            st.warning(f"⚠️ Chave {chave} não encontrada em nenhuma tabela.")
-                            continue
-
-                        entrega = resultado.data[0]
                         entrega["numero_carga"] = st.session_state["numero_nova_carga"]
                         entrega["Data_Hora_Gerada"] = datetime.now().isoformat()
                         entrega["Status"] = "Fechada"
@@ -1845,8 +1838,8 @@ def pagina_rotas_confirmadas():
                         if origem == "rotas_confirmadas" and "Serie_Numero_CTRC" in entrega:
                             supabase.table("rotas_confirmadas").delete().eq("Serie_Numero_CTRC", entrega["Serie_Numero_CTRC"]).execute()
                             time.sleep(0.1)
-                        elif origem == "pre_roterizacao" and chave_coluna in entrega:
-                            supabase.table("pre_roterizacao").delete().eq(chave_coluna, entrega[chave_coluna]).execute()
+                        elif origem == "pre_roterizacao" and chave in entrega.values():
+                            supabase.table("pre_roterizacao").delete().eq(chave_coluna_pre, chave).execute()
                             time.sleep(0.1)
 
                     except Exception as e_inner:
@@ -1862,6 +1855,9 @@ def pagina_rotas_confirmadas():
 
             except Exception as e:
                 st.error(f"Erro ao adicionar entregas: {e}")
+
+
+
 
     try:
         df = pd.DataFrame(supabase.table("rotas_confirmadas").select("*").execute().data)
