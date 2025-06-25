@@ -1883,8 +1883,22 @@ def pagina_rotas_confirmadas():
                             registros["Data_Hora_Gerada"] = datetime.now().isoformat()
                             registros["Status"] = "Fechada"
 
-                            dados = registros.replace([np.nan, np.inf, -np.inf], None).to_dict(orient="records")
+                            # Limpeza geral para evitar erro de serialização
+                            registros = registros.replace([np.nan, np.inf, -np.inf], None)
+
+                            # Converte datetime para string ISO, se houver colunas desse tipo
+                            for col in registros.columns:
+                                if registros[col].dtype == "datetime64[ns]":
+                                    registros[col] = registros[col].astype(str)
+
+                            # Garante que nenhum valor seja um tipo não serializável
+                            dados = []
+                            for row in registros.to_dict(orient="records"):
+                                dados.append({k: (str(v) if isinstance(v, (datetime, pd.Timestamp)) else v) for k, v in row.items()})
+
+                            # Insere no banco
                             supabase.table("cargas_geradas").insert(dados).execute()
+
 
                             chaves = registros["Serie_Numero_CTRC"].dropna().astype(str).tolist()
                             for ctrc in chaves:
