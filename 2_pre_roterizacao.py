@@ -1890,8 +1890,9 @@ def pagina_rotas_confirmadas():
                             hoje = datetime.now().strftime("%Y%m%d")
                             cargas_hoje = supabase.table("cargas_geradas") \
                                 .select("numero_carga") \
-                                .like("numero_carga", f"CARGA-{hoje}-%") \
+                                .filter("numero_carga", "ilike", f"CARGA-{hoje}-%") \
                                 .execute().data
+
 
                             sequencias_existentes = [
                                 int(c["numero_carga"].split("-")[-1])
