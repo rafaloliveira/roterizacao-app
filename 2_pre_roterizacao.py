@@ -1926,6 +1926,7 @@ def pagina_rotas_confirmadas():
                             # DEBUG PROFUNDO: Testar serialização JSON por linha
                             import json
 
+                            erros = 0
                             for idx, row in enumerate(dados_limpos):
                                 try:
                                     json.dumps(row)
@@ -1933,7 +1934,12 @@ def pagina_rotas_confirmadas():
                                     st.error(f"❌ Linha {idx} contém erro de serialização: {e}")
                                     st.write("🔍 Linha com problema:")
                                     st.json(row)
-                                    raise e  # Opcional: para interromper e ver somente o primeiro erro
+                                    erros += 1
+
+                            if erros > 0:
+                                st.stop()
+
+
 
                             supabase.table("cargas_geradas").insert(dados_limpos).execute()
 
