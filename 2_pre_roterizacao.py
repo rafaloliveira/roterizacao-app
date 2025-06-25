@@ -1800,8 +1800,14 @@ def pagina_rotas_confirmadas():
 
                 # Captura o nome exato da coluna de chave no Supabase
                 amostra = supabase.table("rotas_confirmadas").select("*").limit(1).execute().data
-                chave_coluna = next((k for k in amostra[0].keys() if "chave" in k.lower() and "ct" in k.lower()), "Chave CT-e")
-                print("🔑 Coluna real de chave encontrada:", repr(chave_coluna))
+                print("📦 Amostra de dados:", amostra)
+
+                if amostra:
+                    chave_coluna = next((k for k in amostra[0].keys() if "chave" in k.lower() and "ct" in k.lower()), "Chave CT-e")
+                    print("🔑 Coluna real de chave encontrada:", repr(chave_coluna))
+                else:
+                    print("⚠️ Nenhuma amostra encontrada na tabela rotas_confirmadas")
+                    chave_coluna = "Chave CT-e"
 
                 for chave in chaves:
                     try:
