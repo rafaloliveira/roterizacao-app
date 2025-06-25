@@ -1774,9 +1774,10 @@ def pagina_rotas_confirmadas():
             if st.button("🆕 Criar Nova Carga Avulsa"):
                 try:
                     numero_carga = gerar_proximo_numero_carga(supabase)
-                    st.session_state["nova_carga_em_criacao"] = True
-                    st.session_state["numero_nova_carga"] = numero_carga
-                    st.rerun()
+                    if numero_carga:
+                        st.session_state["nova_carga_em_criacao"] = True
+                        st.session_state["numero_nova_carga"] = numero_carga
+                        st.rerun()
                 except Exception as e:
                     st.error(f"Erro ao criar nova carga: {e}")
 
