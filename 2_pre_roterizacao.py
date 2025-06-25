@@ -1836,7 +1836,19 @@ def pagina_rotas_confirmadas():
                             v
                         ) for k, v in entrega.items()}
 
-                        supabase.table("cargas_geradas").insert(entrega).execute()
+                        # ⚠️ Define apenas as colunas válidas para cargas_geradas
+                        colunas_validas = [
+                            'Serie_Numero_CTRC', 'Cliente Pagador', 'Chave CT-e', 'Cliente Destinatario',
+                            'Cidade de Entrega', 'Bairro do Destinatario', 'Previsao de Entrega',
+                            'Numero da Nota Fiscal', 'Status', 'Entrega Programada', 'Particularidade',
+                            'Codigo da Ultima Ocorrencia', 'Peso Real em Kg', 'Peso Calculado em Kg',
+                            'numero_carga', 'Data_Hora_Gerada'
+                        ]
+
+                        entrega_filtrada = {k: v for k, v in entrega.items() if k in colunas_validas}
+
+                        supabase.table("cargas_geradas").insert(entrega_filtrada).execute()
+
                         time.sleep(0.1)
                         entregas_encontradas.append(entrega)
 
