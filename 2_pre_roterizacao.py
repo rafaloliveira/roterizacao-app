@@ -1936,6 +1936,7 @@ def pagina_rotas_confirmadas():
                     data_return_mode="AS_INPUT",
                     theme="material",
                     show_toolbar=False
+                    
                 )
 
                 # Apenas visualização
