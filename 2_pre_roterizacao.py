@@ -1751,9 +1751,13 @@ def pagina_rotas_confirmadas():
                     entrega["Data_Hora_Gerada"] = datetime.now().isoformat()
                     entrega["Status"] = "Fechada"
 
-                    entrega = {k: (v if not isinstance(v, (pd.Timestamp, datetime)) else v.isoformat()) for k, v in entrega.items()}
-                    entrega = {k: (None if v in [np.nan, np.inf, -np.inf] else v) for k, v in entrega.items()}
-                    entrega = {k: (json.dumps(v) if isinstance(v, dict) else v) for k, v in entrega.items()}
+                    entrega = {k: (
+                        v.isoformat() if isinstance(v, (pd.Timestamp, datetime)) else
+                        None if isinstance(v, float) and (np.isnan(v) or np.isinf(v)) else
+                        json.dumps(v) if isinstance(v, dict) else
+                        v
+                    ) for k, v in entrega.items()}
+
 
                     supabase.table("cargas_geradas").insert(entrega).execute()
 
