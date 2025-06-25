@@ -1805,17 +1805,16 @@ def pagina_rotas_confirmadas():
                         print("🔍 Procurando chave:", repr(chave))
                         origem = None
 
+                        # Busca na tabela rotas_confirmadas
                         resultado = supabase.table("rotas_confirmadas").select("*").execute()
                         dados = [d for d in resultado.data if str(d.get(chave_coluna_rotas, "")).strip() == chave]
+
                         if dados:
                             origem = "rotas_confirmadas"
                             entrega = dados[0]
                             entrega.pop("id", None)
-                        if resultado.data:
-                            origem = "rotas_confirmadas"
-                            entrega = resultado.data[0]
-                            entrega.pop("id", None)
                         else:
+                            # Se não encontrou, tenta na pre_roterizacao
                             resultado = supabase.table("pre_roterizacao").select("*").execute()
                             dados = [d for d in resultado.data if str(d.get(chave_coluna_pre, "")).strip() == chave]
                             if dados:
