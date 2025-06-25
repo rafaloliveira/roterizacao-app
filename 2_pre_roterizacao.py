@@ -1702,7 +1702,8 @@ def pagina_rotas_confirmadas():
                 filtro = f"CARGA-{hoje}-%"
                 st.write("🔍 Filtro utilizado para buscar cargas existentes:", filtro)
 
-                query = supabase.table("cargas_geradas").select("numero_carga").like("numero_carga", filtro)
+                query = supabase.table("cargas_geradas").select("numero_carga").filter("numero_carga", "ilike", filtro)
+
                 st.write("📤 Query pronta para execução.")
                 
                 resultado = query.execute()
