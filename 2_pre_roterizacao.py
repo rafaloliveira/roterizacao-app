@@ -660,17 +660,13 @@ def gerar_proximo_numero_carga(supabase):
 
         dados = resultado.data
 
-        if dados and isinstance(dados, list) and "numero_carga" in dados[0]:
-            ultimo = dados[0]["numero_carga"]
-            if isinstance(ultimo, str) and ultimo.isdigit():
-                novo_numero = str(int(ultimo) + 1).zfill(5)
-                return novo_numero
-            else:
-                st.warning(f"⚠️ Valor inesperado no campo numero_carga: {ultimo}")
-        else:
-            st.info("📦 Nenhuma carga existente. Iniciando numeração em 00001.")
-
-        # Se não houver registros válidos
+        if dados and isinstance(dados, list) and len(dados) > 0:
+            ultimo_registro = dados[0]
+            numero = ultimo_registro.get("numero_carga")
+            if isinstance(numero, str) and numero.isdigit():
+                return str(int(numero) + 1).zfill(5)
+        
+        # Nenhum dado encontrado — primeira carga
         return "00001"
 
     except Exception as e:
