@@ -1773,10 +1773,7 @@ def pagina_rotas_confirmadas():
         with col1:
             if st.button("🆕 Criar Nova Carga Avulsa"):
                 try:
-                    cargas = supabase.table("cargas_geradas").select("numero_carga").order("numero_carga", desc=True).limit(1).execute().data
-                    ultimo_numero = int(cargas[0]["numero_carga"]) if cargas else 0
-                    numero_carga = str(ultimo_numero + 1).zfill(6)
-
+                    numero_carga = gerar_proximo_numero_carga(supabase)
                     st.session_state["nova_carga_em_criacao"] = True
                     st.session_state["numero_nova_carga"] = numero_carga
                     st.rerun()
@@ -1786,14 +1783,13 @@ def pagina_rotas_confirmadas():
     if st.session_state["nova_carga_em_criacao"]:
         st.success(f"Nova Carga Criada: {st.session_state['numero_nova_carga']}")
         st.markdown("### Inserir Entregas na Carga")
-
         chaves_input = st.text_area("Insira as Chaves CT-e (uma por linha)")
 
-        col1, col2 = st.columns([1, 1])
+        col1, col2 = st.columns([5, 1])
         with col1:
             adicionar = st.button("🚛 Adicionar Entregas à Carga", key="botao_manual")
         with col2:
-            cancelar = st.button("❌ Cancelar Nova Carga")
+            cancelar = st.button("❌", help="Cancelar Nova Carga")
 
         if cancelar:
             st.session_state["nova_carga_em_criacao"] = False
@@ -1818,24 +1814,31 @@ def pagina_rotas_confirmadas():
                 chave_coluna_rotas = detectar_coluna_chave("rotas_confirmadas") or "Chave CT-e"
                 chave_coluna_pre = detectar_coluna_chave("pre_roterizacao") or "Chave CT-e"
 
+                # Buscar todos os dados uma única vez para maior controle
+                dados_rotas = supabase.table("rotas_confirmadas").select("*").execute().data
+                dados_pre = supabase.table("pre_roterizacao").select("*").execute().data
+
                 for chave in chaves:
                     try:
                         origem = None
+                        entrega = None
 
-                        resultado = supabase.table("rotas_confirmadas").select("*").eq(chave_coluna_rotas, chave).execute()
-                        if resultado.data:
+                        # Busca manual nas tabelas
+                        dados = [d for d in dados_rotas if str(d.get(chave_coluna_rotas, "")).strip() == chave]
+                        if dados:
                             origem = "rotas_confirmadas"
-                            entrega = resultado.data[0]
+                            entrega = dados[0]
                             entrega.pop("id", None)
                         else:
-                            resultado = supabase.table("pre_roterizacao").select("*").eq(chave_coluna_pre, chave).execute()
-                            if resultado.data:
+                            dados = [d for d in dados_pre if str(d.get(chave_coluna_pre, "")).strip() == chave]
+                            if dados:
                                 origem = "pre_roterizacao"
-                                entrega = resultado.data[0]
+                                entrega = dados[0]
                                 entrega.pop("id", None)
-                            else:
-                                st.warning(f"⚠️ Chave {chave} não encontrada em nenhuma tabela.")
-                                continue
+
+                        if not entrega:
+                            st.warning(f"⚠️ Chave {chave} não encontrada em nenhuma tabela.")
+                            continue
 
                         entrega["numero_carga"] = st.session_state["numero_nova_carga"]
                         entrega["Data_Hora_Gerada"] = datetime.now().isoformat()
@@ -1848,7 +1851,17 @@ def pagina_rotas_confirmadas():
                             v
                         ) for k, v in entrega.items()}
 
-                        supabase.table("cargas_geradas").insert(entrega).execute()
+                        # 🔒 Colunas válidas para cargas_geradas
+                        colunas_validas = [
+                            'Serie_Numero_CTRC', 'Cliente Pagador', 'Chave CT-e', 'Cliente Destinatario',
+                            'Cidade de Entrega', 'Bairro do Destinatario', 'Previsao de Entrega',
+                            'Numero da Nota Fiscal', 'Status', 'Entrega Programada', 'Particularidade',
+                            'Codigo da Ultima Ocorrencia', 'Peso Real em Kg', 'Peso Calculado em Kg',
+                            'numero_carga', 'Data_Hora_Gerada'
+                        ]
+                        entrega_filtrada = {k: v for k, v in entrega.items() if k in colunas_validas}
+
+                        supabase.table("cargas_geradas").insert(entrega_filtrada).execute()
                         time.sleep(0.1)
                         entregas_encontradas.append(entrega)
 
@@ -1872,6 +1885,8 @@ def pagina_rotas_confirmadas():
 
             except Exception as e:
                 st.error(f"Erro ao adicionar entregas: {e}")
+
+
 
 
     # ... restante do código permanece o mesmo (grid etc.)
