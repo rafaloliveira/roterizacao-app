@@ -9,6 +9,7 @@ st.set_page_config(page_title="Roterização", layout="wide")
 import pandas as pd
 import numpy as np
 import io
+import json
 import time
 import hashlib
 import uuid
@@ -646,6 +647,28 @@ def carregar_base_supabase():
     except Exception as e:
         st.error(f"Erro ao consultar as tabelas do Supabase: {e}")
         return pd.DataFrame()
+    
+
+
+def gerar_proximo_numero_carga(supabase):
+    hoje = datetime.now().strftime("%Y%m%d")
+    filtro = f"CARGA-{hoje}-%"
+    try:
+        resultado = supabase.table("numero_cargas_geradas") \
+            .select("numero_carga") \
+            .ilike("numero_carga", filtro) \
+            .execute()
+        cargas_hoje = resultado.data or []
+        sequencias_existentes = [
+            int(c["numero_carga"].split("-")[-1])
+            for c in cargas_hoje if c.get("numero_carga", "").startswith(f"CARGA-{hoje}")
+        ]
+        proximo_num = max(sequencias_existentes + [0]) + 1
+        return f"CARGA-{hoje}-{proximo_num:03d}"
+    except Exception as e:
+        st.error("Erro ao gerar número da nova carga")
+        st.exception(e)
+        st.stop()
 
 
 
@@ -1697,35 +1720,7 @@ def pagina_rotas_confirmadas():
 
     if not st.session_state["nova_carga_em_criacao"]:
         if st.button("🆕 Criar Nova Carga Avulsa"):
-            hoje = datetime.now().strftime("%Y%m%d")
-            try:
-                filtro = f"CARGA-{hoje}-%"
-                st.write("🔍 Filtro utilizado para buscar cargas existentes:", filtro)
-
-                query = supabase.table("cargas_geradas").select("numero_carga").filter("numero_carga", "ilike", filtro)
-
-                st.write("📤 Query pronta para execução.")
-                
-                resultado = query.execute()
-                st.write("📥 Resultado bruto do Supabase:", resultado)
-                
-                ultimas = resultado.data
-
-            except Exception as e:
-                st.error("❌ Erro ao buscar cargas existentes:")
-                st.exception(e)
-                st.stop()
-
-                sequencias_existentes = [
-                    int(c["numero_carga"].split("-")[-1])
-                    for c in ultimas if c.get("numero_carga", "").startswith(f"CARGA-{hoje}")
-                ]
-                proximo_num = max(sequencias_existentes + [0]) + 1
-                numero_carga = f"CARGA-{hoje}-{proximo_num:03d}"
-            except Exception as e:
-                st.error(f"Erro ao buscar cargas existentes: {e}")
-                return
-
+            numero_carga = gerar_proximo_numero_carga(supabase)
             st.session_state["nova_carga_em_criacao"] = True
             st.session_state["numero_nova_carga"] = numero_carga
             st.rerun()
@@ -1752,8 +1747,6 @@ def pagina_rotas_confirmadas():
                     entrega["numero_carga"] = st.session_state["numero_nova_carga"]
                     entrega["Data_Hora_Gerada"] = datetime.now().isoformat()
                     entrega["Status"] = "Fechada"
-                    # Limpeza e serialização da entrega avulsa
-                    import json
 
                     entrega = {k: (v if not isinstance(v, (pd.Timestamp, datetime)) else v.isoformat()) for k, v in entrega.items()}
                     entrega = {k: (None if v in [np.nan, np.inf, -np.inf] else v) for k, v in entrega.items()}
@@ -1768,12 +1761,12 @@ def pagina_rotas_confirmadas():
 
                 st.success(f"Entregas adicionadas à carga {st.session_state['numero_nova_carga']} com sucesso.")
                 time.sleep(2)
-                st.switch_page("cargas_geradas")
+                st.experimental_set_query_params(page="cargas_geradas")
+                st.rerun()
 
             except Exception as e:
                 st.error(f"Erro ao adicionar entregas: {e}")
 
-    # Exibição das rotas confirmadas
     try:
         df = pd.DataFrame(supabase.table("rotas_confirmadas").select("*").execute().data)
         if df.empty:
@@ -1878,7 +1871,7 @@ def pagina_rotas_confirmadas():
                     allow_unsafe_jscode=True,
                     key=st.session_state[grid_key],
                     data_return_mode="AS_INPUT",
-                    theme=AgGridTheme.MATERIAL,
+                    theme="material",
                     show_toolbar=False
                 )
 
@@ -1887,19 +1880,7 @@ def pagina_rotas_confirmadas():
                 if not selecionadas.empty:
                     if st.button(f"🚛 Gerar Carga com Selecionadas da Rota {rota}", key=f"btn_gerar_carga_{rota}"):
                         try:
-                            hoje = datetime.now().strftime("%Y%m%d")
-                            cargas_hoje = supabase.table("cargas_geradas") \
-                                .select("numero_carga") \
-                                .filter("numero_carga", "ilike", f"CARGA-{hoje}-%") \
-                                .execute().data
-
-
-                            sequencias_existentes = [
-                                int(c["numero_carga"].split("-")[-1])
-                                for c in cargas_hoje if c.get("numero_carga", "").startswith(f"CARGA-{hoje}")
-                            ]
-                            proximo_num = max(sequencias_existentes + [0]) + 1
-                            numero_carga = f"CARGA-{hoje}-{proximo_num:03d}"
+                            numero_carga = gerar_proximo_numero_carga(supabase)
 
                             registros = selecionadas.copy()
                             registros = registros.drop(columns=["_selectedRowNodeInfo"], errors="ignore")
@@ -1907,19 +1888,12 @@ def pagina_rotas_confirmadas():
                             registros["Data_Hora_Gerada"] = datetime.now().isoformat()
                             registros["Status"] = "Fechada"
 
-                            # Limpeza geral para evitar erro de serialização
                             registros = registros.replace([np.nan, np.inf, -np.inf], None)
 
-                            # Converte datetime para string ISO, se houver colunas desse tipo
                             for col in registros.columns:
                                 if registros[col].dtype == "datetime64[ns]":
                                     registros[col] = registros[col].astype(str)
 
-                            # Garante que nenhum valor seja um tipo não serializável
-                            import json
-
-                            # Limpeza geral
-                            registros = registros.replace([np.nan, np.inf, -np.inf], None)
                             registros = registros.drop(columns=[col for col in registros.columns if col.startswith("_")], errors="ignore")
 
                             dados_limpos = []
@@ -1938,11 +1912,6 @@ def pagina_rotas_confirmadas():
                                         linha[k] = v
                                 dados_limpos.append(linha)
 
-                            # st.write(dados_limpos)  # Descomente se quiser debug
-                            # DEBUG PROFUNDO: Testar serialização JSON por linha
-                            import json
-
-                        
                             erros = 0
                             for idx, row in enumerate(dados_limpos):
                                 try:
@@ -1950,15 +1919,12 @@ def pagina_rotas_confirmadas():
                                 except Exception as e:
                                     st.error(f"❌ Linha {idx} contém erro de serialização:")
                                     st.code(str(e))
-                                    st.json({k: str(v) for k, v in row.items()})  # força serialização segura para inspeção
+                                    st.json({k: str(v) for k, v in row.items()})
                                     erros += 1
 
                             if erros > 0:
                                 st.warning(f"⚠️ Foram encontrados {erros} problemas de serialização. Corrija antes de enviar.")
                                 st.stop()
-
-
-
 
                             supabase.table("cargas_geradas").insert(dados_limpos).execute()
 
@@ -1968,7 +1934,8 @@ def pagina_rotas_confirmadas():
 
                             st.success(f"🚛 Carga {numero_carga} criada com {len(chaves)} entregas.")
                             time.sleep(2)
-                            st.switch_page("cargas_geradas")  # ou st.rerun() se preferir
+                            st.experimental_set_query_params(page="cargas_geradas")
+                            st.experimental_rerun()
 
                         except Exception as e:
                             st.error(f"❌ Erro ao gerar carga: {e}")
