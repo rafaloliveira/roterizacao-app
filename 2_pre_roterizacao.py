@@ -659,20 +659,19 @@ def gerar_proximo_numero_carga(supabase):
             .execute()
 
         dados = resultado.data
-
-        if dados and isinstance(dados, list) and len(dados) > 0:
-            ultimo_registro = dados[0]
-            numero = ultimo_registro.get("numero_carga")
-            if isinstance(numero, str) and numero.isdigit():
+        if dados:
+            numero = dados[0].get("numero_carga")
+            if numero is not None and str(numero).isdigit():
                 return str(int(numero) + 1).zfill(5)
         
-        # Nenhum dado encontrado — primeira carga
+        # ✅ Nenhum dado ou número inválido
         return "00001"
 
     except Exception as e:
         st.error("❌ Erro ao gerar número da nova carga")
         st.exception(e)
-        return None
+        return "00001"  # Mesmo em erro, retorna "00001"
+
 
 
 
@@ -1885,6 +1884,7 @@ def pagina_rotas_confirmadas():
                     if st.button(f"🚛 Gerar Carga com Selecionadas da Rota {rota}", key=f"btn_gerar_carga_{rota}"):
                         try:
                             numero_carga = gerar_proximo_numero_carga(supabase)
+                            st.write("🔢 número gerado:", numero_carga)  # DEBUG
                             if not numero_carga:
                                 st.stop()  # impede continuar se deu erro
 
