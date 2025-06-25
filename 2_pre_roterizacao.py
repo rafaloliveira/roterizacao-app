@@ -1737,7 +1737,15 @@ def pagina_rotas_confirmadas():
                     entrega["numero_carga"] = st.session_state["numero_nova_carga"]
                     entrega["Data_Hora_Gerada"] = datetime.now().isoformat()
                     entrega["Status"] = "Fechada"
+                    # Limpeza e serialização da entrega avulsa
+                    import json
+
+                    entrega = {k: (v if not isinstance(v, (pd.Timestamp, datetime)) else v.isoformat()) for k, v in entrega.items()}
+                    entrega = {k: (None if v in [np.nan, np.inf, -np.inf] else v) for k, v in entrega.items()}
+                    entrega = {k: (json.dumps(v) if isinstance(v, dict) else v) for k, v in entrega.items()}
+
                     supabase.table("cargas_geradas").insert(entrega).execute()
+
                     if "Serie_Numero_CTRC" in entrega:
                         supabase.table("rotas_confirmadas").delete().eq("Serie_Numero_CTRC", entrega["Serie_Numero_CTRC"]).execute()
                     elif "Chave CT-e" in entrega:
@@ -1892,13 +1900,30 @@ def pagina_rotas_confirmadas():
                                     registros[col] = registros[col].astype(str)
 
                             # Garante que nenhum valor seja um tipo não serializável
-                            dados = []
+                            import json
+
+                            # Limpeza geral
+                            registros = registros.replace([np.nan, np.inf, -np.inf], None)
+                            registros = registros.drop(columns=[col for col in registros.columns if col.startswith("_")], errors="ignore")
+
+                            dados_limpos = []
                             for row in registros.to_dict(orient="records"):
-                                dados.append({k: (str(v) if isinstance(v, (datetime, pd.Timestamp)) else v) for k, v in row.items()})
+                                linha = {}
+                                for k, v in row.items():
+                                    if isinstance(v, (pd.Timestamp, datetime)):
+                                        linha[k] = v.isoformat()
+                                    elif isinstance(v, (np.integer, np.floating)):
+                                        linha[k] = v.item()
+                                    elif isinstance(v, float) and (np.isnan(v) or np.isinf(v)):
+                                        linha[k] = None
+                                    elif isinstance(v, dict):
+                                        linha[k] = json.dumps(v)
+                                    else:
+                                        linha[k] = v
+                                dados_limpos.append(linha)
 
-                            # Insere no banco
-                            supabase.table("cargas_geradas").insert(dados).execute()
-
+                            # st.write(dados_limpos)  # Descomente se quiser debug
+                            supabase.table("cargas_geradas").insert(dados_limpos).execute()
 
                             chaves = registros["Serie_Numero_CTRC"].dropna().astype(str).tolist()
                             for ctrc in chaves:
