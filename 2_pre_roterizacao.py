@@ -1757,17 +1757,7 @@ def pagina_pre_roterizacao():
 
 # PÁGINA ROTAS CONFIRMADAS
 
-##########################################
-
-import streamlit as st
-from datetime import datetime
-import pandas as pd
-import numpy as np
-import json
-import time
-import uuid
-import re
-from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, JsCode, AgGridTheme
+#########################################
 
 def pagina_rotas_confirmadas():
     st.markdown("## Entregas Confirmadas por Rota")
@@ -1780,10 +1770,17 @@ def pagina_rotas_confirmadas():
 
     if not st.session_state["nova_carga_em_criacao"]:
         if st.button("🆕 Criar Nova Carga Avulsa"):
-            numero_carga = gerar_proximo_numero_carga(supabase)
-            st.session_state["nova_carga_em_criacao"] = True
-            st.session_state["numero_nova_carga"] = numero_carga
-            st.rerun()
+            try:
+                # Buscar última carga criada
+                cargas = supabase.table("cargas_geradas").select("numero_carga").order("numero_carga", desc=True).limit(1).execute().data
+                ultimo_numero = int(cargas[0]["numero_carga"]) if cargas else 0
+                numero_carga = str(ultimo_numero + 1).zfill(6)
+
+                st.session_state["nova_carga_em_criacao"] = True
+                st.session_state["numero_nova_carga"] = numero_carga
+                st.rerun()
+            except Exception as e:
+                st.error(f"Erro ao criar nova carga: {e}")
 
     if st.session_state["nova_carga_em_criacao"]:
         st.success(f"Nova Carga Criada: {st.session_state['numero_nova_carga']}")
@@ -1862,6 +1859,7 @@ def pagina_rotas_confirmadas():
 
             except Exception as e:
                 st.error(f"Erro ao adicionar entregas: {e}")
+
 
     try:
         df = pd.DataFrame(supabase.table("rotas_confirmadas").select("*").execute().data)
