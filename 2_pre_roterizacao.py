@@ -1758,6 +1758,16 @@ def adicionar_entregas_a_carga(chaves_cte):
 ##########################################
 
 
+import streamlit as st
+from datetime import datetime
+import pandas as pd
+import numpy as np
+import json
+import time
+import uuid
+import re
+from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, JsCode
+
 def pagina_rotas_confirmadas():
     st.markdown("## Entregas Confirmadas por Rota")
 
@@ -1787,21 +1797,22 @@ def pagina_rotas_confirmadas():
                     return
 
                 entregas_encontradas = []
+
+                # Captura o nome exato da coluna de chave no Supabase
+                amostra = supabase.table("rotas_confirmadas").select("*").limit(1).execute().data
+                chave_coluna = next((k for k in amostra[0].keys() if "chave" in k.lower() and "ct" in k.lower()), "Chave CT-e")
+                print("🔑 Coluna real de chave encontrada:", repr(chave_coluna))
+
                 for chave in chaves:
                     try:
                         print("🔍 Procurando chave:", repr(chave))
                         origem = None
 
-                        # Debug das colunas da tabela
-                        df_debug = pd.DataFrame(supabase.table("rotas_confirmadas").select("*").limit(1).execute().data)
-                        df_debug.columns = df_debug.columns.str.strip()
-                        print("🧾 Colunas disponíveis:", list(df_debug.columns))
-
-                        resultado = supabase.table("rotas_confirmadas").select("*").eq("Chave CT-e", chave).execute()
+                        resultado = supabase.table("rotas_confirmadas").select("*").eq(chave_coluna, chave).execute()
                         if resultado.data:
                             origem = "rotas_confirmadas"
                         else:
-                            resultado = supabase.table("pre_roterizacao").select("*").eq("Chave CT-e", chave).execute()
+                            resultado = supabase.table("pre_roterizacao").select("*").eq(chave_coluna, chave).execute()
                             if resultado.data:
                                 origem = "pre_roterizacao"
 
@@ -1828,8 +1839,8 @@ def pagina_rotas_confirmadas():
                         if origem == "rotas_confirmadas" and "Serie_Numero_CTRC" in entrega:
                             supabase.table("rotas_confirmadas").delete().eq("Serie_Numero_CTRC", entrega["Serie_Numero_CTRC"]).execute()
                             time.sleep(0.1)
-                        elif origem == "pre_roterizacao" and "Chave CT-e" in entrega:
-                            supabase.table("pre_roterizacao").delete().eq("Chave CT-e", entrega["Chave CT-e"]).execute()
+                        elif origem == "pre_roterizacao" and chave_coluna in entrega:
+                            supabase.table("pre_roterizacao").delete().eq(chave_coluna, entrega[chave_coluna]).execute()
                             time.sleep(0.1)
 
                     except Exception as e_inner:
@@ -1848,7 +1859,7 @@ def pagina_rotas_confirmadas():
 
     try:
         df = pd.DataFrame(supabase.table("rotas_confirmadas").select("*").execute().data)
-        df.columns = df.columns.str.strip()  # <<< Normaliza nomes de colunas
+        df.columns = df.columns.str.strip()
         if df.empty:
             st.info("Nenhuma entrega foi confirmada ainda.")
             return
@@ -1863,7 +1874,7 @@ def pagina_rotas_confirmadas():
             return f"<span style='background:#eef2f7;border-radius:12px;padding:6px 12px;margin:4px;color:inherit;display:inline-block;'>{label}</span>"
 
         colunas_exibir = [
-            "Serie_Numero_CTRC","Rota", "Cliente Pagador", "Chave CT-e", "Cliente Destinatario",
+            "Serie_Numero_CTRC", "Rota", "Cliente Pagador", "Chave CT-e", "Cliente Destinatario",
             "Cidade de Entrega", "Bairro do Destinatario", "Previsao de Entrega",
             "Numero da Nota Fiscal", "Status", "Entrega Programada", "Particularidade",
             "Codigo da Ultima Ocorrencia", "Peso Real em Kg", "Peso Calculado em Kg",
@@ -1955,7 +1966,7 @@ def pagina_rotas_confirmadas():
                     show_toolbar=False
                 )
 
-                _ = pd.DataFrame(grid_response.get("selected_rows", []))  # Apenas visualização
+                _ = pd.DataFrame(grid_response.get("selected_rows", []))
 
     except Exception as e:
         st.error("❌ Erro ao carregar entregas confirmadas:")
