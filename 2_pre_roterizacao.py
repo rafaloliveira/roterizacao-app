@@ -1708,6 +1708,48 @@ def pagina_pre_roterizacao():
 
 
 
+
+def adicionar_entregas_a_carga(chaves_cte):
+    if not chaves_cte:
+        st.warning("⚠️ Nenhuma chave CT-e foi informada.")
+        return
+
+    numero_carga = gerar_proximo_numero_carga(supabase)
+    entregas_coletadas = []
+
+    for tabela in ["rotas_confirmadas", "pre_roterizacao"]:
+        try:
+            resposta = supabase.table(tabela).select("*").in_("Chave CT-e", chaves_cte).execute()
+            if resposta.data:
+                entregas_coletadas.extend(resposta.data)
+        except Exception as e:
+            st.error(f"Erro ao consultar tabela '{tabela}': {e}")
+            return
+
+    if not entregas_coletadas:
+        st.warning("⚠️ Nenhuma entrega encontrada para as chaves informadas.")
+        return
+
+    # Remove entregas das tabelas de origem
+    for tabela in ["rotas_confirmadas", "pre_roterizacao"]:
+        try:
+            supabase.table(tabela).delete().in_("Chave CT-e", chaves_cte).execute()
+        except Exception as e:
+            st.error(f"Erro ao remover da tabela '{tabela}': {e}")
+
+    # Insere entregas na tabela `cargas_geradas`
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    for entrega in entregas_coletadas:
+        entrega["numero_carga"] = numero_carga
+        entrega["created_at"] = now
+
+    try:
+        supabase.table("cargas_geradas").insert(entregas_coletadas).execute()
+        st.success(f"✅ {len(entregas_coletadas)} entrega(s) adicionada(s) à Carga {numero_carga}")
+    except Exception as e:
+        st.error(f"Erro ao inserir na tabela 'cargas_geradas': {e}")
+
+
 ##########################################
 
 # PÁGINA ROTAS CONFIRMADAS
@@ -1736,7 +1778,8 @@ def pagina_rotas_confirmadas():
         chaves_input = st.text_area("Insira as Chaves CT-e (uma por linha)")
         if st.button("🚛 Adicionar Entregas à Carga", key="botao_manual"):
             try:
-                chaves = [c.strip() for c in chaves_input.splitlines() if c.strip()]
+                chaves = selecionadas["Chave CT-e"].dropna().astype(str).str.strip().tolist()
+
                 if not chaves:
                     st.warning("Nenhuma Chave CT-e válida informada.")
                     return
@@ -1769,7 +1812,8 @@ def pagina_rotas_confirmadas():
 
                 st.success(f"Entregas adicionadas à carga {st.session_state['numero_nova_carga']} com sucesso.")
                 time.sleep(2)
-                st.query_params.update()(page="cargas_geradas")
+                st.experimental_set_query_params(page="cargas_geradas")
+
                 st.rerun()
 
             except Exception as e:
@@ -1887,7 +1931,8 @@ def pagina_rotas_confirmadas():
 
                 if not selecionadas.empty:
                     if st.button("🚛 Adicionar Entregas à Carga", key=f"botao_adicionar_{rota}"):
-                        chaves = [c.strip() for c in chaves_input.splitlines() if c.strip()]
+                        chaves = selecionadas["Chave CT-e"].dropna().astype(str).str.strip().tolist()
+
                         if not chaves:
                             st.warning("Nenhuma Chave CT-e válida informada.")
                         else:
@@ -1970,7 +2015,13 @@ def pagina_cargas_geradas():
         return
 
     df_cargas["numero_carga"] = df_cargas["numero_carga"].fillna("(Sem Número)")
-    cargas_unicas = sorted(df_cargas["numero_carga"].unique())
+    df_cargas["created_at"] = pd.to_datetime(df_cargas.get("created_at"), errors="coerce")
+    cargas_unicas = (
+        df_cargas.sort_values("created_at", ascending=False)
+        .drop_duplicates("numero_carga")["numero_carga"]
+        .tolist()
+    )
+
 
     def badge(label):
         return f"<span style='background:#eef2f7;border-radius:12px;padding:6px 12px;margin:4px;color:inherit;display:inline-block;'>{label}</span>"
