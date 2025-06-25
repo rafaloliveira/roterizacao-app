@@ -1886,7 +1886,7 @@ def pagina_rotas_confirmadas():
 
                 if not selecionadas.empty:
 
-                    if st.button("🚛 Adicionar Entregas à Carga"):
+                    if st.button("🚛 Adicionar Entregas à Carga", key=f"botao_adicionar_{rota}"):
                         chaves = [c.strip() for c in chaves_input.splitlines() if c.strip()]
                         if not chaves:
                             st.warning("Nenhuma Chave CT-e válida informada.")
