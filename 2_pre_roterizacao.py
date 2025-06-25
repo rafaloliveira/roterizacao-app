@@ -651,24 +651,26 @@ def carregar_base_supabase():
 
 
 def gerar_proximo_numero_carga(supabase):
-    hoje = datetime.now().strftime("%Y%m%d")
-    filtro = f"CARGA-{hoje}-%"
     try:
-        resultado = supabase.table("numero_cargas_geradas") \
+        resultado = supabase.table("cargas_geradas") \
             .select("numero_carga") \
-            .ilike("numero_carga", filtro) \
+            .order("created_at", desc=True) \
+            .limit(1) \
             .execute()
-        cargas_hoje = resultado.data or []
-        sequencias_existentes = [
-            int(c["numero_carga"].split("-")[-1])
-            for c in cargas_hoje if c.get("numero_carga", "").startswith(f"CARGA-{hoje}")
-        ]
-        proximo_num = max(sequencias_existentes + [0]) + 1
-        return f"CARGA-{hoje}-{proximo_num:03d}"
+
+        if resultado.data and "numero_carga" in resultado.data[0]:
+            ultimo = resultado.data[0]["numero_carga"]
+            if isinstance(ultimo, str) and ultimo.isdigit():
+                return str(int(ultimo) + 1).zfill(5)
+        
+        # Se não houver nenhum registro ainda
+        return "00001"
+
     except Exception as e:
         st.error("Erro ao gerar número da nova carga")
         st.exception(e)
-        st.stop()
+        return None
+
 
 
 
@@ -1881,6 +1883,8 @@ def pagina_rotas_confirmadas():
                     if st.button(f"🚛 Gerar Carga com Selecionadas da Rota {rota}", key=f"btn_gerar_carga_{rota}"):
                         try:
                             numero_carga = gerar_proximo_numero_carga(supabase)
+                            if not numero_carga:
+                                st.stop()  # impede continuar se deu erro
 
                             registros = selecionadas.copy()
                             registros = registros.drop(columns=["_selectedRowNodeInfo"], errors="ignore")
