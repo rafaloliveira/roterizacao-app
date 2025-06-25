@@ -1756,6 +1756,7 @@ def adicionar_entregas_a_carga(chaves_cte):
 
 ##########################################
 
+
 def pagina_rotas_confirmadas():
     st.markdown("## Entregas Confirmadas por Rota")
 
@@ -1786,38 +1787,45 @@ def pagina_rotas_confirmadas():
 
                 entregas_encontradas = []
                 for chave in chaves:
-                    origem = None
-                    resultado = supabase.table("rotas_confirmadas").select("*").eq("Chave CT-e", chave).execute()
-                    if resultado.data:
-                        origem = "rotas_confirmadas"
-                    else:
-                        resultado = supabase.table("pre_roterizacao").select("*").eq("Chave CT-e", chave).execute()
+                    try:
+                        origem = None
+                        resultado = supabase.table("rotas_confirmadas").select("*").eq("Chave CT-e", chave).execute()
                         if resultado.data:
-                            origem = "pre_roterizacao"
+                            origem = "rotas_confirmadas"
+                        else:
+                            resultado = supabase.table("pre_roterizacao").select("*").eq("Chave CT-e", chave).execute()
+                            if resultado.data:
+                                origem = "pre_roterizacao"
 
-                    if not resultado.data:
-                        st.warning(f"⚠️ Chave {chave} não encontrada em nenhuma tabela.")
-                        continue
+                        if not resultado.data:
+                            st.warning(f"⚠️ Chave {chave} não encontrada em nenhuma tabela.")
+                            continue
 
-                    entrega = resultado.data[0]
-                    entrega["numero_carga"] = st.session_state["numero_nova_carga"]
-                    entrega["Data_Hora_Gerada"] = datetime.now().isoformat()
-                    entrega["Status"] = "Fechada"
+                        entrega = resultado.data[0]
+                        entrega["numero_carga"] = st.session_state["numero_nova_carga"]
+                        entrega["Data_Hora_Gerada"] = datetime.now().isoformat()
+                        entrega["Status"] = "Fechada"
 
-                    entrega = {k: (
-                        v.isoformat() if isinstance(v, (pd.Timestamp, datetime)) else
-                        None if isinstance(v, float) and (np.isnan(v) or np.isinf(v)) else
-                        json.dumps(v) if isinstance(v, dict) else
-                        v
-                    ) for k, v in entrega.items()}
+                        entrega = {k: (
+                            v.isoformat() if isinstance(v, (pd.Timestamp, datetime)) else
+                            None if isinstance(v, float) and (np.isnan(v) or np.isinf(v)) else
+                            json.dumps(v) if isinstance(v, dict) else
+                            v
+                        ) for k, v in entrega.items()}
 
-                    supabase.table("cargas_geradas").insert(entrega).execute()
-                    entregas_encontradas.append(entrega)
+                        supabase.table("cargas_geradas").insert(entrega).execute()
+                        time.sleep(0.1)  # pausa para evitar erro de recurso temporariamente indisponível
+                        entregas_encontradas.append(entrega)
 
-                    if origem == "rotas_confirmadas" and "Serie_Numero_CTRC" in entrega:
-                        supabase.table("rotas_confirmadas").delete().eq("Serie_Numero_CTRC", entrega["Serie_Numero_CTRC"]).execute()
-                    elif origem == "pre_roterizacao" and "Chave CT-e" in entrega:
-                        supabase.table("pre_roterizacao").delete().eq("Chave CT-e", entrega["Chave CT-e"]).execute()
+                        if origem == "rotas_confirmadas" and "Serie_Numero_CTRC" in entrega:
+                            supabase.table("rotas_confirmadas").delete().eq("Serie_Numero_CTRC", entrega["Serie_Numero_CTRC"]).execute()
+                            time.sleep(0.1)
+                        elif origem == "pre_roterizacao" and "Chave CT-e" in entrega:
+                            supabase.table("pre_roterizacao").delete().eq("Chave CT-e", entrega["Chave CT-e"]).execute()
+                            time.sleep(0.1)
+
+                    except Exception as e_inner:
+                        st.warning(f"Erro ao processar chave {chave}: {e_inner}")
 
                 if entregas_encontradas:
                     st.success(f"✅ {len(entregas_encontradas)} entrega(s) adicionada(s) à carga {st.session_state['numero_nova_carga']} com sucesso.")
@@ -1936,7 +1944,6 @@ def pagina_rotas_confirmadas():
                     data_return_mode="AS_INPUT",
                     theme="material",
                     show_toolbar=False
-                    
                 )
 
                 # Apenas visualização
@@ -1945,7 +1952,6 @@ def pagina_rotas_confirmadas():
     except Exception as e:
         st.error("❌ Erro ao carregar entregas confirmadas:")
         st.exception(e)
-
 
 
 
