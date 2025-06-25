@@ -9,6 +9,7 @@ st.set_page_config(page_title="Roterização", layout="wide")
 import pandas as pd
 import numpy as np
 import io
+import re
 import json
 import time
 import hashlib
@@ -1780,7 +1781,7 @@ def pagina_rotas_confirmadas():
 
         if st.button("🚛 Adicionar Entregas à Carga", key="botao_manual"):
             try:
-                chaves = [c.strip() for c in chaves_input.splitlines() if c.strip()]
+                chaves = [re.sub(r"\s+", "", c) for c in chaves_input.splitlines() if c.strip()]
                 if not chaves:
                     st.warning("Nenhuma Chave CT-e válida informada.")
                     return
