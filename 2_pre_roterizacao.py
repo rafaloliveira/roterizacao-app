@@ -1924,16 +1924,16 @@ def pagina_rotas_confirmadas():
 
                             # st.write(dados_limpos)  # Descomente se quiser debug
                             # DEBUG PROFUNDO: Testar serialização JSON por linha
-                                import json
+                            import json
 
-                                for idx, row in enumerate(dados_limpos):
-                                    try:
-                                        json.dumps(row)
-                                    except Exception as e:
-                                        st.error(f"❌ Linha {idx} contém erro de serialização: {e}")
-                                        st.write("🔍 Linha com problema:")
-                                        st.json(row)
-                                        raise e  # Opcional: para interromper e ver somente o primeiro erro
+                            for idx, row in enumerate(dados_limpos):
+                                try:
+                                    json.dumps(row)
+                                except Exception as e:
+                                    st.error(f"❌ Linha {idx} contém erro de serialização: {e}")
+                                    st.write("🔍 Linha com problema:")
+                                    st.json(row)
+                                    raise e  # Opcional: para interromper e ver somente o primeiro erro
 
                             supabase.table("cargas_geradas").insert(dados_limpos).execute()
 
