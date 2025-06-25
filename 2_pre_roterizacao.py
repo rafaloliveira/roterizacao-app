@@ -1854,7 +1854,7 @@ def pagina_rotas_confirmadas():
             return f"<span style='background:#eef2f7;border-radius:12px;padding:6px 12px;margin:4px;color:inherit;display:inline-block;'>{label}</span>"
 
         colunas_exibir = [
-            "Serie_Numero_CTRC", "Cliente Pagador", "Chave CT-e", "Cliente Destinatario",
+            "Serie_Numero_CTRC","Rota", "Cliente Pagador", "Chave CT-e", "Cliente Destinatario",
             "Cidade de Entrega", "Bairro do Destinatario", "Previsao de Entrega",
             "Numero da Nota Fiscal", "Status", "Entrega Programada", "Particularidade",
             "Codigo da Ultima Ocorrencia", "Peso Real em Kg", "Peso Calculado em Kg",
