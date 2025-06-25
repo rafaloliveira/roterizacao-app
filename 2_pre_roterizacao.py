@@ -1942,18 +1942,21 @@ def pagina_rotas_confirmadas():
                             # DEBUG PROFUNDO: Testar serialização JSON por linha
                             import json
 
+                        
                             erros = 0
                             for idx, row in enumerate(dados_limpos):
                                 try:
                                     json.dumps(row)
                                 except Exception as e:
-                                    st.error(f"❌ Linha {idx} contém erro de serialização: {e}")
-                                    st.write("🔍 Linha com problema:")
-                                    st.json(row)
+                                    st.error(f"❌ Linha {idx} contém erro de serialização:")
+                                    st.code(str(e))
+                                    st.json({k: str(v) for k, v in row.items()})  # força serialização segura para inspeção
                                     erros += 1
 
                             if erros > 0:
+                                st.warning(f"⚠️ Foram encontrados {erros} problemas de serialização. Corrija antes de enviar.")
                                 st.stop()
+
 
 
 
