@@ -1699,8 +1699,22 @@ def pagina_rotas_confirmadas():
         if st.button("🆕 Criar Nova Carga Avulsa"):
             hoje = datetime.now().strftime("%Y%m%d")
             try:
-                ultimas = supabase.table("cargas_geradas").select("numero_carga") \
-                    .like("numero_carga", f"CARGA-{hoje}-%").execute().data
+                filtro = f"CARGA-{hoje}-%"
+                st.write("🔍 Filtro utilizado para buscar cargas existentes:", filtro)
+
+                query = supabase.table("cargas_geradas").select("numero_carga").like("numero_carga", filtro)
+                st.write("📤 Query pronta para execução.")
+                
+                resultado = query.execute()
+                st.write("📥 Resultado bruto do Supabase:", resultado)
+                
+                ultimas = resultado.data
+
+            except Exception as e:
+                st.error("❌ Erro ao buscar cargas existentes:")
+                st.exception(e)
+                st.stop()
+
                 sequencias_existentes = [
                     int(c["numero_carga"].split("-")[-1])
                     for c in ultimas if c.get("numero_carga", "").startswith(f"CARGA-{hoje}")
