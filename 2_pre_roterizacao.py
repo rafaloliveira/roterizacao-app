@@ -2152,14 +2152,17 @@ def pagina_rotas_confirmadas():
                 cargas_disponiveis = sorted(set(item["numero_carga"] for item in cargas_existentes if item.get("numero_carga")))
 
                 if cargas_disponiveis:
+                    opcoes_selectbox = ["Selecionar Carga"] + cargas_disponiveis
                     carga_escolhida = st.selectbox(
                         "📦 Selecionar Carga Existente para adicionar as entregas",
-                        options=cargas_disponiveis,
+                        options=opcoes_selectbox,
                         key=f"selectbox_carga_existente_{rota}"
                     )
 
                     if st.button(f"➕ Adicionar à Carga {carga_escolhida}", key=f"botao_add_existente_{rota}"):
-                        if not selecionadas:
+                        if carga_escolhida == "Selecionar Carga":
+                            st.warning("Selecione uma carga válida.")
+                        elif not selecionadas:
                             st.warning("Selecione ao menos uma entrega.")
                         else:
                             try:
