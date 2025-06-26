@@ -2105,6 +2105,7 @@ def pagina_rotas_confirmadas():
                                         time.sleep(2)
 
                                 st.success(f"✅ {len(chaves_inseridas)} entrega(s) adicionada(s) à carga {numero_carga}.")
+                                time.sleep(2)
                                 st.rerun()
                             else:
                                 st.warning("Algumas entregas não foram inseridas corretamente.")
