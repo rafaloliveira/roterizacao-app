@@ -2302,6 +2302,7 @@ def pagina_cargas_geradas():
                                 df_remover = pd.DataFrame(selecionadas)
                                 df_remover = df_remover.drop(columns=["_selectedRowNodeInfo"], errors="ignore")
                                 df_remover["Status"] = "AGENDAR"
+                                df_remover = df_remover.drop(columns=["numero_carga"], errors="ignore")
 
                                 registros = df_remover.to_dict(orient="records")
                                 supabase.table("rotas_confirmadas").insert(registros).execute()
@@ -2321,6 +2322,7 @@ def pagina_cargas_geradas():
     except Exception as e:
         st.error("Erro ao carregar cargas geradas:")
         st.exception(e)
+
 
 
 
