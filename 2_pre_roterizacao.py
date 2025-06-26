@@ -2297,17 +2297,15 @@ def pagina_cargas_geradas():
                     col_ret, col_aprov = st.columns([1, 1])
 
                     with col_ret:
-                        if st.button(f"♻️ Retirar da Carga {carga}", key=f"btn_retirar_{carga}"):
+                        if st.button(f"♻️ Retirar da Carga", key=f"btn_retirar_{carga}"):
                             try:
                                 df_remover = pd.DataFrame(selecionadas)
                                 df_remover = df_remover.drop(columns=["_selectedRowNodeInfo"], errors="ignore")
                                 df_remover["Status"] = "AGENDAR"
 
-                                # Reinsere na tabela rotas_confirmadas
                                 registros = df_remover.to_dict(orient="records")
                                 supabase.table("rotas_confirmadas").insert(registros).execute()
 
-                                # Remove da tabela cargas_geradas
                                 chaves = df_remover["Serie_Numero_CTRC"].dropna().astype(str).tolist()
                                 supabase.table("cargas_geradas").delete().in_("Serie_Numero_CTRC", chaves).execute()
 
@@ -2323,6 +2321,7 @@ def pagina_cargas_geradas():
     except Exception as e:
         st.error("Erro ao carregar cargas geradas:")
         st.exception(e)
+
 
 
 # ========== EXECUÇÃO PRINCIPAL ========== #
