@@ -2145,7 +2145,6 @@ def pagina_rotas_confirmadas():
 
 ##########################################
 
-
 def pagina_cargas_geradas():
     st.markdown("## Cargas Geradas")
 
@@ -2243,8 +2242,7 @@ def pagina_cargas_geradas():
                 grid_options = gb.build()
 
                 grid_key = f"grid_carga_gerada_{carga}"
-                if grid_key not in st.session_state:
-                    st.session_state[grid_key] = str(uuid.uuid4())
+                st.session_state[grid_key] = str(uuid.uuid4())
 
                 with st.spinner("🔄 Carregando entregas da carga..."):
                     grid_response = AgGrid(
@@ -2310,6 +2308,10 @@ def pagina_cargas_geradas():
                                 chaves = df_remover["Serie_Numero_CTRC"].dropna().astype(str).tolist()
                                 supabase.table("cargas_geradas").delete().in_("Serie_Numero_CTRC", chaves).execute()
 
+                                for key in list(st.session_state.keys()):
+                                    if key.startswith("grid_carga_gerada_"):
+                                        st.session_state.pop(key, None)
+
                                 st.success(f"{len(chaves)} entrega(s) removida(s) da carga {carga} e retornada(s) à pré-rota.")
                                 st.rerun()
 
@@ -2322,6 +2324,7 @@ def pagina_cargas_geradas():
     except Exception as e:
         st.error("Erro ao carregar cargas geradas:")
         st.exception(e)
+
 
 
 
