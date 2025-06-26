@@ -1640,7 +1640,7 @@ def pagina_pre_roterizacao():
                 unsafe_allow_html=True
             )
 
-        marcar_todas = col_check.checkbox("Marcar todas", key=f"marcar_todas_pre_rota_{rota}")
+       
 
 
         with st.expander("🔽 Selecionar entregas", expanded=False):
@@ -1706,6 +1706,11 @@ def pagina_pre_roterizacao():
                         }
                     }
                 )
+
+
+                col_badge, col_check = st.columns([5, 1])
+                with col_check:
+                    marcar_todas = st.checkbox("Marcar todas", key=f"marcar_todas_pre_rota_{rota}")
 
                 if marcar_todas:
                     selecionadas = df_formatado[df_formatado["Serie_Numero_CTRC"].notna()].copy()
@@ -1984,7 +1989,7 @@ def pagina_rotas_confirmadas():
 
                 gb = GridOptionsBuilder.from_dataframe(df_formatado)
                 gb.configure_default_column(minWidth=150)
-                gb.configure_selection('multiple', use_checkbox=True, header_checkbox=True)
+                gb.configure_selection("multiple", use_checkbox=True)
                 gb.configure_grid_options(paginationPageSize=12)
                 gb.configure_grid_options(alwaysShowHorizontalScroll=True)
                 gb.configure_grid_options(rowStyle={"font-size": "11px"})
