@@ -2196,7 +2196,7 @@ def pagina_rotas_confirmadas():
                                 for key in list(st.session_state.keys()):
                                     if key.startswith("grid_rotas_confirmadas_") or key.startswith("botao_rota_") or key.startswith("marcar_todas_rota_confirmada_"):
                                         st.session_state.pop(key, None)
-
+                                st.session_state.pop(f"selectbox_carga_existente_{rota}", None)
                                 st.success(f"✅ Entregas adicionadas à carga {carga_escolhida}.")
                                 time.sleep(2)
                                 st.rerun()
