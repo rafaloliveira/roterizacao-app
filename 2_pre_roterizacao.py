@@ -1813,10 +1813,27 @@ def pagina_rotas_confirmadas():
                 dados_rotas = supabase.table("rotas_confirmadas").select("*").execute().data
                 dados_pre = supabase.table("pre_roterizacao").select("*").execute().data
 
+                # 🔎 Buscar entregas já atribuídas a cargas
+                dados_cargas = supabase.table("cargas_geradas").select("Chave CT-e", "Serie_Numero_CTRC", "numero_carga").execute().data
+                entregas_ja_em_carga = {
+                    (d.get("Chave CT-e") or "").strip(): d.get("numero_carga")
+                    for d in dados_cargas if d.get("Chave CT-e")
+                }
+                entregas_ja_em_carga.update({
+                    (d.get("Serie_Numero_CTRC") or "").strip(): d.get("numero_carga")
+                    for d in dados_cargas if d.get("Serie_Numero_CTRC")
+                })
+
+
                 for chave in chaves:
                     try:
                         origem = None
                         entrega = None
+
+                        # Verificar se a chave já está em alguma carga
+                        if chave in entregas_ja_em_carga:
+                            st.warning(f"⚠️ A entrega com chave '{chave}' já está na carga {entregas_ja_em_carga[chave]}.")
+                            continue
 
                         # Busca manual nas tabelas
                         dados = [d for d in dados_rotas if str(d.get(chave_coluna_rotas, "")).strip() == chave]
@@ -1885,16 +1902,7 @@ def pagina_rotas_confirmadas():
 
             except Exception as e:
                 st.error(f"Erro ao adicionar entregas: {e}")
-
-
-
-
-
-    # ... restante do código permanece o mesmo (grid etc.)
-
-
-
-
+# ... restante do código permanece o mesmo (grid etc.)
     try:
         df = pd.DataFrame(supabase.table("rotas_confirmadas").select("*").execute().data)
         df.columns = df.columns.str.strip()
