@@ -1819,15 +1819,22 @@ def pagina_rotas_confirmadas():
 
 
                 # 🔎 Buscar entregas já atribuídas a cargas
-                dados_cargas = supabase.table("cargas_geradas").select("Chave CT-e", "Serie_Numero_CTRC", "numero_carga").execute().data
-                entregas_ja_em_carga = {
-                    (d.get("Chave CT-e") or "").strip(): d.get("numero_carga")
-                    for d in dados_cargas if d.get("Chave CT-e")
-                }
-                entregas_ja_em_carga.update({
-                    (d.get("Serie_Numero_CTRC") or "").strip(): d.get("numero_carga")
-                    for d in dados_cargas if d.get("Serie_Numero_CTRC")
-                })
+                dados_cargas = supabase.table("cargas_geradas").select("*").execute().data
+
+                entregas_ja_em_carga = {}
+
+                for d in dados_cargas:
+                    d = {k.strip(): v for k, v in d.items()}  # limpa nomes de colunas
+
+                    chave_cte = str(d.get("Chave CT-e", "")).strip()
+                    serie_ctr = str(d.get("Serie_Numero_CTRC", "")).strip()
+                    numero_carga = d.get("numero_carga")
+
+                    if chave_cte:
+                        entregas_ja_em_carga[chave_cte] = numero_carga
+                    if serie_ctr:
+                        entregas_ja_em_carga[serie_ctr] = numero_carga
+
                 for chave in chaves:
                     try:
                         origem = None
