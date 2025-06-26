@@ -2286,12 +2286,12 @@ def pagina_cargas_geradas():
                     unsafe_allow_html=True
                 )
 
-            # REMOVA ESTA LINHA — ela está errada aqui:
-            # df_formatado = df_formatado.astype(str)
+            
 
             with st.expander("🔽 Ver entregas da carga", expanded=False):
                 df_formatado = df_carga[[col for col in colunas_exibir if col in df_carga.columns]].copy()
-                df_formatado = df_formatado.astype(str)  # ✅ OK aqui
+                df_formatado = df_formatado.replace([np.nan, pd.NaT], "")
+
 
 
 
