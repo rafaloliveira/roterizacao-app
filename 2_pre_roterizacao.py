@@ -1866,14 +1866,16 @@ def pagina_rotas_confirmadas():
                             v
                         ) for k, v in entrega.items()}
 
-                        # 🔒 Colunas válidas para cargas_geradas
+                        # 🔒 Colunas válidas para serem inseridas cargas_geradas
                         colunas_validas = [
                             'Serie_Numero_CTRC', 'Rota', 'Cliente Pagador', 'Chave CT-e', 'Cliente Destinatario',
                             'Cidade de Entrega', 'Bairro do Destinatario', 'Previsao de Entrega',
                             'Numero da Nota Fiscal', 'Status', 'Entrega Programada', 'Particularidade',
                             'Codigo da Ultima Ocorrencia', 'Peso Real em Kg', 'Peso Calculado em Kg',
+                            'Cubagem em m³', 'Quantidade de Volumes', 'Valor do Frete',
                             'numero_carga', 'Data_Hora_Gerada'
                         ]
+
                         entrega_filtrada = {k: v for k, v in entrega.items() if k in colunas_validas}
 
 
@@ -2185,6 +2187,7 @@ def pagina_rotas_confirmadas():
                                     'Cidade de Entrega', 'Bairro do Destinatario', 'Previsao de Entrega',
                                     'Numero da Nota Fiscal', 'Status', 'Entrega Programada', 'Particularidade',
                                     'Codigo da Ultima Ocorrencia', 'Peso Real em Kg', 'Peso Calculado em Kg',
+                                    'Cubagem em m³', 'Quantidade de Volumes', 'Valor do Frete',
                                     'numero_carga', 'Data_Hora_Gerada'
                                 ]
 
