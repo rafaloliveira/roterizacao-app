@@ -1880,9 +1880,13 @@ def pagina_rotas_confirmadas():
                 if entregas_encontradas:
                     st.success(f"✅ {len(entregas_encontradas)} entrega(s) adicionada(s) à carga {st.session_state['numero_nova_carga']} com sucesso.")
                     time.sleep(2)
-                    st.rerun()  # Apenas reinicia a página atual
-                    st.experimental_set_query_params(page="cargas_geradas")
-                    st.rerun()
+
+                    # Limpa o estado da carga criada
+                    st.session_state["nova_carga_em_criacao"] = False
+                    st.session_state["numero_nova_carga"] = ""
+
+                    st.rerun()  # Recarrega a página como se fosse o primeiro acesso
+
                 else:
                     st.warning("⚠️ Nenhuma entrega válida foi adicionada.")
 
