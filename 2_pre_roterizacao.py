@@ -1823,8 +1823,6 @@ def pagina_rotas_confirmadas():
                     (d.get("Serie_Numero_CTRC") or "").strip(): d.get("numero_carga")
                     for d in dados_cargas if d.get("Serie_Numero_CTRC")
                 })
-
-
                 for chave in chaves:
                     try:
                         origem = None
