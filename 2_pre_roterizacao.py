@@ -1880,6 +1880,7 @@ def pagina_rotas_confirmadas():
                 if entregas_encontradas:
                     st.success(f"✅ {len(entregas_encontradas)} entrega(s) adicionada(s) à carga {st.session_state['numero_nova_carga']} com sucesso.")
                     time.sleep(2)
+                    st.rerun()  # Apenas reinicia a página atual
                     st.experimental_set_query_params(page="cargas_geradas")
                     st.rerun()
                 else:
