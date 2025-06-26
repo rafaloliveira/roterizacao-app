@@ -671,14 +671,7 @@ def gerar_proximo_numero_carga(supabase):
     except Exception as e:
         st.error(f"Erro ao gerar número da carga: {e}")
         return f"{datetime.now().strftime('%Y%m%d')}-000001"
-
-
-
-
-
-
-
-
+    
 ##############################
 # Página de sincronização
 ##############################
@@ -2172,12 +2165,12 @@ def pagina_cargas_geradas():
 
     df_cargas["numero_carga"] = df_cargas["numero_carga"].fillna("(Sem Número)")
     df_cargas["created_at"] = pd.to_datetime(df_cargas.get("created_at"), errors="coerce")
+
     cargas_unicas = (
         df_cargas.sort_values("created_at", ascending=False)
         .drop_duplicates("numero_carga")["numero_carga"]
         .tolist()
     )
-
 
     def badge(label):
         return f"<span style='background:#eef2f7;border-radius:12px;padding:6px 12px;margin:4px;color:inherit;display:inline-block;'>{label}</span>"
@@ -2187,7 +2180,7 @@ def pagina_cargas_geradas():
         "Cliente Destinatario", "Cidade de Entrega", "Bairro do Destinatario", "Previsao de Entrega",
         "Numero da Nota Fiscal", "Status", "Entrega Programada", "Particularidade",
         "Codigo da Ultima Ocorrencia", "Peso Real em Kg", "Peso Calculado em Kg",
-        "Cubagem em m³", "Quantidade de Volumes", "numero_carga", "Localizacao Atual"
+        "Cubagem em m³", "Quantidade de Volumes"
     ]
 
     linha_destacar = JsCode("""
@@ -2211,13 +2204,13 @@ def pagina_cargas_geradas():
             continue
 
         st.markdown(f"""
-        <div style="margin-top:20px;padding:10px;background:#e8f0fe;border-left:4px solid #4285f4;border-radius:6px;display:inline-block;max-width:100%;">
-            <strong>Número da Carga:</strong> {carga}
+        <div style="margin-top:20px;padding:10px;background:#e8f0fe;border-left:4px solid #4285f4;border-radius:6px;display:inline-block;max-width:100%;font-weight:bold;">
+            Número da Carga: {carga}
         </div>
         """, unsafe_allow_html=True)
 
-        col_badge, col_check = st.columns([5, 1])
-        with col_badge:
+        col1, col2 = st.columns([5, 1])
+        with col1:
             st.markdown(
                 badge(f"{len(df_carga)} entregas") +
                 badge(f"{formatar_brasileiro(df_carga['Peso Calculado em Kg'].sum())} kg calc") +
@@ -2228,25 +2221,22 @@ def pagina_cargas_geradas():
                 unsafe_allow_html=True
             )
 
-        marcar_todas = col_check.checkbox("Marcar todas", key=f"marcar_todas_carga_{carga}")
-
-        with st.expander("🔽 Visualizar entregas da carga", expanded=False):
+        with st.expander("🔽 Ver entregas da carga", expanded=False):
             df_formatado = df_carga[[col for col in colunas_exibir if col in df_carga.columns]].copy()
 
             gb = GridOptionsBuilder.from_dataframe(df_formatado)
             gb.configure_default_column(minWidth=150)
-            gb.configure_selection("multiple", use_checkbox=True,
-                pre_selected_rows=list(range(len(df_formatado))) if marcar_todas else [])
+            gb.configure_selection("multiple", use_checkbox=True)
             gb.configure_grid_options(paginationPageSize=12)
             gb.configure_grid_options(alwaysShowHorizontalScroll=True)
+            gb.configure_grid_options(getRowStyle=linha_destacar)
             grid_options = gb.build()
-            grid_options["getRowStyle"] = linha_destacar
 
             grid_key = f"grid_carga_{carga}"
             if grid_key not in st.session_state:
                 st.session_state[grid_key] = str(uuid.uuid4())
 
-            grid_response = AgGrid(
+            AgGrid(
                 df_formatado,
                 gridOptions=grid_options,
                 update_mode=GridUpdateMode.SELECTION_CHANGED,
@@ -2255,33 +2245,43 @@ def pagina_cargas_geradas():
                 height=400,
                 allow_unsafe_jscode=True,
                 key=st.session_state[grid_key],
-                data_return_mode="AS_INPUT",
                 theme=AgGridTheme.MATERIAL,
                 show_toolbar=False,
                 custom_css={
                     ".ag-theme-material .ag-cell": {
-                        "font-size": "11px", "line-height": "18px", "border-right": "1px solid #ccc",
+                        "font-size": "11px",
+                        "line-height": "18px",
+                        "border-right": "1px solid #ccc",
                     },
                     ".ag-theme-material .ag-row:last-child .ag-cell": {
                         "border-bottom": "1px solid #ccc",
                     },
                     ".ag-theme-material .ag-header-cell": {
-                        "border-right": "1px solid #ccc", "border-bottom": "1px solid #ccc",
+                        "border-right": "1px solid #ccc",
+                        "border-bottom": "1px solid #ccc",
                     },
                     ".ag-theme-material .ag-root-wrapper": {
-                        "border": "1px solid black", "border-radius": "6px", "padding": "4px",
+                        "border": "1px solid black",
+                        "border-radius": "6px",
+                        "padding": "4px",
                     },
                     ".ag-theme-material .ag-header-cell-label": {
                         "font-size": "11px",
                     },
+                    ".ag-center-cols-viewport": {
+                        "overflow-x": "auto !important",
+                        "overflow-y": "hidden",
+                    },
                     ".ag-center-cols-container": {
                         "min-width": "100% !important",
+                    },
+                    "#gridToolBar": {
+                        "padding-bottom": "0px !important",
                     }
                 }
             )
 
-            selecionadas = pd.DataFrame(grid_response.get("selected_rows", []))
-            st.markdown(f"**📦 Entregas selecionadas:** {len(selecionadas)}")
+
 
 
 
