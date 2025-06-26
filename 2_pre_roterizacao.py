@@ -1747,13 +1747,6 @@ def pagina_pre_roterizacao():
 
                                 except Exception as e:
                                     st.error(f"❌ Erro ao confirmar entregas: {e}")
-
-
-
-
-
-
-
 ##########################################
 
 # PÁGINA ROTAS CONFIRMADAS
@@ -2105,16 +2098,20 @@ def pagina_rotas_confirmadas():
                                         time.sleep(2)
 
                                 st.success(f"✅ {len(chaves_inseridas)} entrega(s) adicionada(s) à carga {numero_carga}.")
-                                time.sleep(2)
+
+                                # 🧹 Limpa o estado dos grids e botões para essa rota
+                                for key in list(st.session_state.keys()):
+                                    if key.startswith("grid_rotas_confirmadas_") or key.startswith("botao_rota_"):
+                                        st.session_state.pop(key, None)
+
+                                time.sleep(1)
                                 st.rerun()
+
                             else:
                                 st.warning("Algumas entregas não foram inseridas corretamente.")
 
                         except Exception as e:
                             st.error(f"Erro ao adicionar rota como carga: {e}")
-
-
-
     except Exception as e:
         st.error("❌ Erro ao carregar entregas confirmadas:")
         st.exception(e)
