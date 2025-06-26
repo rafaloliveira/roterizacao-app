@@ -2052,46 +2052,66 @@ def pagina_rotas_confirmadas():
                         st.warning("Selecione ao menos uma entrega.")
                     else:
                         try:
+                            df_selecionadas = pd.DataFrame(selecionadas)
+                            chaves = df_selecionadas["Serie_Numero_CTRC"].dropna().astype(str).str.strip().tolist()
+
+                            df_rota["Serie_Numero_CTRC"] = df_rota["Serie_Numero_CTRC"].astype(str).str.strip()
+                            df_confirmar = df_rota[df_rota["Serie_Numero_CTRC"].isin(chaves)].copy()
+                            df_confirmar = df_confirmar.replace([np.nan, np.inf, -np.inf], None)
+
+                            for col in df_confirmar.select_dtypes(include=['datetime64[ns]']).columns:
+                                df_confirmar[col] = df_confirmar[col].dt.strftime('%Y-%m-%d %H:%M:%S')
+
                             numero_carga = gerar_proximo_numero_carga(supabase)
-                            entregas_encontradas = []
+                            df_confirmar["numero_carga"] = numero_carga
+                            df_confirmar["Data_Hora_Gerada"] = datetime.now().isoformat()
+                            df_confirmar["Status"] = "Fechada"
 
-                            for entrega in selecionadas:
-                                entrega.pop("id", None)
-                                entrega["numero_carga"] = numero_carga
-                                entrega["Data_Hora_Gerada"] = datetime.now().isoformat()
-                                entrega["Status"] = "Fechada"
+                            colunas_validas = [
+                                'Serie_Numero_CTRC', 'Rota', 'Cliente Pagador', 'Chave CT-e', 'Cliente Destinatario',
+                                'Cidade de Entrega', 'Bairro do Destinatario', 'Previsao de Entrega',
+                                'Numero da Nota Fiscal', 'Status', 'Entrega Programada', 'Particularidade',
+                                'Codigo da Ultima Ocorrencia', 'Peso Real em Kg', 'Peso Calculado em Kg',
+                                'numero_carga', 'Data_Hora_Gerada'
+                            ]
 
-                                entrega = {
-                                    k: (
-                                        v.isoformat() if isinstance(v, (pd.Timestamp, datetime)) else
-                                        None if isinstance(v, float) and (np.isnan(v) or np.isinf(v)) else
-                                        json.dumps(v) if isinstance(v, dict) else
-                                        v
-                                    ) for k, v in entrega.items()
-                                }
+                            dados_filtrados = df_confirmar[[col for col in colunas_validas if col in df_confirmar.columns]].to_dict(orient="records")
 
-                                colunas_validas = [
-                                    'Serie_Numero_CTRC', 'Rota', 'Cliente Pagador', 'Chave CT-e', 'Cliente Destinatario',
-                                    'Cidade de Entrega', 'Bairro do Destinatario', 'Previsao de Entrega',
-                                    'Numero da Nota Fiscal', 'Status', 'Entrega Programada', 'Particularidade',
-                                    'Codigo da Ultima Ocorrencia', 'Peso Real em Kg', 'Peso Calculado em Kg',
-                                    'numero_carga', 'Data_Hora_Gerada'
-                                ]
-                                entrega_filtrada = {k: v for k, v in entrega.items() if k in colunas_validas}
+                            for tentativa in range(2):
+                                try:
+                                    resultado_insercao = supabase.table("cargas_geradas").insert(dados_filtrados).execute()
+                                    break
+                                except Exception as e:
+                                    if tentativa == 1:
+                                        raise e
+                                    st.warning("Erro temporário ao inserir. Tentando novamente em 2s...")
+                                    time.sleep(2)
 
-                                supabase.table("cargas_geradas").insert(entrega_filtrada).execute()
-                                entregas_encontradas.append(entrega)
+                            chaves_inseridas = [
+                                str(item.get("Serie_Numero_CTRC")).strip()
+                                for item in resultado_insercao.data
+                                if item.get("Serie_Numero_CTRC")
+                            ]
 
-                                if "Serie_Numero_CTRC" in entrega:
-                                    supabase.table("rotas_confirmadas").delete().eq("Serie_Numero_CTRC", entrega["Serie_Numero_CTRC"]).execute()
-                                time.sleep(0.1)
+                            if set(chaves_inseridas) == set(chaves):
+                                for tentativa in range(2):
+                                    try:
+                                        supabase.table("rotas_confirmadas").delete().in_("Serie_Numero_CTRC", chaves_inseridas).execute()
+                                        break
+                                    except Exception as e:
+                                        if tentativa == 1:
+                                            raise e
+                                        st.warning("Erro temporário ao remover entregas. Tentando novamente em 2s...")
+                                        time.sleep(2)
 
-                            st.success(f"✅ {len(entregas_encontradas)} entrega(s) adicionada(s) à carga {numero_carga}.")
-                            time.sleep(2)
-                            st.rerun()
+                                st.success(f"✅ {len(chaves_inseridas)} entrega(s) adicionada(s) à carga {numero_carga}.")
+                                st.rerun()
+                            else:
+                                st.warning("Algumas entregas não foram inseridas corretamente.")
 
                         except Exception as e:
                             st.error(f"Erro ao adicionar rota como carga: {e}")
+
 
 
     except Exception as e:
