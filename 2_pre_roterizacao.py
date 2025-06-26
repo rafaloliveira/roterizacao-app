@@ -2048,7 +2048,7 @@ def pagina_rotas_confirmadas():
                     )
 
                 col_badge, col_check = st.columns([5, 1])
-                
+
                 with col_check:
                     marcar_todas = st.checkbox("Marcar todas", key=f"marcar_todas_rota_confirmada_{rota}")
 
@@ -2132,10 +2132,9 @@ def pagina_rotas_confirmadas():
 
                         except Exception as e:
                             st.error(f"Erro ao adicionar rota como carga: {e}")
-    except Exception as e:
-            st.error("❌ Erro ao carregar entregas confirmadas:")
-            st.exception(e)
 
+    except Exception as e:
+        st.error(f"Erro: {e}")
 
 
 
