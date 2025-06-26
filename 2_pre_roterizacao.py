@@ -1352,10 +1352,6 @@ def pagina_confirmar_producao():
                         except Exception as e:
                             st.error(f"Erro ao processar confirmação: {e}")
 
-
-
-
-
 ###########################################
 
 # PÁGINA APROVAÇÃO DIRETORIA
@@ -2151,141 +2147,154 @@ def pagina_rotas_confirmadas():
 
 
 def pagina_cargas_geradas():
-    st.markdown("## 🚛 Cargas Geradas")
+    st.markdown("## Cargas Geradas")
 
     try:
-        df_cargas = pd.DataFrame(supabase.table("cargas_geradas").select("*").execute().data)
-    except Exception as e:
-        st.error(f"Erro ao carregar dados de cargas: {e}")
-        return
+        dados = supabase.table("cargas_geradas").select("*").execute().data
+        df = pd.DataFrame(dados)
+        if df.empty:
+            st.info("Nenhuma carga foi gerada ainda.")
+            return
 
-    if df_cargas.empty:
-        st.info("Nenhuma carga gerada encontrada.")
-        return
+        df.columns = df.columns.str.strip()
 
-    df_cargas["numero_carga"] = df_cargas["numero_carga"].fillna("(Sem Número)")
-    df_cargas["created_at"] = pd.to_datetime(df_cargas.get("created_at"), errors="coerce")
-
-    cargas_unicas = (
-        df_cargas.sort_values("created_at", ascending=False)
-        .drop_duplicates("numero_carga")["numero_carga"]
-        .tolist()
-    )
-
-    def badge(label):
-        return f"<span style='background:#eef2f7;border-radius:12px;padding:6px 12px;margin:4px;color:inherit;display:inline-block;'>{label}</span>"
-
-    colunas_exibir = [
-        "Serie_Numero_CTRC", "Rota", "Valor do Frete", "Cliente Pagador", "Chave CT-e",
-        "Cliente Destinatario", "Cidade de Entrega", "Bairro do Destinatario", "Previsao de Entrega",
-        "Numero da Nota Fiscal", "Status", "Entrega Programada", "Particularidade",
-        "Codigo da Ultima Ocorrencia", "Peso Real em Kg", "Peso Calculado em Kg",
-        "Cubagem em m³", "Quantidade de Volumes"
-    ]
-
-    linha_destacar = JsCode("""
-        function(params) {
-            const status = params.data.Status;
-            const entregaProg = params.data["Entrega Programada"];
-            const particularidade = params.data.Particularidade;
-            if (status === "AGENDAR" && (!entregaProg || entregaProg.trim() === "")) {
-                return { 'background-color': '#ffe0b2', 'color': '#333' };
-            }
-            if (particularidade && particularidade.trim() !== "") {
-                return { 'background-color': '#fff59d', 'color': '#333' };
-            }
-            return null;
-        }
-    """)
-
-    for carga in cargas_unicas:
-        df_carga = df_cargas[df_cargas["numero_carga"] == carga].copy()
-        if df_carga.empty:
-            continue
-
-        st.markdown(f"""
-        <div style="margin-top:20px;padding:10px;background:#e8f0fe;border-left:4px solid #4285f4;border-radius:6px;display:inline-block;max-width:100%;font-weight:bold;">
-            Número da Carga: {carga}
-        </div>
-        """, unsafe_allow_html=True)
-
-        col1, col2 = st.columns([5, 1])
+        col1, col2 = st.columns([1, 1])
         with col1:
-            st.markdown(
-                badge(f"{len(df_carga)} entregas") +
-                badge(f"{formatar_brasileiro(df_carga['Peso Calculado em Kg'].sum())} kg calc") +
-                badge(f"{formatar_brasileiro(df_carga['Peso Real em Kg'].sum())} kg real") +
-                badge(f"R$ {formatar_brasileiro(df_carga['Valor do Frete'].sum())}") +
-                badge(f"{formatar_brasileiro(df_carga['Cubagem em m³'].sum())} m³") +
-                badge(f"{int(df_carga['Quantidade de Volumes'].sum())} volumes"),
-                unsafe_allow_html=True
-            )
+            st.metric("Total de Cargas", df["numero_carga"].nunique())
+        with col2:
+            st.metric("Total de Entregas", len(df))
 
-        with st.expander("🔽 Ver entregas da carga", expanded=False):
-            df_formatado = df_carga[[col for col in colunas_exibir if col in df_carga.columns]].copy()
+        colunas_exibir = [
+            "numero_carga", "Serie_Numero_CTRC", "Rota","Valor do Frete","Cliente Pagador", "Chave CT-e", "Cliente Destinatario",
+            "Cidade de Entrega", "Bairro do Destinatario", "Previsao de Entrega",
+            "Numero da Nota Fiscal", "Status", "Entrega Programada", "Particularidade",
+            "Codigo da Ultima Ocorrencia", "Peso Real em Kg", "Peso Calculado em Kg",
+            "Cubagem em m³", "Quantidade de Volumes",  "Data_Hora_Gerada"
+        ]
 
-            gb = GridOptionsBuilder.from_dataframe(df_formatado)
-            gb.configure_default_column(minWidth=150)
-            gb.configure_selection("multiple", use_checkbox=True)
-            gb.configure_grid_options(paginationPageSize=12)
-            gb.configure_grid_options(alwaysShowHorizontalScroll=True)
-            gb.configure_grid_options(getRowStyle=linha_destacar)
-            grid_options = gb.build()
+        formatter = JsCode("""
+            function(params) {
+                if (!params.value) return '';
+                return Number(params.value).toLocaleString('pt-BR', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2
+                });
+            }
+        """)
 
-            grid_key = f"grid_carga_{carga}"
-            if grid_key not in st.session_state:
-                st.session_state[grid_key] = str(uuid.uuid4())
+        def badge(label):
+            return f"<span style='background:#eef2f7;border-radius:12px;padding:6px 12px;margin:4px;color:inherit;display:inline-block;'>{label}</span>"
 
-            AgGrid(
-                df_formatado,
-                gridOptions=grid_options,
-                update_mode=GridUpdateMode.SELECTION_CHANGED,
-                fit_columns_on_grid_load=False,
-                width="100%",
-                height=400,
-                allow_unsafe_jscode=True,
-                key=st.session_state[grid_key],
-                theme=AgGridTheme.MATERIAL,
-                show_toolbar=False,
-                custom_css={
-                    ".ag-theme-material .ag-cell": {
-                        "font-size": "11px",
-                        "line-height": "18px",
-                        "border-right": "1px solid #ccc",
-                    },
-                    ".ag-theme-material .ag-row:last-child .ag-cell": {
-                        "border-bottom": "1px solid #ccc",
-                    },
-                    ".ag-theme-material .ag-header-cell": {
-                        "border-right": "1px solid #ccc",
-                        "border-bottom": "1px solid #ccc",
-                    },
-                    ".ag-theme-material .ag-root-wrapper": {
-                        "border": "1px solid black",
-                        "border-radius": "6px",
-                        "padding": "4px",
-                    },
-                    ".ag-theme-material .ag-header-cell-label": {
-                        "font-size": "11px",
-                    },
-                    ".ag-center-cols-viewport": {
-                        "overflow-x": "auto !important",
-                        "overflow-y": "hidden",
-                    },
-                    ".ag-center-cols-container": {
-                        "min-width": "100% !important",
-                    },
-                    "#gridToolBar": {
-                        "padding-bottom": "0px !important",
+        cargas_unicas = sorted(df["numero_carga"].dropna().unique())
+
+        for carga in cargas_unicas:
+            df_carga = df[df["numero_carga"] == carga].copy()
+            if df_carga.empty:
+                continue
+
+            st.markdown(f"""
+            <div style="margin-top:20px;padding:10px;background:#e8f0fe;border-left:4px solid #34a853;border-radius:6px;display:inline-block;max-width:100%;">
+                <strong>Carga:</strong> {carga}
+            </div>
+            """, unsafe_allow_html=True)
+
+            col1, col2 = st.columns([5, 1])
+            with col1:
+                st.markdown(
+                    badge(f"{len(df_carga)} entregas") +
+                    badge(f"{formatar_brasileiro(df_carga['Peso Calculado em Kg'].sum())} kg calc") +
+                    badge(f"{formatar_brasileiro(df_carga['Peso Real em Kg'].sum())} kg real") +
+                    badge(f"R$ {formatar_brasileiro(df_carga['Valor do Frete'].sum())}") +
+                    badge(f"{formatar_brasileiro(df_carga['Cubagem em m³'].sum())} m³") +
+                    badge(f"{int(df_carga['Quantidade de Volumes'].sum())} volumes"),
+                    unsafe_allow_html=True
+                )
+
+            with st.expander("🔽 Ver entregas da carga", expanded=False):
+                df_formatado = df_carga[[col for col in colunas_exibir if col in df_carga.columns]].copy()
+
+                gb = GridOptionsBuilder.from_dataframe(df_formatado)
+                gb.configure_default_column(minWidth=150)
+                gb.configure_selection("multiple", use_checkbox=True)
+                gb.configure_grid_options(paginationPageSize=12)
+                gb.configure_grid_options(alwaysShowHorizontalScroll=True)
+                gb.configure_grid_options(rowStyle={"font-size": "11px"})
+                gb.configure_grid_options(getRowStyle=JsCode("""
+                    function(params) {
+                        const status = params.data.Status;
+                        const entregaProg = params.data["Entrega Programada"];
+                        const particularidade = params.data.Particularidade;
+                        if (status === "AGENDAR" && (!entregaProg || entregaProg.trim() === "")) {
+                            return { 'background-color': '#ffe0b2', 'color': '#333' };
+                        }
+                        if (particularidade && particularidade.trim() !== "") {
+                            return { 'background-color': '#fff59d', 'color': '#333' };
+                        }
+                        return null;
                     }
-                }
-            )
-
-
-
-
-
-
+                """))
+                gb.configure_grid_options(headerCheckboxSelection=True)
+                gb.configure_grid_options(rowSelection='multiple')
+    
+                for col in ['Peso Real em Kg', 'Peso Calculado em Kg', 'Cubagem em m³', 'Quantidade de Volumes', 'Valor do Frete']:
+                    if col in df_formatado.columns:
+                        gb.configure_column(col, type=["numericColumn"], valueFormatter=formatter)
+    
+                grid_options = gb.build()
+    
+                grid_key = f"grid_carga_gerada_{carga}"
+                if grid_key not in st.session_state:
+                    st.session_state[grid_key] = str(uuid.uuid4())
+    
+                with st.spinner("🔄 Carregando entregas da carga..."):
+                    AgGrid(
+                        df_formatado,
+                        gridOptions=grid_options,
+                        update_mode=GridUpdateMode.SELECTION_CHANGED,
+                        fit_columns_on_grid_load=False,
+                        width="100%",
+                        height=400,
+                        allow_unsafe_jscode=True,
+                        key=st.session_state[grid_key],
+                        theme=AgGridTheme.MATERIAL,
+                        show_toolbar=False,
+                        custom_css={
+                            ".ag-theme-material .ag-cell": {
+                                "font-size": "11px",
+                                "line-height": "18px",
+                                "border-right": "1px solid #ccc",
+                            },
+                            ".ag-theme-material .ag-row:last-child .ag-cell": {
+                                "border-bottom": "1px solid #ccc",
+                            },
+                            ".ag-theme-material .ag-header-cell": {
+                                "border-right": "1px solid #ccc",
+                                "border-bottom": "1px solid #ccc",
+                            },
+                            ".ag-theme-material .ag-root-wrapper": {
+                                "border": "1px solid black",
+                                "border-radius": "6px",
+                                "padding": "4px",
+                            },
+                            ".ag-theme-material .ag-header-cell-label": {
+                                "font-size": "11px",
+                            },
+                            ".ag-center-cols-viewport": {
+                                "overflow-x": "auto !important",
+                                "overflow-y": "hidden",
+                            },
+                            ".ag-center-cols-container": {
+                                "min-width": "100% !important",
+                            },
+                            "#gridToolBar": {
+                                "padding-bottom": "0px !important",
+                            }
+                        }
+                    )
+    
+    except Exception as e:
+        st.error("Erro ao carregar cargas geradas:")
+        st.exception(e)
 
 
 # ========== EXECUÇÃO PRINCIPAL ========== #
