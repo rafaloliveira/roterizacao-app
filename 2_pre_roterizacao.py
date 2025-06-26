@@ -2240,6 +2240,8 @@ def pagina_cargas_geradas():
         with col2:
             st.metric("Total de Entregas", len(df))
 
+        
+
         colunas_exibir = [
             "numero_carga", "Serie_Numero_CTRC", "Rota","Valor do Frete","Cliente Pagador", "Chave CT-e", "Cliente Destinatario",
             "Cidade de Entrega", "Bairro do Destinatario", "Previsao de Entrega",
@@ -2291,6 +2293,12 @@ def pagina_cargas_geradas():
             with st.expander("🔽 Ver entregas da carga", expanded=False):
                 df_formatado = df_carga[[col for col in colunas_exibir if col in df_carga.columns]].copy()
                 df_formatado = df_formatado.replace([np.nan, pd.NaT], "")
+
+                # Formatando a data
+                if "Data_Hora_Gerada" in df_formatado.columns:
+                    df_formatado["Data_Hora_Gerada"] = pd.to_datetime(df_formatado["Data_Hora_Gerada"], errors="coerce") \
+                        .dt.strftime("%d-%m-%Y %H:%M:%S")
+
 
 
 
