@@ -2061,7 +2061,8 @@ def pagina_rotas_confirmadas():
                 if selecionadas:
                     st.info(f"{len(selecionadas)} entrega(s) selecionada(s) para a rota {rota}.")
 
-                if st.button(f"➕ Adicionar Rota como Carga", key=f"botao_rota_{rota}"):
+                # 🔸 Botão para criar nova carga automaticamente
+                if st.button(f"➕ Criar Nova Carga com Entregas Selecionadas", key=f"botao_rota_{rota}"):
                     if not selecionadas:
                         st.warning("Selecione ao menos uma entrega.")
                     else:
@@ -2133,9 +2134,60 @@ def pagina_rotas_confirmadas():
                         except Exception as e:
                             st.error(f"Erro ao adicionar rota como carga: {e}")
 
-    except Exception as e:
-        st.error(f"Erro: {e}")
+                # 🔸 Botão para adicionar à carga existente
+                cargas_existentes = supabase.table("cargas_geradas").select("numero_carga").execute().data
+                cargas_disponiveis = sorted(set(item["numero_carga"] for item in cargas_existentes if item.get("numero_carga")))
 
+                if cargas_disponiveis:
+                    carga_escolhida = st.selectbox(
+                        "📦 Selecionar Carga Existente para adicionar as entregas",
+                        options=cargas_disponiveis,
+                        key=f"selectbox_carga_existente_{rota}"
+                    )
+
+                    if st.button(f"➕ Adicionar à Carga {carga_escolhida}", key=f"botao_add_existente_{rota}"):
+                        if not selecionadas:
+                            st.warning("Selecione ao menos uma entrega.")
+                        else:
+                            try:
+                                df_selecionadas = pd.DataFrame(selecionadas)
+                                chaves = df_selecionadas["Serie_Numero_CTRC"].dropna().astype(str).str.strip().tolist()
+
+                                df_rota["Serie_Numero_CTRC"] = df_rota["Serie_Numero_CTRC"].astype(str).str.strip()
+                                df_confirmar = df_rota[df_rota["Serie_Numero_CTRC"].isin(chaves)].copy()
+                                df_confirmar = df_confirmar.replace([np.nan, np.inf, -np.inf], None)
+
+                                for col in df_confirmar.select_dtypes(include=['datetime64[ns]']).columns:
+                                    df_confirmar[col] = df_confirmar[col].dt.strftime('%Y-%m-%d %H:%M:%S')
+
+                                df_confirmar["numero_carga"] = carga_escolhida
+                                df_confirmar["Data_Hora_Gerada"] = datetime.now().isoformat()
+                                df_confirmar["Status"] = "Fechada"
+
+                                colunas_validas = [
+                                    'Serie_Numero_CTRC', 'Rota', 'Cliente Pagador', 'Chave CT-e', 'Cliente Destinatario',
+                                    'Cidade de Entrega', 'Bairro do Destinatario', 'Previsao de Entrega',
+                                    'Numero da Nota Fiscal', 'Status', 'Entrega Programada', 'Particularidade',
+                                    'Codigo da Ultima Ocorrencia', 'Peso Real em Kg', 'Peso Calculado em Kg',
+                                    'numero_carga', 'Data_Hora_Gerada'
+                                ]
+
+                                dados_filtrados = df_confirmar[[col for col in colunas_validas if col in df_confirmar.columns]].to_dict(orient="records")
+
+                                supabase.table("cargas_geradas").insert(dados_filtrados).execute()
+                                supabase.table("rotas_confirmadas").delete().in_("Serie_Numero_CTRC", chaves).execute()
+
+                                st.success(f"✅ Entregas adicionadas à carga {carga_escolhida}.")
+                                time.sleep(1)
+                                st.rerun()
+
+                            except Exception as e:
+                                st.error(f"Erro ao adicionar à carga existente: {e}")
+                else:
+                    st.info("Nenhuma carga existente encontrada para seleção.")
+
+    except Exception as e:
+        st.error(f"Erro ao processar entregas confirmadas: {e}")
 
 
 ##########################################
