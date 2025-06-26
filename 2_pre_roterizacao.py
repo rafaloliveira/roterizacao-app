@@ -1,11 +1,7 @@
 #sincronização, Pré Roterização e Rotas Confirmadas funcionando
 
 import streamlit as st
-
 st.set_page_config(page_title="Roterização", layout="wide")
-
-
-
 import pandas as pd
 import numpy as np
 import io
@@ -15,23 +11,23 @@ import time
 import hashlib
 import uuid
 import bcrypt
-from datetime import datetime, timedelta, timezone
-from datetime import datetime, date
 import streamlit as st
 import pandas as pd
-from http.cookies import SimpleCookie
 import os
-from dotenv import load_dotenv
-from pandas import Timestamp
-from st_aggrid import AgGrid, GridOptionsBuilder, JsCode
 import uuid
 import time
 import numpy as np
 import pandas as pd
 import streamlit as st
+
+from datetime import datetime, timedelta, timezone
+from datetime import datetime, date
+from http.cookies import SimpleCookie
 from st_aggrid.shared import GridUpdateMode
 from st_aggrid.shared import AgGridTheme
-
+from dotenv import load_dotenv
+from pandas import Timestamp
+from st_aggrid import AgGrid, GridOptionsBuilder, JsCode
 from streamlit_cookies_manager import EncryptedCookieManager
 from datetime import datetime
 from supabase import create_client, Client
@@ -656,16 +652,14 @@ def gerar_proximo_numero_carga(supabase):
         hoje = datetime.now().strftime("%Y%m%d")  # ex: '20250626'
         prefixo = f"{hoje}-"
 
-        # Seleciona cargas cujo numero_carga começa com o prefixo da data
+        # ⚠️ Supabase-py não suporta .like diretamente como usado antes
         cargas = supabase.table("cargas_geradas") \
             .select("numero_carga") \
-            .like("numero_carga", f"{prefixo}%") \
             .execute().data
 
-        # Extrai os sufixos numéricos após o prefixo
         numeros_existentes = []
         for c in cargas:
-            numero = c.get("numero_carga", "")
+            numero = str(c.get("numero_carga", ""))
             if numero.startswith(prefixo):
                 sufixo = numero[len(prefixo):]
                 if sufixo.isdigit():
@@ -676,7 +670,8 @@ def gerar_proximo_numero_carga(supabase):
 
     except Exception as e:
         st.error(f"Erro ao gerar número da carga: {e}")
-        return f"{datetime.now().strftime('%Y%m%d')}-000001"  # fallback com data
+        return f"{datetime.now().strftime('%Y%m%d')}-000001"
+
 
 
 
