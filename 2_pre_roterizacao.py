@@ -2102,6 +2102,7 @@ def pagina_rotas_confirmadas():
                                 'Cidade de Entrega', 'Bairro do Destinatario', 'Previsao de Entrega',
                                 'Numero da Nota Fiscal', 'Status', 'Entrega Programada', 'Particularidade',
                                 'Codigo da Ultima Ocorrencia', 'Peso Real em Kg', 'Peso Calculado em Kg',
+                                'Cubagem em m³', 'Quantidade de Volumes', 'Valor do Frete',
                                 'numero_carga', 'Data_Hora_Gerada'
                             ]
 
@@ -2190,6 +2191,7 @@ def pagina_rotas_confirmadas():
                                     'Cubagem em m³', 'Quantidade de Volumes', 'Valor do Frete',
                                     'numero_carga', 'Data_Hora_Gerada'
                                 ]
+
 
                                 dados_filtrados = df_confirmar[[col for col in colunas_validas if col in df_confirmar.columns]].to_dict(orient="records")
 
