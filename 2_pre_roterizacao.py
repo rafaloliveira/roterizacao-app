@@ -2037,16 +2037,7 @@ def pagina_rotas_confirmadas():
                     )
 
                 col_badge, col_check = st.columns([5, 1])
-                with col_badge:
-                    st.markdown(
-                        badge(f"{len(df_rota)} entregas") +
-                        badge(f"{formatar_brasileiro(df_rota['Peso Calculado em Kg'].sum())} kg calc") +
-                        badge(f"{formatar_brasileiro(df_rota['Peso Real em Kg'].sum())} kg real") +
-                        badge(f"R$ {formatar_brasileiro(df_rota['Valor do Frete'].sum())}") +
-                        badge(f"{formatar_brasileiro(df_rota['Cubagem em m³'].sum())} m³") +
-                        badge(f"{int(df_rota['Quantidade de Volumes'].sum())} volumes"),
-                        unsafe_allow_html=True
-                    )
+                
                 with col_check:
                     marcar_todas = st.checkbox("Marcar todas", key=f"marcar_todas_rota_confirmada_{rota}")
 
