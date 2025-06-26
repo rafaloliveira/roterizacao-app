@@ -1997,18 +1997,18 @@ def pagina_rotas_confirmadas():
                     st.session_state[grid_key] = str(uuid.uuid4())
 
                 with st.spinner("🔄 Carregando entregas da rota..."):
-                    AgGrid(
-                        df_formatado,
-                        gridOptions=grid_options,
-                        update_mode=GridUpdateMode.SELECTION_CHANGED,
-                        fit_columns_on_grid_load=False,
-                        width="100%",
-                        height=400,
-                        allow_unsafe_jscode=True,
-                        key=st.session_state[grid_key],
-                        data_return_mode="AS_INPUT",
-                        theme=AgGridTheme.MATERIAL,
-                        show_toolbar=False,
+                    grid_response = AgGrid(
+                    df_formatado,
+                    gridOptions=grid_options,
+                    update_mode=GridUpdateMode.SELECTION_CHANGED,
+                    fit_columns_on_grid_load=False,
+                    width="100%",
+                    height=400,
+                    allow_unsafe_jscode=True,
+                    key=st.session_state[grid_key],
+                    data_return_mode="AS_INPUT",
+                    theme=AgGridTheme.MATERIAL,
+                    show_toolbar=False,
                         custom_css={
                             ".ag-theme-material .ag-cell": {
                                 "font-size": "11px",
@@ -2042,7 +2042,7 @@ def pagina_rotas_confirmadas():
                             }
                         }
                     )
-                selecionadas = st.session_state.get(f"{grid_key}_selected_rows", [])
+                selecionadas = grid_response["selected_rows"]
 
                 if selecionadas:
                     st.info(f"{len(selecionadas)} entrega(s) selecionada(s) para a rota {rota}.")
