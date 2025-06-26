@@ -2319,6 +2319,7 @@ def pagina_cargas_geradas():
                 grid_options = gb.build()
 
                 grid_key = f"grid_carga_gerada_{carga}"
+                key=grid_key
 
                 with st.spinner("🔄 Carregando entregas da carga..."):
                     grid_response = AgGrid(
