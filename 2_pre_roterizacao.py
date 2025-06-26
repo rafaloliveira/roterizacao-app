@@ -2098,13 +2098,14 @@ def pagina_rotas_confirmadas():
                             df_confirmar["Status"] = "Fechada"
 
                             colunas_validas = [
-                                'Serie_Numero_CTRC', 'Rota', 'Cliente Pagador', 'Chave CT-e', 'Cliente Destinatario',
-                                'Cidade de Entrega', 'Bairro do Destinatario', 'Previsao de Entrega',
-                                'Numero da Nota Fiscal', 'Status', 'Entrega Programada', 'Particularidade',
-                                'Codigo da Ultima Ocorrencia', 'Peso Real em Kg', 'Peso Calculado em Kg',
-                                'Cubagem em m³', 'Quantidade de Volumes', 'Valor do Frete',
-                                'numero_carga', 'Data_Hora_Gerada'
-                            ]
+                            'Serie_Numero_CTRC', 'Rota', 'Cliente Pagador', 'Chave CT-e', 'Cliente Destinatario',
+                            'Cidade de Entrega', 'Bairro do Destinatario', 'Previsao de Entrega',
+                            'Numero da Nota Fiscal', 'Status', 'Entrega Programada', 'Particularidade',
+                            'Codigo da Ultima Ocorrencia', 'Peso Real em Kg', 'Peso Calculado em Kg',
+                            'Cubagem em m³', 'Quantidade de Volumes', 'Valor do Frete',
+                            'numero_carga', 'Data_Hora_Gerada'
+                        ]
+
 
                             dados_filtrados = df_confirmar[[col for col in colunas_validas if col in df_confirmar.columns]].to_dict(orient="records")
 
@@ -2318,7 +2319,6 @@ def pagina_cargas_geradas():
                 grid_options = gb.build()
 
                 grid_key = f"grid_carga_gerada_{carga}"
-                st.session_state[grid_key] = str(uuid.uuid4())
 
                 with st.spinner("🔄 Carregando entregas da carga..."):
                     grid_response = AgGrid(
@@ -2329,7 +2329,7 @@ def pagina_cargas_geradas():
                         width="100%",
                         height=400,
                         allow_unsafe_jscode=True,
-                        key=st.session_state[grid_key],
+                        key=grid_key,
                         theme=AgGridTheme.MATERIAL,
                         show_toolbar=False,
                         custom_css={
