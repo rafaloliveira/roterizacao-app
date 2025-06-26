@@ -1876,6 +1876,8 @@ def pagina_rotas_confirmadas():
                         ]
                         entrega_filtrada = {k: v for k, v in entrega.items() if k in colunas_validas}
 
+
+
                         supabase.table("cargas_geradas").insert(entrega_filtrada).execute()
                         time.sleep(0.1)
                         entregas_encontradas.append(entrega)
@@ -1886,6 +1888,17 @@ def pagina_rotas_confirmadas():
                         elif origem == "pre_roterizacao" and chave in entrega.values():
                             supabase.table("pre_roterizacao").delete().eq(chave_coluna_pre, chave).execute()
                             time.sleep(0.1)
+
+                            # Após inserir e deletar entregas nas tabelas com sucesso
+                            for key in list(st.session_state.keys()):
+                                if key.startswith("grid_rotas_confirmadas_") or key.startswith("botao_rota_") or key.startswith("marcar_todas_rota_confirmada_"):
+                                    st.session_state.pop(key, None)
+
+                            st.success(f"✅ {len(chaves_inseridas)} entrega(s) adicionada(s) à carga {numero_carga}.")
+
+                            time.sleep(1)
+                            st.rerun()
+
 
                     except Exception as e_inner:
                         st.warning(f"Erro ao processar chave {chave}: {e_inner}")
@@ -2177,8 +2190,12 @@ def pagina_rotas_confirmadas():
                                 supabase.table("cargas_geradas").insert(dados_filtrados).execute()
                                 supabase.table("rotas_confirmadas").delete().in_("Serie_Numero_CTRC", chaves).execute()
 
+                                for key in list(st.session_state.keys()):
+                                    if key.startswith("grid_rotas_confirmadas_") or key.startswith("botao_rota_") or key.startswith("marcar_todas_rota_confirmada_"):
+                                        st.session_state.pop(key, None)
+
                                 st.success(f"✅ Entregas adicionadas à carga {carga_escolhida}.")
-                                time.sleep(1)
+                                time.sleep(2)
                                 st.rerun()
 
                             except Exception as e:
