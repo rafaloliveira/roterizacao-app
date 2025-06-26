@@ -2235,19 +2235,19 @@ def pagina_cargas_geradas():
                 """))
                 gb.configure_grid_options(headerCheckboxSelection=True)
                 gb.configure_grid_options(rowSelection='multiple')
-    
+
                 for col in ['Peso Real em Kg', 'Peso Calculado em Kg', 'Cubagem em m³', 'Quantidade de Volumes', 'Valor do Frete']:
                     if col in df_formatado.columns:
                         gb.configure_column(col, type=["numericColumn"], valueFormatter=formatter)
-    
+
                 grid_options = gb.build()
-    
+
                 grid_key = f"grid_carga_gerada_{carga}"
                 if grid_key not in st.session_state:
                     st.session_state[grid_key] = str(uuid.uuid4())
-    
+
                 with st.spinner("🔄 Carregando entregas da carga..."):
-                    AgGrid(
+                    grid_response = AgGrid(
                         df_formatado,
                         gridOptions=grid_options,
                         update_mode=GridUpdateMode.SELECTION_CHANGED,
@@ -2291,7 +2291,35 @@ def pagina_cargas_geradas():
                             }
                         }
                     )
-    
+
+                selecionadas = grid_response.get("selected_rows", [])
+                if selecionadas:
+                    col_ret, col_aprov = st.columns([1, 1])
+
+                    with col_ret:
+                        if st.button(f"♻️ Retirar da Carga {carga}", key=f"btn_retirar_{carga}"):
+                            try:
+                                df_remover = pd.DataFrame(selecionadas)
+                                df_remover = df_remover.drop(columns=["_selectedRowNodeInfo"], errors="ignore")
+                                df_remover["Status"] = "AGENDAR"
+
+                                # Reinsere na tabela rotas_confirmadas
+                                registros = df_remover.to_dict(orient="records")
+                                supabase.table("rotas_confirmadas").insert(registros).execute()
+
+                                # Remove da tabela cargas_geradas
+                                chaves = df_remover["Serie_Numero_CTRC"].dropna().astype(str).tolist()
+                                supabase.table("cargas_geradas").delete().in_("Serie_Numero_CTRC", chaves).execute()
+
+                                st.success(f"{len(chaves)} entrega(s) removida(s) da carga {carga} e retornada(s) à pré-rota.")
+                                st.rerun()
+
+                            except Exception as e:
+                                st.error(f"Erro ao retirar entregas da carga: {e}")
+
+                    with col_aprov:
+                        st.button(f"💰 Enviar para Aprovação (em breve)", key=f"btn_aprov_{carga}")
+
     except Exception as e:
         st.error("Erro ao carregar cargas geradas:")
         st.exception(e)
