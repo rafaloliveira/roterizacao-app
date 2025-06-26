@@ -1991,17 +1991,17 @@ def pagina_rotas_confirmadas():
 
                 with st.spinner("🔄 Carregando entregas da rota..."):
                     grid_response = AgGrid(
-                    df_formatado,
-                    gridOptions=grid_options,
-                    update_mode=GridUpdateMode.SELECTION_CHANGED,
-                    fit_columns_on_grid_load=False,
-                    width="100%",
-                    height=400,
-                    allow_unsafe_jscode=True,
-                    key=st.session_state[grid_key],
-                    data_return_mode="AS_INPUT",
-                    theme=AgGridTheme.MATERIAL,
-                    show_toolbar=False,
+                        df_formatado,
+                        gridOptions=grid_options,
+                        update_mode=GridUpdateMode.SELECTION_CHANGED,
+                        fit_columns_on_grid_load=False,
+                        width="100%",
+                        height=400,
+                        allow_unsafe_jscode=True,
+                        key=st.session_state[grid_key],
+                        data_return_mode="AS_INPUT",
+                        theme=AgGridTheme.MATERIAL,
+                        show_toolbar=False,
                         custom_css={
                             ".ag-theme-material .ag-cell": {
                                 "font-size": "11px",
@@ -2035,7 +2035,26 @@ def pagina_rotas_confirmadas():
                             }
                         }
                     )
-                selecionadas = grid_response["selected_rows"]
+
+                col_badge, col_check = st.columns([5, 1])
+                with col_badge:
+                    st.markdown(
+                        badge(f"{len(df_rota)} entregas") +
+                        badge(f"{formatar_brasileiro(df_rota['Peso Calculado em Kg'].sum())} kg calc") +
+                        badge(f"{formatar_brasileiro(df_rota['Peso Real em Kg'].sum())} kg real") +
+                        badge(f"R$ {formatar_brasileiro(df_rota['Valor do Frete'].sum())}") +
+                        badge(f"{formatar_brasileiro(df_rota['Cubagem em m³'].sum())} m³") +
+                        badge(f"{int(df_rota['Quantidade de Volumes'].sum())} volumes"),
+                        unsafe_allow_html=True
+                    )
+                with col_check:
+                    marcar_todas = st.checkbox("Marcar todas", key=f"marcar_todas_rota_confirmada_{rota}")
+
+                # Aplica a lógica do checkbox
+                if marcar_todas:
+                    selecionadas = df_formatado[df_formatado["Serie_Numero_CTRC"].notna()].copy().to_dict(orient="records")
+                else:
+                    selecionadas = grid_response.get("selected_rows", [])
 
                 if selecionadas:
                     st.info(f"{len(selecionadas)} entrega(s) selecionada(s) para a rota {rota}.")
@@ -2099,9 +2118,8 @@ def pagina_rotas_confirmadas():
 
                                 st.success(f"✅ {len(chaves_inseridas)} entrega(s) adicionada(s) à carga {numero_carga}.")
 
-                                # 🧹 Limpa o estado dos grids e botões para essa rota
                                 for key in list(st.session_state.keys()):
-                                    if key.startswith("grid_rotas_confirmadas_") or key.startswith("botao_rota_"):
+                                    if key.startswith("grid_rotas_confirmadas_") or key.startswith("botao_rota_") or key.startswith("marcar_todas_rota_confirmada_"):
                                         st.session_state.pop(key, None)
 
                                 time.sleep(1)
@@ -2113,8 +2131,8 @@ def pagina_rotas_confirmadas():
                         except Exception as e:
                             st.error(f"Erro ao adicionar rota como carga: {e}")
     except Exception as e:
-        st.error("❌ Erro ao carregar entregas confirmadas:")
-        st.exception(e)
+            st.error("❌ Erro ao carregar entregas confirmadas:")
+            st.exception(e)
 
 
 
