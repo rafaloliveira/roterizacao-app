@@ -1984,7 +1984,7 @@ def pagina_rotas_confirmadas():
 
                 gb = GridOptionsBuilder.from_dataframe(df_formatado)
                 gb.configure_default_column(minWidth=150)
-                gb.configure_selection("multiple", use_checkbox=True)
+                gb.configure_selection('multiple', use_checkbox=True, header_checkbox=True)
                 gb.configure_grid_options(paginationPageSize=12)
                 gb.configure_grid_options(alwaysShowHorizontalScroll=True)
                 gb.configure_grid_options(rowStyle={"font-size": "11px"})
