@@ -1855,7 +1855,7 @@ def pagina_rotas_confirmadas():
 
                         # 🔒 Colunas válidas para cargas_geradas
                         colunas_validas = [
-                            'Serie_Numero_CTRC', 'Cliente Pagador', 'Chave CT-e', 'Cliente Destinatario',
+                            'Serie_Numero_CTRC', 'Rota', 'Cliente Pagador', 'Chave CT-e', 'Cliente Destinatario',
                             'Cidade de Entrega', 'Bairro do Destinatario', 'Previsao de Entrega',
                             'Numero da Nota Fiscal', 'Status', 'Entrega Programada', 'Particularidade',
                             'Codigo da Ultima Ocorrencia', 'Peso Real em Kg', 'Peso Calculado em Kg',
@@ -2042,6 +2042,57 @@ def pagina_rotas_confirmadas():
                             }
                         }
                     )
+                selecionadas = st.session_state.get(f"{grid_key}_selected_rows", [])
+
+                if selecionadas:
+                    st.info(f"{len(selecionadas)} entrega(s) selecionada(s) para a rota {rota}.")
+
+                if st.button(f"➕ Adicionar Rota como Carga", key=f"botao_rota_{rota}"):
+                    if not selecionadas:
+                        st.warning("Selecione ao menos uma entrega.")
+                    else:
+                        try:
+                            numero_carga = gerar_proximo_numero_carga(supabase)
+                            entregas_encontradas = []
+
+                            for entrega in selecionadas:
+                                entrega.pop("id", None)
+                                entrega["numero_carga"] = numero_carga
+                                entrega["Data_Hora_Gerada"] = datetime.now().isoformat()
+                                entrega["Status"] = "Fechada"
+
+                                entrega = {
+                                    k: (
+                                        v.isoformat() if isinstance(v, (pd.Timestamp, datetime)) else
+                                        None if isinstance(v, float) and (np.isnan(v) or np.isinf(v)) else
+                                        json.dumps(v) if isinstance(v, dict) else
+                                        v
+                                    ) for k, v in entrega.items()
+                                }
+
+                                colunas_validas = [
+                                    'Serie_Numero_CTRC', 'Rota', 'Cliente Pagador', 'Chave CT-e', 'Cliente Destinatario',
+                                    'Cidade de Entrega', 'Bairro do Destinatario', 'Previsao de Entrega',
+                                    'Numero da Nota Fiscal', 'Status', 'Entrega Programada', 'Particularidade',
+                                    'Codigo da Ultima Ocorrencia', 'Peso Real em Kg', 'Peso Calculado em Kg',
+                                    'numero_carga', 'Data_Hora_Gerada'
+                                ]
+                                entrega_filtrada = {k: v for k, v in entrega.items() if k in colunas_validas}
+
+                                supabase.table("cargas_geradas").insert(entrega_filtrada).execute()
+                                entregas_encontradas.append(entrega)
+
+                                if "Serie_Numero_CTRC" in entrega:
+                                    supabase.table("rotas_confirmadas").delete().eq("Serie_Numero_CTRC", entrega["Serie_Numero_CTRC"]).execute()
+                                time.sleep(0.1)
+
+                            st.success(f"✅ {len(entregas_encontradas)} entrega(s) adicionada(s) à carga {numero_carga}.")
+                            time.sleep(2)
+                            st.rerun()
+
+                        except Exception as e:
+                            st.error(f"Erro ao adicionar rota como carga: {e}")
+
 
     except Exception as e:
         st.error("❌ Erro ao carregar entregas confirmadas:")
