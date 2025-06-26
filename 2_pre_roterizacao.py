@@ -1812,6 +1812,11 @@ def pagina_rotas_confirmadas():
                 # Buscar todos os dados uma única vez para maior controle
                 dados_rotas = supabase.table("rotas_confirmadas").select("*").execute().data
                 dados_pre = supabase.table("pre_roterizacao").select("*").execute().data
+                # Debug: verificar nome exato das colunas em cargas_geradas
+                colunas_debug = supabase.table("cargas_geradas").select("*").limit(1).execute().data
+                if colunas_debug:
+                    st.write("🧩 Colunas da tabela cargas_geradas:", list(colunas_debug[0].keys()))
+
 
                 # 🔎 Buscar entregas já atribuídas a cargas
                 dados_cargas = supabase.table("cargas_geradas").select("Chave CT-e", "Serie_Numero_CTRC", "numero_carga").execute().data
