@@ -653,25 +653,31 @@ def carregar_base_supabase():
 
 def gerar_proximo_numero_carga(supabase):
     try:
-        # Seleciona todos os números de carga existentes
-        cargas = supabase.table("cargas_geradas").select("numero_carga").execute().data
+        hoje = datetime.now().strftime("%Y%m%d")  # ex: '20250626'
+        prefixo = f"{hoje}-"
 
-        # Extrai os números como inteiros (removendo zeros à esquerda)
+        # Seleciona cargas cujo numero_carga começa com o prefixo da data
+        cargas = supabase.table("cargas_geradas") \
+            .select("numero_carga") \
+            .like("numero_carga", f"{prefixo}%") \
+            .execute().data
+
+        # Extrai os sufixos numéricos após o prefixo
         numeros_existentes = []
         for c in cargas:
-            numero = str(c.get("numero_carga", "")).strip()
-            if numero.isdigit():
-                numeros_existentes.append(int(numero))
+            numero = c.get("numero_carga", "")
+            if numero.startswith(prefixo):
+                sufixo = numero[len(prefixo):]
+                if sufixo.isdigit():
+                    numeros_existentes.append(int(sufixo))
 
-        # Define o próximo número com base no maior valor encontrado
         proximo_numero = max(numeros_existentes) + 1 if numeros_existentes else 1
-
-        # Retorna como string com 6 dígitos
-        return str(proximo_numero).zfill(6)
+        return f"{prefixo}{str(proximo_numero).zfill(6)}"
 
     except Exception as e:
         st.error(f"Erro ao gerar número da carga: {e}")
-        return "000001"  # fallback de segurança
+        return f"{datetime.now().strftime('%Y%m%d')}-000001"  # fallback com data
+
 
 
 
