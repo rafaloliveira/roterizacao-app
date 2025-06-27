@@ -1880,7 +1880,8 @@ def pagina_rotas_confirmadas():
                             continue
 
                         entrega["numero_carga"] = st.session_state["numero_nova_carga"]
-                        entrega["Data_Hora_Gerada"] = datetime.now().isoformat()
+                        entrega["Data_Hora_Gerada"] = data_hora_brasil_str()
+
                         entrega["Status"] = "Fechada"
 
                         entrega = {k: (
@@ -2267,11 +2268,11 @@ def pagina_cargas_geradas():
         
 
         colunas_exibir = [
-            "numero_carga", "Serie_Numero_CTRC", "Rota","Valor do Frete","Cliente Pagador", "Chave CT-e", "Cliente Destinatario",
+            "numero_carga", "Data_Hora_Gerada", "Serie_Numero_CTRC", "Rota","Valor do Frete","Cliente Pagador", "Chave CT-e", "Cliente Destinatario",
             "Cidade de Entrega", "Bairro do Destinatario", "Previsao de Entrega",
             "Numero da Nota Fiscal", "Status", "Entrega Programada", "Particularidade",
             "Codigo da Ultima Ocorrencia", "Peso Real em Kg", "Peso Calculado em Kg",
-            "Cubagem em m³", "Quantidade de Volumes",  "Data_Hora_Gerada"
+            "Cubagem em m³", "Quantidade de Volumes"
         ]
 
         formatter = JsCode("""
