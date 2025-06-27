@@ -2373,7 +2373,12 @@ def pagina_cargas_geradas():
 
                 grid_options = gb.build()
 
-                grid_key = f"grid_carga_gerada_{carga}"
+                grid_key_id = f"grid_carga_gerada_{carga}"
+                if grid_key_id not in st.session_state:
+                    st.session_state[grid_key_id] = str(uuid.uuid4())
+
+                grid_key = st.session_state[grid_key_id]
+
                 key=grid_key
 
                 with st.spinner("🔄 Carregando entregas da carga..."):
@@ -2461,9 +2466,8 @@ def pagina_cargas_geradas():
                                     supabase.table("cargas_geradas").delete().eq("numero_carga", carga).execute()
 
                                 st.session_state.pop("df_cargas_cache", None)
-                                for key in list(st.session_state.keys()):
-                                    if key.startswith("grid_carga_gerada_"):
-                                        st.session_state.pop(key, None)
+                                grid_key_id = f"grid_carga_gerada_{carga}"
+                                st.session_state.pop(grid_key_id, None)
 
                                 st.session_state["reload_cargas_geradas"] = True
                                 st.success(f"{len(chaves)} entrega(s) removida(s) da carga {carga} e retornada(s) à pré-rota.")
