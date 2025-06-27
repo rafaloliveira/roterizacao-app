@@ -2423,11 +2423,12 @@ def pagina_cargas_geradas():
                                 df_remover["Status"] = "AGENDAR"
                                 df_remover = df_remover.drop(columns=["numero_carga"], errors="ignore")
 
-                                # 🧹 Corrige valores que causam erro no Supabase
-                                df_remover = df_remover.replace("", np.nan)
-                                df_remover = df_remover.where(pd.notnull(df_remover), None)
+                                # ✅ Substitui "" e NaN por None para compatibilidade Supabase
+                                df_remover = df_remover.replace([np.nan, pd.NaT, "", np.inf, -np.inf], None)
 
+                                # Converte para lista de dicionários limpa
                                 registros = df_remover.to_dict(orient="records")
+
                                 supabase.table("rotas_confirmadas").insert(registros).execute()
 
                                 chaves = df_remover["Serie_Numero_CTRC"].dropna().astype(str).tolist()
