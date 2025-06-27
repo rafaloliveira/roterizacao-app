@@ -2445,9 +2445,11 @@ def pagina_cargas_geradas():
                                 supabase.table("cargas_geradas").delete().in_("Serie_Numero_CTRC", chaves).execute()
 
                                 # 🧼 Remove a carga se não sobrou nenhuma entrega nela
-                                df_restante = df[df["numero_carga"] == carga]
-                                if df_restante.shape[0] == len(chaves):
+                                # Recarrega e verifica se a carga ainda existe após remoção
+                                dados_restantes = supabase.table("cargas_geradas").select("numero_carga").eq("numero_carga", carga).execute().data
+                                if not dados_restantes:
                                     supabase.table("cargas_geradas").delete().eq("numero_carga", carga).execute()
+
 
                                 for key in list(st.session_state.keys()):
                                     if key.startswith("grid_carga_gerada_"):
