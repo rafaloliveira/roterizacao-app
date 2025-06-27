@@ -350,9 +350,8 @@ if supabase is None:
 # Fuso horário padrão do Brasil (São Paulo)
 FUSO_BRASIL = ZoneInfo("America/Sao_Paulo")
 
-def data_hora_brasil_iso():
-    """Data e hora atual no fuso horário do Brasil, no formato ISO 8601."""
-    return datetime.now(FUSO_BRASIL).isoformat()
+def data_hora_brasil_str():
+    return datetime.now(FUSO_BRASIL).strftime("%Y-%m-%d %H:%M:%S")
 
 def formatar_data_hora_br(data_iso):
     """
@@ -945,7 +944,7 @@ def adicionar_entregas_a_carga(chaves_cte):
             st.error(f"Erro ao remover da tabela '{tabela}': {e}")
 
     # Insere entregas na tabela `cargas_geradas`
-    now = data_hora_brasil_iso()
+    now = data_hora_brasil_str()
     for entrega in entregas_coletadas:
         entrega["numero_carga"] = numero_carga
         entrega["Data_Hora_Gerada"] = now
