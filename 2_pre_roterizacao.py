@@ -349,25 +349,31 @@ if supabase is None:
 
 # Fuso horário padrão do Brasil (São Paulo)
 FUSO_BRASIL = ZoneInfo("America/Sao_Paulo")
-
+def data_hora_brasil_iso():
+    return datetime.now(FUSO_BRASIL).isoformat()
 def data_hora_brasil_str():
     return datetime.now(FUSO_BRASIL).strftime("%Y-%m-%d %H:%M:%S")
 
 def formatar_data_hora_br(data_iso):
     """
-    Converte uma string ISO ou datetime para 'dd-mm-yyyy HH:MM:SS' no fuso do Brasil.
+    Converte string ou datetime para 'dd-mm-yyyy HH:MM:SS' no fuso de São Paulo.
     """
     if isinstance(data_iso, str):
-        dt = datetime.fromisoformat(data_iso)
+        try:
+            dt = datetime.fromisoformat(data_iso)
+        except Exception:
+            return data_iso
     else:
         dt = data_iso
 
+    # Se vier sem timezone, assume que é UTC
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=ZoneInfo("UTC")).astimezone(FUSO_BRASIL)
+        dt = dt.replace(tzinfo=timezone.utc).astimezone(FUSO_BRASIL)
     else:
         dt = dt.astimezone(FUSO_BRASIL)
 
     return dt.strftime("%d-%m-%Y %H:%M:%S")
+
 
 
 def convert_value(v):
@@ -944,7 +950,7 @@ def adicionar_entregas_a_carga(chaves_cte):
             st.error(f"Erro ao remover da tabela '{tabela}': {e}")
 
     # Insere entregas na tabela `cargas_geradas`
-    now = data_hora_brasil_str()
+    now = data_hora_brasil_iso()
     for entrega in entregas_coletadas:
         entrega["numero_carga"] = numero_carga
         entrega["Data_Hora_Gerada"] = now
@@ -2321,8 +2327,7 @@ def pagina_cargas_geradas():
 
                 # Formatando a data
                 if "Data_Hora_Gerada" in df_formatado.columns:
-                    df_formatado["Data_Hora_Gerada"] = pd.to_datetime(df_formatado["Data_Hora_Gerada"], errors="coerce") \
-                        .dt.strftime("%d-%m-%Y %H:%M:%S")
+                    df_formatado["Data_Hora_Gerada"] = df_formatado["Data_Hora_Gerada"].apply(formatar_data_hora_br)
 
 
 
