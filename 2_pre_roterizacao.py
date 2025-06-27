@@ -2452,8 +2452,9 @@ def pagina_cargas_geradas():
                                     supabase.table("cargas_geradas").delete().eq("numero_carga", carga).execute()
 
                                 for key in list(st.session_state.keys()):
-                                    if key.startswith("grid_carga_gerada_"):
+                                    if key.startswith("grid_") or key.startswith("selecionadas_"):
                                         st.session_state.pop(key, None)
+
 
                                 st.success(f"{len(chaves)} entrega(s) removida(s) da carga {carga} e retornada(s) à pré-rota.")
                                 time.sleep(1)
