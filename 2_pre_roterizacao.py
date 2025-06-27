@@ -20,6 +20,7 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
+from zoneinfo import ZoneInfo
 from datetime import datetime, timedelta, timezone
 from datetime import datetime, date
 from http.cookies import SimpleCookie
@@ -344,6 +345,30 @@ if supabase is None:
     st.error("Não foi possível conectar ao Supabase. Verifique a URL e a chave de acesso.")
     st.stop()
 
+
+
+# Fuso horário padrão do Brasil (São Paulo)
+FUSO_BRASIL = ZoneInfo("America/Sao_Paulo")
+
+def data_hora_brasil_iso():
+    """Data e hora atual no fuso horário do Brasil, no formato ISO 8601."""
+    return datetime.now(FUSO_BRASIL).isoformat()
+
+def formatar_data_hora_br(data_iso):
+    """
+    Converte uma string ISO ou datetime para 'dd-mm-yyyy HH:MM:SS' no fuso do Brasil.
+    """
+    if isinstance(data_iso, str):
+        dt = datetime.fromisoformat(data_iso)
+    else:
+        dt = data_iso
+
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=ZoneInfo("UTC")).astimezone(FUSO_BRASIL)
+    else:
+        dt = dt.astimezone(FUSO_BRASIL)
+
+    return dt.strftime("%d-%m-%Y %H:%M:%S")
 
 
 def convert_value(v):
@@ -920,10 +945,10 @@ def adicionar_entregas_a_carga(chaves_cte):
             st.error(f"Erro ao remover da tabela '{tabela}': {e}")
 
     # Insere entregas na tabela `cargas_geradas`
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    now = data_hora_brasil_iso()
     for entrega in entregas_coletadas:
         entrega["numero_carga"] = numero_carga
-        entrega["created_at"] = now
+        entrega["Data_Hora_Gerada"] = now
 
     try:
         supabase.table("cargas_geradas").insert(entregas_coletadas).execute()
