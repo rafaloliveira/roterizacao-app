@@ -2259,8 +2259,17 @@ def pagina_cargas_geradas():
     st.markdown("## Cargas Geradas")
 
     try:
-        dados = supabase.table("cargas_geradas").select("*").execute().data
-        df = pd.DataFrame(dados)
+        # ✅ Recarrega os dados sempre ou sob flag
+        recarregar = st.session_state.pop("reload_cargas_geradas", False)
+        if recarregar or "df_cargas_cache" not in st.session_state:
+            dados = supabase.table("cargas_geradas").select("*").execute().data
+            df = pd.DataFrame(dados)
+            st.session_state["df_cargas_cache"] = df
+        else:
+            df = st.session_state["df_cargas_cache"]
+
+
+
         if df.empty:
             st.info("Nenhuma carga foi gerada ainda.")
             return
@@ -2451,10 +2460,15 @@ def pagina_cargas_geradas():
                                 if not dados_restantes:
                                     supabase.table("cargas_geradas").delete().eq("numero_carga", carga).execute()
 
+                                st.session_state.pop("df_cargas_cache", None)
                                 for key in list(st.session_state.keys()):
-                                    if key.startswith("grid_") or key.startswith("selecionadas_"):
+                                    if key.startswith("grid_carga_gerada_"):
                                         st.session_state.pop(key, None)
 
+                                st.session_state["reload_cargas_geradas"] = True
+                                st.success(f"{len(chaves)} entrega(s) removida(s) da carga {carga} e retornada(s) à pré-rota.")
+                                time.sleep(1)
+                                st.rerun()
 
                                 st.success(f"{len(chaves)} entrega(s) removida(s) da carga {carga} e retornada(s) à pré-rota.")
                                 time.sleep(1)
