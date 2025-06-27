@@ -2423,9 +2423,19 @@ def pagina_cargas_geradas():
                                 df_remover["Status"] = "AGENDAR"
                                 df_remover = df_remover.drop(columns=["numero_carga"], errors="ignore")
 
+
+                                # Converte Data_Hora_Gerada para ISO antes de enviar ao banco
+                                if "Data_Hora_Gerada" in df_remover.columns:
+                                    def parse_para_iso(data_str):
+                                        try:
+                                            return datetime.strptime(data_str, "%d-%m-%Y %H:%M:%S").isoformat()
+                                        except:
+                                            return data_str  # já pode estar em ISO ou inválido
+
+                                    df_remover["Data_Hora_Gerada"] = df_remover["Data_Hora_Gerada"].apply(parse_para_iso)
+
                                 # ✅ Substitui "" e NaN por None para compatibilidade Supabase
                                 df_remover = df_remover.replace([np.nan, pd.NaT, "", np.inf, -np.inf], None)
-
                                 # Converte para lista de dicionários limpa
                                 registros = df_remover.to_dict(orient="records")
 
