@@ -1781,12 +1781,11 @@ def pagina_pre_roterizacao():
 def pagina_rotas_confirmadas():
     df_rotas = pd.DataFrame(supabase.table("rotas_confirmadas").select("*").execute().data)
 
+    st.markdown("## Entregas Confirmadas por Rota")
+
     if df_rotas.empty:
         st.info("🛈 Nenhuma Rota Confirmada.")
         return
-
-    
-    st.markdown("## Entregas Confirmadas por Rota")
 
     chaves_input = ""
 
