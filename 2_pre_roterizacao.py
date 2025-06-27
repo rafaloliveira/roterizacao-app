@@ -2423,11 +2423,20 @@ def pagina_cargas_geradas():
                                 df_remover["Status"] = "AGENDAR"
                                 df_remover = df_remover.drop(columns=["numero_carga"], errors="ignore")
 
+                                # 🧹 Corrige valores que causam erro no Supabase
+                                df_remover = df_remover.replace("", np.nan)
+                                df_remover = df_remover.where(pd.notnull(df_remover), None)
+
                                 registros = df_remover.to_dict(orient="records")
                                 supabase.table("rotas_confirmadas").insert(registros).execute()
 
                                 chaves = df_remover["Serie_Numero_CTRC"].dropna().astype(str).tolist()
                                 supabase.table("cargas_geradas").delete().in_("Serie_Numero_CTRC", chaves).execute()
+
+                                # 🧼 Remove a carga se não sobrou nenhuma entrega nela
+                                df_restante = df[df["numero_carga"] == carga]
+                                if df_restante.shape[0] == len(chaves):
+                                    supabase.table("cargas_geradas").delete().eq("numero_carga", carga).execute()
 
                                 for key in list(st.session_state.keys()):
                                     if key.startswith("grid_carga_gerada_"):
@@ -2438,6 +2447,7 @@ def pagina_cargas_geradas():
 
                             except Exception as e:
                                 st.error(f"Erro ao retirar entregas da carga: {e}")
+
 
                     with col_aprov:
                         st.button(f"💰 Enviar para Aprovação (em breve)", key=f"btn_aprov_{carga}")
