@@ -2229,6 +2229,8 @@ def pagina_rotas_confirmadas():
 
                                 supabase.table("cargas_geradas").insert(dados_filtrados).execute()
                                 supabase.table("rotas_confirmadas").delete().in_("Serie_Numero_CTRC", chaves).execute()
+                                time.sleep(1)
+                                st.rerun()
 
                                 for key in list(st.session_state.keys()):
                                     if key.startswith("grid_rotas_confirmadas_") or key.startswith("botao_rota_") or key.startswith("marcar_todas_rota_confirmada_"):
@@ -2423,7 +2425,6 @@ def pagina_cargas_geradas():
                                 df_remover["Status"] = "AGENDAR"
                                 df_remover = df_remover.drop(columns=["numero_carga"], errors="ignore")
 
-
                                 # Converte Data_Hora_Gerada para ISO antes de enviar ao banco
                                 if "Data_Hora_Gerada" in df_remover.columns:
                                     def parse_para_iso(data_str):
@@ -2436,6 +2437,7 @@ def pagina_cargas_geradas():
 
                                 # ✅ Substitui "" e NaN por None para compatibilidade Supabase
                                 df_remover = df_remover.replace([np.nan, pd.NaT, "", np.inf, -np.inf], None)
+
                                 # Converte para lista de dicionários limpa
                                 registros = df_remover.to_dict(orient="records")
 
@@ -2445,32 +2447,28 @@ def pagina_cargas_geradas():
                                 supabase.table("cargas_geradas").delete().in_("Serie_Numero_CTRC", chaves).execute()
 
                                 # 🧼 Remove a carga se não sobrou nenhuma entrega nela
-                                # Recarrega e verifica se a carga ainda existe após remoção
                                 dados_restantes = supabase.table("cargas_geradas").select("numero_carga").eq("numero_carga", carga).execute().data
                                 if not dados_restantes:
                                     supabase.table("cargas_geradas").delete().eq("numero_carga", carga).execute()
-
 
                                 for key in list(st.session_state.keys()):
                                     if key.startswith("grid_carga_gerada_"):
                                         st.session_state.pop(key, None)
 
                                 st.success(f"{len(chaves)} entrega(s) removida(s) da carga {carga} e retornada(s) à pré-rota.")
+                                time.sleep(1)
                                 st.rerun()
 
                             except Exception as e:
                                 st.error(f"Erro ao retirar entregas da carga: {e}")
 
-
                     with col_aprov:
                         st.button(f"💰 Enviar para Aprovação (em breve)", key=f"btn_aprov_{carga}")
+
 
     except Exception as e:
         st.error("Erro ao carregar cargas geradas:")
         st.exception(e)
-
-
-
 
 
 # ========== EXECUÇÃO PRINCIPAL ========== #
