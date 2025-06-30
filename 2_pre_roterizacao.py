@@ -1649,7 +1649,11 @@ def pagina_pre_roterizacao():
                 unsafe_allow_html=True
             )
 
-        marcar_todas = col_check.checkbox("Marcar todas", key=f"marcar_todas_pre_rota_{rota}")
+        checkbox_key = f"marcar_todas_pre_rota_{rota}"
+        if checkbox_key not in st.session_state:
+            st.session_state[checkbox_key] = False
+
+        marcar_todas = col_check.checkbox("Marcar todas", key=checkbox_key)
 
         with st.expander("🔽 Selecionar entregas", expanded=False):
             df_formatado = df_rota[[col for col in colunas_exibir if col in df_rota.columns]].copy()
@@ -1667,10 +1671,12 @@ def pagina_pre_roterizacao():
             if grid_key not in st.session_state:
                 st.session_state[grid_key] = str(uuid.uuid4())
 
+            update_mode = GridUpdateMode.NO_UPDATE if marcar_todas else GridUpdateMode.SELECTION_CHANGED
+
             grid_response = AgGrid(
                 df_formatado,
                 gridOptions=grid_options,
-                update_mode=GridUpdateMode.SELECTION_CHANGED,
+                update_mode=update_mode,
                 fit_columns_on_grid_load=False,
                 width="100%",
                 height=400,
@@ -1745,6 +1751,8 @@ def pagina_pre_roterizacao():
                         st.rerun()
                     except Exception as e:
                         st.error(f"❌ Erro ao confirmar entregas da rota {rota}: {e}")
+
+
 
 
 
