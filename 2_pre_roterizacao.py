@@ -1263,7 +1263,7 @@ def pagina_confirmar_producao():
             if marcar_todas:
                 selecionadas = df_formatado[df_formatado["Serie_Numero_CTRC"].notna()].copy()
             else:
-                selecionadas = pd.DataFrame(grid_response.get("selected_rows", []))
+                selecionadas = pd.DataFrame(grid_response["selected_rows"]) if grid_response and grid_response.get("selected_rows") else pd.DataFrame()
 
             st.markdown(f"**📦 Entregas selecionadas:** {len(selecionadas)}")
 
@@ -1296,6 +1296,8 @@ def pagina_confirmar_producao():
                             st.rerun()
                         except Exception as e:
                             st.error(f"❌ Erro ao confirmar produção da rota {rota}: {e}")
+
+
                     
 
 
