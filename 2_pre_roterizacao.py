@@ -1297,11 +1297,6 @@ def pagina_confirmar_producao():
                         except Exception as e:
                             st.error(f"❌ Erro ao confirmar produção da rota {rota}: {e}")
 
-
-                    
-
-
-
 ###########################################
 
 # PÁGINA APROVAÇÃO DIRETORIA
