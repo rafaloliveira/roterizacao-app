@@ -1633,13 +1633,14 @@ def pagina_pre_roterizacao():
                 unsafe_allow_html=True
             )
 
-        checkbox_key = f"marcar_todas_pre_rota_{rota}"
-        if checkbox_key not in st.session_state:
-            st.session_state[checkbox_key] = False
-
-        marcar_todas = col_check.checkbox("Marcar todas", key=checkbox_key)
-
         with st.expander("🔽 Selecionar entregas", expanded=False):
+
+            # NOVO: Checkbox "Marcar todas" dentro do expander
+            checkbox_key = f"marcar_todas_pre_rota_{rota}"
+            if checkbox_key not in st.session_state:
+                st.session_state[checkbox_key] = False
+            marcar_todas = st.checkbox("Marcar todas", key=checkbox_key)
+
             df_formatado = df_rota[[col for col in colunas_exibir if col in df_rota.columns]].copy()
 
             gb = GridOptionsBuilder.from_dataframe(df_formatado)
