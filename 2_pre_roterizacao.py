@@ -1126,20 +1126,28 @@ def pagina_confirmar_producao():
     with st.spinner("🔄 Carregando entregas para confirmar produção..."):
         try:
             # Fonte de dados para esta página é 'confirmadas_producao'
-            df = pd.DataFrame(supabase.table("confirmadas_producao").select("*").execute().data)
+            # Usando cache para evitar múltiplas chamadas ao Supabase a cada rerun desnecessário
+            # A flag 'reload_confirmadas_producao' será usada para invalidar o cache e forçar um novo fetch
+            recarregar = st.session_state.pop("reload_confirmadas_producao", False)
+            if recarregar or "df_confirmadas_cache" not in st.session_state:
+                df = pd.DataFrame(supabase.table("confirmadas_producao").select("*").execute().data)
+                st.session_state["df_confirmadas_cache"] = df
+            else:
+                df = st.session_state["df_confirmadas_cache"]
             
             # Limpar e normalizar dados para evitar KeyErrors e problemas de tipo
-            if 'Rota' in df.columns:
-                df['Rota'] = df['Rota'].fillna('').astype(str)
-            if 'Status' in df.columns:
-                df['Status'] = df['Status'].fillna('').astype(str)
-            if 'Entrega Programada' in df.columns:
-                df['Entrega Programada'] = pd.to_datetime(df['Entrega Programada'], errors='coerce')
-                # O JsCode lida com NaT se convertermos para string no final, mas mantenha pd.NaT aqui para cálculos
-            if 'Particularidade' in df.columns:
-                df['Particularidade'] = df['Particularidade'].fillna('').astype(str)
-            if 'Serie_Numero_CTRC' in df.columns:
-                df['Serie_Numero_CTRC'] = df['Serie_Numero_CTRC'].astype(str)
+            if not df.empty: # Garante que o DataFrame não está vazio antes de tentar normalizar
+                if 'Rota' in df.columns:
+                    df['Rota'] = df['Rota'].fillna('').astype(str)
+                if 'Status' in df.columns:
+                    df['Status'] = df['Status'].fillna('').astype(str)
+                if 'Entrega Programada' in df.columns:
+                    df['Entrega Programada'] = pd.to_datetime(df['Entrega Programada'], errors='coerce')
+                    # O JsCode lida com NaT se convertermos para string no final, mas mantenha pd.NaT aqui para cálculos
+                if 'Particularidade' in df.columns:
+                    df['Particularidade'] = df['Particularidade'].fillna('').astype(str)
+                if 'Serie_Numero_CTRC' in df.columns:
+                    df['Serie_Numero_CTRC'] = df['Serie_Numero_CTRC'].astype(str)
 
         except Exception as e:
             st.error(f"Erro ao consultar o banco de dados: {e}")
@@ -1158,7 +1166,7 @@ def pagina_confirmar_producao():
 
     # Definir as colunas que devem ser exibidas no grid
     colunas_exibir = [
-        "Serie_Numero_CTRC", "Rota", "Valor do Frete", "Cliente Pagador", "Chave CT-e", 
+        "Serie_Numero_CTRC", "Rota", "Valor do Frete", "Cliente Pagador", "Chave CT-e",
         "Cliente Destinatario", "Cidade de Entrega", "Bairro do Destinatario", 
         "Previsao de Entrega", "Numero da Nota Fiscal", "Status", "Entrega Programada", 
         "Particularidade", "Codigo da Ultima Ocorrencia", "Peso Real em Kg", 
@@ -1173,7 +1181,6 @@ def pagina_confirmar_producao():
             const particularidade = params.data['Particularidade'];
             // Verifica se a entrega está vazia ou contém apenas espaços (para compatibilidade com strings vazias)
             const isEntregaEmpty = !entrega || (typeof entrega === 'string' && entrega.trim() === '');
-
             if (status === 'AGENDAR' && isEntregaEmpty) {
                 return { 'background-color': '#ffe0b2', 'color': '#333' }; // Amarelo claro para "AGENDAR" sem data
             }
@@ -1199,7 +1206,7 @@ def pagina_confirmar_producao():
         """, unsafe_allow_html=True)
 
         # Informações agregadas sobre a rota (badges)
-        col_badge, col_check = st.columns([5, 1])
+        col_badge, col_check_placeholder = st.columns([5, 1]) # O checkbox master agora vai dentro do expander
         with col_badge:
             # Garante que as colunas existem antes de tentar somar/formatar
             peso_calc_sum = df_rota['Peso Calculado em Kg'].sum() if 'Peso Calculado em Kg' in df_rota.columns else 0
@@ -1219,7 +1226,15 @@ def pagina_confirmar_producao():
             )
 
         # Expander para o grid
-        with st.expander("🔽 Selecionar entregas", expanded=False):
+        with st.expander("�� Selecionar entregas", expanded=False):
+            # NOVO: Checkbox "Marcar todas" dentro do expander
+            checkbox_key = f"marcar_todas_conf_prod_{rota}"
+            # Garante que o estado do checkbox seja inicializado
+            if checkbox_key not in st.session_state:
+                st.session_state[checkbox_key] = False
+            
+            marcar_todas = st.checkbox("Marcar todas", key=checkbox_key)
+
             # Criação e estilização do grid (usando o AgGrid)
             df_formatado = df_rota[[col for col in colunas_exibir if col in df_rota.columns]].copy()
 
@@ -1234,9 +1249,11 @@ def pagina_confirmar_producao():
                 grid_options["getRowStyle"] = linha_destacar # Atribui o JsCode aqui
 
                 # Gerencia a chave única para o grid, essencial para o st.rerun() funcionar
+                # A chave do grid só é alterada se os dados subjacentes tiverem sido modificados
+                # Para evitar "winks" desnecessários
                 grid_key_id = f"grid_conf_prod_{rota}"
                 if grid_key_id not in st.session_state:
-                    st.session_state[grid_key_id] = str(uuid.uuid4())
+                    st.session_state[grid_key_id] = str(uuid.uuid4()) # Inicializa com um UUID
 
                 grid_response = AgGrid(
                     df_formatado,
@@ -1285,7 +1302,13 @@ def pagina_confirmar_producao():
                 )
 
                 # Captura os registros selecionados pelo usuário no grid
-                selecionadas = pd.DataFrame(grid_response["selected_rows"])
+                # Lógica ajustada para considerar o checkbox "Marcar todas"
+                if marcar_todas:
+                    # Se "Marcar todas" estiver checado, seleciona todas as entregas do DataFrame atual
+                    selecionadas = df_formatado[df_formatado["Serie_Numero_CTRC"].notna()].copy()
+                else:
+                    # Caso contrário, usa a seleção feita diretamente no grid
+                    selecionadas = pd.DataFrame(grid_response.get("selected_rows", []))
 
                 st.markdown(f"**📦 Entregas selecionadas:** {len(selecionadas)}")
 
@@ -1299,7 +1322,6 @@ def pagina_confirmar_producao():
                             
                             # Converte NaT/NaN para None para compatibilidade com Supabase
                             df_confirmar = df_confirmar.replace([np.nan, np.inf, -np.inf, pd.NaT], None)
-                            
                             # Formata colunas de data/hora para string ISO se existirem
                             for col in df_confirmar.select_dtypes(include=["datetime64[ns]"]).columns:
                                 if df_confirmar[col].notna().any(): # Apenas formata se houver valores não-NaT
@@ -1321,11 +1343,11 @@ def pagina_confirmar_producao():
 
                             # Limpa o estado da sessão para forçar a recarga dos grids e evitar problemas de cache.
                             # Isso é crucial para que o st.rerun() "veja" os dados atualizados do banco.
-                            for key_to_clear in list(st.session_state.keys()):
-                                # Limpa chaves específicas para esta rota/grid para forçar o re-render
-                                if key_to_clear.startswith(f"grid_conf_prod_{rota}") or \
-                                   key_to_clear.startswith(f"btn_confirmar_{rota}"):
-                                    st.session_state.pop(key_to_clear, None)
+                            st.session_state["reload_confirmadas_producao"] = True # Sinaliza para recarregar os dados na próxima execução
+                            st.session_state.pop(grid_key_id, None) # Remove a key do grid para forçar a reconstrução, se necessário
+
+                            # Limpa o estado do checkbox "Marcar todas" para esta rota após a ação
+                            st.session_state.pop(checkbox_key, None)
                                 
                             st.success(f"✅ {len(chaves)} entregas da Rota {rota} foram enviadas para a próxima etapa (Aprovação da Diretoria).")
                             
