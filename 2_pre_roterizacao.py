@@ -1122,18 +1122,12 @@ def aplicar_regras_e_preencher_tabelas():
 def pagina_confirmar_producao():
     st.markdown("## Confirmar Produção")
 
-    usuario = st.session_state.get("username")
-
     # Carregando entregas a confirmar
     with st.spinner("🔄 Carregando entregas disponíveis para confirmar..."):
         try:
-            # Carrega dados base de pre_roterizacao (que já inclui Particularidade, Status e Rota)
             df = carregar_base_supabase()
-            
-            # Carrega dados de confirmadas_producao para filtrar o que já foi enviado
             dados_enviados_raw = supabase.table("confirmadas_producao").select("Serie_Numero_CTRC").execute().data
             dados_enviados = pd.DataFrame(dados_enviados_raw)
-            
         except Exception as e:
             st.error(f"Erro ao consultar o banco: {e}")
             return
@@ -1143,8 +1137,13 @@ def pagina_confirmar_producao():
             return
 
         # Filtra as entregas que já foram enviadas para confirmadas_producao
-        if not dados_enviados.empty:
+        if not dados_enviados.empty and "Serie_Numero_CTRC" in df.columns and "Serie_Numero_CTRC" in dados_enviados.columns:
             df = df[~df["Serie_Numero_CTRC"].isin(dados_enviados["Serie_Numero_CTRC"].astype(str))]
+        
+        # Se após o filtro o DataFrame ficar vazio, informa e retorna
+        if df.empty:
+            st.info("Todas as entregas disponíveis já foram confirmadas ou não há novas para processar.")
+            return
 
     # Exibir métricas gerais
     col1, col2, _ = st.columns([1, 1, 8])
@@ -1195,76 +1194,134 @@ def pagina_confirmar_producao():
         # Informações agregadas sobre a rota (badges)
         col_badge, col_check = st.columns([5, 1])
         with col_badge:
+            # Garante que as colunas existem antes de tentar somar/formatar
+            peso_calc_sum = df_rota['Peso Calculado em Kg'].sum() if 'Peso Calculado em Kg' in df_rota.columns else 0
+            peso_real_sum = df_rota['Peso Real em Kg'].sum() if 'Peso Real em Kg' in df_rota.columns else 0
+            valor_frete_sum = df_rota['Valor do Frete'].sum() if 'Valor do Frete' in df_rota.columns else 0
+            cubagem_sum = df_rota['Cubagem em m³'].sum() if 'Cubagem em m³' in df_rota.columns else 0
+            volumes_sum = df_rota['Quantidade de Volumes'].sum() if 'Quantidade de Volumes' in df_rota.columns else 0
+
             st.markdown(
                 f"<span style='background:#eef2f7;border-radius:12px;padding:6px 12px;margin:4px;color:inherit;display:inline-block;'>{len(df_rota)} entregas</span>"
-                f"<span style='background:#eef2f7;border-radius:12px;padding:6px 12px;margin:4px;color:inherit;display:inline-block;'>{formatar_brasileiro(df_rota['Peso Calculado em Kg'].sum())} kg calc</span>"
-                f"<span style='background:#eef2f7;border-radius:12px;padding:6px 12px;margin:4px;color:inherit;display:inline-block;'>{formatar_brasileiro(df_rota['Peso Real em Kg'].sum())} kg real</span>"
-                f"<span style='background:#eef2f7;border-radius:12px;padding:6px 12px;margin:4px;color:inherit;display:inline-block;'>R$ {formatar_brasileiro(df_rota['Valor do Frete'].sum())}</span>"
-                f"<span style='background:#eef2f7;border-radius:12px;padding:6px 12px;margin:4px;color:inherit;display:inline-block;'>{int(df_rota['Quantidade de Volumes'].sum())} volumes</span>",
+                f"<span style='background:#eef2f7;border-radius:12px;padding:6px 12px;margin:4px;color:inherit;display:inline-block;'>{formatar_brasileiro(peso_calc_sum)} kg calc</span>"
+                f"<span style='background:#eef2f7;border-radius:12px;padding:6px 12px;margin:4px;color:inherit;display:inline-block;'>{formatar_brasileiro(peso_real_sum)} kg real</span>"
+                f"<span style='background:#eef2f7;border-radius:12px;padding:6px 12px;margin:4px;color:inherit;display:inline-block;'>R$ {formatar_brasileiro(valor_frete_sum)}</span>"
+                f"<span style='background:#eef2f7;border-radius:12px;padding:6px 12px;margin:4px;color:inherit;display:inline-block;'>{formatar_brasileiro(cubagem_sum)} m³</span>"
+                f"<span style='background:#eef2f7;border-radius:12px;padding:6px 12px;margin:4px;color:inherit;display:inline-block;'>{int(volumes_sum)} volumes</span>",
                 unsafe_allow_html=True
             )
 
-        # Criação e estilização do grid (usando o AgGrid)
-        # Filtra as colunas para garantir que apenas as existentes sejam selecionadas
-        df_formatado = df_rota[[col for col in colunas_exibir if col in df_rota.columns]].copy()
+        # Expander para o grid
+        with st.expander("🔽 Selecionar entregas", expanded=False):
+            # Criação e estilização do grid (usando o AgGrid)
+            # Filtra as colunas para garantir que apenas as existentes sejam selecionadas
+            df_formatado = df_rota[[col for col in colunas_exibir if col in df_rota.columns]].copy()
 
-        gb = GridOptionsBuilder.from_dataframe(df_formatado)
-        gb.configure_default_column(minWidth=150)
-        gb.configure_selection("multiple", use_checkbox=True)
-        gb.configure_grid_options(paginationPageSize=12)
-        gb.configure_grid_options(alwaysShowHorizontalScroll=True)
-        gb.configure_grid_options(rowStyle={'font-size': '11px'})
-        gb.configure_grid_options(getRowStyle=linha_destacar)
+            gb = GridOptionsBuilder.from_dataframe(df_formatado)
+            gb.configure_default_column(minWidth=150)
+            gb.configure_selection("multiple", use_checkbox=True)
+            gb.configure_grid_options(paginationPageSize=12)
+            gb.configure_grid_options(alwaysShowHorizontalScroll=True)
+            gb.configure_grid_options(rowStyle={'font-size': '11px'})
+            gb.configure_grid_options(getRowStyle=linha_destacar)
 
-        grid_response = AgGrid(
-            df_formatado,
-            gridOptions=gb.build(),
-            update_mode=GridUpdateMode.SELECTION_CHANGED, # Essencial para evitar o "wink"
-            fit_columns_on_grid_load=False,
-            width="100%",
-            height=400,
-            allow_unsafe_jscode=True,
-            theme=AgGridTheme.MATERIAL
-        )
+            # Gerencia a chave única para o grid
+            grid_key_id = f"grid_conf_prod_{rota}"
+            if grid_key_id not in st.session_state:
+                st.session_state[grid_key_id] = str(uuid.uuid4())
 
-        # Captura os registros selecionados pelo usuário no grid
-        selecionadas = pd.DataFrame(grid_response["selected_rows"])
+            grid_response = AgGrid(
+                df_formatado,
+                gridOptions=gb.build(),
+                update_mode=GridUpdateMode.SELECTION_CHANGED, # Essencial para evitar o "wink" ao selecionar
+                fit_columns_on_grid_load=False,
+                width="100%",
+                height=400,
+                allow_unsafe_jscode=True,
+                # === Parâmetros que você notou que estavam faltando ===
+                key=st.session_state[grid_key_id],
+                data_return_mode="AS_INPUT",
+                theme=AgGridTheme.MATERIAL,
+                show_toolbar=False,
+                custom_css={
+                    ".ag-theme-material .ag-cell": {
+                        "font-size": "11px",
+                        "line-height": "18px",
+                        "border-right": "1px solid #ccc",
+                    },
+                    ".ag-theme-material .ag-row:last-child .ag-cell": {
+                        "border-bottom": "1px solid #ccc",
+                    },
+                    ".ag-theme-material .ag-header-cell": {
+                        "border-right": "1px solid #ccc",
+                        "border-bottom": "1px solid #ccc",
+                    },
+                    ".ag-theme-material .ag-root-wrapper": {
+                        "border": "1px solid black",
+                        "border-radius": "6px",
+                        "padding": "4px",
+                    },
+                    ".ag-theme-material .ag-header-cell-label": {
+                        "font-size": "11px",
+                    },
+                    ".ag-center-cols-viewport": {
+                        "overflow-x": "auto !important",
+                        "overflow-y": "hidden",
+                    },
+                    ".ag-center-cols-container": {
+                        "min-width": "100% !important",
+                    },
+                    "#gridToolBar": {
+                        "padding-bottom": "0px !important",
+                    }
+                }
+                # =======================================================
+            )
 
-        st.markdown(f"**📦 Entregas selecionadas:** {len(selecionadas)}")
+            # Captura os registros selecionados pelo usuário no grid
+            selecionadas = pd.DataFrame(grid_response["selected_rows"])
 
-        # Botão para confirmar produção
-        if not selecionadas.empty:
-            if st.button(f"🚀 Enviar para Aprovação da Diretoria da Rota {rota}", key=f"btn_confirmar_{rota}"):
-                try:
-                    # Prepara os dados para inserção na tabela de aprovação_diretoria
-                    # Remove colunas extras do AgGrid e substitui NaN por None
-                    df_confirmar = selecionadas.drop(columns=["_selectedRowNodeInfo"], errors="ignore").copy()
-                    df_confirmar["Rota"] = rota # Garante que a rota esteja na coluna correta
-                    
-                    # Converte NaT/NaN para None para compatibilidade com Supabase
-                    df_confirmar = df_confirmar.replace([np.nan, np.inf, -np.inf, pd.NaT], None)
-                    
-                    # Formata colunas de data/hora para string ISO se existirem
-                    for col in df_confirmar.select_dtypes(include=["datetime64[ns]"]).columns:
-                        df_confirmar[col] = df_confirmar[col].dt.strftime("%Y-%m-%d %H:%M:%S")
+            st.markdown(f"**📦 Entregas selecionadas:** {len(selecionadas)}")
 
-                    registros = df_confirmar.to_dict(orient="records")
-                    # Filtra registros inválidos (sem Serie_Numero_CTRC)
-                    registros = [r for r in registros if r.get("Serie_Numero_CTRC")]
+            # Botão para confirmar produção
+            if not selecionadas.empty:
+                if st.button(f"🚀 Enviar para Aprovação da Diretoria da Rota {rota}", key=f"btn_confirmar_{rota}"):
+                    try:
+                        # Prepara os dados para inserção na tabela de aprovacao_diretoria
+                        df_confirmar = selecionadas.drop(columns=["_selectedRowNodeInfo"], errors="ignore").copy()
+                        df_confirmar["Rota"] = rota # Garante que a rota esteja na coluna correta
+                        
+                        # Converte NaT/NaN para None para compatibilidade com Supabase
+                        df_confirmar = df_confirmar.replace([np.nan, np.inf, -np.inf, pd.NaT], None)
+                        
+                        # Formata colunas de data/hora para string ISO se existirem
+                        for col in df_confirmar.select_dtypes(include=["datetime64[ns]"]).columns:
+                            if df_confirmar[col].notna().any(): # Only format if there's at least one non-NaT value
+                                df_confirmar[col] = df_confirmar[col].dt.strftime("%Y-%m-%d %H:%M:%S")
 
-                    # Insere na tabela de aprovação_diretoria
-                    supabase.table("aprovacao_diretoria").insert(registros).execute()
-                    
-                    # Remove as entregas que foram confirmadas da tabela confirmadas_producao
-                    chaves = [r["Serie_Numero_CTRC"] for r in registros]
-                    supabase.table("confirmadas_producao").delete().in_("Serie_Numero_CTRC", chaves).execute()
+                        registros = df_confirmar.to_dict(orient="records")
+                        # Filtra registros inválidos (sem Serie_Numero_CTRC)
+                        registros = [r for r in registros if r.get("Serie_Numero_CTRC")]
 
-                    st.success(f"✅ {len(chaves)} entregas da Rota {rota} foram enviadas para a próxima etapa (Aprovação da Diretoria).")
-                    
-                    # Força um rerun para atualizar a UI e refletir as mudanças
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"❌ Erro ao confirmar produção da rota {rota}: {e}")
+                        # Insere na tabela de aprovacao_diretoria
+                        supabase.table("aprovacao_diretoria").insert(registros).execute()
+                        
+                        # Remove as entregas que foram confirmadas da tabela confirmadas_producao
+                        chaves = [r["Serie_Numero_CTRC"] for r in registros]
+                        if chaves: # Only delete if there are keys to delete
+                            supabase.table("confirmadas_producao").delete().in_("Serie_Numero_CTRC", chaves).execute()
+
+                        # Limpa o estado da sessão para forçar a recarga dos grids e evitar problemas de cache
+                        for key_to_clear in list(st.session_state.keys()):
+                            if key_to_clear.startswith("grid_conf_prod_") or key_to_clear.startswith("btn_confirmar_"):
+                                st.session_state.pop(key_to_clear, None)
+
+                        st.success(f"✅ {len(chaves)} entregas da Rota {rota} foram enviadas para a próxima etapa (Aprovação da Diretoria).")
+                        
+                        # Força um rerun para atualizar a UI e refletir as mudanças
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"❌ Erro ao confirmar produção da rota {rota}: {e}")
 
                    
 
