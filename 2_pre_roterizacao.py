@@ -1217,7 +1217,7 @@ def pagina_confirmar_producao():
             grid_response = AgGrid(
                 df_formatado,
                 gridOptions=grid_options,
-                update_mode=GridUpdateMode.MANUAL,
+                update_mode=GridUpdateMode.SELECTION_CHANGED,
                 fit_columns_on_grid_load=False,
                 width="100%",
                 height=400,
@@ -1263,7 +1263,7 @@ def pagina_confirmar_producao():
             if marcar_todas:
                 selecionadas = df_formatado[df_formatado["Serie_Numero_CTRC"].notna()].copy()
             else:
-                selecionadas = pd.DataFrame(grid_response["selected_rows"]) if grid_response and grid_response.get("selected_rows") else pd.DataFrame()
+                selecionadas = pd.DataFrame(grid_response.get("selected_rows", []))
 
             st.markdown(f"**📦 Entregas selecionadas:** {len(selecionadas)}")
 
@@ -1296,6 +1296,8 @@ def pagina_confirmar_producao():
                             st.rerun()
                         except Exception as e:
                             st.error(f"❌ Erro ao confirmar produção da rota {rota}: {e}")
+                   
+
 
 ###########################################
 
