@@ -1268,30 +1268,36 @@ def pagina_confirmar_producao():
             st.markdown(f"**📦 Entregas selecionadas:** {len(selecionadas)}")
 
             if not selecionadas.empty:
-                if st.button(f"🚀 Confirmar produção da Rota", key=f"btn_conf_prod_{rota}"):
-                    try:
-                        df_confirmar = selecionadas.drop(columns=["_selectedRowNodeInfo"], errors="ignore").copy()
-                        df_confirmar["Rota"] = rota
+                confirmar = st.checkbox("Confirmar seleção de entregas", key=f"confirmar_conf_prod_{rota}")
 
-                        df_confirmar = df_confirmar.replace([np.nan, np.inf, -np.inf], None)
-                        for col in df_confirmar.select_dtypes(include=["datetime64[ns]"]).columns:
-                            df_confirmar[col] = df_confirmar[col].dt.strftime("%Y-%m-%d %H:%M:%S")
+                col_conf, col_ret = st.columns(2)
+                with col_conf:
+                    if st.button(f"✅ Enviar para Aprovação da Diretoria", key=f"btn_confirma_conf_prod_{rota}") and confirmar:
+                        try:
+                            df_confirmar = selecionadas.drop(columns=["_selectedRowNodeInfo"], errors="ignore").copy()
+                            df_confirmar["Rota"] = rota
 
-                        registros = df_confirmar.to_dict(orient="records")
-                        registros = [r for r in registros if r.get("Serie_Numero_CTRC")]
+                            df_confirmar = df_confirmar.replace([np.nan, np.inf, -np.inf], None)
+                            for col in df_confirmar.select_dtypes(include=["datetime64[ns]"]).columns:
+                                df_confirmar[col] = df_confirmar[col].dt.strftime("%Y-%m-%d %H:%M:%S")
 
-                        supabase.table("pre_roterizacao").insert(registros).execute()
-                        chaves = [r["Serie_Numero_CTRC"] for r in registros]
-                        supabase.table("confirmadas_producao").delete().in_("Serie_Numero_CTRC", chaves).execute()
+                            registros = df_confirmar.to_dict(orient="records")
+                            registros = [r for r in registros if r.get("Serie_Numero_CTRC")]
 
-                        for key in list(st.session_state.keys()):
-                            if key.startswith("grid_conf_prod_") or key.startswith("btn_conf_prod_") or key.startswith("marcar_todas_conf_prod_"):
-                                st.session_state.pop(key, None)
+                            supabase.table("aprovacao_diretoria").insert(registros).execute()
+                            chaves = [r["Serie_Numero_CTRC"] for r in registros]
+                            supabase.table("confirmadas_producao").delete().in_("Serie_Numero_CTRC", chaves).execute()
 
-                        st.success(f"✅ {len(chaves)} entregas da Rota {rota} foram confirmadas com sucesso.")
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"❌ Erro ao confirmar produção da rota {rota}: {e}")
+                            for key in list(st.session_state.keys()):
+                                if key.startswith("grid_conf_prod_") or key.startswith("btn_conf_prod_") or key.startswith("marcar_todas_conf_prod_") or key.startswith("confirmar_conf_prod_"):
+                                    st.session_state.pop(key, None)
+
+                            st.success(f"✅ {len(chaves)} entregas da Rota {rota} foram enviadas para a próxima etapa.")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"❌ Erro ao confirmar produção da rota {rota}: {e}")
+                    
+
 
 
 ###########################################
