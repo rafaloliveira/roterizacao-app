@@ -1751,14 +1751,22 @@ def pagina_pre_roterizacao():
 def pagina_rotas_confirmadas():
     st.markdown("## Rotas Confirmadas")
 
+    # Adicionando a lógica de cache ou recarga
     with st.spinner("🔄 Carregando dados das entregas..."):
-        df_rotas = pd.DataFrame(supabase.table("rotas_confirmadas").select("*").execute().data)
+        recarregar = st.session_state.pop("reload_rotas_confirmadas", False)
+        if recarregar or "df_rotas_confirmadas_cache" not in st.session_state:
+            df_rotas = pd.DataFrame(supabase.table("rotas_confirmadas").select("*").execute().data)
+            st.session_state["df_rotas_confirmadas_cache"] = df_rotas
+        else:
+            df_rotas = st.session_state["df_rotas_confirmadas_cache"]
 
-        if df_rotas.empty:
-            st.info("🛈 Nenhuma Rota Confirmada.")
-            return
+
+    if df_rotas.empty:
+        st.info("🛈 Nenhuma Rota Confirmada.")
+        return
+
+    # Lógica para criação de nova carga avulsa
     chaves_input = ""
-
     if "nova_carga_em_criacao" not in st.session_state:
         st.session_state["nova_carga_em_criacao"] = False
         st.session_state["numero_nova_carga"] = ""
@@ -1813,10 +1821,7 @@ def pagina_rotas_confirmadas():
                 # Buscar todos os dados uma única vez para maior controle
                 dados_rotas = supabase.table("rotas_confirmadas").select("*").execute().data
                 dados_pre = supabase.table("pre_roterizacao").select("*").execute().data
-                # Debug: verificar nome exato das colunas em cargas_geradas
                 
-
-
                 # 🔎 Buscar entregas já atribuídas a cargas
                 dados_cargas = supabase.table("cargas_geradas").select("*").execute().data
 
@@ -1834,6 +1839,7 @@ def pagina_rotas_confirmadas():
                     if serie_ctr:
                         entregas_ja_em_carga[serie_ctr] = numero_carga
 
+                chaves_inseridas_com_sucesso = [] # Para armazenar as chaves que foram realmente inseridas
                 for chave in chaves:
                     try:
                         origem = None
@@ -1849,31 +1855,31 @@ def pagina_rotas_confirmadas():
                         if dados:
                             origem = "rotas_confirmadas"
                             entrega = dados[0]
-                            entrega.pop("id", None)
+                            entrega.pop("id", None) # Remove 'id' que pode ser gerado pelo Supabase
                         else:
                             dados = [d for d in dados_pre if str(d.get(chave_coluna_pre, "")).strip() == chave]
                             if dados:
                                 origem = "pre_roterizacao"
                                 entrega = dados[0]
-                                entrega.pop("id", None)
+                                entrega.pop("id", None) # Remove 'id' que pode ser gerado pelo Supabase
 
                         if not entrega:
-                            st.warning(f"⚠️ Chave {chave} não encontrada em nenhuma tabela.")
+                            st.warning(f"⚠️ Chave {chave} não encontrada em nenhuma tabela ou já foi processada.")
                             continue
 
                         entrega["numero_carga"] = st.session_state["numero_nova_carga"]
-                        entrega["Data_Hora_Gerada"] = data_hora_brasil_str()
+                        entrega["Data_Hora_Gerada"] = data_hora_brasil_str() # Formato string para Supabase
+                        entrega["Status"] = "Fechada" # Assume que ao virar carga, o status é "Fechada"
 
-                        entrega["Status"] = "Fechada"
-
+                        # Limpa valores que podem causar problemas na inserção (NaN, NaT, objetos complexos)
                         entrega = {k: (
-                            v.isoformat() if isinstance(v, (pd.Timestamp, datetime)) else
-                            None if isinstance(v, float) and (np.isnan(v) or np.isinf(v)) else
-                            json.dumps(v) if isinstance(v, dict) else
+                            v.isoformat() if isinstance(v, (pd.Timestamp, datetime, date)) else # Converte datas para ISO
+                            None if (isinstance(v, float) and (np.isnan(v) or np.isinf(v))) or pd.isna(v) else # Float NaN/Inf ou Pandas NaT para None
+                            str(v) if isinstance(v, (dict, list)) else # Converte dict/list para string (se não forem JSON válidos)
                             v
                         ) for k, v in entrega.items()}
 
-                        # 🔒 Colunas válidas para serem inseridas cargas_geradas
+                        # 🔒 Colunas válidas para serem inseridas em cargas_geradas
                         colunas_validas = [
                             'Serie_Numero_CTRC', 'Rota', 'Cliente Pagador', 'Chave CT-e', 'Cliente Destinatario',
                             'Cidade de Entrega', 'Bairro do Destinatario', 'Previsao de Entrega',
@@ -1885,51 +1891,48 @@ def pagina_rotas_confirmadas():
 
                         entrega_filtrada = {k: v for k, v in entrega.items() if k in colunas_validas}
 
-
-
+                        # Tenta inserir no Supabase
                         supabase.table("cargas_geradas").insert(entrega_filtrada).execute()
-                        time.sleep(0.1)
+                        time.sleep(0.1) # Pequena pausa para evitar sobrecarga no Supabase
                         entregas_encontradas.append(entrega)
+                        chaves_inseridas_com_sucesso.append(chave)
 
-                        if origem == "rotas_confirmadas" and "Serie_Numero_CTRC" in entrega:
-                            supabase.table("rotas_confirmadas").delete().eq("Serie_Numero_CTRC", entrega["Serie_Numero_CTRC"]).execute()
+                        # Remove da tabela de origem
+                        if origem == "rotas_confirmadas":
+                            supabase.table("rotas_confirmadas").delete().eq("Chave CT-e", chave).execute()
                             time.sleep(0.1)
-                        elif origem == "pre_roterizacao" and chave in entrega.values():
-                            supabase.table("pre_roterizacao").delete().eq(chave_coluna_pre, chave).execute()
+                        elif origem == "pre_roterizacao":
+                            supabase.table("pre_roterizacao").delete().eq("Chave CT-e", chave).execute() # Assume "Chave CT-e" como PK
                             time.sleep(0.1)
-
-                            # Após inserir e deletar entregas nas tabelas com sucesso
-                            for key in list(st.session_state.keys()):
-                                if key.startswith("grid_rotas_confirmadas_") or key.startswith("botao_rota_") or key.startswith("marcar_todas_rota_confirmada_"):
-                                    st.session_state.pop(key, None)
-
-                            st.success(f"✅ {len(chaves_inseridas)} entrega(s) adicionada(s) à carga {numero_carga}.")
-
-                            time.sleep(1)
-                            st.rerun()
-
 
                     except Exception as e_inner:
                         st.warning(f"Erro ao processar chave {chave}: {e_inner}")
 
                 if entregas_encontradas:
                     st.success(f"✅ {len(entregas_encontradas)} entrega(s) adicionada(s) à carga {st.session_state['numero_nova_carga']} com sucesso.")
-                    time.sleep(2)
-
-                    # Limpa o estado da carga criada
+                    # Limpa o estado da carga criada para voltar à visualização normal
                     st.session_state["nova_carga_em_criacao"] = False
                     st.session_state["numero_nova_carga"] = ""
-
-                    st.rerun()  # Recarrega a página como se fosse o primeiro acesso
+                    # Força a recarga dos caches para que as tabelas reflitam as mudanças
+                    st.session_state["reload_rotas_confirmadas"] = True
+                    st.session_state["reload_cargas_geradas"] = True
+                    # Limpa keys dos grids para forçar reconstrução se necessário
+                    for key_prefix in ["grid_rotas_confirmadas_", "grid_carga_gerada_"]:
+                        for key in list(st.session_state.keys()):
+                            if key.startswith(key_prefix):
+                                st.session_state.pop(key, None)
+                    st.rerun()
 
                 else:
-                    st.warning("⚠️ Nenhuma entrega válida foi adicionada.")
+                    st.warning("⚠️ Nenhuma entrega válida foi adicionada ou encontrada.")
 
             except Exception as e:
                 st.error(f"Erro ao adicionar entregas: {e}")
-# ... restante do código permanece o mesmo (grid etc.)
+
+    # A partir daqui, a lógica de exibição das rotas confirmadas continua
     try:
-        df = pd.DataFrame(supabase.table("rotas_confirmadas").select("*").execute().data)
+        # Reutiliza o DataFrame do cache ou recarrega para exibição
+        df = st.session_state.get("df_rotas_confirmadas_cache", pd.DataFrame())
         df.columns = df.columns.str.strip()
         if df.empty:
             st.info("Nenhuma entrega foi confirmada ainda.")
@@ -1937,7 +1940,7 @@ def pagina_rotas_confirmadas():
 
         col1, col2, _ = st.columns([1, 1, 8])
         with col1:
-            st.metric("Total de Rotas", df["Rota"].nunique())
+            st.metric("Total de Rotas", df["Rota"].nunique() if "Rota" in df.columns else 0)
         with col2:
             st.metric("Total de Entregas", len(df))
 
@@ -1993,6 +1996,13 @@ def pagina_rotas_confirmadas():
             with st.expander("🔽 Selecionar entregas", expanded=False):
                 df_formatado = df_rota[[col for col in colunas_exibir if col in df_rota.columns]].copy()
 
+                # NOVO: Checkbox "Marcar todas" dentro do expander
+                checkbox_key = f"marcar_todas_rota_confirmada_{rota}"
+                if checkbox_key not in st.session_state:
+                    st.session_state[checkbox_key] = False
+                marcar_todas = st.checkbox("Marcar todas", key=checkbox_key)
+
+
                 gb = GridOptionsBuilder.from_dataframe(df_formatado)
                 gb.configure_default_column(minWidth=150)
                 gb.configure_selection("multiple", use_checkbox=True)
@@ -2000,6 +2010,7 @@ def pagina_rotas_confirmadas():
                 gb.configure_grid_options(alwaysShowHorizontalScroll=True)
                 gb.configure_grid_options(rowStyle={"font-size": "11px"})
                 gb.configure_grid_options(getRowStyle=linha_destacar)
+                # O headerCheckboxSelection e rowSelection já existiam aqui, mantidos
                 gb.configure_grid_options(headerCheckboxSelection=True)
                 gb.configure_grid_options(rowSelection='multiple')
 
@@ -2019,6 +2030,7 @@ def pagina_rotas_confirmadas():
 
                 grid_options = gb.build()
                 grid_key = f"grid_rotas_confirmadas_{rota}"
+                # Mantém a key constante a menos que os dados subjacentes mudem, não forcando novo UUID
                 if grid_key not in st.session_state:
                     st.session_state[grid_key] = str(uuid.uuid4())
 
@@ -2069,12 +2081,7 @@ def pagina_rotas_confirmadas():
                         }
                     )
 
-                col_badge, col_check = st.columns([5, 1])
-
-                with col_check:
-                    marcar_todas = st.checkbox("Marcar todas", key=f"marcar_todas_rota_confirmada_{rota}")
-
-                # Aplica a lógica do checkbox
+                # Lógica ajustada para considerar o checkbox "Marcar todas"
                 if marcar_todas:
                     selecionadas = df_formatado[df_formatado["Serie_Numero_CTRC"].notna()].copy().to_dict(orient="records")
                 else:
@@ -2105,13 +2112,13 @@ def pagina_rotas_confirmadas():
                             df_confirmar["Status"] = "Fechada"
 
                             colunas_validas = [
-                            'Serie_Numero_CTRC', 'Rota', 'Cliente Pagador', 'Chave CT-e', 'Cliente Destinatario',
-                            'Cidade de Entrega', 'Bairro do Destinatario', 'Previsao de Entrega',
-                            'Numero da Nota Fiscal', 'Status', 'Entrega Programada', 'Particularidade',
-                            'Codigo da Ultima Ocorrencia', 'Peso Real em Kg', 'Peso Calculado em Kg',
-                            'Cubagem em m³', 'Quantidade de Volumes', 'Valor do Frete',
-                            'numero_carga', 'Data_Hora_Gerada'
-                        ]
+                                'Serie_Numero_CTRC', 'Rota', 'Cliente Pagador', 'Chave CT-e', 'Cliente Destinatario',
+                                'Cidade de Entrega', 'Bairro do Destinatario', 'Previsao de Entrega',
+                                'Numero da Nota Fiscal', 'Status', 'Entrega Programada', 'Particularidade',
+                                'Codigo da Ultima Ocorrencia', 'Peso Real em Kg', 'Peso Calculado em Kg',
+                                'Cubagem em m³', 'Quantidade de Volumes', 'Valor do Frete',
+                                'numero_carga', 'Data_Hora_Gerada'
+                            ]
 
 
                             dados_filtrados = df_confirmar[[col for col in colunas_validas if col in df_confirmar.columns]].to_dict(orient="records")
@@ -2145,9 +2152,13 @@ def pagina_rotas_confirmadas():
 
                                 st.success(f"✅ {len(chaves_inseridas)} entrega(s) adicionada(s) à carga {numero_carga}.")
 
-                                for key in list(st.session_state.keys()):
-                                    if key.startswith("grid_rotas_confirmadas_") or key.startswith("botao_rota_") or key.startswith("marcar_todas_rota_confirmada_"):
-                                        st.session_state.pop(key, None)
+                                # Força recarga dos caches para que as tabelas reflitam as mudanças
+                                st.session_state["reload_rotas_confirmadas"] = True
+                                st.session_state["reload_cargas_geradas"] = True
+                                # Limpa keys dos grids para forçar reconstrução se necessário
+                                st.session_state.pop(grid_key, None)
+                                st.session_state.pop(checkbox_key, None) # Limpa o estado do checkbox
+
 
                                 time.sleep(1)
                                 st.rerun()
@@ -2205,13 +2216,15 @@ def pagina_rotas_confirmadas():
 
                                 supabase.table("cargas_geradas").insert(dados_filtrados).execute()
                                 supabase.table("rotas_confirmadas").delete().in_("Serie_Numero_CTRC", chaves).execute()
-                                time.sleep(1)
-                                st.rerun()
 
-                                for key in list(st.session_state.keys()):
-                                    if key.startswith("grid_rotas_confirmadas_") or key.startswith("botao_rota_") or key.startswith("marcar_todas_rota_confirmada_"):
-                                        st.session_state.pop(key, None)
-                                st.session_state.pop(f"selectbox_carga_existente_{rota}", None)
+                                # Força recarga dos caches para que as tabelas reflitam as mudanças
+                                st.session_state["reload_rotas_confirmadas"] = True
+                                st.session_state["reload_cargas_geradas"] = True
+                                # Limpa keys dos grids para forçar reconstrução se necessário
+                                st.session_state.pop(grid_key, None)
+                                st.session_state.pop(checkbox_key, None) # Limpa o estado do checkbox
+                                st.session_state.pop(f"selectbox_carga_existente_{rota}", None) # Limpa o selectbox
+
                                 st.success(f"✅ Entregas adicionadas à carga {carga_escolhida}.")
                                 time.sleep(2)
                                 st.rerun()
