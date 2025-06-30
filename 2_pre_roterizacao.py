@@ -1125,7 +1125,7 @@ def pagina_confirmar_producao():
     with st.spinner("🔄 Carregando entregas a confirmar..."):
         try:
             df = carregar_base_supabase()
-            dados_enviados_raw = supabase.table("pre_roterizacao").select("Serie_Numero_CTRC").execute().data
+            dados_enviados_raw = supabase.table("confirmadas_producao").select("Serie_Numero_CTRC").execute().data
             dados_enviados = pd.DataFrame(dados_enviados_raw)
         except Exception as e:
             st.error(f"Erro ao consultar o banco: {e}")
@@ -1282,7 +1282,7 @@ def pagina_confirmar_producao():
 
                         supabase.table("pre_roterizacao").insert(registros).execute()
                         chaves = [r["Serie_Numero_CTRC"] for r in registros]
-                        supabase.table("confirmar_producao").delete().in_("Serie_Numero_CTRC", chaves).execute()
+                        supabase.table("confirmadas_producao").delete().in_("Serie_Numero_CTRC", chaves).execute()
 
                         for key in list(st.session_state.keys()):
                             if key.startswith("grid_conf_prod_") or key.startswith("btn_conf_prod_") or key.startswith("marcar_todas_conf_prod_"):
