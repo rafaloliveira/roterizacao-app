@@ -1671,7 +1671,7 @@ def pagina_pre_roterizacao():
             if grid_key not in st.session_state:
                 st.session_state[grid_key] = str(uuid.uuid4())
 
-            update_mode = GridUpdateMode.NO_UPDATE if marcar_todas else GridUpdateMode.SELECTION_CHANGED
+            update_mode = GridUpdateMode.MANUAL
 
             grid_response = AgGrid(
                 df_formatado,
