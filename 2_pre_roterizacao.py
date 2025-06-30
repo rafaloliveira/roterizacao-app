@@ -1122,27 +1122,31 @@ def aplicar_regras_e_preencher_tabelas():
 def pagina_confirmar_producao():
     st.markdown("## Confirmar Produção")
 
-    # Carregando entregas a confirmar
-    with st.spinner("🔄 Carregando entregas disponíveis para confirmar..."):
+    # Carregando entregas diretamente da tabela 'confirmadas_producao'
+    with st.spinner("🔄 Carregando entregas para confirmar produção..."):
         try:
-            df = carregar_base_supabase()
-            dados_enviados_raw = supabase.table("confirmadas_producao").select("Serie_Numero_CTRC").execute().data
-            dados_enviados = pd.DataFrame(dados_enviados_raw)
+            # Fonte de dados para esta página é 'confirmadas_producao'
+            df = pd.DataFrame(supabase.table("confirmadas_producao").select("*").execute().data)
+            
+            # Limpar e normalizar dados para evitar KeyErrors e problemas de tipo
+            if 'Rota' in df.columns:
+                df['Rota'] = df['Rota'].fillna('').astype(str)
+            if 'Status' in df.columns:
+                df['Status'] = df['Status'].fillna('').astype(str)
+            if 'Entrega Programada' in df.columns:
+                df['Entrega Programada'] = pd.to_datetime(df['Entrega Programada'], errors='coerce')
+                # O JsCode lida com NaT se convertermos para string no final, mas mantenha pd.NaT aqui para cálculos
+            if 'Particularidade' in df.columns:
+                df['Particularidade'] = df['Particularidade'].fillna('').astype(str)
+            if 'Serie_Numero_CTRC' in df.columns:
+                df['Serie_Numero_CTRC'] = df['Serie_Numero_CTRC'].astype(str)
+
         except Exception as e:
-            st.error(f"Erro ao consultar o banco: {e}")
+            st.error(f"Erro ao consultar o banco de dados: {e}")
             return
 
-        if df is None or df.empty:
-            st.info("Nenhuma entrega disponível para confirmar.")
-            return
-
-        # Filtra as entregas que já foram enviadas para confirmadas_producao
-        if not dados_enviados.empty and "Serie_Numero_CTRC" in df.columns and "Serie_Numero_CTRC" in dados_enviados.columns:
-            df = df[~df["Serie_Numero_CTRC"].isin(dados_enviados["Serie_Numero_CTRC"].astype(str))]
-        
-        # Se após o filtro o DataFrame ficar vazio, informa e retorna
         if df.empty:
-            st.info("Todas as entregas disponíveis já foram confirmadas ou não há novas para processar.")
+            st.info("Nenhuma entrega disponível para confirmar produção.")
             return
 
     # Exibir métricas gerais
@@ -1161,17 +1165,20 @@ def pagina_confirmar_producao():
         "Peso Calculado em Kg", "Cubagem em m³", "Quantidade de Volumes"
     ]
 
-    # Configuração de estilo condicional do grid
+    # Configuração de estilo condicional do grid (JsCode)
     linha_destacar = JsCode("""
         function(params) {
             const status = params.data['Status'];
             const entrega = params.data['Entrega Programada'];
             const particularidade = params.data['Particularidade'];
-            if (status === 'AGENDAR' && (!entrega || entrega.trim() === '')) {
-                return { 'background-color': '#ffe0b2', 'color': '#333' };
+            // Verifica se a entrega está vazia ou contém apenas espaços (para compatibilidade com strings vazias)
+            const isEntregaEmpty = !entrega || (typeof entrega === 'string' && entrega.trim() === '');
+
+            if (status === 'AGENDAR' && isEntregaEmpty) {
+                return { 'background-color': '#ffe0b2', 'color': '#333' }; // Amarelo claro para "AGENDAR" sem data
             }
-            if (particularidade && particularidade.trim() !== "") {
-                return { 'background-color': '#fff59d', 'color': '#333' };
+            if (particularidade && typeof particularidade === 'string' && particularidade.trim() !== "") {
+                return { 'background-color': '#fff59d', 'color': '#333' }; // Amarelo um pouco mais escuro para "Particularidade"
             }
             return null;
         }
@@ -1214,114 +1221,118 @@ def pagina_confirmar_producao():
         # Expander para o grid
         with st.expander("🔽 Selecionar entregas", expanded=False):
             # Criação e estilização do grid (usando o AgGrid)
-            # Filtra as colunas para garantir que apenas as existentes sejam selecionadas
             df_formatado = df_rota[[col for col in colunas_exibir if col in df_rota.columns]].copy()
 
-            gb = GridOptionsBuilder.from_dataframe(df_formatado)
-            gb.configure_default_column(minWidth=150)
-            gb.configure_selection("multiple", use_checkbox=True)
-            gb.configure_grid_options(paginationPageSize=12)
-            gb.configure_grid_options(alwaysShowHorizontalScroll=True)
-            gb.configure_grid_options(rowStyle={'font-size': '11px'})
-            gb.configure_grid_options(getRowStyle=linha_destacar)
+            if not df_formatado.empty:
+                gb = GridOptionsBuilder.from_dataframe(df_formatado)
+                gb.configure_default_column(minWidth=150)
+                gb.configure_selection("multiple", use_checkbox=True)
+                gb.configure_grid_options(paginationPageSize=12)
+                gb.configure_grid_options(alwaysShowHorizontalScroll=True)
+                gb.configure_grid_options(rowStyle={'font-size': '11px'})
+                grid_options = gb.build()
+                grid_options["getRowStyle"] = linha_destacar # Atribui o JsCode aqui
 
-            # Gerencia a chave única para o grid
-            grid_key_id = f"grid_conf_prod_{rota}"
-            if grid_key_id not in st.session_state:
-                st.session_state[grid_key_id] = str(uuid.uuid4())
+                # Gerencia a chave única para o grid, essencial para o st.rerun() funcionar
+                grid_key_id = f"grid_conf_prod_{rota}"
+                if grid_key_id not in st.session_state:
+                    st.session_state[grid_key_id] = str(uuid.uuid4())
 
-            grid_response = AgGrid(
-                df_formatado,
-                gridOptions=gb.build(),
-                update_mode=GridUpdateMode.SELECTION_CHANGED, # Essencial para evitar o "wink" ao selecionar
-                fit_columns_on_grid_load=False,
-                width="100%",
-                height=400,
-                allow_unsafe_jscode=True,
-                # === Parâmetros que você notou que estavam faltando ===
-                key=st.session_state[grid_key_id],
-                data_return_mode="AS_INPUT",
-                theme=AgGridTheme.MATERIAL,
-                show_toolbar=False,
-                custom_css={
-                    ".ag-theme-material .ag-cell": {
-                        "font-size": "11px",
-                        "line-height": "18px",
-                        "border-right": "1px solid #ccc",
-                    },
-                    ".ag-theme-material .ag-row:last-child .ag-cell": {
-                        "border-bottom": "1px solid #ccc",
-                    },
-                    ".ag-theme-material .ag-header-cell": {
-                        "border-right": "1px solid #ccc",
-                        "border-bottom": "1px solid #ccc",
-                    },
-                    ".ag-theme-material .ag-root-wrapper": {
-                        "border": "1px solid black",
-                        "border-radius": "6px",
-                        "padding": "4px",
-                    },
-                    ".ag-theme-material .ag-header-cell-label": {
-                        "font-size": "11px",
-                    },
-                    ".ag-center-cols-viewport": {
-                        "overflow-x": "auto !important",
-                        "overflow-y": "hidden",
-                    },
-                    ".ag-center-cols-container": {
-                        "min-width": "100% !important",
-                    },
-                    "#gridToolBar": {
-                        "padding-bottom": "0px !important",
+                grid_response = AgGrid(
+                    df_formatado,
+                    gridOptions=grid_options,
+                    update_mode=GridUpdateMode.SELECTION_CHANGED, # Essencial para evitar o "wink" ao selecionar
+                    fit_columns_on_grid_load=False,
+                    width="100%",
+                    height=400,
+                    allow_unsafe_jscode=True,
+                    key=st.session_state[grid_key_id], # Usa a chave única para o grid
+                    data_return_mode="AS_INPUT",
+                    theme=AgGridTheme.MATERIAL,
+                    show_toolbar=False,
+                    custom_css={
+                        ".ag-theme-material .ag-cell": {
+                            "font-size": "11px",
+                            "line-height": "18px",
+                            "border-right": "1px solid #ccc",
+                        },
+                        ".ag-theme-material .ag-row:last-child .ag-cell": {
+                            "border-bottom": "1px solid #ccc",
+                        },
+                        ".ag-theme-material .ag-header-cell": {
+                            "border-right": "1px solid #ccc",
+                            "border-bottom": "1px solid #ccc",
+                        },
+                        ".ag-theme-material .ag-root-wrapper": {
+                            "border": "1px solid black",
+                            "border-radius": "6px",
+                            "padding": "4px",
+                        },
+                        ".ag-theme-material .ag-header-cell-label": {
+                            "font-size": "11px",
+                        },
+                        ".ag-center-cols-viewport": {
+                            "overflow-x": "auto !important",
+                            "overflow-y": "hidden",
+                        },
+                        ".ag-center-cols-container": {
+                            "min-width": "100% !important",
+                        },
+                        "#gridToolBar": {
+                            "padding-bottom": "0px !important",
+                        }
                     }
-                }
-                # =======================================================
-            )
+                )
 
-            # Captura os registros selecionados pelo usuário no grid
-            selecionadas = pd.DataFrame(grid_response["selected_rows"])
+                # Captura os registros selecionados pelo usuário no grid
+                selecionadas = pd.DataFrame(grid_response["selected_rows"])
 
-            st.markdown(f"**📦 Entregas selecionadas:** {len(selecionadas)}")
+                st.markdown(f"**📦 Entregas selecionadas:** {len(selecionadas)}")
 
-            # Botão para confirmar produção
-            if not selecionadas.empty:
-                if st.button(f"🚀 Enviar para Aprovação da Diretoria da Rota {rota}", key=f"btn_confirmar_{rota}"):
-                    try:
-                        # Prepara os dados para inserção na tabela de aprovacao_diretoria
-                        df_confirmar = selecionadas.drop(columns=["_selectedRowNodeInfo"], errors="ignore").copy()
-                        df_confirmar["Rota"] = rota # Garante que a rota esteja na coluna correta
-                        
-                        # Converte NaT/NaN para None para compatibilidade com Supabase
-                        df_confirmar = df_confirmar.replace([np.nan, np.inf, -np.inf, pd.NaT], None)
-                        
-                        # Formata colunas de data/hora para string ISO se existirem
-                        for col in df_confirmar.select_dtypes(include=["datetime64[ns]"]).columns:
-                            if df_confirmar[col].notna().any(): # Only format if there's at least one non-NaT value
-                                df_confirmar[col] = df_confirmar[col].dt.strftime("%Y-%m-%d %H:%M:%S")
+                # Botão para confirmar produção
+                if not selecionadas.empty:
+                    if st.button(f"🚀 Enviar para Aprovação da Diretoria da Rota {rota}", key=f"btn_confirmar_{rota}"):
+                        try:
+                            # Prepara os dados para inserção na tabela de aprovacao_diretoria
+                            df_confirmar = selecionadas.drop(columns=["_selectedRowNodeInfo"], errors="ignore").copy()
+                            df_confirmar["Rota"] = rota # Garante que a rota esteja na coluna correta
+                            
+                            # Converte NaT/NaN para None para compatibilidade com Supabase
+                            df_confirmar = df_confirmar.replace([np.nan, np.inf, -np.inf, pd.NaT], None)
+                            
+                            # Formata colunas de data/hora para string ISO se existirem
+                            for col in df_confirmar.select_dtypes(include=["datetime64[ns]"]).columns:
+                                if df_confirmar[col].notna().any(): # Apenas formata se houver valores não-NaT
+                                    df_confirmar[col] = df_confirmar[col].dt.strftime("%Y-%m-%d %H:%M:%S")
 
-                        registros = df_confirmar.to_dict(orient="records")
-                        # Filtra registros inválidos (sem Serie_Numero_CTRC)
-                        registros = [r for r in registros if r.get("Serie_Numero_CTRC")]
+                            registros = df_confirmar.to_dict(orient="records")
+                            # Filtra registros inválidos (sem Serie_Numero_CTRC)
+                            registros = [r for r in registros if r.get("Serie_Numero_CTRC")]
 
-                        # Insere na tabela de aprovacao_diretoria
-                        supabase.table("aprovacao_diretoria").insert(registros).execute()
-                        
-                        # Remove as entregas que foram confirmadas da tabela confirmadas_producao
-                        chaves = [r["Serie_Numero_CTRC"] for r in registros]
-                        if chaves: # Only delete if there are keys to delete
-                            supabase.table("confirmadas_producao").delete().in_("Serie_Numero_CTRC", chaves).execute()
+                            # Insere na tabela de aprovacao_diretoria
+                            if registros: # Apenas insere se houver registros válidos
+                                supabase.table("aprovacao_diretoria").insert(registros).execute()
+                            
+                            # === CORREÇÃO: Remove as entregas da tabela 'confirmadas_producao' ===
+                            # As entregas são movidas da 'confirmadas_producao' para 'aprovacao_diretoria'.
+                            chaves = [r["Serie_Numero_CTRC"] for r in registros]
+                            if chaves: # Apenas deleta se houver chaves para deletar
+                                supabase.table("confirmadas_producao").delete().in_("Serie_Numero_CTRC", chaves).execute()
 
-                        # Limpa o estado da sessão para forçar a recarga dos grids e evitar problemas de cache
-                        for key_to_clear in list(st.session_state.keys()):
-                            if key_to_clear.startswith("grid_conf_prod_") or key_to_clear.startswith("btn_confirmar_"):
-                                st.session_state.pop(key_to_clear, None)
-
-                        st.success(f"✅ {len(chaves)} entregas da Rota {rota} foram enviadas para a próxima etapa (Aprovação da Diretoria).")
-                        
-                        # Força um rerun para atualizar a UI e refletir as mudanças
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"❌ Erro ao confirmar produção da rota {rota}: {e}")
+                            # Limpa o estado da sessão para forçar a recarga dos grids e evitar problemas de cache.
+                            # Isso é crucial para que o st.rerun() "veja" os dados atualizados do banco.
+                            for key_to_clear in list(st.session_state.keys()):
+                                # Limpa chaves específicas para esta rota/grid para forçar o re-render
+                                if key_to_clear.startswith(f"grid_conf_prod_{rota}") or \
+                                   key_to_clear.startswith(f"btn_confirmar_{rota}"):
+                                    st.session_state.pop(key_to_clear, None)
+                                
+                            st.success(f"✅ {len(chaves)} entregas da Rota {rota} foram enviadas para a próxima etapa (Aprovação da Diretoria).")
+                            
+                            # Força um rerun para atualizar a UI e refletir as mudanças
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"❌ Erro ao confirmar produção da rota {rota}: {e}")
 
                    
 
