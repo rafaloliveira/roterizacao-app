@@ -1771,18 +1771,32 @@ def pagina_rotas_confirmadas():
     # Adicionando a lógica de cache ou recarga
     with st.spinner("🔄 Carregando dados das entregas..."):
         recarregar = st.session_state.pop("reload_rotas_confirmadas", False)
+        st.info(f"DEBUG ROTAS: Início da função:")
+        st.info(f"  - 'recarregar' (valor popado): {recarregar}") # Deve ser True após sincronização
+        st.info(f"  - 'df_rotas_confirmadas_cache' existe antes do IF? {'df_rotas_confirmadas_cache' in st.session_state}") # Deve ser
+
         if recarregar or "df_rotas_confirmadas_cache" not in st.session_state:
-            df_rotas = pd.DataFrame(supabase.table("rotas_confirmadas").select("*").execute().data)
+            st.info("DEBUG ROTAS: Condição de recarga ATIVADA. Buscando dados do Supabase.")
+            
+            # AQUI É O PONTO CRÍTICO DA BUSCA (Correção da redundância)
+            data_from_supabase = supabase.table("rotas_confirmadas").select("*").execute().data
+            st.info(f"DEBUG ROTAS: Dados recebidos do Supabase (len): {len(data_from_supabase)}") # QUANTOs REGISTROS VIERAM?
+
+            df_rotas = pd.DataFrame(data_from_supabase) # Usando os dados já buscados
+            
             st.session_state["df_rotas_confirmadas_cache"] = df_rotas
+            st.info(f"DEBUG ROTAS: df_rotas após Supabase (empty): {df_rotas.empty}") # Adicionado novamente para debug
         else:
+            st.info("DEBUG ROTAS: Condição de recarga DESATIVADA. Usando dados do cache.")
             df_rotas = st.session_state["df_rotas_confirmadas_cache"]
+            st.info(f"DEBUG ROTAS: df_rotas do cache (empty): {df_rotas.empty}") # Mantido para debug
 
 
     if df_rotas.empty:
         st.info("🛈 Nenhuma Rota Confirmada.")
         return
 
-    # Lógica para criação de nova carga avulsa
+    # Lógica para criação de nova carga avulsa (mantida inalterada para o foco no problema)
     chaves_input = ""
     if "nova_carga_em_criacao" not in st.session_state:
         st.session_state["nova_carga_em_criacao"] = False
@@ -1951,8 +1965,13 @@ def pagina_rotas_confirmadas():
         # Reutiliza o DataFrame do cache ou recarrega para exibição
         df = st.session_state.get("df_rotas_confirmadas_cache", pd.DataFrame())
         df.columns = df.columns.str.strip()
+        # st.write("DEBUG: Conteúdo de df_rotas antes da exibição:") # DEBUG
+        # st.dataframe(df) # DEBUG
+        # st.write(f"DEBUG: df_rotas está vazia? {df.empty}") # DEBUG
+
         if df.empty:
-            st.info("Nenhuma entrega foi confirmada ainda.")
+            st.info("🛈 Nenhuma Rota Confirmada.")
+            # st.info("DEBUG: DataFrame df_rotas está vazio.") # DEBUG
             return
 
         col1, col2, _ = st.columns([1, 1, 8])
@@ -1988,10 +2007,12 @@ def pagina_rotas_confirmadas():
         """)
 
         rotas_unicas = sorted(df["Rota"].dropna().unique())
+        # st.write(f"DEBUG: Rotas únicas a serem exibidas: {rotas_unicas}") # DEBUG
 
         for rota in rotas_unicas:
             df_rota = df[df["Rota"] == rota].copy()
             if df_rota.empty:
+                # st.info(f"DEBUG: df_rota para {rota} está vazia, pulando.") # DEBUG
                 continue
 
             st.markdown(f"""
@@ -2027,7 +2048,6 @@ def pagina_rotas_confirmadas():
                 gb.configure_grid_options(alwaysShowHorizontalScroll=True)
                 gb.configure_grid_options(rowStyle={"font-size": "11px"})
                 gb.configure_grid_options(getRowStyle=linha_destacar)
-                # O headerCheckboxSelection e rowSelection já existiam aqui, mantidos
                 gb.configure_grid_options(headerCheckboxSelection=True)
                 gb.configure_grid_options(rowSelection='multiple')
 
@@ -2047,15 +2067,14 @@ def pagina_rotas_confirmadas():
 
                 grid_options = gb.build()
                 grid_key = f"grid_rotas_confirmadas_{rota}"
-                # Mantém a key constante a menos que os dados subjacentes mudem, não forcando novo UUID
                 if grid_key not in st.session_state:
                     st.session_state[grid_key] = str(uuid.uuid4())
 
-                with st.spinner("🔄 Carregando entregas da rota no grid..."): # Ajuste da mensagem para o grid
+                with st.spinner("🔄 Carregando entregas da rota no grid..."):
                     grid_response = AgGrid(
                         df_formatado,
                         gridOptions=grid_options,
-                        update_mode=GridUpdateMode.SELECTION_CHANGED, # Mantido aqui
+                        update_mode=GridUpdateMode.SELECTION_CHANGED,
                         fit_columns_on_grid_load=False,
                         width="100%",
                         height=400,
@@ -2113,6 +2132,7 @@ def pagina_rotas_confirmadas():
                         st.warning("Selecione ao menos uma entrega.")
                     else:
                         try:
+                            st.info("DEBUG: Tentando criar nova carga com entregas selecionadas.") # DEBUG
                             df_selecionadas = pd.DataFrame(selecionadas)
                             chaves = df_selecionadas["Serie_Numero_CTRC"].dropna().astype(str).str.strip().tolist()
 
@@ -2139,10 +2159,16 @@ def pagina_rotas_confirmadas():
 
 
                             dados_filtrados = df_confirmar[[col for col in colunas_validas if col in df_confirmar.columns]].to_dict(orient="records")
+                            
+                            if not dados_filtrados:
+                                st.warning("DEBUG: Nenhum dado filtrado para inserir na carga.") # DEBUG
+                                return
+
 
                             for tentativa in range(2):
                                 try:
                                     resultado_insercao = supabase.table("cargas_geradas").insert(dados_filtrados).execute()
+                                    st.info(f"DEBUG: Tentativa {tentativa+1} - Inserção em 'cargas_geradas' bem-sucedida.") # DEBUG
                                     break
                                 except Exception as e:
                                     if tentativa == 1:
@@ -2157,9 +2183,11 @@ def pagina_rotas_confirmadas():
                             ]
 
                             if set(chaves_inseridas) == set(chaves):
+                                st.info("DEBUG: Chaves inseridas correspondem às selecionadas. Deletando de 'rotas_confirmadas'.") # DEBUG
                                 for tentativa in range(2):
                                     try:
                                         supabase.table("rotas_confirmadas").delete().in_("Serie_Numero_CTRC", chaves_inseridas).execute()
+                                        st.info(f"DEBUG: Tentativa {tentativa+1} - Deleção de 'rotas_confirmadas' bem-sucedida.") # DEBUG
                                         break
                                     except Exception as e:
                                         if tentativa == 1:
@@ -2186,7 +2214,7 @@ def pagina_rotas_confirmadas():
                         except Exception as e:
                             st.error(f"Erro ao adicionar rota como carga: {e}")
 
-                # 🔸 Botão para adicionar à carga existente
+                #  Botão para adicionar à carga existente
                 cargas_existentes = supabase.table("cargas_geradas").select("numero_carga").execute().data
                 cargas_disponiveis = sorted(set(item["numero_carga"] for item in cargas_existentes if item.get("numero_carga")))
 
@@ -2205,6 +2233,7 @@ def pagina_rotas_confirmadas():
                             st.warning("Selecione ao menos uma entrega.")
                         else:
                             try:
+                                st.info(f"DEBUG: Tentando adicionar à carga existente {carga_escolhida}.") # DEBUG
                                 df_selecionadas = pd.DataFrame(selecionadas)
                                 chaves = df_selecionadas["Serie_Numero_CTRC"].dropna().astype(str).str.strip().tolist()
 
@@ -2230,9 +2259,16 @@ def pagina_rotas_confirmadas():
 
 
                                 dados_filtrados = df_confirmar[[col for col in colunas_validas if col in df_confirmar.columns]].to_dict(orient="records")
+                                
+                                if not dados_filtrados:
+                                    st.warning("DEBUG: Nenhum dado filtrado para adicionar à carga existente.") # DEBUG
+                                    return
+
 
                                 supabase.table("cargas_geradas").insert(dados_filtrados).execute()
+                                st.info(f"DEBUG: Inseridos {len(dados_filtrados)} registros em 'cargas_geradas' para carga existente.") # DEBUG
                                 supabase.table("rotas_confirmadas").delete().in_("Serie_Numero_CTRC", chaves).execute()
+                                st.info(f"DEBUG: Removidos {len(chaves)} registros de 'rotas_confirmadas'.") # DEBUG
 
                                 # Força recarga dos caches para que as tabelas reflitam as mudanças
                                 st.session_state["reload_rotas_confirmadas"] = True
