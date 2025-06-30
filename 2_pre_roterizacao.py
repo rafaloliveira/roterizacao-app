@@ -1226,7 +1226,7 @@ def pagina_confirmar_producao():
             )
 
         # Expander para o grid
-        with st.expander("�� Selecionar entregas", expanded=False):
+        with st.expander("🔽 Selecionar entregas", expanded=False):
             # NOVO: Checkbox "Marcar todas" dentro do expander
             checkbox_key = f"marcar_todas_conf_prod_{rota}"
             # Garante que o estado do checkbox seja inicializado
@@ -1448,11 +1448,13 @@ def pagina_aprovacao_diretoria():
                 unsafe_allow_html=True
             )
 
-        marcar_todas = col_check.checkbox("Marcar todas", key=f"marcar_todas_aprov_{cliente}")
+        
 
 
         with st.expander("🔽 Selecionar entregas", expanded=False):
             df_formatado = df_cliente[[col for col in colunas_exibir if col in df_cliente.columns]].copy()
+
+            marcar_todas = col_check.checkbox("Marcar todas", key=f"marcar_todas_aprov_{cliente}")
 
             if not df_formatado.empty:
                 gb = GridOptionsBuilder.from_dataframe(df_formatado)
