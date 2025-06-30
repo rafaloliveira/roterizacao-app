@@ -2051,11 +2051,11 @@ def pagina_rotas_confirmadas():
                 if grid_key not in st.session_state:
                     st.session_state[grid_key] = str(uuid.uuid4())
 
-                with st.spinner("🔄 Carregando entregas da rota..."):
+                with st.spinner("🔄 Carregando entregas da rota no grid..."): # Ajuste da mensagem para o grid
                     grid_response = AgGrid(
                         df_formatado,
                         gridOptions=grid_options,
-                        update_mode=GridUpdateMode.SELECTION_CHANGED,
+                        update_mode=GridUpdateMode.SELECTION_CHANGED, # Mantido aqui
                         fit_columns_on_grid_load=False,
                         width="100%",
                         height=400,
