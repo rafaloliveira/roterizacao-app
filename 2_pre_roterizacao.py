@@ -1565,9 +1565,19 @@ def pagina_pre_roterizacao():
 
     with st.spinner("🔄 Carregando dados das entregas..."):
         try:
-            df = carregar_base_supabase()
-            dados_confirmados_raw = supabase.table("rotas_confirmadas").select("Serie_Numero_CTRC").execute().data
-            dados_confirmados = pd.DataFrame(dados_confirmados_raw)
+            # Reutiliza a lógica de cache ou recarrega do Supabase
+            recarregar = st.session_state.pop("reload_pre_roterizacao", False)
+            if recarregar or "df_pre_roterizacao_cache" not in st.session_state:
+                df = carregar_base_supabase()
+                dados_confirmados_raw = supabase.table("rotas_confirmadas").select("Serie_Numero_CTRC").execute().data
+                dados_confirmados = pd.DataFrame(dados_confirmados_raw)
+                st.session_state["df_pre_roterizacao_cache"] = df
+                st.session_state["dados_confirmados_cache"] = dados_confirmados # Cachear também os confirmados
+            else:
+                df = st.session_state["df_pre_roterizacao_cache"]
+                dados_confirmados = st.session_state["dados_confirmados_cache"]
+
+
         except Exception as e:
             st.error(f"Erro ao consultar as tabelas do Supabase: {e}")
             return
@@ -1578,10 +1588,15 @@ def pagina_pre_roterizacao():
 
         if not dados_confirmados.empty:
             df = df[~df["Serie_Numero_CTRC"].isin(dados_confirmados["Serie_Numero_CTRC"].astype(str))]
+            
+        if df.empty: # Verifica novamente se o DF ficou vazio após o filtro
+            st.info("Nenhuma entrega disponível para pré-roterização após filtragem.")
+            return
+
 
     col1, col2, _ = st.columns([1, 1, 8])
     with col1:
-        st.metric("Total de Rotas", df["Rota"].nunique())
+        st.metric("Total de Rotas", df["Rota"].nunique() if "Rota" in df.columns else 0)
     with col2:
         st.metric("Total de Entregas", len(df))
 
@@ -1616,25 +1631,22 @@ def pagina_pre_roterizacao():
             continue
 
         st.markdown(f"""
-        <div style=\"margin-top:20px;padding:10px;background:#e8f0fe;border-left:4px solid #4285f4;border-radius:6px;display:inline-block;max-width:100%;\">
+        <div style="margin-top:20px;padding:10px;background:#e8f0fe;border-left:4px solid #4285f4;border-radius:6px;display:inline-block;max-width:100%;">
             <strong>Rota:</strong> {rota}
         </div>
         """, unsafe_allow_html=True)
 
-        col_badge, col_check = st.columns([5, 1])
-        with col_badge:
-            st.markdown(
-                badge(f"{len(df_rota)} entregas") +
-                badge(f"{formatar_brasileiro(df_rota['Peso Calculado em Kg'].sum())} kg calc") +
-                badge(f"{formatar_brasileiro(df_rota['Peso Real em Kg'].sum())} kg real") +
-                badge(f"R$ {formatar_brasileiro(df_rota['Valor do Frete'].sum())}") +
-                badge(f"{formatar_brasileiro(df_rota['Cubagem em m³'].sum())} m³") +
-                badge(f"{int(df_rota['Quantidade de Volumes'].sum())} volumes"),
-                unsafe_allow_html=True
-            )
+        st.markdown(
+            badge(f"{len(df_rota)} entregas") +
+            badge(f"{formatar_brasileiro(df_rota['Peso Calculado em Kg'].sum())} kg calc") +
+            badge(f"{formatar_brasileiro(df_rota['Peso Real em Kg'].sum())} kg real") +
+            badge(f"R$ {formatar_brasileiro(df_rota['Valor do Frete'].sum())}") +
+            badge(f"{formatar_brasileiro(df_rota['Cubagem em m³'].sum())} m³") +
+            badge(f"{int(df_rota['Quantidade de Volumes'].sum())} volumes"),
+            unsafe_allow_html=True
+        )
 
         with st.expander("🔽 Selecionar entregas", expanded=False):
-
             # NOVO: Checkbox "Marcar todas" dentro do expander
             checkbox_key = f"marcar_todas_pre_rota_{rota}"
             if checkbox_key not in st.session_state:
@@ -1653,15 +1665,16 @@ def pagina_pre_roterizacao():
             grid_options["getRowStyle"] = linha_destacar
 
             grid_key = f"grid_pre_rota_{rota}"
+            # Mantém a key constante a menos que os dados subjacentes mudem, não forcando novo UUID
             if grid_key not in st.session_state:
                 st.session_state[grid_key] = str(uuid.uuid4())
 
-            update_mode = GridUpdateMode.MANUAL
 
             grid_response = AgGrid(
                 df_formatado,
                 gridOptions=grid_options,
-                update_mode=update_mode,
+                # AJUSTE AQUI: MUDANÇA DE MANUAL PARA SELECTION_CHANGED
+                update_mode=GridUpdateMode.SELECTION_CHANGED, 
                 fit_columns_on_grid_load=False,
                 width="100%",
                 height=400,
@@ -1703,7 +1716,7 @@ def pagina_pre_roterizacao():
                     }
                 }
             )
-
+            # Lógica ajustada para considerar o checkbox "Marcar todas"
             if marcar_todas:
                 selecionadas = df_formatado[df_formatado["Serie_Numero_CTRC"].notna()].copy()
             else:
@@ -1711,7 +1724,7 @@ def pagina_pre_roterizacao():
 
             st.markdown(f"**📦 Entregas selecionadas:** {len(selecionadas)}")
 
-            if not selecionadas.empty:
+            if not selecionadas.empty: # BOTÃO AGORA SÓ APARECE SE TIVER SELEÇÃO
                 if st.button(f"🚀 Confirmar entregas da Rota", key=f"btn_pre_rota_{rota}"):
                     try:
                         df_confirmar = selecionadas.drop(columns=["_selectedRowNodeInfo"], errors="ignore").copy()
@@ -1728,9 +1741,13 @@ def pagina_pre_roterizacao():
                         chaves = [r["Serie_Numero_CTRC"] for r in registros]
                         supabase.table("pre_roterizacao").delete().in_("Serie_Numero_CTRC", chaves).execute()
 
-                        for key in list(st.session_state.keys()):
-                            if key.startswith("grid_pre_rota_") or key.startswith("btn_pre_rota_") or key.startswith("marcar_todas_pre_rota_"):
-                                st.session_state.pop(key, None)
+                        # Limpa o estado da sessão para forçar a recarga dos grids e evitar problemas de cache.
+                        st.session_state["reload_pre_roterizacao"] = True
+                        # AJUSTE AQUI: ADICIONA FLAG PARA RECARREGAR ROTAS CONFIRMADAS
+                        st.session_state["reload_rotas_confirmadas"] = True 
+                        st.session_state.pop(grid_key, None)
+                        st.session_state.pop(checkbox_key, None)
+
 
                         st.success(f"✅ {len(chaves)} entregas da Rota {rota} foram confirmadas com sucesso.")
                         st.rerun()
