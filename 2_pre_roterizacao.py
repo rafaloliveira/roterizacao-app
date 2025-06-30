@@ -1119,8 +1119,6 @@ def aplicar_regras_e_preencher_tabelas():
 # PÁGINA Confirmar Produção
 
 ##########################################
-
-
 def pagina_confirmar_producao():
     st.markdown("## Confirmar Produção")
 
@@ -1578,18 +1576,14 @@ def pagina_aprovacao_diretoria():
 
 # Função PÁGINA PRÉ ROTERIZAÇÃO
 ##########################################
-
 def pagina_pre_roterizacao():
     st.markdown("## Pré-Roteirização")
 
     with st.spinner("🔄 Carregando dados das entregas..."):
         try:
             df = carregar_base_supabase()
-
-            # 🔒 Apenas uma chamada ao Supabase aqui
-            dados_confirmados_raw = supabase.table("rotas_confirmadas").select("*").execute().data
+            dados_confirmados_raw = supabase.table("rotas_confirmadas").select("Serie_Numero_CTRC").execute().data
             dados_confirmados = pd.DataFrame(dados_confirmados_raw)
-
         except Exception as e:
             st.error(f"Erro ao consultar as tabelas do Supabase: {e}")
             return
@@ -1601,8 +1595,6 @@ def pagina_pre_roterizacao():
         if not dados_confirmados.empty:
             df = df[~df["Serie_Numero_CTRC"].isin(dados_confirmados["Serie_Numero_CTRC"].astype(str))]
 
-
-    # Painel inicial de totais
     col1, col2, _ = st.columns([1, 1, 8])
     with col1:
         st.metric("Total de Rotas", df["Rota"].nunique())
@@ -1613,11 +1605,10 @@ def pagina_pre_roterizacao():
         return f"<span style='background:#eef2f7;border-radius:12px;padding:6px 12px;margin:4px;color:inherit;display:inline-block;'>{label}</span>"
 
     colunas_exibir = [
-        "Serie_Numero_CTRC", "Rota", "Cliente Pagador", "Chave CT-e", "Cliente Destinatario",
-        "Cidade de Entrega", "Bairro do Destinatario", "Previsao de Entrega",
-        "Numero da Nota Fiscal", "Status", "Entrega Programada", "Particularidade",
-        "Codigo da Ultima Ocorrencia", "Peso Real em Kg", "Peso Calculado em Kg",
-        "Cubagem em m³", "Quantidade de Volumes", "Valor do Frete"
+        "Serie_Numero_CTRC", "Rota", "Valor do Frete", "Cliente Pagador", "Chave CT-e", "Cliente Destinatario",
+        "Cidade de Entrega", "Bairro do Destinatario", "Previsao de Entrega", "Numero da Nota Fiscal",
+        "Status", "Entrega Programada", "Particularidade", "Codigo da Ultima Ocorrencia",
+        "Peso Real em Kg", "Peso Calculado em Kg", "Cubagem em m³", "Quantidade de Volumes"
     ]
 
     linha_destacar = JsCode("""
@@ -1635,16 +1626,13 @@ def pagina_pre_roterizacao():
         }
     """)
 
-
-    rotas_unicas = sorted(df["Rota"].dropna().unique())
-
-    for rota in rotas_unicas:
+    for rota in sorted(df["Rota"].dropna().unique()):
         df_rota = df[df["Rota"] == rota].copy()
         if df_rota.empty:
             continue
 
         st.markdown(f"""
-        <div style="margin-top:20px;padding:10px;background:#e8f0fe;border-left:4px solid #4285f4;border-radius:6px;display:inline-block;max-width:100%;">
+        <div style=\"margin-top:20px;padding:10px;background:#e8f0fe;border-left:4px solid #4285f4;border-radius:6px;display:inline-block;max-width:100%;\">
             <strong>Rota:</strong> {rota}
         </div>
         """, unsafe_allow_html=True)
@@ -1661,18 +1649,17 @@ def pagina_pre_roterizacao():
                 unsafe_allow_html=True
             )
 
-       
-
+        marcar_todas = col_check.checkbox("Marcar todas", key=f"marcar_todas_pre_rota_{rota}")
 
         with st.expander("🔽 Selecionar entregas", expanded=False):
             df_formatado = df_rota[[col for col in colunas_exibir if col in df_rota.columns]].copy()
 
             gb = GridOptionsBuilder.from_dataframe(df_formatado)
             gb.configure_default_column(minWidth=150)
-            gb.configure_selection('multiple', use_checkbox=True)
+            gb.configure_selection("multiple", use_checkbox=True)
             gb.configure_grid_options(paginationPageSize=12)
             gb.configure_grid_options(alwaysShowHorizontalScroll=True)
-
+            gb.configure_grid_options(rowStyle={'font-size': '11px'})
             grid_options = gb.build()
             grid_options["getRowStyle"] = linha_destacar
 
@@ -1680,105 +1667,87 @@ def pagina_pre_roterizacao():
             if grid_key not in st.session_state:
                 st.session_state[grid_key] = str(uuid.uuid4())
 
-
-            with st.spinner("🔄 Carregando entregas da rota..."):
-                grid_response = AgGrid(
-                    df_formatado,
-                    gridOptions=grid_options,
-                    update_mode=GridUpdateMode.SELECTION_CHANGED,
-                    fit_columns_on_grid_load=False,
-                    width="100%",
-                    height=400,
-                    allow_unsafe_jscode=True,
-                    key=st.session_state[grid_key],
-                    data_return_mode="AS_INPUT",
-                    theme=AgGridTheme.MATERIAL,
-                    show_toolbar=False,
-                    custom_css={
-                        ".ag-theme-material .ag-cell": {
-                            "font-size": "11px",
-                            "line-height": "18px",
-                            "border-right": "1px solid #ccc",
-                        },
-                        ".ag-theme-material .ag-row:last-child .ag-cell": {
-                            "border-bottom": "1px solid #ccc",
-                        },
-                        ".ag-theme-material .ag-header-cell": {
-                            "border-right": "1px solid #ccc",
-                            "border-bottom": "1px solid #ccc",
-                        },
-                        ".ag-theme-material .ag-root-wrapper": {
-                            "border": "1px solid black",
-                            "border-radius": "6px",
-                            "padding": "4px",
-                        },
-                        ".ag-theme-material .ag-header-cell-label": {
-                            "font-size": "11px",
-                        },
-                        ".ag-center-cols-viewport": {
-                            "overflow-x": "auto !important",
-                            "overflow-y": "hidden",
-                        },
-                        ".ag-center-cols-container": {
-                            "min-width": "100% !important",
-                        },
-                        "#gridToolBar": {
-                            "padding-bottom": "0px !important",
-                        }
+            grid_response = AgGrid(
+                df_formatado,
+                gridOptions=grid_options,
+                update_mode=GridUpdateMode.SELECTION_CHANGED,
+                fit_columns_on_grid_load=False,
+                width="100%",
+                height=400,
+                allow_unsafe_jscode=True,
+                key=st.session_state[grid_key],
+                data_return_mode="AS_INPUT",
+                theme=AgGridTheme.MATERIAL,
+                show_toolbar=False,
+                custom_css={
+                    ".ag-theme-material .ag-cell": {
+                        "font-size": "11px",
+                        "line-height": "18px",
+                        "border-right": "1px solid #ccc",
+                    },
+                    ".ag-theme-material .ag-row:last-child .ag-cell": {
+                        "border-bottom": "1px solid #ccc",
+                    },
+                    ".ag-theme-material .ag-header-cell": {
+                        "border-right": "1px solid #ccc",
+                        "border-bottom": "1px solid #ccc",
+                    },
+                    ".ag-theme-material .ag-root-wrapper": {
+                        "border": "1px solid black",
+                        "border-radius": "6px",
+                        "padding": "4px",
+                    },
+                    ".ag-theme-material .ag-header-cell-label": {
+                        "font-size": "11px",
+                    },
+                    ".ag-center-cols-viewport": {
+                        "overflow-x": "auto !important",
+                        "overflow-y": "hidden",
+                    },
+                    ".ag-center-cols-container": {
+                        "min-width": "100% !important",
+                    },
+                    "#gridToolBar": {
+                        "padding-bottom": "0px !important",
                     }
-                )
+                }
+            )
+
+            if marcar_todas:
+                selecionadas = df_formatado[df_formatado["Serie_Numero_CTRC"].notna()].copy()
+            else:
+                selecionadas = pd.DataFrame(grid_response.get("selected_rows", []))
+
+            st.markdown(f"**📦 Entregas selecionadas:** {len(selecionadas)}")
+
+            if not selecionadas.empty:
+                if st.button(f"🚀 Confirmar entregas da Rota", key=f"btn_pre_rota_{rota}"):
+                    try:
+                        df_confirmar = selecionadas.drop(columns=["_selectedRowNodeInfo"], errors="ignore").copy()
+                        df_confirmar["Rota"] = rota
+
+                        df_confirmar = df_confirmar.replace([np.nan, np.inf, -np.inf], None)
+                        for col in df_confirmar.select_dtypes(include=["datetime64[ns]"]).columns:
+                            df_confirmar[col] = df_confirmar[col].dt.strftime("%Y-%m-%d %H:%M:%S")
+
+                        registros = df_confirmar.to_dict(orient="records")
+                        registros = [r for r in registros if r.get("Serie_Numero_CTRC")]
+
+                        supabase.table("rotas_confirmadas").insert(registros).execute()
+                        chaves = [r["Serie_Numero_CTRC"] for r in registros]
+                        supabase.table("pre_roterizacao").delete().in_("Serie_Numero_CTRC", chaves).execute()
+
+                        for key in list(st.session_state.keys()):
+                            if key.startswith("grid_pre_rota_") or key.startswith("btn_pre_rota_") or key.startswith("marcar_todas_pre_rota_"):
+                                st.session_state.pop(key, None)
+
+                        st.success(f"✅ {len(chaves)} entregas da Rota {rota} foram confirmadas com sucesso.")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"❌ Erro ao confirmar entregas da rota {rota}: {e}")
 
 
-                col_badge, col_check = st.columns([5, 1])
-                with col_check:
-                    marcar_todas = st.checkbox("Marcar todas", key=f"marcar_todas_pre_rota_{rota}")
 
-                if marcar_todas:
-                    selecionadas = df_formatado[df_formatado["Serie_Numero_CTRC"].notna()].copy()
-                else:
-                    selecionadas = pd.DataFrame(grid_response.get("selected_rows", []))
-
-                st.markdown(f"**📦 Entregas selecionadas:** {len(selecionadas)}")
-
-                if not selecionadas.empty:
-                    st.warning(f"{len(selecionadas)} entrega(s) selecionada(s).")
-
-                    confirmar = st.checkbox("Confirmar seleção de entregas", key=f"confirmar_rota_{rota}")
-
-                    col_conf, col_ret = st.columns(2)
-                    with col_conf:
-                        if st.button(f"✅ Enviar para Rota Confirmada", key=f"btn_confirma_rota_{rota}") and confirmar:
-                            with st.spinner("🔄 Processando envio para Rotas Confirmadas..."):
-                                try:
-                                    df_confirmar = selecionadas.copy()
-                                    df_confirmar = df_confirmar.drop(columns=["_selectedRowNodeInfo"], errors="ignore")
-                                    df_confirmar["Rota"] = rota
-
-                                    # Garante consistência de datas e valores nulos
-                                    df_confirmar = df_confirmar.replace([np.nan, np.inf, -np.inf], None)
-                                    for col in df_confirmar.select_dtypes(include=["datetime64[ns]"]).columns:
-                                        df_confirmar[col] = df_confirmar[col].dt.strftime("%Y-%m-%d %H:%M:%S")
-
-                                    registros = df_confirmar.to_dict(orient="records")
-                                    registros = [r for r in registros if r.get("Serie_Numero_CTRC")]
-
-                                    # ✅ Insere na tabela final
-                                    supabase.table("rotas_confirmadas").insert(registros).execute()
-
-                                    # ✅ Remove da pré-roterização (como no caso da diretoria)
-                                    chaves = [r["Serie_Numero_CTRC"] for r in registros]
-                                    supabase.table("pre_roterizacao").delete().in_("Serie_Numero_CTRC", chaves).execute()
-
-                                    # ✅ Limpa estados de grid e força reload
-                                    for key in list(st.session_state.keys()):
-                                        if key.startswith("grid_pre_rota_") or key.startswith("confirmar_rota_") or key.startswith("sucesso_"):
-                                            st.session_state.pop(key, None)
-
-                                    st.success(f"✅ {len(chaves)} entregas enviadas para Rotas Confirmadas.")
-                                    st.rerun()
-
-                                except Exception as e:
-                                    st.error(f"❌ Erro ao confirmar entregas: {e}")
 ##########################################
 
 # PÁGINA ROTAS CONFIRMADAS
