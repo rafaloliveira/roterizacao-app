@@ -1454,7 +1454,11 @@ def pagina_aprovacao_diretoria():
         with st.expander("🔽 Selecionar entregas", expanded=False):
             df_formatado = df_cliente[[col for col in colunas_exibir if col in df_cliente.columns]].copy()
 
-            marcar_todas = col_check.checkbox("Marcar todas", key=f"marcar_todas_aprov_{cliente}")
+             # NOVO: Checkbox "Marcar todas" dentro do expander
+            checkbox_key = f"marcar_todas_aprov_{cliente}"
+            if checkbox_key not in st.session_state:
+                st.session_state[checkbox_key] = False
+            marcar_todas = st.checkbox("Marcar todas", key=checkbox_key)
 
             if not df_formatado.empty:
                 gb = GridOptionsBuilder.from_dataframe(df_formatado)
