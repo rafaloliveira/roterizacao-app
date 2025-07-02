@@ -1833,33 +1833,62 @@ def pagina_pre_roterizacao():
 
             if not selecionadas.empty: # BOTÃO AGORA SÓ APARECE SE TIVER SELEÇÃO
                 if st.button(f"🚀 Confirmar entregas da Rota", key=f"btn_pre_rota_{rota}"):
-                    try:
+                    try: # <-- Corrigido: 'try' deve estar na mesma indentação do 'if st.button'
                         df_confirmar = selecionadas.drop(columns=["_selectedRowNodeInfo"], errors="ignore").copy()
                         df_confirmar["Rota"] = rota
 
+                        # --- INÍCIO DA LÓGICA MODIFICADA PARA TRATAMENTO DE DATAS ---
+                        # Lista de todas as colunas que podem conter dados de data/hora
+                        date_cols_to_process = [
+                            "Previsao de Entrega",
+                            "Entrega Programada",
+                            "Data de Emissao",
+                            "Data de Autorizacao",
+                            "Data do Cancelamento",
+                            "Data do Escaneamento",
+                            "Data da Entrega Realizada",
+                            "Data da Ultima Ocorrencia",
+                            "Data de inclusao da Ultima Ocorrencia"
+                            # Adicione aqui qualquer outra coluna de data/hora relevante
+                        ]
+
+                        for col_name in date_cols_to_process:
+                            if col_name in df_confirmar.columns:
+                                # Passo 1: Tenta converter a coluna para tipo datetime.
+                                # Erros (como strings vazias, NaNs, etc.) serão convertidos para pd.NaT.
+                                df_confirmar[col_name] = pd.to_datetime(df_confirmar[col_name], errors='coerce')
+
+                                # Passo 2: Itera sobre a coluna para converter pd.NaT para None
+                                # e formatar as datas válidas para a string esperada pelo banco.
+                                df_confirmar[col_name] = df_confirmar[col_name].apply(
+                                    lambda x: x.strftime("%Y-%m-%d %H:%M:%S") if pd.notna(x) else None
+                                )
+                        # --- FIM DA LÓGICA MODIFICADA PARA TRATAMENTO DE DATAS ---
+
+                        # Agora, trate outros NaN/Inf que não sejam de colunas de data/hora.
+                        # Para colunas de data/hora, o pd.NaT já foi convertido para None acima.
                         df_confirmar = df_confirmar.replace([np.nan, np.inf, -np.inf], None)
-                        for col in df_confirmar.select_dtypes(include=["datetime64[ns]"]).columns:
-                            df_confirmar[col] = df_confirmar[col].dt.strftime("%Y-%m-%d %H:%M:%S")
 
                         registros = df_confirmar.to_dict(orient="records")
                         registros = [r for r in registros if r.get("Serie_Numero_CTRC")]
 
                         supabase.table("rotas_confirmadas").insert(registros).execute()
                         chaves = [r["Serie_Numero_CTRC"] for r in registros]
-                        supabase.table("pre_roterizacao").delete().in_("Serie_Numero_CTRC", chaves).execute()
+                        supabase.table("pre_roterizacao").delete().in_("Serie_Numero_CTRC", chaves).execute() # <-- Esta linha está correta aqui
 
                         # Limpa o estado da sessão para forçar a recarga dos grids e evitar problemas de cache.
                         st.session_state["reload_pre_roterizacao"] = True
                         # AJUSTE AQUI: ADICIONA FLAG PARA RECARREGAR ROTAS CONFIRMADAS
-                        st.session_state["reload_rotas_confirmadas"] = True 
+                        st.session_state["reload_rotas_confirmadas"] = True
                         st.session_state.pop(grid_key, None)
                         st.session_state.pop(checkbox_key, None)
 
 
                         st.success(f"✅ {len(chaves)} entregas da Rota {rota} foram confirmadas com sucesso.")
                         st.rerun()
-                    except Exception as e:
+                    except Exception as e: # <-- Corrigido: 'except' deve estar na mesma indentação do 'try'
                         st.error(f"❌ Erro ao confirmar entregas da rota {rota}: {e}")
+
 
 
 
