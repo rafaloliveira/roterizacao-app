@@ -715,13 +715,15 @@ def gerar_proximo_numero_carga(supabase):
 GRID_RESIZE_JS_CODE = JsCode("""
 function(params) {
     const gridApi = params.api;
-    const gridDiv = params.eGridDiv;
+    const gridDiv = params.eGridDiv; // O elemento DOM raiz do grid
 
     const resizeColumns = () => {
         gridApi.sizeColumnsToFit();
     };
 
-    setTimeout(resizeColumns, 50);
+    // AUMENTANDO SIGNIFICATIVAMENTE O ATRASO PARA GARANTIR QUE O DOM SE ESTABILIZE.
+    // Isso é um "truque" comum em UI para lidar com problemas de timing.
+    setTimeout(resizeColumns, 500); // Tente 500ms (meio segundo). Se ainda não resolver, tente 1000ms.
 
     const resizeObserver = new ResizeObserver(entries => {
         for (let entry of entries) {
@@ -2618,7 +2620,7 @@ if st.session_state.get("login", False):
     with col_welcome:
         st.markdown(f"👋 **Bem-vindo, {st.session_state.get('username','Usuário')}!**")
     with col_logout:
-        if st.button("�� Sair"):
+        if st.button("🔒 Sair"):
             for key in ["login", "username", "is_admin", "expiry_time"]:
                 cookies[key] = ""
             st.session_state.login = False
