@@ -2188,7 +2188,7 @@ def pagina_rotas_confirmadas():
                         st.warning("Selecione ao menos uma entrega.")
                     else:
                         try:
-                            st.info("DEBUG: Tentando criar nova carga com entregas selecionadas.") # DEBUG
+                            #st.info("DEBUG: Tentando criar nova carga com entregas selecionadas.") # DEBUG
                             df_selecionadas = pd.DataFrame(selecionadas)
                             chaves = df_selecionadas["Serie_Numero_CTRC"].dropna().astype(str).str.strip().tolist()
 
@@ -2224,7 +2224,7 @@ def pagina_rotas_confirmadas():
                             for tentativa in range(2):
                                 try:
                                     resultado_insercao = supabase.table("cargas_geradas").insert(dados_filtrados).execute()
-                                    st.info(f"DEBUG: Tentativa {tentativa+1} - Inserção em 'cargas_geradas' bem-sucedida.") # DEBUG
+                                    #st.info(f"DEBUG: Tentativa {tentativa+1} - Inserção em 'cargas_geradas' bem-sucedida.") # DEBUG
                                     break
                                 except Exception as e:
                                     if tentativa == 1:
@@ -2239,11 +2239,11 @@ def pagina_rotas_confirmadas():
                             ]
 
                             if set(chaves_inseridas) == set(chaves):
-                                st.info("DEBUG: Chaves inseridas correspondem às selecionadas. Deletando de 'rotas_confirmadas'.") # DEBUG
+                                #st.info("DEBUG: Chaves inseridas correspondem às selecionadas. Deletando de 'rotas_confirmadas'.") # DEBUG
                                 for tentativa in range(2):
                                     try:
                                         supabase.table("rotas_confirmadas").delete().in_("Serie_Numero_CTRC", chaves_inseridas).execute()
-                                        st.info(f"DEBUG: Tentativa {tentativa+1} - Deleção de 'rotas_confirmadas' bem-sucedida.") # DEBUG
+                                        #st.info(f"DEBUG: Tentativa {tentativa+1} - Deleção de 'rotas_confirmadas' bem-sucedida.") # DEBUG
                                         break
                                     except Exception as e:
                                         if tentativa == 1:
@@ -2289,7 +2289,7 @@ def pagina_rotas_confirmadas():
                             st.warning("Selecione ao menos uma entrega.")
                         else:
                             try:
-                                st.info(f"DEBUG: Tentando adicionar à carga existente {carga_escolhida}.") # DEBUG
+                                #st.info(f"DEBUG: Tentando adicionar à carga existente {carga_escolhida}.") # DEBUG
                                 df_selecionadas = pd.DataFrame(selecionadas)
                                 chaves = df_selecionadas["Serie_Numero_CTRC"].dropna().astype(str).str.strip().tolist()
 
@@ -2322,9 +2322,9 @@ def pagina_rotas_confirmadas():
 
 
                                 supabase.table("cargas_geradas").insert(dados_filtrados).execute()
-                                st.info(f"DEBUG: Inseridos {len(dados_filtrados)} registros em 'cargas_geradas' para carga existente.") # DEBUG
+                                #st.info(f"DEBUG: Inseridos {len(dados_filtrados)} registros em 'cargas_geradas' para carga existente.") # DEBUG
                                 supabase.table("rotas_confirmadas").delete().in_("Serie_Numero_CTRC", chaves).execute()
-                                st.info(f"DEBUG: Removidos {len(chaves)} registros de 'rotas_confirmadas'.") # DEBUG
+                                #st.info(f"DEBUG: Removidos {len(chaves)} registros de 'rotas_confirmadas'.") # DEBUG
 
                                 # Força recarga dos caches para que as tabelas reflitam as mudanças
                                 st.session_state["reload_rotas_confirmadas"] = True
