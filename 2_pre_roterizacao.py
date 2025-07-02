@@ -718,146 +718,129 @@ if "df_for_sync_cache" not in st.session_state: # Cache do DF lido para evitar r
 
 def pagina_sincronizacao():
     st.title("🔄 Sincronização de Dados com Supabase")
-
-    st.markdown("### Passo 1: Carregar Planilha Excel")
     
-    # Use um widget de upload com uma chave para que ele persista o estado
+    # Inicializa o estado se não existir
+    if 'sync_triggered' not in st.session_state:
+        st.session_state.sync_triggered = False
+
+    if 'uploaded_sync_file_hash' not in st.session_state:  # Usar hash para identificar mudança de arquivo
+        st.session_state.uploaded_sync_file_hash = None
+
+    if 'df_for_sync_cache' not in st.session_state:  # Cache do arquivo lido
+        st.session_state.df_for_sync_cache = None
+
+    # Carregar arquivo Excel
+    st.markdown("### Passo 1: Carregar Planilha Excel")
     arquivo_excel = st.file_uploader("Selecione a planilha da fBaseroter:", type=["xlsx"], key="sync_file_uploader")
 
     current_file_hash = None
     if arquivo_excel:
-        # Gerar um hash do conteúdo do arquivo para detectar se é o mesmo arquivo ou um novo upload
+        # Gera hash do arquivo carregado para detectar alterações/mudanças
         current_file_hash = hashlib.md5(arquivo_excel.getvalue()).hexdigest()
 
-    # Detectar se um novo arquivo foi carregado ou se o anterior foi limpo
     if current_file_hash != st.session_state.uploaded_sync_file_hash:
+        # Arquivo novo ou alterado
         st.session_state.uploaded_sync_file_hash = current_file_hash
-        st.session_state.sync_triggered = False # Resetar o gatilho se o arquivo muda
-        st.session_state.df_for_sync_cache = None # Limpar o cache do DF
+        st.session_state.sync_triggered = False
+        st.session_state.df_for_sync_cache = None  # Limpa cache de arquivo lido
 
-    df_display = None
     if arquivo_excel:
         try:
+            # Notifica o usuário sobre o carregamento
             if st.session_state.df_for_sync_cache is None:
-                # Lê o arquivo uma vez e armazena em cache
+                # Cacheia o arquivo somente uma vez
                 df_raw = pd.read_excel(arquivo_excel)
-                df_raw.columns = df_raw.columns.str.strip()
+                df_raw.columns = df_raw.columns.str.strip()  # Remove espaços desnecessários
                 st.session_state.df_for_sync_cache = df_raw
 
-            df_display = st.session_state.df_for_sync_cache.copy() # Usar uma cópia para display
-            
-            st.success(f"Arquivo '{arquivo_excel.name}' lido com sucesso: {df_display.shape[0]} linhas.")
-            st.dataframe(df_display.head())
+            st.success(f"Arquivo '{arquivo_excel.name}' carregado com sucesso!")
+            st.write("Clique no botão abaixo para iniciar a sincronização.")
 
-            # Botão para iniciar a sincronização (desabilitado se já estiver rodando)
-            if st.button("🚀 Iniciar Sincronização", key="start_sync_button", disabled=st.session_state.sync_triggered):
+            # Botão para iniciar sincronização
+            if st.button("🚀 Iniciar Sincronização", disabled=st.session_state.sync_triggered):
                 st.session_state.sync_triggered = True
-                st.warning("Sincronização em andamento. Por favor, aguarde e não saia da página.")
-                st.rerun() # Força um rerun para que a lógica de sincronização seja executada
+                st.warning("Sincronização em andamento. Por favor, aguarde!")
+                st.rerun()  # Força o rerun para iniciar o processo
 
         except Exception as e:
-            st.error(f"Erro ao ler ou exibir o arquivo: {e}")
-            st.session_state.uploaded_sync_file_hash = None # Limpa o estado do arquivo
-            st.session_state.sync_triggered = False
+            st.error(f"Erro ao ler o arquivo Excel: {e}")
+            st.session_state.uploaded_sync_file_hash = None
             st.session_state.df_for_sync_cache = None
-            return # Sai da função se houve erro na leitura/display
+            st.session_state.sync_triggered = False
 
-    elif not arquivo_excel and st.session_state.uploaded_sync_file_hash: # Se o arquivo foi descarregado
+    elif not arquivo_excel and st.session_state.uploaded_sync_file_hash:
+        # Arquivo antigo removido
         st.session_state.uploaded_sync_file_hash = None
-        st.session_state.sync_triggered = False
         st.session_state.df_for_sync_cache = None
-        st.info("Arquivo Excel descarregado. Faça o upload de um novo arquivo para sincronizar.")
-        return # Sai, pois não há arquivo para processar
+        st.session_state.sync_triggered = False
+        st.info("Nenhum arquivo carregado. Faça o upload de um arquivo Excel para sincronizar.")
+        return  # Sai da função se não há arquivo para processar
 
-    else: # Primeiro acesso ou nenhum arquivo carregado ainda
+    else:
+        # Nenhum arquivo carregado pela primeira vez
         st.info("Aguardando o upload de um arquivo Excel para iniciar a sincronização.")
-        return # Sai da função se não há arquivo para processar
+        return  # Sai da função se não há arquivo carregado ainda
 
-
-    # --- Bloco de Sincronização (executado SOMENTE se sync_triggered for True) ---
+    # --- Sincronização (Apenas se o botão foi clicado) ---
     if st.session_state.sync_triggered:
         st.write("---")
-        st.subheader("Processando Sincronização...")
+        st.header("Sincronização em andamento...")
+
+        # Barra de progresso
+        progresso = st.progress(0)  # Inicializa a barra de 0%
 
         try:
-            # Passo 2: Importando para fBaseroter
-            st.info("Passo 2: Limpando e inserindo dados em 'fBaseroter'...")
-            # Use o DataFrame já lido e cacheado
-            df_to_process = st.session_state.df_for_sync_cache.copy() 
-
-            # 🔧 Remove colunas indesejadas
-            colunas_para_remover = ['Capa de Canhoto de NF','Unnamed: 70']
-            colunas_existentes_para_remover = [col for col in colunas_para_remover if col in df_to_process.columns]
-            if colunas_existentes_para_remover:
-                df_to_process.drop(columns=colunas_existentes_para_remover, inplace=True)
-                # st.text(f"[DEBUG] Colunas removidas: {colunas_existentes_para_remover}") # Removido
-
-            # 🔄 Renomeia colunas para casar com o Supabase
-            renomear_colunas = {
-                'Cubagem em m3': 'Cubagem em m³',
-                'Serie/Numero CTRC': 'Serie_Numero_CTRC'
-            }
-            colunas_renomeadas = {k: v for k, v in renomear_colunas.items() if k in df_to_process.columns}
-            if colunas_renomeadas:
-                df_to_process.rename(columns=colunas_renomeadas, inplace=True)
-                # st.text(f"[DEBUG] Colunas renomeadas: {colunas_renomeadas}") # Removido
-            
-            df_to_process = corrigir_tipos(df_to_process) # Garanta que esta função está no seu código
+            # Passo 1: Importando dados para fBaseroter
+            st.info("Passo 1/4: Limpando e inserindo dados em 'fBaseroter'...")
+            progresso.progress(25)  # 25% concluído
+            df_to_process = st.session_state.df_for_sync_cache.copy()
+            df_to_process = corrigir_tipos(df_to_process)  # Verifique se essa função está definida
 
             supabase.table("fBaseroter").delete().neq("Serie_Numero_CTRC", "").execute()
-            inserir_em_lote("fBaseroter", df_to_process) # Garanta que esta função está no seu código
-            st.success("Passo 2: Dados inseridos em 'fBaseroter' com sucesso.")
+            inserir_em_lote("fBaseroter", df_to_process)  # Certifique-se de que inserir_em_lote está definida
+            st.success("👉 Dados importados para 'fBaseroter' com sucesso!")
+
+            # Passo 2: Limpando tabelas dependentes
+            st.info("Passo 2/4: Limpando tabelas relacionadas...")
+            progresso.progress(50)  # 50% concluído
+            limpar_tabelas_relacionadas()  # Certifique-se de que essa função está definida
+            st.success("👉 Tabelas relacionadas limpas com sucesso!")
+
+            # Passo 3: Aplicando regras de negócio
+            st.info("Passo 3/4: Aplicando regras de negócio e populando tabelas...")
+            progresso.progress(75)  # 75% concluído
+            aplicar_regras_e_preencher_tabelas()  # Certifique-se de que essa função está definida
+            st.success("👉 Regras de negócio aplicadas com sucesso!")
+
+            # Passo 4: Invalidando caches
+            st.info("Passo 4/4: Invalidando caches para atualizar as páginas...")
+            progresso.progress(100)  # 100% concluído
+            st.session_state["reload_pre_roterizacao"] = True
+            st.session_state.pop("df_pre_roterizacao_cache", None)
+            st.session_state["reload_rotas_confirmadas"] = True
+            st.session_state.pop("df_rotas_confirmadas_cache", None)
+            st.success("👉 Caches invalidados para garantir a atualização das páginas!")
+
+            # Finaliza o processo de sincronização
+            st.success("✅ Sincronização concluída com sucesso!")
+            st.balloons()
+            st.session_state.sync_triggered = False  # Reseta o gatilho
+            st.session_state.df_for_sync_cache = None
+
         except Exception as e:
-            st.error(f"[ERRO] Sincronização do fBaseroter falhou: {e}")
-            st.session_state.sync_triggered = False # Para o processo em caso de erro
-            return
+            st.error(f"❌ Ocorreu um erro durante a sincronização: {e}")
+            st.session_state.sync_triggered = False  # Para o processo em caso de erro
+            st.session_state.df_for_sync_cache = None
+            raise
 
-        # Passo 3: Limpando tabelas dependentes
-        try:
-            st.info("Passo 3: Limpando tabelas dependentes...")
-            limpar_tabelas_relacionadas() # Garanta que esta função está no seu código
-            st.success("Passo 3: Tabelas dependentes limpas com sucesso.")
-        except Exception as e:
-            st.error(f"[ERRO] Limpeza de tabelas dependentes falhou: {e}")
-            st.session_state.sync_triggered = False # Para o processo em caso de erro
-            return
+        # Botão para nova sincronização
+        st.write("---")
+        if st.button("🔄 Realizar Nova Sincronização"):
+            st.session_state.sync_triggered = False
+            st.session_state.uploaded_sync_file_hash = None
+            st.session_state.df_for_sync_cache = None
+            st.rerun()
 
-        # Passo 4: Aplicando regras de negócio
-        try:
-            st.info("Passo 4: Aplicando regras de negócio e preenchendo tabelas...")
-            aplicar_regras_e_preencher_tabelas() # Garanta que esta função está no seu código
-            st.success("Passo 4: Regras de negócio aplicadas e tabelas populadas.")
-        except Exception as e:
-            st.error(f"[ERRO] Aplicação de regras de negócio falhou: {e}")
-            st.session_state.sync_triggered = False # Para o processo em caso de erro
-            raise # Re-lança a exceção para debug mais detalhado se necessário
-
-        # --- Invalide caches de TODAS as páginas afetadas pela sincronização ---
-        st.info("Passo 5: Invalidando caches de páginas para garantir a atualização dos dados.")
-        st.session_state["reload_confirmadas_producao"] = True
-        st.session_state.pop("df_confirmadas_cache", None)
-
-        st.session_state["reload_aprovacao_diretoria"] = True 
-
-        st.session_state["reload_pre_roterizacao"] = True
-        st.session_state.pop("df_pre_roterizacao_cache", None)
-        st.session_state.pop("dados_confirmados_cache", None) # Usado em pagina_pre_roterizacao
-        # Se carregar_base_supabase() usa @st.cache_resource ou @st.cache_data, limpe o cache dela também
-        # Exemplo: st.cache_data.clear() ou st.cache_resource.clear() se aplicado globalmente
-        
-        st.session_state["reload_rotas_confirmadas"] = True
-        st.session_state.pop("df_rotas_confirmadas_cache", None)
-
-        st.session_state["reload_cargas_geradas"] = True
-        st.session_state.pop("df_cargas_cache", None)
-        st.success("Passo 5: Caches invalidados com sucesso.")
-
-        st.success("✅ Sincronização completa!")
-        st.session_state.sync_triggered = False  # CRUCIAL: Reset o gatilho para permitir nova sync
-        st.session_state.df_for_sync_cache = None # Limpa o DF cacheado para que um novo upload seja processado
-        
-        # Um rerun final para que o Streamlit reavalie o estado e mostre a interface "limpa" da sync
-        st.rerun()
 
 #___________________________________________________________________________________
 def corrigir_tipos(df):
