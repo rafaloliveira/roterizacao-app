@@ -723,7 +723,7 @@ function(params) {
 
     // AUMENTANDO SIGNIFICATIVAMENTE O ATRASO PARA GARANTIR QUE O DOM SE ESTABILIZE.
     // Isso é um "truque" comum em UI para lidar com problemas de timing.
-    setTimeout(resizeColumns, 1000); // Tente 500ms (meio segundo). Se ainda não resolver, tente 1000ms.
+    setTimeout(resizeColumns, 2000); // Tente 500ms (meio segundo). Se ainda não resolver, tente 1000ms.
 
     const resizeObserver = new ResizeObserver(entries => {
         for (let entry of entries) {
