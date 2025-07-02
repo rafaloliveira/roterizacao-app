@@ -704,29 +704,29 @@ def gerar_proximo_numero_carga(supabase):
         return f"{datetime.now().strftime('%Y%m%d')}-000001"
 
 
-# NO INÍCIO DO SEU CÓDIGO, JUNTO COM AS DEFINIÇÕES DE FUNÇÕES GLOBAIS
-
-# Definir o JsCode para o redimensionamento do grid
-# Este código JavaScript será executado no navegador quando o grid estiver pronto.
-# Ele usa o ResizeObserver para detectar mudanças no tamanho do contêiner do grid
-# e então chama a função de ajuste de colunas do AgGrid.
-# NO INÍCIO DO SEU CÓDIGO, JUNTO COM AS DEFINIÇÕES DE FUNÇÕES GLOBAIS
-
 GRID_RESIZE_JS_CODE = JsCode("""
 function(params) {
     const gridApi = params.api;
     const gridDiv = params.eGridDiv; // O elemento DOM raiz do grid
 
     const resizeColumns = () => {
+        // FORÇA O NAVEGADOR A RECALCULAR O LAYOUT DO ELEMENTO.
+        // Ao acessar uma propriedade como offsetWidth, o navegador é obrigado
+        // a garantir que o elemento tenha seu layout mais atualizado.
+        gridDiv.offsetWidth; // <--- ADICIONADO AQUI!
+
         gridApi.sizeColumnsToFit();
+        // gridApi.onGridSizeChanged(); // Esta chamada pode ser um complemento se sizeColumnsToFit() não for suficiente sozinho
     };
 
-    // AUMENTANDO SIGNIFICATIVAMENTE O ATRASO PARA GARANTIR QUE O DOM SE ESTABILIZE.
-    // Isso é um "truque" comum em UI para lidar com problemas de timing.
-    setTimeout(resizeColumns, 2000); // Tente 500ms (meio segundo). Se ainda não resolver, tente 1000ms.
+    // Mantemos um pequeno atraso para a chamada inicial para dar tempo
+    // à estrutura DOM do Streamlit se assentar.
+    setTimeout(resizeColumns, 200); // Reduzindo o atraso para 200ms, pois o reflow é mais rápido.
 
     const resizeObserver = new ResizeObserver(entries => {
         for (let entry of entries) {
+            // Força o reflow antes de redimensionar novamente para futuras mudanças
+            entry.target.offsetWidth; // <--- ADICIONADO AQUI também para o observer!
             resizeColumns();
         }
     });
