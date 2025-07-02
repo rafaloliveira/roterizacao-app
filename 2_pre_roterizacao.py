@@ -721,12 +721,13 @@ if 'file_uploader_key' not in st.session_state: # NOVA CHAVE PARA RESETAR O UPLO
     st.session_state.file_uploader_key = 0
 # --- Fim das inicializações ---
 
+
 def pagina_sincronizacao():
     st.title("🔄 Sincronização de Dados com Supabase")
     
     st.markdown("### 1. Carregar Planilha Excel")
     
-    # Use a chave dinâmica para forçar o reset visual do uploader
+    # Usa a chave dinâmica para forçar o reset visual do uploader
     arquivo_excel = st.file_uploader(
         "Selecione a planilha da fBaseroter:", 
         type=["xlsx"], 
@@ -773,7 +774,7 @@ def pagina_sincronizacao():
         st.session_state.uploaded_sync_file_hash = None
         st.session_state.df_for_sync_cache = None
         st.session_state.sync_triggered = False
-        st.info("Nenhum arquivo carregado. Faça o upload de um arquivo Excel para sincronizar.")
+        st.info("Nenhum arquivo carregado. Faça o upload de um novo arquivo Excel para sincronizar.")
         # Nenhuma reruns adicional aqui, o Streamlit já vai reavaliar
         return # Sai da função se não há arquivo para processar
 
@@ -786,29 +787,14 @@ def pagina_sincronizacao():
     if st.session_state.sync_triggered:
         st.markdown("---") # Separador visual para o bloco de sincronização
         
-        # Cria um placeholder para as mensagens e a barra de progresso
-        progress_placeholder = st.empty()
-        
-        # Barra de progresso visível
+        # Apenas a barra de progresso, sem placeholder para mensagens textuais adicionais
         progress_bar = st.progress(0)
         
-        # Lista de mensagens de progresso
-        messages = []
-
-        def update_progress(percentage, message):
-            messages.append(f"✅ {message}")
-            progress_bar.progress(percentage)
-            with progress_placeholder.container():
-                for msg in messages:
-                    st.write(msg) # Exibe as mensagens acumuladas
-
         try:
-            # Passo 1: Importando dados para fBaseroter
-            update_progress(10, "Limpando tabelas e inserindo dados em 'fBaseroter'...")
+            # Passo 1: Limpando e inserindo dados em fBaseroter
+            progress_bar.progress(10) # 10%
             
             df_to_process = st.session_state.df_for_sync_cache.copy() 
-            # As etapas de remoção/renomeação de colunas devem ser feitas aqui ANTES de corrigir_tipos
-            # E devem ser as mesmas que estão em aplicar_regras_e_preencher_tabelas() para consistência
             
             # 🔧 Remove colunas indesejadas (mesma lógica do seu 02-07.txt)
             colunas_para_remover = ['Capa de Canhoto de NF','Unnamed: 70']
@@ -830,19 +816,21 @@ def pagina_sincronizacao():
             supabase.table("fBaseroter").delete().neq("Serie_Numero_CTRC", "").execute()
             inserir_em_lote("fBaseroter", df_to_process) # Garanta que esta função está no seu código
             
-            update_progress(30, "Dados importados para 'fBaseroter'.")
+            progress_bar.progress(30) # 30%
 
             # Passo 2: Limpando tabelas dependentes
-            update_progress(50, "Limpando tabelas de produção e roterização...")
+            progress_bar.progress(50) # 50%
             limpar_tabelas_relacionadas() # Garanta que esta função está no seu código
-            update_progress(70, "Tabelas relacionadas limpas.")
+            
+            progress_bar.progress(70) # 70%
 
             # Passo 3: Aplicando regras de negócio
-            update_progress(90, "Aplicando regras de negócio e populando tabelas de status...")
+            progress_bar.progress(90) # 90%
             aplicar_regras_e_preencher_tabelas() # Garanta que esta função está no seu código
-            update_progress(95, "Regras de negócio aplicadas.")
+            
+            progress_bar.progress(95) # 95%
 
-            # Passo 4: Invalidando caches (mantenha como está, pois é essencial)
+            # Passo 4: Invalidando caches (essencial, manter)
             st.session_state["reload_confirmadas_producao"] = True
             st.session_state.pop("df_confirmadas_cache", None)
 
@@ -858,10 +846,10 @@ def pagina_sincronizacao():
             st.session_state["reload_cargas_geradas"] = True
             st.session_state.pop("df_cargas_cache", None)
             
-            update_progress(100, "Caches de navegação atualizados.")
+            progress_bar.progress(100) # 100%
 
             st.success("✅ Sincronização concluída com sucesso!")
-            st.balloons()
+            st.balloons() # Efeitos visuais de sucesso
 
             # --- CRUCIAL PARA RETORNAR AO ESTADO INICIAL ---
             st.session_state.sync_triggered = False  # Reseta o gatilho
