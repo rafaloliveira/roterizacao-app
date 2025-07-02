@@ -710,40 +710,28 @@ def gerar_proximo_numero_carga(supabase):
 # Este código JavaScript será executado no navegador quando o grid estiver pronto.
 # Ele usa o ResizeObserver para detectar mudanças no tamanho do contêiner do grid
 # e então chama a função de ajuste de colunas do AgGrid.
+# NO INÍCIO DO SEU CÓDIGO, JUNTO COM AS DEFINIÇÕES DE FUNÇÕES GLOBAIS
+
 GRID_RESIZE_JS_CODE = JsCode("""
 function(params) {
     const gridApi = params.api;
-    const gridDiv = params.eGridDiv; // O elemento DOM raiz do grid
+    const gridDiv = params.eGridDiv;
 
-    // Função para ajustar as colunas
     const resizeColumns = () => {
         gridApi.sizeColumnsToFit();
-        // params.api.onGridSizeChanged(); // Pode ser útil para alguns casos, mas sizeColumnsToFit é geralmente o suficiente
     };
 
-    // Chamar o ajuste de colunas uma vez quando o grid estiver pronto
-    resizeColumns();
+    setTimeout(resizeColumns, 50);
 
-    // Criar um ResizeObserver para observar mudanças no tamanho do contêiner do grid
-    // O ResizeObserver monitora o elemento DOM do grid. Quando a área disponível
-    // para ele (e, consequentemente, sua própria largura) muda, o callback é acionado.
     const resizeObserver = new ResizeObserver(entries => {
         for (let entry of entries) {
-            // Verifica se a largura do conteúdo mudou
-            // Ou simplesmente chame resizeColumns() se qualquer mudança de tamanho for suficiente
             resizeColumns();
         }
     });
 
-    // Observar o elemento DOM do grid
     resizeObserver.observe(gridDiv);
-
-    // Opcional: Para limpar o observer quando o grid for "desmontado" (se houver uma maneira limpa no Streamlit)
-    // Para aplicações Streamlit, a página geralmente é recarregada, então a limpeza manual
-    // é menos crítica, mas é uma boa prática em SPAs.
-    // window.addEventListener('beforeunload', () => resizeObserver.disconnect());
 }
-""")
+""");
 
 
     
