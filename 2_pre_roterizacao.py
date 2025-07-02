@@ -1865,29 +1865,16 @@ def pagina_rotas_confirmadas():
     # Adicionando a lógica de cache ou recarga
     with st.spinner("🔄 Carregando dados das entregas..."):
         recarregar = st.session_state.pop("reload_rotas_confirmadas", False)
-        st.info(f"DEBUG ROTAS: Início da função:")
-        st.info(f"  - 'recarregar' (valor popado): {recarregar}") # Deve ser True após sincronização
-        st.info(f"  - 'df_rotas_confirmadas_cache' existe antes do IF? {'df_rotas_confirmadas_cache' in st.session_state}") # Deve ser
-
-        if recarregar or "df_rotas_confirmadas_cache" not in st.session_state:
-            st.info("DEBUG ROTAS: Condição de recarga ATIVADA. Buscando dados do Supabase.")
-            
+        if recarregar or "df_rotas_confirmadas_cache" not in st.session_state:          
             # AQUI É O PONTO CRÍTICO DA BUSCA (Correção da redundância)
             data_from_supabase = supabase.table("rotas_confirmadas").select("*").execute().data
-            st.info(f"DEBUG ROTAS: Dados recebidos do Supabase (len): {len(data_from_supabase)}") # QUANTOs REGISTROS VIERAM?
-
             df_rotas = pd.DataFrame(data_from_supabase) # Usando os dados já buscados
-            
             st.session_state["df_rotas_confirmadas_cache"] = df_rotas
-            st.info(f"DEBUG ROTAS: df_rotas após Supabase (empty): {df_rotas.empty}") # Adicionado novamente para debug
         else:
-            st.info("DEBUG ROTAS: Condição de recarga DESATIVADA. Usando dados do cache.")
+            
             df_rotas = st.session_state["df_rotas_confirmadas_cache"]
-            st.info(f"DEBUG ROTAS: df_rotas do cache (empty): {df_rotas.empty}") # Mantido para debug
-
-
     if df_rotas.empty:
-        st.info("🛈 Nenhuma Rota Confirmada.")
+        st.info("Nenhuma Rota Confirmada.")
         return
 
     # Lógica para criação de nova carga avulsa (mantida inalterada para o foco no problema)
