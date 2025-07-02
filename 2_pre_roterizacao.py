@@ -708,8 +708,6 @@ def gerar_proximo_numero_carga(supabase):
 # Adicione estas inicializações no INÍCIO DO SEU SCRIPT, logo após as importações globais e antes de qualquer função,
 # ou dentro da sua função principal se você tiver uma, mas fora de qualquer função que chame st.rerun() frequentemente.
 # Isso garante que o estado persista entre os reruns.
-
-
 # --- Inicializações no topo do script (fora de qualquer função) ---
 if "sync_triggered" not in st.session_state:
     st.session_state.sync_triggered = False
@@ -717,8 +715,10 @@ if "uploaded_sync_file_hash" not in st.session_state:
     st.session_state.uploaded_sync_file_hash = None
 if "df_for_sync_cache" not in st.session_state:
     st.session_state.df_for_sync_cache = None
-if 'file_uploader_key' not in st.session_state: # NOVA CHAVE PARA RESETAR O UPLOADER
+if 'file_uploader_key' not in st.session_state:
     st.session_state.file_uploader_key = 0
+if 'show_sync_success' not in st.session_state: # NOVA LINHA
+    st.session_state.show_sync_success = False # Inicializa como False
 # --- Fim das inicializações ---
 
 
@@ -727,6 +727,13 @@ def pagina_sincronizacao():
     
     st.markdown("### 1. Carregar Planilha Excel")
     
+    # Exibe a mensagem de sucesso e os balões se a flag estiver ativada
+    if st.session_state.show_sync_success:
+        st.success("✅ Sincronização concluída com sucesso!")
+        st.balloons()
+        st.session_state.show_sync_success = False # Reseta a flag após exibir
+        # Não precisa de rerun aqui, já está no estado final
+        
     # Usa a chave dinâmica para forçar o reset visual do uploader
     arquivo_excel = st.file_uploader(
         "Selecione a planilha da fBaseroter:", 
@@ -739,10 +746,12 @@ def pagina_sincronizacao():
         current_file_hash = hashlib.md5(arquivo_excel.getvalue()).hexdigest()
 
     # Detecta se um novo arquivo foi carregado ou se o anterior foi limpo/removido
+    # Ou se a sincronização anterior foi um sucesso, para resetar o estado da página
     if current_file_hash != st.session_state.uploaded_sync_file_hash:
         st.session_state.uploaded_sync_file_hash = current_file_hash
         st.session_state.sync_triggered = False # Reseta o gatilho se o arquivo muda
         st.session_state.df_for_sync_cache = None # Limpa o cache do DF
+        st.session_state.show_sync_success = False # Reseta a flag de sucesso ao carregar novo arquivo
 
     # Exibe a interface inicial de upload ou o botão de sincronização
     if arquivo_excel:
@@ -759,7 +768,7 @@ def pagina_sincronizacao():
             # Botão para iniciar a sincronização (desabilitado se já estiver rodando)
             if st.button("🚀 Iniciar Sincronização", key="start_sync_button", disabled=st.session_state.sync_triggered):
                 st.session_state.sync_triggered = True
-                # Nenhuma mensagem de warning aqui, a barra de progresso cuidará disso
+                st.session_state.show_sync_success = False # Garante que a flag de sucesso anterior seja resetada
                 st.rerun() # Força um rerun para que a lógica de sincronização seja executada
 
         except Exception as e:
@@ -767,15 +776,15 @@ def pagina_sincronizacao():
             st.session_state.uploaded_sync_file_hash = None # Resetar em caso de erro na leitura
             st.session_state.sync_triggered = False
             st.session_state.df_for_sync_cache = None
-            # Nenhuma reruns adicional aqui, o Streamlit já vai reavaliar
+            st.session_state.show_sync_success = False # Reseta a flag de sucesso em caso de erro
 
     elif not arquivo_excel and st.session_state.uploaded_sync_file_hash:
         # Caso em que o arquivo foi limpo pelo usuário ou resetado
         st.session_state.uploaded_sync_file_hash = None
         st.session_state.df_for_sync_cache = None
         st.session_state.sync_triggered = False
+        st.session_state.show_sync_success = False # Reseta a flag de sucesso
         st.info("Nenhum arquivo carregado. Faça o upload de um novo arquivo Excel para sincronizar.")
-        # Nenhuma reruns adicional aqui, o Streamlit já vai reavaliar
         return # Sai da função se não há arquivo para processar
 
     else: # Primeiro acesso ou nenhum arquivo carregado ainda
@@ -848,8 +857,8 @@ def pagina_sincronizacao():
             
             progress_bar.progress(100) # 100%
 
-            st.success("✅ Sincronização concluída com sucesso!")
-            st.balloons() # Efeitos visuais de sucesso
+            # Define a flag de sucesso para ser exibida no próximo rerun
+            st.session_state.show_sync_success = True 
 
             # --- CRUCIAL PARA RETORNAR AO ESTADO INICIAL ---
             st.session_state.sync_triggered = False  # Reseta o gatilho
@@ -866,8 +875,8 @@ def pagina_sincronizacao():
             st.session_state.uploaded_sync_file_hash = None
             st.session_state.df_for_sync_cache = None
             st.session_state.file_uploader_key += 1 # Resetar uploader em erro também
+            st.session_state.show_sync_success = False # Garante que não mostre sucesso em caso de erro
             st.rerun() # Dispara um rerun para recarregar a página após o erro
-            # Nenhuma raise e aqui para evitar parar o aplicativo
 #___________________________________________________________________________________
 def corrigir_tipos(df):
     # Definições dos tipos conforme seu mapeamento
