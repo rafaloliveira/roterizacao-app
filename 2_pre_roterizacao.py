@@ -518,6 +518,7 @@ def criar_grid_destacado(df, key, selection_mode="multiple", page_size=500, altu
     gb.configure_selection(selection_mode, use_checkbox=True)
     gb.configure_pagination(enabled=True, paginationAutoPageSize=False)
     gb.configure_grid_options(paginationPageSize=page_size)
+    gb.configure_grid_options(onGridReady=GRID_RESIZE_JS_CODE) # <<< ADICIONADO AQUI
 
     # 🔶 Estilo condicional por linha (entrega com Status=Agendar e Entrega Programada vazia)
     js_code = """
@@ -701,6 +702,50 @@ def gerar_proximo_numero_carga(supabase):
     except Exception as e:
         st.error(f"Erro ao gerar número da carga: {e}")
         return f"{datetime.now().strftime('%Y%m%d')}-000001"
+
+
+# NO INÍCIO DO SEU CÓDIGO, JUNTO COM AS DEFINIÇÕES DE FUNÇÕES GLOBAIS
+
+# Definir o JsCode para o redimensionamento do grid
+# Este código JavaScript será executado no navegador quando o grid estiver pronto.
+# Ele usa o ResizeObserver para detectar mudanças no tamanho do contêiner do grid
+# e então chama a função de ajuste de colunas do AgGrid.
+GRID_RESIZE_JS_CODE = JsCode("""
+function(params) {
+    const gridApi = params.api;
+    const gridDiv = params.eGridDiv; // O elemento DOM raiz do grid
+
+    // Função para ajustar as colunas
+    const resizeColumns = () => {
+        gridApi.sizeColumnsToFit();
+        // params.api.onGridSizeChanged(); // Pode ser útil para alguns casos, mas sizeColumnsToFit é geralmente o suficiente
+    };
+
+    // Chamar o ajuste de colunas uma vez quando o grid estiver pronto
+    resizeColumns();
+
+    // Criar um ResizeObserver para observar mudanças no tamanho do contêiner do grid
+    // O ResizeObserver monitora o elemento DOM do grid. Quando a área disponível
+    // para ele (e, consequentemente, sua própria largura) muda, o callback é acionado.
+    const resizeObserver = new ResizeObserver(entries => {
+        for (let entry of entries) {
+            // Verifica se a largura do conteúdo mudou
+            // Ou simplesmente chame resizeColumns() se qualquer mudança de tamanho for suficiente
+            resizeColumns();
+        }
+    });
+
+    // Observar o elemento DOM do grid
+    resizeObserver.observe(gridDiv);
+
+    // Opcional: Para limpar o observer quando o grid for "desmontado" (se houver uma maneira limpa no Streamlit)
+    // Para aplicações Streamlit, a página geralmente é recarregada, então a limpeza manual
+    // é menos crítica, mas é uma boa prática em SPAs.
+    // window.addEventListener('beforeunload', () => resizeObserver.disconnect());
+}
+""")
+
+
     
 ##############################
 # Página de sincronização
@@ -1316,6 +1361,7 @@ def pagina_confirmar_producao():
                 gb.configure_grid_options(paginationPageSize=12)
                 gb.configure_grid_options(alwaysShowHorizontalScroll=True)
                 gb.configure_grid_options(rowStyle={'font-size': '11px'})
+                gb.configure_grid_options(onGridReady=GRID_RESIZE_JS_CODE) # <<< ADICIONADO AQUI
                 grid_options = gb.build()
                 grid_options["getRowStyle"] = linha_destacar # Atribui o JsCode aqui
 
@@ -1536,6 +1582,7 @@ def pagina_aprovacao_diretoria():
                 gb.configure_grid_options(paginationPageSize=12)
                 gb.configure_grid_options(alwaysShowHorizontalScroll=True)
                 gb.configure_grid_options(rowStyle={'font-size': '11px'})
+                gb.configure_grid_options(onGridReady=GRID_RESIZE_JS_CODE) # <<< ADICIONADO AQUI
                 grid_options = gb.build()
                 grid_options["getRowStyle"] = linha_destacar
 
@@ -1730,6 +1777,7 @@ def pagina_pre_roterizacao():
             gb.configure_grid_options(paginationPageSize=12)
             gb.configure_grid_options(alwaysShowHorizontalScroll=True)
             gb.configure_grid_options(rowStyle={'font-size': '11px'})
+            gb.configure_grid_options(onGridReady=GRID_RESIZE_JS_CODE) # <<< ADICIONADO AQUI
             grid_options = gb.build()
             grid_options["getRowStyle"] = linha_destacar
 
@@ -2106,6 +2154,7 @@ def pagina_rotas_confirmadas():
                 gb.configure_grid_options(getRowStyle=linha_destacar)
                 gb.configure_grid_options(headerCheckboxSelection=True)
                 gb.configure_grid_options(rowSelection='multiple')
+                gb.configure_grid_options(onGridReady=GRID_RESIZE_JS_CODE) # <<< ADICIONADO AQUI
 
                 formatter = JsCode("""
                     function(params) {
@@ -2456,6 +2505,7 @@ def pagina_cargas_geradas():
                     """))
                     gb.configure_grid_options(headerCheckboxSelection=True)
                     gb.configure_grid_options(rowSelection='multiple')
+                    gb.configure_grid_options(onGridReady=GRID_RESIZE_JS_CODE) # <<< ADICIONADO AQUI
 
                     for col in ['Peso Real em Kg', 'Peso Calculado em Kg', 'Cubagem em m³', 'Quantidade de Volumes', 'Valor do Frete']:
                         if col in df_formatado.columns:
