@@ -2609,79 +2609,61 @@ def pagina_cargas_geradas():
 
 
 # ========== EXECUÇÃO PRINCIPAL ========== #
+
 login()  # Garante que o usuário esteja logado
 
-# Mostrar welcome + botão sair no topo da sidebar
+# Mostra welcome + botão sair no topo da página principal
 if st.session_state.get("login", False):
-    col1, col2 = st.sidebar.columns([4, 1])
-    with col1:
+    col_welcome, col_logout = st.columns([10, 2]) # Ajuste as proporções das colunas conforme necessário
+    with col_welcome:
         st.markdown(f"👋 **Bem-vindo, {st.session_state.get('username','Usuário')}!**")
-    with col2:
-        if st.button("🔒 Sair"):
+    with col_logout:
+        if st.button("�� Sair"):
             for key in ["login", "username", "is_admin", "expiry_time"]:
                 cookies[key] = ""
             st.session_state.login = False
             st.rerun()
-    st.sidebar.markdown("---")  # linha separadora
+    st.markdown("---") # Linha separadora para separar o cabeçalho das abas
+
+    # Definir as abas principais
+    # Adicionei uma aba para "Administração e Configurações" para agrupar as opções de usuário.
+    tab_sync, tab_operacoes, tab_admin_settings = st.tabs(["Sincronização", "Operações", "Administração e Configurações"])
+
+    with tab_sync:
+        pagina_sincronizacao()
+
+    with tab_operacoes:
+        # Sub-abas para as operações de roteirização
+        # Usei nomes mais curtos para as variáveis das sub-abas para manter o código limpo
+        sub_tab_confirmar_prod, sub_tab_aprov_dir, sub_tab_pre_rot, sub_tab_rotas_conf, sub_tab_cargas = st.tabs([
+            "Confirmar Produção", "Aprovação Diretoria", "Pré Roterização", "Rotas Confirmadas", "Cargas Geradas"
+        ])
+        with sub_tab_confirmar_prod:
+            pagina_confirmar_producao()
+        with sub_tab_aprov_dir:
+            pagina_aprovacao_diretoria()
+        with sub_tab_pre_rot:
+            pagina_pre_roterizacao()
+        with sub_tab_rotas_conf:
+            pagina_rotas_confirmadas()
+        with sub_tab_cargas:
+            pagina_cargas_geradas()
+
+    with tab_admin_settings:
+        # Conteúdo da aba de Administração e Configurações
+        if st.session_state.get("is_admin", False):
+            st.subheader("Gerenciamento de Usuários")
+            pagina_gerenciar_usuarios()
+            st.markdown("---") # Separador visual
+
+        st.subheader("Alterar Minha Senha")
+        pagina_trocar_senha()
+
+# Se o usuário não estiver logado, a função login() no início já teria parado o script.
+# Este bloco 'else' não é estritamente necessário aqui se o login() faz um st.stop()
+# Mas é uma boa prática para clareza.
+else:
+    # A página de login é exibida pela função login()
+    pass # Nada a fazer aqui, pois o login() já cuida do acesso.
 
 
-login()  # Garante que o usuário esteja logado
-
-# ========== INICIALIZA A PÁGINA SE NECESSÁRIO ==========
-if "pagina" not in st.session_state:
-    st.session_state.pagina = "Sincronização"
-
-# ========== MENU UNIFICADO ==========
-menu_principal = [
-    "Sincronização",
-    "Confirmar Produção",
-    "Aprovação Diretoria",
-    "Pré Roterização",
-    "Rotas Confirmadas",
-    "Cargas Geradas"
-]
-
-menu_avancado = ["Alterar Senha"]
-if st.session_state.get("is_admin", False):
-    menu_avancado.append("Gerenciar Usuários")
-
-# Linha separadora visual (não clicável)
-separador = "────────────────────────"
-
-# Menu completo com separador visual
-menu_total = menu_principal + [separador] + menu_avancado
-
-# Garante que a opção atual esteja na lista (evita erros ao abrir Gerenciar direto)
-if st.session_state.get("pagina") not in menu_total:
-    st.session_state.pagina = "Sincronização"
-
-# Define índice atual com base na página ativa
-index_atual = menu_total.index(st.session_state.pagina)
-
-# Radio unificado
-escolha = st.sidebar.radio("📁 Menu", menu_total, index=index_atual)
-
-# Impede seleção do separador e força rerun ao mudar de página
-if escolha == separador:
-    pass  # Ignora, mantém a página atual
-elif escolha != st.session_state.pagina:
-    st.session_state.pagina = escolha
-    st.rerun()  # 🔁 Faz a troca de página acontecer imediatamente
-
-# ========== ROTEAMENTO ==========
-if st.session_state.pagina == "Sincronização":
-    pagina_sincronizacao()
-elif st.session_state.pagina == "Confirmar Produção":
-    pagina_confirmar_producao()
-elif st.session_state.pagina == "Aprovação Diretoria":
-    pagina_aprovacao_diretoria()
-elif st.session_state.pagina == "Pré Roterização":
-    pagina_pre_roterizacao()
-elif st.session_state.pagina == "Rotas Confirmadas":
-    pagina_rotas_confirmadas()
-elif st.session_state.pagina == "Cargas Geradas":
-    pagina_cargas_geradas()
-elif st.session_state.pagina == "Alterar Senha":
-    pagina_trocar_senha()
-elif st.session_state.pagina == "Gerenciar Usuários":
-    pagina_gerenciar_usuarios()
