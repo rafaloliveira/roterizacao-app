@@ -1027,7 +1027,7 @@ def adicionar_entregas_a_carga(chaves_cte):
 
 # ------------------------#############-------------------------------------------
 def aplicar_regras_e_preencher_tabelas():
-    st.subheader("🔍 Aplicando Regras de Negócio")
+    #st.subheader("🔍 Aplicando Regras de Negócio")
 
     try:
         # Carrega dados base
@@ -1507,8 +1507,6 @@ def pagina_aprovacao_diretoria():
                 badge(f"{int(df_cliente['Quantidade de Volumes'].sum())} volumes"),
                 unsafe_allow_html=True
             )
-
-        
 
 
         with st.expander("🔽 Selecionar entregas", expanded=False):
