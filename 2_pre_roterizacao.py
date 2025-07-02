@@ -705,8 +705,6 @@ def gerar_proximo_numero_carga(supabase):
 ##############################
 # Página de sincronização
 ##############################
-
-
 # --- Inicializações no topo do script (fora de qualquer função) ---
 # Mantenha estas linhas exatamente como estão no topo do seu script
 if "sync_triggered" not in st.session_state:
@@ -1045,38 +1043,50 @@ def aplicar_regras_e_preencher_tabelas():
 
         # st.text(f"[DEBUG] {len(df)} registros carregados de fBaseroter.") # REMOVIDO
 #__________________________________________________________________________________________________________
+        #__________________________________________________________________________________________________________
         # Merge com Micro_Regiao_por_data_embarque
         micro = supabase.table("Micro_Regiao_por_data_embarque").select("*").execute().data
         if micro:
             df_micro = pd.DataFrame(micro)
             df_micro.columns = df_micro.columns.str.strip()
 
-            # Detectar nome da coluna de data automaticamente
+            # Detectar nome da coluna de data e região (assumindo 'REGIÃO' é o nome da coluna no Supabase)
             col_data_micro = [col for col in df_micro.columns if 'relação' in col.lower()]
-            if col_data_micro:
+            cidade_destino_col = 'CIDADE DESTINO'
+            regiao_col = 'REGIÃO'
+
+            # Garante que as colunas essenciais para o merge e para a região existam
+            if col_data_micro and cidade_destino_col in df_micro.columns and regiao_col in df_micro.columns:
                 data_col = col_data_micro[0]
                 df_micro[data_col] = pd.to_numeric(df_micro[data_col], errors='coerce')
 
-                # Corrigir nome da coluna de cidade
-                cidade_col = 'CIDADE DESTINO'
+                # Preparar colunas para o merge (case-insensitive e trim para garantir match)
+                df['Cidade de Entrega_upper'] = df['Cidade de Entrega'].astype(str).str.strip().str.upper()
+                df_micro[cidade_destino_col + '_upper'] = df_micro[cidade_destino_col].astype(str).str.strip().str.upper()
 
-                # Faz merge com base em Cidade de Entrega = CIDADE DESTINO
+                # Faz merge com base em Cidade de Entrega = CIDADE DESTINO e inclui a REGIÃO
                 df = df.merge(
-                    df_micro[[data_col, cidade_col]],
+                    df_micro[[data_col, cidade_destino_col + '_upper', regiao_col]],
                     how='left',
-                    left_on='Cidade de Entrega',
-                    right_on=cidade_col
+                    left_on='Cidade de Entrega_upper',
+                    right_on=cidade_destino_col + '_upper'
                 )
+
+                # Renomeia a coluna de região para o nome final desejado 'Regiao'
+                df.rename(columns={regiao_col: 'Regiao'}, inplace=True)
 
                 # Calcula Data de Embarque
                 df['Data de Embarque'] = df['Previsao de Entrega'] - pd.to_timedelta(df[data_col], unit='D')
 
-                df.drop(columns=[data_col, cidade_col], inplace=True)
+                # Remove colunas auxiliares criadas para o merge
+                df.drop(columns=[data_col, cidade_destino_col + '_upper', 'Cidade de Entrega_upper'], inplace=True, errors='ignore')
             else:
-                st.warning("Coluna de data de relação não encontrada.")
+                st.warning("Colunas de data de relação, cidade destino ou região não encontradas em Micro_Regiao_por_data_embarque. A coluna 'Regiao' será preenchida como nula.")
                 df['Data de Embarque'] = pd.NaT
+                df['Regiao'] = None # Garante que a coluna Regiao existe mesmo sem merge
         else:
             df['Data de Embarque'] = pd.NaT
+            df['Regiao'] = None # Garante que a coluna Regiao existe mesmo sem dados
         # st.text("[DEBUG] Mescla com Micro_Regiao_por_data_embarque concluída.") # REMOVIDO
 #______________________________________________________________________________________________________________________
 
@@ -1161,7 +1171,7 @@ def aplicar_regras_e_preencher_tabelas():
             'Cidade de Entrega', 'Bairro do Destinatario', 'Previsao de Entrega',
             'Numero da Nota Fiscal', 'Status', 'Entrega Programada', 'Particularidade',
             'Codigo da Ultima Ocorrencia', 'Peso Real em Kg', 'Peso Calculado em Kg',
-            'Cubagem em m³', 'Quantidade de Volumes', 'Valor do Frete', 'Rota',
+            'Cubagem em m³', 'Quantidade de Volumes', 'Valor do Frete', 'Rota','Regiao',
             'CEP de Entrega','CEP do Destinatario','CEP do Remetente'
 
         ]
@@ -1227,7 +1237,7 @@ def pagina_confirmar_producao():
 
     # Definir as colunas que devem ser exibidas no grid
     colunas_exibir = [
-        "Serie_Numero_CTRC", "Rota", "Valor do Frete", "Cliente Pagador", "Chave CT-e",
+        "Serie_Numero_CTRC", "Rota", "Regiao", "Valor do Frete", "Cliente Pagador", "Chave CT-e",
         "Cliente Destinatario", "Cidade de Entrega", "Bairro do Destinatario", 
         "Previsao de Entrega", "Numero da Nota Fiscal", "Status", "Entrega Programada", 
         "Particularidade", "Codigo da Ultima Ocorrencia", "Peso Real em Kg", 
@@ -1465,7 +1475,7 @@ def pagina_aprovacao_diretoria():
         return f"<span style='background:#eef2f7;border-radius:12px;padding:6px 12px;margin:4px;color:inherit;display:inline-block;'>{label}</span>"
 
     colunas_exibir = [
-        "Serie_Numero_CTRC", "Rota", "Valor do Frete", "Cliente Pagador", "Chave CT-e",
+        "Serie_Numero_CTRC", "Rota", "Regiao", "Valor do Frete", "Cliente Pagador", "Chave CT-e",
         "Cliente Destinatario", "Cidade de Entrega", "Bairro do Destinatario", "Previsao de Entrega",
         "Numero da Nota Fiscal", "Status", "Entrega Programada", "Particularidade", "Codigo da Ultima Ocorrencia",
         "Peso Real em Kg", "Peso Calculado em Kg", "Cubagem em m³", "Quantidade de Volumes"
@@ -1663,7 +1673,7 @@ def pagina_pre_roterizacao():
         return f"<span style='background:#eef2f7;border-radius:12px;padding:6px 12px;margin:4px;color:inherit;display:inline-block;'>{label}</span>"
 
     colunas_exibir = [
-        "Serie_Numero_CTRC", "Rota", "Valor do Frete", "Cliente Pagador", "Chave CT-e", "Cliente Destinatario",
+        "Serie_Numero_CTRC", "Rota", "Regiao", "Valor do Frete", "Cliente Pagador", "Chave CT-e", "Cliente Destinatario",
         "Cidade de Entrega", "Bairro do Destinatario", "Previsao de Entrega", "Numero da Nota Fiscal",
         "Status", "Entrega Programada", "Particularidade", "Codigo da Ultima Ocorrencia",
         "Peso Real em Kg", "Peso Calculado em Kg", "Cubagem em m³", "Quantidade de Volumes"
@@ -1958,7 +1968,7 @@ def pagina_rotas_confirmadas():
 
                         # 🔒 Colunas válidas para serem inseridas em cargas_geradas
                         colunas_validas = [
-                            'Serie_Numero_CTRC', 'Rota', 'Cliente Pagador', 'Chave CT-e', 'Cliente Destinatario',
+                            'Serie_Numero_CTRC', 'Rota', 'Regiao', 'Cliente Pagador', 'Chave CT-e', 'Cliente Destinatario',
                             'Cidade de Entrega', 'Bairro do Destinatario', 'Previsao de Entrega',
                             'Numero da Nota Fiscal', 'Status', 'Entrega Programada', 'Particularidade',
                             'Codigo da Ultima Ocorrencia', 'Peso Real em Kg', 'Peso Calculado em Kg',
@@ -2030,7 +2040,7 @@ def pagina_rotas_confirmadas():
             return f"<span style='background:#eef2f7;border-radius:12px;padding:6px 12px;margin:4px;color:inherit;display:inline-block;'>{label}</span>"
 
         colunas_exibir = [
-            "Serie_Numero_CTRC", "Rota","Valor do Frete", "Cliente Pagador", "Chave CT-e", "Cliente Destinatario",
+            "Serie_Numero_CTRC", "Rota", "Regiao","Valor do Frete", "Cliente Pagador", "Chave CT-e", "Cliente Destinatario",
             "Cidade de Entrega", "Bairro do Destinatario", "Previsao de Entrega",
             "Numero da Nota Fiscal", "Status", "Entrega Programada", "Particularidade",
             "Codigo da Ultima Ocorrencia", "Peso Real em Kg", "Peso Calculado em Kg",
@@ -2195,7 +2205,7 @@ def pagina_rotas_confirmadas():
                             df_confirmar["Status"] = "Fechada"
 
                             colunas_validas = [
-                                'Serie_Numero_CTRC', 'Rota', 'Cliente Pagador', 'Chave CT-e', 'Cliente Destinatario',
+                                'Serie_Numero_CTRC', 'Rota', 'Regiao', 'Cliente Pagador', 'Chave CT-e', 'Cliente Destinatario',
                                 'Cidade de Entrega', 'Bairro do Destinatario', 'Previsao de Entrega',
                                 'Numero da Nota Fiscal', 'Status', 'Entrega Programada', 'Particularidade',
                                 'Codigo da Ultima Ocorrencia', 'Peso Real em Kg', 'Peso Calculado em Kg',
@@ -2295,7 +2305,7 @@ def pagina_rotas_confirmadas():
                                 df_confirmar["Status"] = "Fechada"
 
                                 colunas_validas = [
-                                    'Serie_Numero_CTRC', 'Rota', 'Cliente Pagador', 'Chave CT-e', 'Cliente Destinatario',
+                                    'Serie_Numero_CTRC', 'Rota', 'Regiao', 'Cliente Pagador', 'Chave CT-e', 'Cliente Destinatario',
                                     'Cidade de Entrega', 'Bairro do Destinatario', 'Previsao de Entrega',
                                     'Numero da Nota Fiscal', 'Status', 'Entrega Programada', 'Particularidade',
                                     'Codigo da Ultima Ocorrencia', 'Peso Real em Kg', 'Peso Calculado em Kg',
@@ -2371,7 +2381,7 @@ def pagina_cargas_geradas():
                 st.metric("Total de Entregas", len(df))
 
             colunas_exibir = [
-                "numero_carga", "Data_Hora_Gerada", "Serie_Numero_CTRC", "Rota", "Valor do Frete", "Cliente Pagador", "Chave CT-e", "Cliente Destinatario",
+                "numero_carga", "Data_Hora_Gerada", "Serie_Numero_CTRC", "Rota", "Regiao", "Valor do Frete", "Cliente Pagador", "Chave CT-e", "Cliente Destinatario",
                 "Cidade de Entrega", "Bairro do Destinatario", "Previsao de Entrega",
                 "Numero da Nota Fiscal", "Status", "Entrega Programada", "Particularidade",
                 "Codigo da Ultima Ocorrencia", "Peso Real em Kg", "Peso Calculado em Kg",
