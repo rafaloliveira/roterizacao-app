@@ -2915,7 +2915,7 @@ if st.session_state.get("login", False):
     with tab_operacoes:
         # Sub-abas para as operações de roteirização
         # Usei nomes mais curtos para as variáveis das sub-abas para manter o código limpo
-        sub_tab_confirmar_prod, sub_tab_aprov_dir, sub_tab_pre_rot, sub_tab_rotas_conf, sub_tab_cargas, sub_tab_cargas, sub_tab_aprov_custos = st.tabs([
+        sub_tab_confirmar_prod, sub_tab_aprov_dir, sub_tab_pre_rot, sub_tab_rotas_conf, sub_tab_cargas, sub_tab_aprov_custos = st.tabs([
             "Confirmar Produção", "Aprovação Diretoria", "Pré Roterização", "Rotas Confirmadas", "Cargas Geradas", "Aprovação de Custos" # ADICIONADO AQUI
         ])
         with sub_tab_confirmar_prod:
