@@ -868,10 +868,6 @@ def pagina_sincronizacao():
             st.session_state.file_uploader_key += 1 # Resetar uploader em erro também
             st.rerun() # Dispara um rerun para recarregar a página após o erro
             # Nenhuma raise e aqui para evitar parar o aplicativo
-
-
-
-
 #___________________________________________________________________________________
 def corrigir_tipos(df):
     # Definições dos tipos conforme seu mapeamento
@@ -920,50 +916,6 @@ def inserir_em_lote(nome_tabela, df, lote=100, tentativas=3, pausa=0.2):
         "Data da Ultima Ocorrencia", "Data de inclusao da Ultima Ocorrencia",
         "Entrega Programada", "Previsao de Entrega",
         "Data de Emissao", "Data de Autorizacao", "Data do Cancelamento",
-        "Data do Escaneamento", "Data da Entrega Realizada", "CEP de Entrega",
-        "CEP do Destinatario","CEP do Remetente" 
-    ]
-
-    for col in df.columns:
-        # Formatar para string só se for coluna de data e coluna existir no df
-        if col in colunas_data:
-            try:
-                df[col] = pd.to_datetime(df[col], errors='coerce')
-                df[col] = df[col].dt.strftime('%Y-%m-%d')
-            except Exception:
-                pass
-
-    st.write("[DEBUG] Quantidade de NaNs por coluna (antes do applymap):", df.isna().sum())
-
-    def limpar_valores(obj):
-        if pd.isna(obj):
-            return None
-        return obj
-
-    dados = df.applymap(limpar_valores).to_dict(orient="records")
-
-    if dados:
-        st.write("[DEBUG] Primeira linha do lote limpo:", dados[0])
-
-    for i in range(0, len(dados), lote):
-        sublote = dados[i:i + lote]
-        for tentativa in range(tentativas):
-            try:
-                supabase.table(nome_tabela).insert(sublote).execute()
-                st.info(f"[DEBUG] Inseridos {len(sublote)} registros na tabela '{nome_tabela}' (lote {i}–{i + len(sublote) - 1}).")
-                break
-            except Exception as e:
-                st.warning(f"[TENTATIVA {tentativa + 1}] Erro ao inserir lote {i}–{i + len(sublote) - 1}: {e}")
-                time.sleep(1)
-        else:
-            st.error(f"[ERRO] Falha final ao inserir lote {i}–{i + len(sublote) - 1} na tabela '{nome_tabela}'.")
-        time.sleep(pausa)
-def inserir_em_lote(nome_tabela, df, lote=100, tentativas=3, pausa=0.2):
-    # Defina as colunas de data do jeito que você já conhece
-    colunas_data = [
-        "Data da Ultima Ocorrencia", "Data de inclusao da Ultima Ocorrencia",
-        "Entrega Programada", "Previsao de Entrega",
-        "Data de Emissao", "Data de Autorizacao", "Data do Cancelamento",
         "Data do Escaneamento", "Data da Entrega Realizada","CEP de Entrega","CEP do Destinatario",
         "'CEP do Remetente"
     ]
@@ -977,7 +929,7 @@ def inserir_em_lote(nome_tabela, df, lote=100, tentativas=3, pausa=0.2):
             except Exception:
                 pass
 
-    st.write("[DEBUG] Quantidade de NaNs por coluna (antes do applymap):", df.isna().sum())
+    # st.write("[DEBUG] Quantidade de NaNs por coluna (antes do applymap):", df.isna().sum()) # REMOVIDO
 
     def limpar_valores(obj):
         if pd.isna(obj):
@@ -987,14 +939,15 @@ def inserir_em_lote(nome_tabela, df, lote=100, tentativas=3, pausa=0.2):
     dados = df.applymap(limpar_valores).to_dict(orient="records")
 
     if dados:
-        st.write("[DEBUG] Primeira linha do lote limpo:", dados[0])
+        # st.write("[DEBUG] Primeira linha do lote limpo:", dados[0]) # REMOVIDO
+        pass # Mantido para evitar erro se 'dados' for vazio e a linha acima estivesse sozinha
 
     for i in range(0, len(dados), lote):
         sublote = dados[i:i + lote]
         for tentativa in range(tentativas):
             try:
                 supabase.table(nome_tabela).insert(sublote).execute()
-                st.info(f"[DEBUG] Inseridos {len(sublote)} registros na tabela '{nome_tabela}' (lote {i}–{i + len(sublote) - 1}).")
+                # st.info(f"[DEBUG] Inseridos {len(sublote)} registros na tabela '{nome_tabela}' (lote {i}–{i + len(sublote) - 1}).") # REMOVIDO
                 break
             except Exception as e:
                 st.warning(f"[TENTATIVA {tentativa + 1}] Erro ao inserir lote {i}–{i + len(sublote) - 1}: {e}")
@@ -1021,9 +974,10 @@ def limpar_tabelas_relacionadas():
                 # Executa o delete com filtro válido
                 supabase.table(tabela).delete().neq(chave, valor_exclusao).execute()
 
-                st.warning(f"[DEBUG] Dados da tabela '{tabela}' foram apagados.")
+                # st.warning(f"[DEBUG] Dados da tabela '{tabela}' foram apagados.") # REMOVIDO
             else:
-                st.info(f"[DEBUG] Tabela '{tabela}' já estava vazia.")
+                # st.info(f"[DEBUG] Tabela '{tabela}' já estava vazia.") # REMOVIDO
+                pass # Mantido para evitar erro se 'else' for vazio
         except Exception as e:
             st.error(f"[ERRO] Ao limpar tabela '{tabela}': {e}")
 
@@ -1088,7 +1042,7 @@ def aplicar_regras_e_preencher_tabelas():
         df['Previsao de Entrega'] = pd.to_datetime(df.get('Previsao de Entrega'), errors='coerce')
         df['Entrega Programada'] = pd.to_datetime(df.get('Entrega Programada'), errors='coerce')
 
-        st.text(f"[DEBUG] {len(df)} registros carregados de fBaseroter.")
+        # st.text(f"[DEBUG] {len(df)} registros carregados de fBaseroter.") # REMOVIDO
 #__________________________________________________________________________________________________________
         # Merge com Micro_Regiao_por_data_embarque
         micro = supabase.table("Micro_Regiao_por_data_embarque").select("*").execute().data
@@ -1122,7 +1076,7 @@ def aplicar_regras_e_preencher_tabelas():
                 df['Data de Embarque'] = pd.NaT
         else:
             df['Data de Embarque'] = pd.NaT
-        st.text("[DEBUG] Mescla com Micro_Regiao_por_data_embarque concluída.")
+        # st.text("[DEBUG] Mescla com Micro_Regiao_por_data_embarque concluída.") # REMOVIDO
 #______________________________________________________________________________________________________________________
 
         # Merge com Particularidades
@@ -1135,7 +1089,7 @@ def aplicar_regras_e_preencher_tabelas():
             df.drop(columns=['CNPJ'], inplace=True)
         else:
             df['Particularidade'] = None
-        st.text("[DEBUG] Mescla com Particularidades concluída.")
+        # st.text("[DEBUG] Mescla com Particularidades concluída.") # REMOVIDO
 #________________________________________________________________________________________________________________________
         # Merge com Clientes_Entrega_Agendada
         agendados = supabase.table("Clientes_Entrega_Agendada").select("*").execute().data
@@ -1155,7 +1109,7 @@ def aplicar_regras_e_preencher_tabelas():
                 st.warning("Colunas 'CNPJ' e/ou 'Status de Agenda' não encontradas em Clientes_Entrega_Agendada.")
         else:
             df['Status'] = None
-        st.text("[DEBUG] Mescla com Clientes_Entrega_Agendada concluída.")
+        # st.text("[DEBUG] Mescla com Clientes_Entrega_Agendada concluída.") # REMOVIDO
 
 
 #________________________________________________________________________________________________________________________
@@ -1186,7 +1140,7 @@ def aplicar_regras_e_preencher_tabelas():
                 match = df_rotas[df_rotas['Cidade de Entrega'].str.strip().str.upper() == cidade]
                 if not match.empty:
                     df.at[idx, 'Rota'] = match.iloc[0]['Rota']
-        st.text("[DEBUG] Definição de rotas concluída.")
+        # st.text("[DEBUG] Definição de rotas concluída.") # REMOVIDO
 
 #__________________________________________________________________________________________________________________________
         # Pré-roterização
@@ -1218,7 +1172,6 @@ def aplicar_regras_e_preencher_tabelas():
 
     except Exception as e:
         st.error(f"[ERRO] Regras de sincronização: {e}")
-
 
 
 ##########################################
