@@ -705,19 +705,7 @@ def gerar_proximo_numero_carga(supabase):
 ##############################
 # Página de sincronização
 ##############################
-import time
 
-import streamlit as st
-import pandas as pd
-import time
-
-import time # Certifique-se de que time está importado no seu script
-# import streamlit as st # Assumindo que já está globalmente
-# import pandas as pd # Assumindo que já está globalmente
-
-# ... (restante das importações e funções auxiliares, como supabase, hash_senha, corrigir_tipos,
-# inserir_em_lote, limpar_tabelas_relacionadas, aplicar_regras_e_preencher_tabelas, etc.
-# Certifique-se de que todas as funções auxiliares chamadas aqui estão definidas no seu script.) ...
 
 def pagina_sincronizacao():
     st.title("🔄 Sincronização de Dados com Supabase")
@@ -736,9 +724,8 @@ def pagina_sincronizacao():
         colunas_existentes_para_remover = [col for col in colunas_para_remover if col in df.columns]
         if colunas_existentes_para_remover:
             df.drop(columns=colunas_existentes_para_remover, inplace=True)
-            # st.text(f"[DEBUG] Colunas removidas: {colunas_existentes_para_remover}") # Linha de debug removida
 
-        # �� Renomeia colunas para casar com o Supabase
+        # 🔄 Renomeia colunas para casar com o Supabase
         renomear_colunas = {
             'Cubagem em m3': 'Cubagem em m³',
             'Serie/Numero CTRC': 'Serie_Numero_CTRC'
@@ -746,7 +733,6 @@ def pagina_sincronizacao():
         colunas_renomeadas = {k: v for k, v in renomear_colunas.items() if k in df.columns}
         if colunas_renomeadas:
             df.rename(columns=colunas_renomeadas, inplace=True)
-            # st.text(f"[DEBUG] Colunas renomeadas: {colunas_renomeadas}") # Linha de debug removida
 
         # ✅ Corrige tipos com base na definição de colunas texto, número e data
         df = corrigir_tipos(df)
@@ -769,11 +755,9 @@ def pagina_sincronizacao():
 
     st.markdown("### Passo 3: Limpando tabelas dependentes")
     limpar_tabelas_relacionadas()
-    # st.info("DEBUG: Tabelas dependentes limpas.") # Linha de debug removida
 
     st.markdown("### Passo 4: Aplicando regras de negócio")
     aplicar_regras_e_preencher_tabelas()
-    # st.info("DEBUG: Regras de negócio aplicadas e tabelas populadas (pré-roterização/confirmadas_producao).") # Linha de debug removida
 
     # --- INVALIDE CACHES DE OUTRAS PÁGINAS AQUI ---
     # Garante que todas as páginas que exibem dados afetados pela sincronização
@@ -796,12 +780,11 @@ def pagina_sincronizacao():
 
     st.success("✅ Sincronização completa! Os dados das páginas foram atualizados.")
     
-    # --- AJUSTE CRUCIAL: REDIRECIONAR APÓS A SINCRONIZAÇÃO ---
-    # Define a página de destino na sessão e força um rerun.
-    # Isso garante que a página de Rotas Confirmadas será a primeira a ser renderizada
-    # após a sincronização, e ela encontrará seu cache invalidado.
-    st.session_state.pagina = "Rotas Confirmadas"
-    st.rerun()
+    # --- AJUSTE: REMOÇÃO DO REDIRECIONAMENTO FORÇADO ---
+    # A página permanecerá na "Sincronização". O usuário navegará para outras páginas
+    # manualmente, e elas buscarão os dados atualizados devido à invalidação de cache.
+    st.rerun() # Mantém o rerun para garantir que o estado da sessão seja propagado
+
 
 def corrigir_tipos(df):
     # Definições dos tipos conforme seu mapeamento
