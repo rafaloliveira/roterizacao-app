@@ -1302,7 +1302,7 @@ def aplicar_regras_e_preencher_tabelas():
         inserir_em_lote("pre_roterizacao", obrigatorias[colunas_finais])
         inserir_em_lote("confirmadas_producao", confirmadas[colunas_finais])
 
-        st.success(f"Inseridos {len(obrigatorias)} em pre_roterizacao e {len(confirmadas)} em confirmadas_producao.")
+        st.success(f"Inseridos {len(obrigatorias)} em Pré Roterização e {len(confirmadas)} em Confirmar Produção.")
 
     except Exception as e:
         st.error(f"[ERRO] Regras de sincronização: {e}")
@@ -2105,7 +2105,7 @@ def pagina_rotas_confirmadas():
 
                         entrega["numero_carga"] = st.session_state["numero_nova_carga"]
                         entrega["Data_Hora_Gerada"] = data_hora_brasil_iso() # CORRIGIDO AQUI
-                        entrega["Status"] = "Fechada"
+                        
 
                         # Limpa valores que podem causar problemas na inserção (NaN, NaT, objetos complexos)
                         entrega = {k: (
@@ -2352,7 +2352,7 @@ def pagina_rotas_confirmadas():
                             numero_carga = gerar_proximo_numero_carga(supabase)
                             df_confirmar["numero_carga"] = numero_carga
                             df_confirmar["Data_Hora_Gerada"] = data_hora_brasil_iso() # CORRIGIDO AQUI
-                            df_confirmar["Status"] = "Fechada"
+                            
 
                             colunas_validas = [
                                 'Serie_Numero_CTRC', 'Rota', 'Regiao', 'Cliente Pagador', 'Chave CT-e', 'Cliente Destinatario',
@@ -2452,7 +2452,7 @@ def pagina_rotas_confirmadas():
 
                                 df_confirmar["numero_carga"] = carga_escolhida
                                 df_confirmar["Data_Hora_Gerada"] = data_hora_brasil_iso() # CORRIGIDO AQUI
-                                df_confirmar["Status"] = "Fechada"
+                                
 
                                 colunas_validas = [
                                     'Serie_Numero_CTRC', 'Rota', 'Regiao', 'Cliente Pagador', 'Chave CT-e', 'Cliente Destinatario',
