@@ -2757,7 +2757,6 @@ def pagina_cargas_geradas():
 
 ##########################################
 
-# NOVO: Função para a página de Aprovação de Custos
 def pagina_aprovacao_custos():
     st.markdown("## Aprovação de Custos")
 
@@ -2765,18 +2764,12 @@ def pagina_aprovacao_custos():
     current_user_class = st.session_state.get("classe", "colaborador")
     is_user_aprovador = (current_user_class == "aprovador")
 
-    st.write(f"DEBUG APROV CUSTOS: Valor de st.session_state.classe lido: {st.session_state.get('classe', 'NÃO DEFINIDA NO SESSION STATE')}") # <--- ADICIONE AQUI
-    st.write(f"DEBUG APROV CUSTOS: current_user_class (após .get): {current_user_class}") # <--- ADICIONE AQUI
-    st.write(f"DEBUG APROV CUSTOS: is_user_aprovador (resultado final): {is_user_aprovador}") # <--- ADICIONE AQUI
-
-
     # Mensagem de aviso se o usuário não for aprovador
     if not is_user_aprovador:
         st.warning("🔒 Apenas usuários com classe 'aprovador' podem realizar ações de aprovação de custos.")
 
     try:
         with st.spinner("🔄 Carregando dados para aprovação de custos..."):
-            # Verifica a flag de recarregamento
             recarregar = st.session_state.pop("reload_aprovacao_custos", False)
             if recarregar or "df_aprovacao_custos_cache" not in st.session_state:
                 dados = supabase.table("aprovacao_custos").select("*").execute().data
@@ -2797,24 +2790,20 @@ def pagina_aprovacao_custos():
         with col2:
             st.metric("Total de Entregas Pendentes", len(df))
 
-        # Reutiliza a função badge de outras páginas
         def badge(label):
             return f"<span style='background:#eef2f7;border-radius:12px;padding:6px 12px;margin:4px;color:inherit;display:inline-block;'>{label}</span>"
 
-        # Colunas a serem exibidas no grid para cada carga
         colunas_exibir = [
             "Serie_Numero_CTRC", "Rota", "Regiao", "Valor do Frete", "Cliente Pagador", "Chave CT-e", "Cliente Destinatario",
             "Cidade de Entrega", "Bairro do Destinatario", "Previsao de Entrega",
             "Numero da Nota Fiscal", "Status", "Entrega Programada", "Particularidade",
             "Codigo da Ultima Ocorrencia", "Peso Real em Kg", "Peso Calculado em Kg",
-            "Cubagem em m³", "Quantidade de Volumes", "valor_contratacao" # Inclui a nova coluna
+            "Cubagem em m³", "Quantidade de Volumes", "valor_contratacao"
         ]
 
-        # Formatter para valores numéricos, incluindo formatação de moeda
         formatter = JsCode("""
             function(params) {
                 if (!params.value) return '';
-                // Verifica se é valor_contratacao ou Valor do Frete e formata como moeda
                 if (params.colDef.field === 'valor_contratacao' || params.colDef.field === 'Valor do Frete') {
                     return Number(params.value).toLocaleString('pt-BR', {
                         style: 'currency',
@@ -2823,7 +2812,6 @@ def pagina_aprovacao_custos():
                         maximumFractionDigits: 2
                     });
                 }
-                // Para outros campos numéricos, apenas formata como número
                 return Number(params.value).toLocaleString('pt-BR', {
                     minimumFractionDigits: 2,
                     maximumFractionDigits: 2
@@ -2831,7 +2819,6 @@ def pagina_aprovacao_custos():
             }
         """)
 
-        # Obter cargas únicas
         cargas_unicas = sorted(df["numero_carga"].dropna().unique())
 
         for carga in cargas_unicas:
@@ -2839,8 +2826,6 @@ def pagina_aprovacao_custos():
             if df_carga.empty:
                 continue
 
-            # Extrai o valor_contratacao para esta carga específica.
-            # Assumindo que é o mesmo para todas as entregas dentro de uma carga, pegamos o primeiro encontrado.
             valor_contratacao_carga = df_carga["valor_contratacao"].iloc[0] if "valor_contratacao" in df_carga.columns and not df_carga["valor_contratacao"].isnull().all() else 0.0
 
             st.markdown(f"""
@@ -2858,11 +2843,17 @@ def pagina_aprovacao_custos():
                     badge(f"R$ {formatar_brasileiro(df_carga['Valor do Frete'].sum())}") +
                     badge(f"{formatar_brasileiro(df_carga['Cubagem em m³'].sum())} m³") +
                     badge(f"{int(df_carga['Quantidade de Volumes'].sum())} volumes") +
-                    badge(f"Valor Contratação: R$ {valor_contratacao_carga:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")), # Formato especial para moeda
+                    badge(f"Valor Contratação: R$ {valor_contratacao_carga:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")),
                     unsafe_allow_html=True
                 )
 
             with st.expander("🔽 Ver entregas da carga para Aprovação de Custos", expanded=False):
+                # NOVO: Checkbox "Marcar todas"
+                checkbox_key = f"marcar_todas_aprov_custos_{carga}"
+                if checkbox_key not in st.session_state:
+                    st.session_state[checkbox_key] = False
+                marcar_todas = st.checkbox("Marcar todas", key=checkbox_key)
+
                 with st.spinner("🔄 Formatando entregas da carga para aprovação..."):
                     df_formatado = df_carga[[col for col in colunas_exibir if col in df_carga.columns]].copy()
                     df_formatado = df_formatado.replace([np.nan, pd.NaT], "")
@@ -2872,8 +2863,8 @@ def pagina_aprovacao_custos():
 
                     gb = GridOptionsBuilder.from_dataframe(df_formatado)
                     gb.configure_default_column(minWidth=150)
-                    # Sem seleção padrão, mas pode ser adicionada se houver ações de aprovação que exigem seleção de linhas
-                    # gb.configure_selection("multiple", use_checkbox=True)
+                    # HABILITANDO SELEÇÃO DE LINHAS
+                    gb.configure_selection("multiple", use_checkbox=True)
                     gb.configure_grid_options(paginationPageSize=12)
                     gb.configure_grid_options(alwaysShowHorizontalScroll=True)
                     gb.configure_grid_options(rowStyle={"font-size": "11px"})
@@ -2891,11 +2882,10 @@ def pagina_aprovacao_custos():
                             return null;
                         }
                     """))
-                    # gb.configure_grid_options(headerCheckboxSelection=True) # Não é necessário sem seleção
-                    # gb.configure_grid_options(rowSelection='multiple') # Não é necessário sem seleção
+                    gb.configure_grid_options(headerCheckboxSelection=True)
+                    gb.configure_grid_options(rowSelection='multiple')
                     gb.configure_grid_options(onGridReady=GRID_RESIZE_JS_CODE)
 
-                    # Aplicar formatter às colunas numéricas relevantes
                     for col in ['Peso Real em Kg', 'Peso Calculado em Kg', 'Cubagem em m³', 'Quantidade de Volumes', 'Valor do Frete', 'valor_contratacao']:
                         if col in df_formatado.columns:
                             gb.configure_column(col, type=["numericColumn"], valueFormatter=formatter)
@@ -2906,52 +2896,68 @@ def pagina_aprovacao_custos():
                         st.session_state[grid_key_id] = str(uuid.uuid4())
                     grid_key = st.session_state[grid_key_id]
 
-                with st.spinner("🔄 Carregando entregas da carga no grid..."):
-                    AgGrid(
-                        df_formatado,
-                        gridOptions=grid_options,
-                        update_mode=GridUpdateMode.MODEL_CHANGED, # Sem seleção, então MODEL_CHANGED é adequado
-                        fit_columns_on_grid_load=False,
-                        width="100%",
-                        height=400,
-                        allow_unsafe_jscode=True,
-                        key=grid_key,
-                        theme=AgGridTheme.MATERIAL,
-                        show_toolbar=False,
-                        custom_css={
-                            ".ag-theme-material .ag-cell": {
-                                "font-size": "11px", "line-height": "18px", "border-right": "1px solid #ccc",
-                            }, ".ag-theme-material .ag-row:last-child .ag-cell": {
-                                "border-bottom": "1px solid #ccc",
-                            }, ".ag-theme-material .ag-header-cell": {
-                                "border-right": "1px solid #ccc", "border-bottom": "1px solid #ccc",
-                            }, ".ag-theme-material .ag-root-wrapper": {
-                                "border": "1px solid black", "border-radius": "6px", "padding": "4px",
-                            }, ".ag-theme-material .ag-header-cell-label": {
-                                "font-size": "11px",
-                            }, ".ag-center-cols-viewport": {
-                                "overflow-x": "auto !important", "overflow-y": "hidden",
-                            }, ".ag-center-cols-container": {
-                                "min-width": "100% !important",
-                            }, "#gridToolBar": {
-                                "padding-bottom": "0px !important",
-                            }
+                grid_response = AgGrid( # Agora captura a resposta do grid
+                    df_formatado,
+                    gridOptions=grid_options,
+                    update_mode=GridUpdateMode.SELECTION_CHANGED, # MUDANÇA IMPORTANTE: Permite a seleção
+                    fit_columns_on_grid_load=False,
+                    width="100%",
+                    height=400,
+                    allow_unsafe_jscode=True,
+                    key=grid_key,
+                    theme=AgGridTheme.MATERIAL,
+                    show_toolbar=False,
+                    custom_css={
+                        ".ag-theme-material .ag-cell": {
+                            "font-size": "11px", "line-height": "18px", "border-right": "1px solid #ccc",
+                        }, ".ag-theme-material .ag-row:last-child .ag-cell": {
+                            "border-bottom": "1px solid #ccc",
+                        }, ".ag-theme-material .ag-header-cell": {
+                            "border-right": "1px solid #ccc", "border-bottom": "1px solid #ccc",
+                        }, ".ag-theme-material .ag-root-wrapper": {
+                            "border": "1px solid black", "border-radius": "6px", "padding": "4px",
+                        }, ".ag-theme-material .ag-header-cell-label": {
+                            "font-size": "11px",
+                        }, ".ag-center-cols-viewport": {
+                            "overflow-x": "auto !important", "overflow-y": "hidden",
+                        }, ".ag-center-cols-container": {
+                            "min-width": "100% !important",
+                        }, "#gridToolBar": {
+                            "padding-bottom": "0px !important",
                         }
-                    )
+                    }
+                )
 
-                    # Adicionar botões para ações de aprovação/rejeição aqui
-            col_aprovar, col_rejeitar = st.columns(2)
-            with col_aprovar:
-                if st.button(f"✅ Aprovar Carga {carga}", key=f"aprovar_carga_{carga}", disabled=not is_user_aprovador): # ATUALIZE ESTA LINHA
-                    st.info(f"Funcionalidade de aprovação para carga {carga} a ser implementada.")
-                    # Aqui você moveria os dados para uma tabela de "custos_aprovados"
-                    # e removeria de "aprovacao_custos".
-            with col_rejeitar:
-                if st.button(f"❌ Rejeitar Carga {carga}", key=f"rejeitar_carga_{carga}", disabled=not is_user_aprovador): # ATUALIZE ESTA LINHA
-                    st.info(f"Funcionalidade de rejeição para carga {carga} a ser implementada.")
-                    # Aqui você moveria os dados de volta para "cargas_geradas"
-                    # ou para uma tabela de "custos_rejeitados", e removeria de "aprovacao_custos".
+                # Lógica de seleção (similar à pagina_cargas_geradas)
+                if marcar_todas:
+                    selecionadas = df_formatado[df_formatado["Serie_Numero_CTRC"].notna()].copy().to_dict(orient="records")
+                else:
+                    selecionadas = grid_response.get("selected_rows", [])
 
+                if selecionadas:
+                    st.markdown(f"**📦 Entregas selecionadas:** {len(selecionadas)}")
+
+                # MOVENDO E ADAPTANDO OS BOTÕES AQUI DENTRO DO EXPANDER
+                col_aprovar, col_rejeitar = st.columns(2)
+                with col_aprovar:
+                    if st.button(
+                        f"✅ Aprovar Carga {carga}",
+                        key=f"aprovar_carga_{carga}",
+                        disabled=not is_user_aprovador or not selecionadas # Desabilita se não for aprovador OU se nada estiver selecionado
+                    ):
+                        st.info(f"Funcionalidade de aprovação para carga {carga} a ser implementada.")
+                        # Lógica para mover dados para "custos_aprovados" e remover de "aprovacao_custos".
+                        # Use 'selecionadas' aqui para as entregas a serem aprovadas.
+                with col_rejeitar:
+                    if st.button(
+                        f"❌ Rejeitar Carga {carga}",
+                        key=f"rejeitar_carga_{carga}",
+                        disabled=not is_user_aprovador or not selecionadas # Desabilita se não for aprovador OU se nada estiver selecionado
+                    ):
+                        st.info(f"Funcionalidade de rejeição para carga {carga} a ser implementada.")
+                        # Lógica para mover dados de volta para "cargas_geradas" ou "custos_rejeitados",
+                        # e remover de "aprovacao_custos".
+                        # Use 'selecionadas' aqui para as entregas a serem rejeitadas.
 
     except Exception as e:
         st.error("Erro ao carregar aprovação de custos:")
