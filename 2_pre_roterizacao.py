@@ -2032,8 +2032,8 @@ def pagina_rotas_confirmadas():
                             continue
 
                         entrega["numero_carga"] = st.session_state["numero_nova_carga"]
-                        entrega["Data_Hora_Gerada"] = data_hora_brasil_str() # Formato string para Supabase
-                        entrega["Status"] = "Fechada" # Assume que ao virar carga, o status é "Fechada"
+                        entrega["Data_Hora_Gerada"] = data_hora_brasil_iso() # CORRIGIDO AQUI
+                        entrega["Status"] = "Fechada"
 
                         # Limpa valores que podem causar problemas na inserção (NaN, NaT, objetos complexos)
                         entrega = {k: (
@@ -2279,7 +2279,7 @@ def pagina_rotas_confirmadas():
 
                             numero_carga = gerar_proximo_numero_carga(supabase)
                             df_confirmar["numero_carga"] = numero_carga
-                            df_confirmar["Data_Hora_Gerada"] = datetime.now().isoformat()
+                            df_confirmar["Data_Hora_Gerada"] = data_hora_brasil_iso() # CORRIGIDO AQUI
                             df_confirmar["Status"] = "Fechada"
 
                             colunas_validas = [
@@ -2379,7 +2379,7 @@ def pagina_rotas_confirmadas():
                                     df_confirmar[col] = df_confirmar[col].dt.strftime('%Y-%m-%d %H:%M:%S')
 
                                 df_confirmar["numero_carga"] = carga_escolhida
-                                df_confirmar["Data_Hora_Gerada"] = datetime.now().isoformat()
+                                df_confirmar["Data_Hora_Gerada"] = data_hora_brasil_iso() # CORRIGIDO AQUI
                                 df_confirmar["Status"] = "Fechada"
 
                                 colunas_validas = [
