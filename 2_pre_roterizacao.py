@@ -2765,7 +2765,7 @@ def pagina_aprovacao_custos():
 
     # Mensagem de aviso se o usuário não for aprovador
     if not is_user_aprovador:
-        st.warning("🔒 Apenas usuários com classe 'aprovador' podem realizar ações de aprovação de custos.")
+        st.warning("⛔ Apenas usuários com classe 'aprovador' podem realizar ações de aprovação de custos.")
 
     try:
         with st.spinner("🔄 Carregando dados para aprovação de custos..."):
@@ -2782,6 +2782,17 @@ def pagina_aprovacao_custos():
             return
 
         df.columns = df.columns.str.strip()
+
+
+               # Garante que as colunas numéricas sejam tratadas como números
+        numeric_cols_to_convert = [
+            'Peso Real em Kg', 'Peso Calculado em Kg', 'Cubagem em m³',
+            'Quantidade de Volumes', 'Valor do Frete', 'valor_contratacao'
+        ]
+        for col in numeric_cols_to_convert:
+            if col in df.columns:
+                # Converte para numérico, tratando erros (coerce) e preenche NaN com 0
+                df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
 
         col1, col2 = st.columns([1, 1])
         with col1:
@@ -2842,7 +2853,7 @@ def pagina_aprovacao_custos():
                     badge(f"R$ {formatar_brasileiro(df_carga['Valor do Frete'].sum())}") +
                     badge(f"{formatar_brasileiro(df_carga['Cubagem em m³'].sum())} m³") +
                     badge(f"{int(df_carga['Quantidade de Volumes'].sum())} volumes") +
-                    badge(f"Valor Contratação: R$ {valor_contratacao_carga:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")),
+                    badge(f"Valor Contratação: R$ {formatar_brasileiro(valor_contratacao_carga)}"),
                     unsafe_allow_html=True
                 )
 
@@ -2974,7 +2985,7 @@ if st.session_state.get("login", False):
     with col_welcome:
         st.markdown(f"👋 **Bem-vindo, {st.session_state.get('username','Usuário')}!**")
     with col_logout:
-        if st.button("🔒 Sair"):
+        if st.button("🚪 Sair"):
             for key in ["login", "username", "is_admin", "expiry_time"]:
                 cookies[key] = ""
             st.session_state.login = False
