@@ -98,14 +98,14 @@ def verificar_senha(senha_fornecida, senha_hash):
 def autenticar_usuario(nome_usuario, senha):
     try:
         dados = supabase.table("usuarios").select("*").eq("nome_usuario", nome_usuario).execute()
-        #st.write("🔍 Dados retornados:", dados.data)
+        #st.write("🔍 Dados retornados:", dados.data) # Mantido para contexto, mas geralmente desativado em produção
 
         if dados.data:
             usuario = dados.data[0]
             hash_bruto = str(usuario["senha_hash"]).replace("\n", "").replace("\r", "").strip()
 
-            #st.write("➡️ Comparando senha:", senha)
-            #st.write("➡️ Hash corrigido:", hash_bruto)
+            #st.write("➡️ Comparando senha:", senha) # Mantido para contexto, mas geralmente desativado em produção
+            #st.write("➡️ Hash corrigido:", hash_bruto) # Mantido para contexto, mas geralmente desativado em produção
 
             if verificar_senha(senha, hash_bruto):
                 return usuario
@@ -120,7 +120,7 @@ def is_cookie_expired(expiry_time_str):
         expiry = datetime.strptime(expiry_time_str, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
         return datetime.now(timezone.utc) > expiry
     except Exception:
-        return True
+        return True # Se houver erro na data, considera expirado
     
 #================= MULTIPLA SELEÇÃO NO GRIDD ========================= 
 def controle_selecao(chave_estado, df_todos, grid_key, grid_options):
@@ -172,14 +172,17 @@ def login():
     username_cookie = cookies.get("username")
     is_admin_cookie = cookies.get("is_admin")
     expiry_time_cookie = cookies.get("expiry_time")
+    classe_cookie = cookies.get("classe") # Pega a classe do cookie
 
+    # Verifica se já está logado via cookie e se o cookie não expirou
     if login_cookie and username_cookie and not is_cookie_expired(expiry_time_cookie):
         st.session_state.login = True
         st.session_state.username = username_cookie
         st.session_state.is_admin = is_admin_cookie == "True"
-        return
+        st.session_state.classe = classe_cookie # Define a classe no session_state a partir do cookie
+        return # Sai da função, usuário já logado
 
-    # Cria três colunas e usa a do meio
+    # Cria três colunas e usa a do meio para o formulário de login
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         st.markdown("## 🔐 Login")
@@ -189,27 +192,34 @@ def login():
         if st.button("Entrar"):
             usuario = autenticar_usuario(nome, senha)
             if usuario:
+                # Armazena as informações no cookie
                 cookies["login"] = "True"
                 cookies["username"] = usuario["nome_usuario"]
                 cookies["is_admin"] = str(usuario.get("is_admin", False))
+                cookies["classe"] = usuario.get("classe", "colaborador") # <<< ADIÇÃO AQUI: Armazena a classe no cookie
+                
+                # Define o tempo de expiração do cookie (24 horas)
                 expiry = datetime.now(timezone.utc) + timedelta(hours=24)
                 cookies["expiry_time"] = expiry.strftime("%Y-%m-%d %H:%M:%S")
 
+                # Armazena as informações no st.session_state
                 st.session_state.login = True
                 st.session_state.username = usuario["nome_usuario"]
                 st.session_state.is_admin = usuario.get("is_admin", False)
+                st.session_state.classe = usuario.get("classe", "colaborador") # <<< ADIÇÃO AQUI: Armazena a classe no session_state
 
+                # Verifica se o usuário precisa alterar a senha (se houver essa flag no banco)
                 if usuario.get("precisa_alterar_senha") is True:
                     st.warning("🔐 Você deve alterar sua senha antes de continuar.")
-                    pagina_trocar_senha()
-                    st.stop()
+                    pagina_trocar_senha() # Chama a página de troca de senha
+                    st.stop() # Interrompe a execução para forçar a troca de senha
 
                 st.success("✅ Login bem-sucedido!")
-                st.rerun()
+                st.rerun() # Força um rerun para que a interface atualize e mostre as páginas principais
             else:
                 st.error("🛑 Usuário ou senha incorretos.")
 
-    st.stop()
+    st.stop() # Interrompe a execução aqui se o usuário não estiver logado
 
 
 
