@@ -793,6 +793,35 @@ function(params) {
 }
 """);
 
+def badge(label):
+    """
+    Retorna uma string HTML formatada como um 'badge' estilizado.
+    Usado para exibir resumos de informações de forma visualmente agrupada.
+    """
+    return f"<span style='background:#eef2f7;border-radius:12px;padding:6px 12px;margin:4px;color:inherit;display:inline-block;'>{label}</span>"
+
+formatter = JsCode("""
+    function(params) {
+        if (params.value === null || typeof params.value === 'undefined') return ''; // Retorna vazio para nulos
+        // Inclui 0 como valor válido, formata como "0,00"
+        if (params.value === 0) return '0,00';
+        
+        // Aplica formatação monetária (com R$) para colunas de valor
+        if (params.colDef.field === 'valor_contratacao' || params.colDef.field === 'Valor do Frete') {
+            return Number(params.value).toLocaleString('pt-BR', {
+                style: 'currency',
+                currency: 'BRL',
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            });
+        }
+        // Aplica formatação numérica geral (milhares com ., decimais com ,)
+        return Number(params.value).toLocaleString('pt-BR', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        });
+    }
+""")
 
     
 ##############################
@@ -2796,8 +2825,10 @@ def pagina_aprovacao_custos():
 
     try:
         with st.spinner("🔄 Carregando dados para aprovação de custos..."):
+            # Lógica de cache para evitar múltiplas chamadas ao Supabase em reruns
             recarregar = st.session_state.pop("reload_aprovacao_custos", False)
             if recarregar or "df_aprovacao_custos_cache" not in st.session_state:
+                # Busca os dados da tabela 'aprovacao_custos' no Supabase
                 dados = supabase.table("aprovacao_custos").select("*").execute().data
                 df = pd.DataFrame(dados)
                 st.session_state["df_aprovacao_custos_cache"] = df
@@ -2808,10 +2839,9 @@ def pagina_aprovacao_custos():
             st.info("Nenhuma carga pendente de aprovação de custos.")
             return
 
-        df.columns = df.columns.str.strip()
+        df.columns = df.columns.str.strip() # Remove espaços em branco dos nomes das colunas
 
-
-               # Garante que as colunas numéricas sejam tratadas como números
+        # Garante que as colunas numéricas sejam tratadas como números para cálculos e exibição
         numeric_cols_to_convert = [
             'Peso Real em Kg', 'Peso Calculado em Kg', 'Cubagem em m³',
             'Quantidade de Volumes', 'Valor do Frete', 'valor_contratacao'
@@ -2821,162 +2851,144 @@ def pagina_aprovacao_custos():
                 # Converte para numérico, tratando erros (coerce) e preenche NaN com 0
                 df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
 
+        # Exibe métricas gerais no topo da página
         col1, col2 = st.columns([1, 1])
         with col1:
             st.metric("Total de Cargas Pendentes", df["numero_carga"].nunique())
         with col2:
             st.metric("Total de Entregas Pendentes", len(df))
 
-        def badge(label):
-            return f"<span style='background:#eef2f7;border-radius:12px;padding:6px 12px;margin:4px;color:inherit;display:inline-block;'>{label}</span>"
-
+        # Define as colunas que serão exibidas no AgGrid
         colunas_exibir = [
             "Serie_Numero_CTRC", "Rota", "Regiao", "Valor do Frete", "Cliente Pagador", "Chave CT-e", "Cliente Destinatario",
             "Cidade de Entrega", "Bairro do Destinatario", "Previsao de Entrega",
             "Numero da Nota Fiscal", "Status", "Entrega Programada", "Particularidade",
             "Codigo da Ultima Ocorrencia", "Peso Real em Kg", "Peso Calculado em Kg",
-            "Cubagem em m³", "Quantidade de Volumes", "valor_contratacao"
+            "Cubagem em m³", "Quantidade de Volumes", "valor_contratacao" # Coluna valor_contratacao
         ]
 
-        formatter = JsCode("""
-            function(params) {
-                if (!params.value) return '';
-                if (params.colDef.field === 'valor_contratacao' || params.colDef.field === 'Valor do Frete') {
-                    return Number(params.value).toLocaleString('pt-BR', {
-                        style: 'currency',
-                        currency: 'BRL',
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2
-                    });
-                }
-                return Number(params.value).toLocaleString('pt-BR', {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2
-                });
-            }
-        """)
-
+        # Obtém as cargas únicas para iterar e exibir os grupos de entregas
         cargas_unicas = sorted(df["numero_carga"].dropna().unique())
 
         for carga in cargas_unicas:
+            # Filtra o DataFrame para a carga atual
             df_carga = df[df["numero_carga"] == carga].copy()
             if df_carga.empty:
                 continue
 
+            # Obtém o valor de contratação para esta carga (assumindo que é o mesmo para todas as entregas da carga)
             valor_contratacao_carga = df_carga["valor_contratacao"].iloc[0] if "valor_contratacao" in df_carga.columns and not df_carga["valor_contratacao"].isnull().all() else 0.0
 
+            # Título da carga
             st.markdown(f"""
             <div style="margin-top:20px;padding:10px;background:#e8f0fe;border-left:4px solid #f9ab00;border-radius:6px;display:inline-block;max-width:100%;">
                 <strong>Carga:</strong> {carga}
             </div>
             """, unsafe_allow_html=True)
 
+            # Seção de badges/resumo da carga
             col1_badges, col2_placeholder = st.columns([5, 1])
             with col1_badges:
-                # --- INÍCIO: LINHAS DE DEBUGAGEM (ADICIONAR) ---
-                st.write(f"DEBUG: Sum Valor Frete: {df_carga['Valor do Frete'].sum()}")
-                st.write(f"DEBUG: Formatado Valor Frete: {formatar_brasileiro(df_carga['Valor do Frete'].sum())}")
-                st.write(f"DEBUG: Sum Cubagem: {df_carga['Cubagem em m³'].sum()}")
-                st.write(f"DEBUG: Formatado Cubagem: {formatar_brasileiro(df_carga['Cubagem em m³'].sum())}")
-                st.write(f"DEBUG: Sum Volumes: {df_carga['Quantidade de Volumes'].sum()}")
-                st.write(f"DEBUG: Formatado Volumes: {int(df_carga['Quantidade de Volumes'].sum())}")
-
-                st.write(f"DEBUG: Valor Contratação Carga: {valor_contratacao_carga}")
-                st.write(f"DEBUG: Formatado Valor Contratação Carga: {formatar_brasileiro(valor_contratacao_carga)}")
-
-                full_html_string_to_check = (
-                    f"{badge(f'{len(df_carga)} entregas')}"
-                    f"{badge(f'{formatar_brasileiro(df_carga["Peso Calculado em Kg"].sum())} kg calc')}"
-                    f"{badge(f'{formatar_brasileiro(df_carga["Peso Real em Kg"].sum())} kg real')}"
-                    f"{badge(f'R$ {formatar_brasileiro(df_carga["Valor do Frete"].sum())}')}"
-                    f"{badge(f'{formatar_brasileiro(df_carga["Cubagem em m³"].sum())} m³')}"
-                    f"{badge(f'{int(df_carga["Quantidade de Volumes"].sum())} volumes')}"
-                    f"{badge(f'Valor Contratação: R$ {formatar_brasileiro(valor_contratacao_carga)}')}"
+                # Abre um container flexível para que os badges fiquem lado a lado e quebrem linha
+                st.markdown(
+                    f"<div style='display: flex; flex-wrap: wrap; gap: 8px;'>", # 'gap' adiciona espaçamento entre os badges
+                    unsafe_allow_html=True
                 )
-                st.write(f"DEBUG: STRING HTML COMPLETA A SER RENDERIZADA: {full_html_string_to_check}")
 
+                # Renderiza cada badge individualmente com sua própria chamada st.markdown()
+                # Isso aumenta a robustez na renderização HTML e evita o problema da tag </span>
+                st.markdown(badge(f'{len(df_carga)} entregas'), unsafe_allow_html=True)
+                st.markdown(badge(f'{formatar_brasileiro(df_carga["Peso Calculado em Kg"].sum())} kg calc'), unsafe_allow_html=True)
+                st.markdown(badge(f'{formatar_brasileiro(df_carga["Peso Real em Kg"].sum())} kg real'), unsafe_allow_html=True)
+                st.markdown(badge(f'R$ {formatar_brasileiro(df_carga["Valor do Frete"].sum())}'), unsafe_allow_html=True)
+                st.markdown(badge(f'{formatar_brasileiro(df_carga["Cubagem em m³"].sum())} m³'), unsafe_allow_html=True)
+                st.markdown(badge(f'{int(df_carga["Quantidade de Volumes"].sum())} volumes'), unsafe_allow_html=True)
+                st.markdown(badge(f'Valor Contratação: R$ {formatar_brasileiro(valor_contratacao_carga)}'), unsafe_allow_html=True)
+                
+                # Fecha o container flexível
+                st.markdown(f"</div>", unsafe_allow_html=True)
+
+            # Expander para ver os detalhes da carga e interagir com o grid
             with st.expander("🔽 Ver entregas da carga para Aprovação de Custos", expanded=False):
-                # NOVO: Checkbox "Marcar todas"
+                # Checkbox para selecionar/desselecionar todas as entregas desta carga
                 checkbox_key = f"marcar_todas_aprov_custos_{carga}"
                 if checkbox_key not in st.session_state:
                     st.session_state[checkbox_key] = False
                 marcar_todas = st.checkbox("Marcar todas", key=checkbox_key)
 
                 with st.spinner("🔄 Formatando entregas da carga para aprovação..."):
+                    # Prepara o DataFrame para exibição no grid
                     df_formatado = df_carga[[col for col in colunas_exibir if col in df_carga.columns]].copy()
-                    df_formatado = df_formatado.replace([np.nan, pd.NaT], "")
+                    df_formatado = df_formatado.replace([np.nan, pd.NaT], "") # Substitui NaN/NaT por string vazia para display
 
-                    if "Data_Hora_Gerada" in df_formatado.columns:
+                    # Formata 'Data_Hora_Gerada' se presente e a função de formatação estiver disponível
+                    if "Data_Hora_Gerada" in df_formatado.columns and 'formatar_data_hora_br' in globals():
                         df_formatado["Data_Hora_Gerada"] = df_formatado["Data_Hora_Gerada"].apply(formatar_data_hora_br)
 
+                    # Configuração do AgGrid
                     gb = GridOptionsBuilder.from_dataframe(df_formatado)
                     gb.configure_default_column(minWidth=150)
-                    # HABILITANDO SELEÇÃO DE LINHAS
                     gb.configure_selection("multiple", use_checkbox=True)
                     gb.configure_grid_options(paginationPageSize=12)
                     gb.configure_grid_options(alwaysShowHorizontalScroll=True)
                     gb.configure_grid_options(rowStyle={"font-size": "11px"})
+                    
+                    # Estilo condicional das linhas (AGENDAR, Particularidade)
                     gb.configure_grid_options(getRowStyle=JsCode("""
                         function(params) {
                             const status = params.data.Status;
                             const entregaProg = params.data["Entrega Programada"];
                             const particularidade = params.data.Particularidade;
                             if (status === "AGENDAR" && (!entregaProg || entregaProg.trim() === "")) {
-                                return { 'background-color': '#ffe0b2', 'color': '#333' };
+                                return { 'background-color': '#ffe0b2', 'color': '#333' }; // Amarelo claro
                             }
                             if (particularidade && particularidade.trim() !== "") {
-                                return { 'background-color': '#fff59d', 'color': '#333' };
+                                return { 'background-color': '#fff59d', 'color': '#333' }; // Amarelo um pouco mais escuro
                             }
                             return null;
                         }
                     """))
                     gb.configure_grid_options(headerCheckboxSelection=True)
                     gb.configure_grid_options(rowSelection='multiple')
-                    gb.configure_grid_options(onGridReady=GRID_RESIZE_JS_CODE)
+                    gb.configure_grid_options(onGridReady=GRID_RESIZE_JS_CODE) # Aplica o redimensionamento automático
 
+                    # Aplica o JsCode 'formatter' às colunas numéricas relevantes no grid
                     for col in ['Peso Real em Kg', 'Peso Calculado em Kg', 'Cubagem em m³', 'Quantidade de Volumes', 'Valor do Frete', 'valor_contratacao']:
                         if col in df_formatado.columns:
                             gb.configure_column(col, type=["numericColumn"], valueFormatter=formatter)
 
                     grid_options = gb.build()
+                    # Gerencia a chave do grid para forçar a atualização visual quando necessário
                     grid_key_id = f"grid_aprovacao_custos_{carga}"
                     if grid_key_id not in st.session_state:
                         st.session_state[grid_key_id] = str(uuid.uuid4())
                     grid_key = st.session_state[grid_key_id]
 
-                grid_response = AgGrid( # Agora captura a resposta do grid
+                # Renderiza o AgGrid na interface do Streamlit
+                grid_response = AgGrid(
                     df_formatado,
                     gridOptions=grid_options,
-                    update_mode=GridUpdateMode.SELECTION_CHANGED, # MUDANÇA IMPORTANTE: Permite a seleção
+                    update_mode=GridUpdateMode.SELECTION_CHANGED, # Essencial para capturar as seleções do usuário
                     fit_columns_on_grid_load=False,
                     width="100%",
                     height=400,
                     allow_unsafe_jscode=True,
                     key=grid_key,
-                    theme=AgGridTheme.MATERIAL,
-                    show_toolbar=False,
-                    custom_css={
-                        ".ag-theme-material .ag-cell": {
-                            "font-size": "11px", "line-height": "18px", "border-right": "1px solid #ccc",
-                        }, ".ag-theme-material .ag-row:last-child .ag-cell": {
-                            "border-bottom": "1px solid #ccc",
-                        }, ".ag-theme-material .ag-header-cell": {
-                            "border-right": "1px solid #ccc", "border-bottom": "1px solid #ccc",
-                        }, ".ag-theme-material .ag-root-wrapper": {
-                            "border": "1px solid black", "border-radius": "6px", "padding": "4px",
-                        }, ".ag-theme-material .ag-header-cell-label": {
-                            "font-size": "11px",
-                        }, ".ag-center-cols-viewport": {
-                            "overflow-x": "auto !important", "overflow-y": "hidden",
-                        }, ".ag-center-cols-container": {
-                            "min-width": "100% !important",
-                        }, "#gridToolBar": {
-                            "padding-bottom": "0px !important",
-                        }
+                    theme=AgGridTheme.MATERIAL, # Tema visual do AgGrid
+                    show_toolbar=False, # Oculta a barra de ferramentas padrão do AgGrid
+                    custom_css={ # Estilos CSS personalizados para o AgGrid
+                        ".ag-theme-material .ag-cell": { "font-size": "11px", "line-height": "18px", "border-right": "1px solid #ccc", },
+                        ".ag-theme-material .ag-row:last-child .ag-cell": { "border-bottom": "1px solid #ccc", },
+                        ".ag-theme-material .ag-header-cell": { "border-right": "1px solid #ccc", "border-bottom": "1px solid #ccc", },
+                        ".ag-theme-material .ag-root-wrapper": { "border": "1px solid black", "border-radius": "6px", "padding": "4px", },
+                        ".ag-theme-material .ag-header-cell-label": { "font-size": "11px", },
+                        ".ag-center-cols-viewport": { "overflow-x": "auto !important", "overflow-y": "hidden", },
+                        ".ag-center-cols-container": { "min-width": "100% !important", },
+                        "#gridToolBar": { "padding-bottom": "0px !important", }
                     }
                 )
 
-                # Lógica de seleção (similar à pagina_cargas_geradas)
+                # Lógica para gerenciar as linhas selecionadas pelo usuário (ou pelo checkbox "Marcar todas")
                 if marcar_todas:
                     selecionadas = df_formatado[df_formatado["Serie_Numero_CTRC"].notna()].copy().to_dict(orient="records")
                 else:
@@ -2985,13 +2997,18 @@ def pagina_aprovacao_custos():
                 if selecionadas:
                     st.markdown(f"**📦 Entregas selecionadas:** {len(selecionadas)}")
 
+
+
+
+
+
                 # MOVENDO E ADAPTANDO OS BOTÕES AQUI DENTRO DO EXPANDER
                 col_aprovar, col_rejeitar = st.columns(2)
                 with col_aprovar:
                     if st.button(
                         f"✅ Aprovar Carga {carga}",
                         key=f"aprovar_carga_{carga}",
-                        disabled=not is_user_aprovador or not selecionadas # Desabilita se não for aprovador OU se nada estiver selecionado
+                        disabled=not is_user_aprovador or not selecionadas # Desabilita se o usuário não é aprovador ou se nada está selecionado
                     ):
                         st.info(f"Funcionalidade de aprovação para carga {carga} a ser implementada.")
                         # Lógica para mover dados para "custos_aprovados" e remover de "aprovacao_custos".
@@ -3000,7 +3017,7 @@ def pagina_aprovacao_custos():
                     if st.button(
                         f"❌ Rejeitar Carga {carga}",
                         key=f"rejeitar_carga_{carga}",
-                        disabled=not is_user_aprovador or not selecionadas # Desabilita se não for aprovador OU se nada estiver selecionado
+                        disabled=not is_user_aprovador or not selecionadas # Desabilita se o usuário não é aprovador ou se nada está selecionado
                     ):
                         st.info(f"Funcionalidade de rejeição para carga {carga} a ser implementada.")
                         # Lógica para mover dados de volta para "cargas_geradas" ou "custos_rejeitados",
