@@ -582,13 +582,40 @@ def criar_grid_destacado(df, key, selection_mode="multiple", page_size=500, altu
 
     return grid_response
 
+# NO ARQUIVO: 02-07-9.txt
+# FUNÇÃO: def formatar_brasileiro(valor): (Esta função fica geralmente no final do arquivo)
+
 def formatar_brasileiro(valor):
+    """
+    Formata um valor numérico para o padrão monetário/numérico brasileiro (milhares com '.' e decimal com ',').
+    Garanti que ele sempre retorna o formato BR, mesmo que o locale do Python seja diferente.
+    """
     try:
-        if isinstance(valor, (int, float, np.float64)):
-            return f"{valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-        return valor
-    except:
-        return valor
+        # Se o valor for None ou NaN, retorne "0,00" ou ""
+        if valor is None or (isinstance(valor, (float, np.float64)) and np.isnan(valor)):
+            return "0,00"
+        
+        # Garante que o valor é numérico para formatação
+        if not isinstance(valor, (int, float, np.float64)):
+            valor = pd.to_numeric(valor, errors='coerce')
+            if pd.isna(valor):
+                return "0,00"
+
+        # 1. Formata o número usando o formato padrão (geralmente US: 1,234.56)
+        formatted_us = "{:,.2f}".format(valor)
+        
+        # 2. Troca os separadores para o padrão brasileiro
+        # - Troca o ponto (separador decimal US) por um caractere temporário (ex: 'X')
+        # - Troca a vírgula (separador de milhar US) por ponto
+        # - Troca o caractere temporário por vírgula
+        formatted_br = formatted_us.replace('.', 'TEMP').replace(',', '.').replace('TEMP', ',')
+        
+        return formatted_br
+    except Exception:
+        # Retorna a string original ou uma representação simples em caso de erro de formatação
+        return str(valor)
+
+# ========== FIM DA FUNÇÃO formatar_brasileiro ==========
 
 def carregar_base_supabase():
     try:
