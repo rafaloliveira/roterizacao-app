@@ -2543,12 +2543,11 @@ def pagina_cargas_geradas():
                     df_display[col] = pd.to_numeric(df_display[col], errors='coerce').fillna(0) # .fillna(0) para evitar NaNs em cálculos/exibição
             # --- FIM DA OTIMIZAÇÃO ---
 
-            col1, col2 = st.columns([1, 1])
-            with col1:
-                st.metric("Total de Cargas", df["numero_carga"].nunique())
-            with col2:
-                st.metric("Total de Entregas", len(df))
-
+        col1, col2, _ = st.columns([1, 1, 8])
+        with col1:
+            st.metric("Total de Rotas", df["Rota"].nunique() if "Rota" in df.columns else 0)
+        with col2:
+            st.metric("Total de Entregas", len(df))
             formatter = JsCode("""
                 function(params) {
                     if (!params.value && params.value !== 0) return ''; // Inclui 0 como valor válido
@@ -2852,11 +2851,11 @@ def pagina_aprovacao_custos():
                 df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
 
         # Exibe métricas gerais no topo da página
-        col1, col2 = st.columns([1, 1])
+        col1, col2, _ = st.columns([1, 1, 8])
         with col1:
-            st.metric("Total de Cargas Pendentes", df["numero_carga"].nunique())
+            st.metric("Total de Rotas", df["Rota"].nunique() if "Rota" in df.columns else 0)
         with col2:
-            st.metric("Total de Entregas Pendentes", len(df))
+            st.metric("Total de Entregas", len(df))
 
         # Define as colunas que serão exibidas no AgGrid
         colunas_exibir = [
