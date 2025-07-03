@@ -835,7 +835,7 @@ if 'file_uploader_key' not in st.session_state:
 
 
 def pagina_sincronizacao():
-    st.title("🔄 Sincronização de Dados com Supabase")
+    st.title("🔄 Sincronização de Dados")
     
     st.markdown("### 1. Carregar Planilha Excel")
         
@@ -970,7 +970,7 @@ def pagina_sincronizacao():
             st.balloons() 
             
             # CRUCIAL: Adicione um pequeno atraso para que o Streamlit possa renderizar os balões e a mensagem
-            time.sleep(2) # Espera 2 segundos (ajuste conforme necessário)
+            time.sleep(3) # Espera 2 segundos (ajuste conforme necessário)
             # --- FIM DO TRECHO ---
 
             # --- CRUCIAL PARA RETORNAR AO ESTADO INICIAL ---
@@ -1083,7 +1083,7 @@ def inserir_em_lote(nome_tabela, df, lote=100, tentativas=3, pausa=0.2):
 def limpar_tabelas_relacionadas():
     tabelas = [
         "confirmadas_producao", "aprovacao_diretoria", "pre_roterizacao",
-        "rotas_confirmadas", "cargas_geradas", "aprovacao_custos"
+        "rotas_confirmadas", "cargas_geradas", "aprovacao_custos", "cargas_aprovadas"
     ]
 
     for tabela in tabelas:
@@ -1302,7 +1302,7 @@ def aplicar_regras_e_preencher_tabelas():
         inserir_em_lote("pre_roterizacao", obrigatorias[colunas_finais])
         inserir_em_lote("confirmadas_producao", confirmadas[colunas_finais])
 
-        st.success(f"[SUCESSO] Inseridos {len(obrigatorias)} em pre_roterizacao e {len(confirmadas)} em confirmadas_producao.")
+        st.success(f"Inseridos {len(obrigatorias)} em pre_roterizacao e {len(confirmadas)} em confirmadas_producao.")
 
     except Exception as e:
         st.error(f"[ERRO] Regras de sincronização: {e}")
