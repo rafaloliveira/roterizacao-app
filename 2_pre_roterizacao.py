@@ -2681,7 +2681,7 @@ def pagina_cargas_geradas():
                                     grid_key_id = f"grid_carga_gerada_{carga}"
                                     st.session_state.pop(grid_key_id, None)
                                     st.session_state.pop(checkbox_key, None)
-                                    
+
                                     st.session_state["reload_cargas_geradas"] = True
                                     st.success(f"{len(chaves)} entrega(s) removida(s) da carga {carga} e retornada(s) à pré-rota.")
                                     time.sleep(1)
@@ -2708,9 +2708,12 @@ def pagina_cargas_geradas():
                                 st.warning("Por favor, insira um valor de contratação válido (maior que zero).")
                             else:
                                 try:
-                                    with st.spinner("🔄 Enviando entregas para aprovação de custos..."):
+                                    with st.spinner("�� Enviando entregas para aprovação de custos..."):
                                         df_aprovar_custos = pd.DataFrame(selecionadas)
                                         df_aprovar_custos = df_aprovar_custos.drop(columns=["_selectedRowNodeInfo"], errors="ignore")
+
+                                        # >>>>> ESTA É A LINHA DA CORREÇÃO DE 'numero_carga' <<<<<
+                                        df_aprovar_custos["numero_carga"] = carga
 
                                         df_aprovar_custos["valor_contratacao"] = valor_contratacao
 
@@ -2721,7 +2724,6 @@ def pagina_cargas_geradas():
                                             )
 
                                         df_aprovar_custos = df_aprovar_custos.replace([np.nan, pd.NaT, "", np.inf, -np.inf], None)
-
                                         registros_para_custos = df_aprovar_custos.to_dict(orient="records")
 
                                         if registros_para_custos:
@@ -2747,10 +2749,7 @@ def pagina_cargas_geradas():
                                     st.error(f"❌ Erro ao enviar entregas para aprovação de custos: {e}")
 
     except Exception as e:
-        st.error("Erro ao carregar cargas geradas:")
-        st.exception(e)
-
-
+        st.error(f"❌ Erro ao enviar entregas para aprovação de custos: {e}")
 ##########################################
 
 # PÁGINA APROVAÇÃO DE CUSTOS
