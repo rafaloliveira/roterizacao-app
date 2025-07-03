@@ -2435,8 +2435,7 @@ def pagina_cargas_geradas():
     st.markdown("## Cargas Geradas")
 
     try:
-        with st.spinner("🔄 Carregando dados das cargas..."):
-            # ✅ Recarrega os dados sempre ou sob flag
+        with st.spinner("�� Carregando dados das cargas..."):
             recarregar = st.session_state.pop("reload_cargas_geradas", False)
             if recarregar or "df_cargas_cache" not in st.session_state:
                 dados = supabase.table("cargas_geradas").select("*").execute().data
@@ -2449,8 +2448,29 @@ def pagina_cargas_geradas():
             st.info("Nenhuma carga foi gerada ainda.")
             return
 
-        with st.spinner("🔄 Processando estatísticas e estrutura da página..."):
+        with st.spinner("�� Processando estatísticas e estrutura da página..."):
             df.columns = df.columns.str.strip()
+
+            # --- INÍCIO DA OTIMIZAÇÃO: Pré-processamento do DataFrame completo ---
+            # Faça uma cópia para formatar e garantir que não alteramos o cache original
+            df_display = df.copy()
+
+            # Tratar NaNs e pd.NaT em todo o DataFrame de uma vez
+            df_display = df_display.replace([np.nan, pd.NaT, None], "")
+
+            # Formatar 'Data_Hora_Gerada' uma única vez
+            if "Data_Hora_Gerada" in df_display.columns:
+                # Certifique-se de que esta coluna é uma string ou datetime antes de aplicar formatar_data_hora_br
+                # A função formatar_data_hora_br já lida com diferentes tipos, então o apply direto deve ser seguro.
+                df_display["Data_Hora_Gerada"] = df_display["Data_Hora_Gerada"].apply(formatar_data_hora_br)
+
+            # Colunas numéricas para garantir que são números antes do formatter JS
+            numeric_cols_for_formatting = ['Peso Real em Kg', 'Peso Calculado em Kg', 'Cubagem em m³', 'Quantidade de Volumes', 'Valor do Frete']
+            for col in numeric_cols_for_formatting:
+                if col in df_display.columns:
+                    # Converte para numérico, tratando erros. Isso é importante para o formatter JS.
+                    df_display[col] = pd.to_numeric(df_display[col], errors='coerce').fillna(0) # .fillna(0) para evitar NaNs em cálculos/exibição
+            # --- FIM DA OTIMIZAÇÃO ---
 
             col1, col2 = st.columns([1, 1])
             with col1:
@@ -2458,17 +2478,9 @@ def pagina_cargas_geradas():
             with col2:
                 st.metric("Total de Entregas", len(df))
 
-            colunas_exibir = [
-                "numero_carga", "Data_Hora_Gerada", "Serie_Numero_CTRC", "Rota", "Regiao", "Valor do Frete", "Cliente Pagador", "Chave CT-e", "Cliente Destinatario",
-                "Cidade de Entrega", "Bairro do Destinatario", "Previsao de Entrega",
-                "Numero da Nota Fiscal", "Status", "Entrega Programada", "Particularidade",
-                "Codigo da Ultima Ocorrencia", "Peso Real em Kg", "Peso Calculado em Kg",
-                "Cubagem em m³", "Quantidade de Volumes"
-            ]
-
             formatter = JsCode("""
                 function(params) {
-                    if (!params.value) return '';
+                    if (!params.value && params.value !== 0) return ''; // Inclui 0 como valor válido
                     return Number(params.value).toLocaleString('pt-BR', {
                         minimumFractionDigits: 2,
                         maximumFractionDigits: 2
@@ -2478,11 +2490,23 @@ def pagina_cargas_geradas():
 
             def badge(label):
                 return f"<span style='background:#eef2f7;border-radius:12px;padding:6px 12px;margin:4px;color:inherit;display:inline-block;'>{label}</span>"
+             # Colunas a serem exibidas no grid para cada carga
+
+            colunas_exibir = [
+                "Serie_Numero_CTRC", "Rota", "Regiao", "Valor do Frete", "Cliente Pagador", "Chave CT-e", "Cliente Destinatario",
+                "Cidade de Entrega", "Bairro do Destinatario", "Previsao de Entrega",
+                "Numero da Nota Fiscal", "Status", "Entrega Programada", "Particularidade",
+                "Codigo da Ultima Ocorrencia", "Peso Real em Kg", "Peso Calculado em Kg",
+                "Cubagem em m³", "Quantidade de Volumes", "valor_contratacao" # Inclui a nova coluna
+        ]
+
 
             cargas_unicas = sorted(df["numero_carga"].dropna().unique())
 
         for carga in cargas_unicas:
-            df_carga = df[df["numero_carga"] == carga].copy()
+            # Agora, df_carga é uma subseleção de um DataFrame já pré-processado
+            df_carga = df_display[df_display["numero_carga"] == carga].copy() # O .copy() ainda é útil aqui para evitar SettingWithCopyWarning
+
             if df_carga.empty:
                 continue
 
@@ -2505,21 +2529,15 @@ def pagina_cargas_geradas():
                 )
 
             with st.expander("🔽 Ver entregas da carga", expanded=False):
-                # NOVO: Checkbox "Marcar todas" dentro do expander
                 checkbox_key = f"marcar_todas_carga_gerada_{carga}"
-                # Garante que o estado do checkbox seja inicializado
                 if checkbox_key not in st.session_state:
                     st.session_state[checkbox_key] = False
 
                 marcar_todas = st.checkbox("Marcar todas", key=checkbox_key)
 
-
-                with st.spinner("🔄 Formatando entregas da carga..."):
-                    df_formatado = df_carga[[col for col in colunas_exibir if col in df_carga.columns]].copy()
-                    df_formatado = df_formatado.replace([np.nan, pd.NaT], "")
-
-                    if "Data_Hora_Gerada" in df_formatado.columns:
-                        df_formatado["Data_Hora_Gerada"] = df_formatado["Data_Hora_Gerada"].apply(formatar_data_hora_br)
+                with st.spinner("�� Carregando entregas da carga no grid..."): # Este spinner pode ser removido ou seu tempo reduzido agora
+                    # df_formatado agora é apenas uma seleção de colunas do df_carga (que já está limpo e formatado)
+                    df_formatado = df_carga[[col for col in colunas_exibir if col in df_carga.columns]]
 
                     gb = GridOptionsBuilder.from_dataframe(df_formatado)
                     gb.configure_default_column(minWidth=150)
@@ -2532,6 +2550,7 @@ def pagina_cargas_geradas():
                             const status = params.data.Status;
                             const entregaProg = params.data["Entrega Programada"];
                             const particularidade = params.data.Particularidade;
+                            // A comparação com string vazia aqui é para o JS, o Python já trocou NaT/None para ""
                             if (status === "AGENDAR" && (!entregaProg || entregaProg.trim() === "")) {
                                 return { 'background-color': '#ffe0b2', 'color': '#333' };
                             }
@@ -2545,7 +2564,8 @@ def pagina_cargas_geradas():
                     gb.configure_grid_options(rowSelection='multiple')
                     gb.configure_grid_options(onGridReady=GRID_RESIZE_JS_CODE)
 
-                    for col in ['Peso Real em Kg', 'Peso Calculado em Kg', 'Cubagem em m³', 'Quantidade de Volumes', 'Valor do Frete']:
+                    # Aplicar formatter às colunas numéricas relevantes
+                    for col in numeric_cols_for_formatting: # Usa a lista definida no pré-processamento
                         if col in df_formatado.columns:
                             gb.configure_column(col, type=["numericColumn"], valueFormatter=formatter)
 
@@ -2557,51 +2577,51 @@ def pagina_cargas_geradas():
 
                     grid_key = st.session_state[grid_key_id]
 
-                with st.spinner("🔄 Carregando entregas da carga no grid..."):
-                    grid_response = AgGrid(
-                        df_formatado,
-                        gridOptions=grid_options,
-                        update_mode=GridUpdateMode.SELECTION_CHANGED,
-                        fit_columns_on_grid_load=False,
-                        width="100%",
-                        height=400,
-                        allow_unsafe_jscode=True,
-                        key=grid_key,
-                        theme=AgGridTheme.MATERIAL,
-                        show_toolbar=False,
-                        custom_css={
-                            ".ag-theme-material .ag-cell": {
-                                "font-size": "11px",
-                                "line-height": "18px",
-                                "border-right": "1px solid #ccc",
-                            },
-                            ".ag-theme-material .ag-row:last-child .ag-cell": {
-                                "border-bottom": "1px solid #ccc",
-                            },
-                            ".ag-theme-material .ag-header-cell": {
-                                "border-right": "1px solid #ccc",
-                                "border-bottom": "1px solid #ccc",
-                            },
-                            ".ag-theme-material .ag-root-wrapper": {
-                                "border": "1px solid black",
-                                "border-radius": "6px",
-                                "padding": "4px",
-                            },
-                            ".ag-theme-material .ag-header-cell-label": {
-                                "font-size": "11px",
-                            },
-                            ".ag-center-cols-viewport": {
-                                "overflow-x": "auto !important",
-                                "overflow-y": "hidden",
-                            },
-                            ".ag-center-cols-container": {
-                                "min-width": "100% !important",
-                            },
-                            "#gridToolBar": {
-                                "padding-bottom": "0px !important",
-                            }
+                # O AgGrid
+                grid_response = AgGrid(
+                    df_formatado,
+                    gridOptions=grid_options,
+                    update_mode=GridUpdateMode.SELECTION_CHANGED,
+                    fit_columns_on_grid_load=False,
+                    width="100%",
+                    height=400,
+                    allow_unsafe_jscode=True,
+                    key=grid_key,
+                    theme=AgGridTheme.MATERIAL,
+                    show_toolbar=False,
+                    custom_css={
+                        ".ag-theme-material .ag-cell": {
+                            "font-size": "11px",
+                            "line-height": "18px",
+                            "border-right": "1px solid #ccc",
+                        },
+                        ".ag-theme-material .ag-row:last-child .ag-cell": {
+                            "border-bottom": "1px solid #ccc",
+                        },
+                        ".ag-theme-material .ag-header-cell": {
+                            "border-right": "1px solid #ccc",
+                            "border-bottom": "1px solid #ccc",
+                        },
+                        ".ag-theme-material .ag-root-wrapper": {
+                            "border": "1px solid black",
+                            "border-radius": "6px",
+                            "padding": "4px",
+                        },
+                        ".ag-theme-material .ag-header-cell-label": {
+                            "font-size": "11px",
+                        },
+                        ".ag-center-cols-viewport": {
+                            "overflow-x": "auto !important",
+                            "overflow-y": "hidden",
+                        },
+                        ".ag-center-cols-container": {
+                            "min-width": "100% !important",
+                        },
+                        "#gridToolBar": {
+                            "padding-bottom": "0px !important",
                         }
-                    )
+                    }
+                )
                 # Lógica ajustada para considerar o checkbox "Marcar todas"
                 if marcar_todas:
                     selecionadas = df_formatado[df_formatado["Serie_Numero_CTRC"].notna()].copy().to_dict(orient="records")
@@ -2620,15 +2640,13 @@ def pagina_cargas_geradas():
                                     df_remover["Status"] = "AGENDAR"
                                     df_remover = df_remover.drop(columns=["numero_carga"], errors="ignore")
 
+                                    # Se Data_Hora_Gerada é uma string formatada, precisamos convertê-la para ISO para Supabase
                                     if "Data_Hora_Gerada" in df_remover.columns:
-                                        def parse_para_iso(data_str):
-                                            try:
-                                                return datetime.strptime(data_str, "%d-%m-%Y %H:%M:%S").isoformat()
-                                            except:
-                                                return data_str
+                                        df_remover["Data_Hora_Gerada"] = df_remover["Data_Hora_Gerada"].apply(
+                                            lambda x: datetime.strptime(x, "%d-%m-%Y %H:%M:%S").isoformat() if x else None
+                                        )
 
-                                        df_remover["Data_Hora_Gerada"] = df_remover["Data_Hora_Gerada"].apply(parse_para_iso)
-
+                                    # Remover valores que causam erro no Supabase na inserção de volta (NaN, inf, etc.)
                                     df_remover = df_remover.replace([np.nan, pd.NaT, "", np.inf, -np.inf], None)
                                     registros = df_remover.to_dict(orient="records")
 
@@ -2647,7 +2665,7 @@ def pagina_cargas_geradas():
                                     st.session_state.pop("df_cargas_cache", None)
                                     grid_key_id = f"grid_carga_gerada_{carga}"
                                     st.session_state.pop(grid_key_id, None)
-                                    st.session_state.pop(checkbox_key, None) # Limpar o checkbox
+                                    st.session_state.pop(checkbox_key, None)
                                     
                                     st.session_state["reload_cargas_geradas"] = True
                                     st.success(f"{len(chaves)} entrega(s) removida(s) da carga {carga} e retornada(s) à pré-rota.")
@@ -2658,21 +2676,19 @@ def pagina_cargas_geradas():
                                 st.error(f"Erro ao retirar entregas da carga: {e}")
 
                     with col_aprov:
-                        # Input para valor_contratacao
                         valor_contratacao_key = f"valor_contratacao_{carga}"
                         valor_contratacao = st.number_input(
                             "Valor da Contratação da Carga (R$)",
                             min_value=0.0,
-                            value=0.0, # Pode iniciar com 0.0, mas o botão só habilita se > 0
+                            value=0.0,
                             step=0.01,
                             format="%.2f",
                             key=valor_contratacao_key,
-                            disabled=not selecionadas # Desabilita se nada estiver selecionado
+                            disabled=not selecionadas
                         )
 
-                        # "Enviar para Aprovação" button
                         btn_aprovar_custos_key = f"btn_aprov_custos_{carga}"
-                        if st.button(f"💰 Enviar para Aprovação de Custos", key=btn_aprovar_custos_key, disabled=not selecionadas or valor_contratacao <= 0):
+                        if st.button(f"�� Enviar para Aprovação de Custos", key=btn_aprovar_custos_key, disabled=not selecionadas or valor_contratacao <= 0):
                             if valor_contratacao <= 0:
                                 st.warning("Por favor, insira um valor de contratação válido (maior que zero).")
                             else:
@@ -2681,35 +2697,29 @@ def pagina_cargas_geradas():
                                         df_aprovar_custos = pd.DataFrame(selecionadas)
                                         df_aprovar_custos = df_aprovar_custos.drop(columns=["_selectedRowNodeInfo"], errors="ignore")
 
-                                        # Adicionar a nova coluna valor_contratacao
                                         df_aprovar_custos["valor_contratacao"] = valor_contratacao
 
-                                        # Conversão de objetos datetime para string, se existirem (consistente com outros movimentos)
-                                        # Isso é crucial para evitar erros no Supabase.
-                                        for col in df_aprovar_custos.select_dtypes(include=['datetime64[ns]']).columns:
-                                            df_aprovar_custos[col] = df_aprovar_custos[col].dt.strftime('%Y-%m-%d %H:%M:%S')
+                                        # Se Data_Hora_Gerada é uma string formatada, precisamos convertê-la para ISO para Supabase
+                                        if "Data_Hora_Gerada" in df_aprovar_custos.columns:
+                                            df_aprovar_custos["Data_Hora_Gerada"] = df_aprovar_custos["Data_Hora_Gerada"].apply(
+                                                lambda x: datetime.strptime(x, "%d-%m-%Y %H:%M:%S").isoformat() if x else None
+                                            )
 
-                                        # Garantir que NaNs/NaTs sejam tratados (já feito em outros fluxos, mas bom garantir aqui)
                                         df_aprovar_custos = df_aprovar_custos.replace([np.nan, pd.NaT, "", np.inf, -np.inf], None)
 
                                         registros_para_custos = df_aprovar_custos.to_dict(orient="records")
 
                                         if registros_para_custos:
-                                            # Inserir na tabela aprovacao_custos
                                             supabase.table("aprovacao_custos").insert(registros_para_custos).execute()
 
-                                            # Obter as chaves das CTRCs para remover de cargas_geradas
                                             chaves_para_remover = [r.get("Serie_Numero_CTRC") for r in registros_para_custos if r.get("Serie_Numero_CTRC")]
 
                                             if chaves_para_remover:
-                                                # Remover de cargas_geradas
                                                 supabase.table("cargas_geradas").delete().in_("Serie_Numero_CTRC", chaves_para_remover).execute()
 
-                                            # Forçar a recarga dos caches
                                             st.session_state["reload_cargas_geradas"] = True
-                                            st.session_state["reload_aprovacao_custos"] = True # Nova flag para a nova página
+                                            st.session_state["reload_aprovacao_custos"] = True
 
-                                            # Limpar a chave do grid para forçar o recarregamento
                                             st.session_state.pop(grid_key_id, None)
 
                                             st.success(f"✅ {len(registros_para_custos)} entregas da carga {carga} enviadas para Aprovação de Custos com valor R$ {valor_contratacao:.2f}.")
