@@ -2435,7 +2435,7 @@ def pagina_cargas_geradas():
     st.markdown("## Cargas Geradas")
 
     try:
-        with st.spinner("�� Carregando dados das cargas..."):
+        with st.spinner(" Carregando dados das cargas..."):
             recarregar = st.session_state.pop("reload_cargas_geradas", False)
             if recarregar or "df_cargas_cache" not in st.session_state:
                 dados = supabase.table("cargas_geradas").select("*").execute().data
@@ -2448,7 +2448,7 @@ def pagina_cargas_geradas():
             st.info("Nenhuma carga foi gerada ainda.")
             return
 
-        with st.spinner("�� Processando estatísticas e estrutura da página..."):
+        with st.spinner(" Processando estatísticas e estrutura da página..."):
             df.columns = df.columns.str.strip()
 
             # --- INÍCIO DA OTIMIZAÇÃO: Pré-processamento do DataFrame completo ---
@@ -2535,7 +2535,7 @@ def pagina_cargas_geradas():
 
                 marcar_todas = st.checkbox("Marcar todas", key=checkbox_key)
 
-                with st.spinner("�� Carregando entregas da carga no grid..."): # Este spinner pode ser removido ou seu tempo reduzido agora
+                with st.spinner("Carregando entregas da carga no grid..."): # Este spinner pode ser removido ou seu tempo reduzido agora
                     # df_formatado agora é apenas uma seleção de colunas do df_carga (que já está limpo e formatado)
                     df_formatado = df_carga[[col for col in colunas_exibir if col in df_carga.columns]]
 
@@ -2688,7 +2688,7 @@ def pagina_cargas_geradas():
                         )
 
                         btn_aprovar_custos_key = f"btn_aprov_custos_{carga}"
-                        if st.button(f"�� Enviar para Aprovação de Custos", key=btn_aprovar_custos_key, disabled=not selecionadas or valor_contratacao <= 0):
+                        if st.button(f"➤ Enviar para Aprovação de Custos", key=btn_aprovar_custos_key, disabled=not selecionadas or valor_contratacao <= 0):
                             if valor_contratacao <= 0:
                                 st.warning("Por favor, insira um valor de contratação válido (maior que zero).")
                             else:
