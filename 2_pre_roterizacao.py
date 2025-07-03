@@ -955,6 +955,13 @@ def pagina_sincronizacao():
 
             st.session_state["reload_cargas_geradas"] = True
             st.session_state.pop("df_cargas_cache", None)
+        
+            st.session_state["reload_aprovacao_custos"] = True
+            st.session_state.pop("df_aprovacao_custos_cache", None)
+        
+            st.session_state["reload_cargas_aprovadas"] = True
+            st.session_state.pop("df_cargas_aprovadas_cache", None)
+            
             
             progress_bar.progress(100) # 100%
 
