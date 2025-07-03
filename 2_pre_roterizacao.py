@@ -261,12 +261,14 @@ def pagina_gerenciar_usuarios():
     usuarios = supabase.table("usuarios").select("*").execute().data
     df = pd.DataFrame(usuarios)
     if not df.empty:
-        st.dataframe(df[["nome_usuario", "is_admin", "classe"]])
+        # ATUALIZAR: Adicionar "classe" à exibição do dataframe
+        st.dataframe(df[["nome_usuario", "is_admin", "classe"]]) # ATUALIZE ESTA LINHA
 
     st.subheader("➕ Criar novo usuário")
     novo_usuario = st.text_input("Novo nome de usuário")
     nova_senha = st.text_input("Senha", type="password")
-    nova_classe = st.selectbox("Classe", ["colaborador", "aprovador"], key="classe_nova")
+    # ATUALIZAR: Adicionar selectbox para classe na criação
+    nova_classe = st.selectbox("Classe", ["colaborador", "aprovador"], key="classe_nova_criar") # ATUALIZE ESTA LINHA
     novo_admin = st.checkbox("Tornar administrador")
 
     if st.button("Criar"):
@@ -276,7 +278,7 @@ def pagina_gerenciar_usuarios():
                 supabase.table("usuarios").insert({
                     "nome_usuario": novo_usuario,
                     "senha_hash": senha_hash,
-                    "classe": nova_classe,
+                    "classe": nova_classe, # ATUALIZE ESTA LINHA
                     "is_admin": novo_admin,
                     # "precisa_alterar_senha": True
                 }).execute()
@@ -291,37 +293,51 @@ def pagina_gerenciar_usuarios():
     st.subheader("✏️ Atualizar usuário existente")
     if not df.empty:
         usuario_alvo = st.selectbox("Selecionar usuário", df["nome_usuario"].tolist())
+        # Recuperar informações do usuário selecionado para preencher os campos
+        usuario_info = df[df["nome_usuario"] == usuario_alvo].iloc[0]
+
         nova_senha_user = st.text_input("Nova senha (deixe em branco se não for alterar)")
-        nova_classe_user = st.selectbox("Nova classe", ["colaborador", "aprovador"], key="classe_edit")
-        novo_admin_status = st.checkbox("Administrador?", value=bool(df[df["nome_usuario"] == usuario_alvo]["is_admin"].iloc[0]))
+        # NOVO: Selectbox para atualizar a classe do usuário existente
+        # Preenche o valor padrão com a classe atual do usuário selecionado
+        nova_classe_user = st.selectbox(
+            "Nova classe",
+            ["colaborador", "aprovador"],
+            index=["colaborador", "aprovador"].index(usuario_info["classe"]), # Preenche com a classe atual
+            key=f"classe_edit_{usuario_alvo}" # Chave única para cada selectbox
+        )
+        novo_admin_status = st.checkbox("Administrador?", value=bool(usuario_info["is_admin"])) # ATUALIZE ESTA LINHA para usar usuario_info
 
         col1, col2 = st.columns(2)
 
         with col1:
-            if st.button("Atualizar", key="btn_atualizar"):
-                update = {"classe": nova_classe_user, "is_admin": novo_admin_status}
+            if st.button("Atualizar", key=f"btn_atualizar_{usuario_alvo}"): # Chave única para o botão
+                update = {
+                    "classe": nova_classe_user, # ATUALIZE ESTA LINHA
+                    "is_admin": novo_admin_status
+                }
                 if nova_senha_user:
                     update["senha_hash"] = hash_senha(nova_senha_user)
                 try:
                     supabase.table("usuarios").update(update).eq("nome_usuario", usuario_alvo).execute()
                     st.success("Usuário atualizado.")
                     st.session_state.pagina = "Gerenciar Usuários"
+                    # CRUCIAL: Recarregar a página para que as mudanças reflitam no DF e no Supabase.
+                    # Isso também limpará o cache do Supabase para a tabela de usuários se você a tiver.
                     st.rerun()
                 except Exception as e:
                     st.error(f"Erro ao atualizar usuário: {e}")
 
         with col2:
             confirm_key = f"confirm_delete_{usuario_alvo}"
-
-            # Apenas cria o checkbox com a chave, sem atribuir st.session_state diretamente
             confirm = st.checkbox(f"Confirmar exclusão do usuário '{usuario_alvo}'?", key=confirm_key)
 
             if confirm:
-                if st.button("Deletar", key="btn_deletar"):
+                if st.button("Deletar", key=f"btn_deletar_{usuario_alvo}"): # Chave única para o botão
                     try:
                         supabase.table("usuarios").delete().eq("nome_usuario", usuario_alvo).execute()
                         st.success(f"Usuário '{usuario_alvo}' deletado com sucesso.")
                         st.session_state.pagina = "Gerenciar Usuários"
+                        # CRUCIAL: Recarregar a página após a deleção
                         st.rerun()
                     except Exception as e:
                         st.error(f"Erro ao deletar usuário: {e}")
@@ -2703,6 +2719,14 @@ def pagina_cargas_geradas():
 def pagina_aprovacao_custos():
     st.markdown("## Aprovação de Custos")
 
+    # Obter a classe do usuário logado (assume 'colaborador' se não estiver definida por segurança)
+    current_user_class = st.session_state.get("classe", "colaborador")
+    is_user_aprovador = (current_user_class == "aprovador")
+
+    # Mensagem de aviso se o usuário não for aprovador
+    if not is_user_aprovador:
+        st.warning("🔒 Apenas usuários com classe 'aprovador' podem realizar ações de aprovação de custos.")
+
     try:
         with st.spinner("🔄 Carregando dados para aprovação de custos..."):
             # Verifica a flag de recarregamento
@@ -2868,18 +2892,18 @@ def pagina_aprovacao_custos():
                         }
                     )
 
-                # TODO: Adicionar botões para ações de aprovação/rejeição aqui
-                col_aprovar, col_rejeitar = st.columns(2)
-                with col_aprovar:
-                    if st.button(f"✅ Aprovar Carga {carga}", key=f"aprovar_carga_{carga}"):
-                        st.info(f"Funcionalidade de aprovação para carga {carga} a ser implementada.")
-                        # Aqui você moveria os dados para uma tabela de "custos_aprovados"
-                        # e removeria de "aprovacao_custos".
-                with col_rejeitar:
-                    if st.button(f"❌ Rejeitar Carga {carga}", key=f"rejeitar_carga_{carga}"):
-                        st.info(f"Funcionalidade de rejeição para carga {carga} a ser implementada.")
-                        # Aqui você moveria os dados de volta para "cargas_geradas"
-                        # ou para uma tabela de "custos_rejeitados", e removeria de "aprovacao_custos".
+                    # Adicionar botões para ações de aprovação/rejeição aqui
+            col_aprovar, col_rejeitar = st.columns(2)
+            with col_aprovar:
+                if st.button(f"✅ Aprovar Carga {carga}", key=f"aprovar_carga_{carga}", disabled=not is_user_aprovador): # ATUALIZE ESTA LINHA
+                    st.info(f"Funcionalidade de aprovação para carga {carga} a ser implementada.")
+                    # Aqui você moveria os dados para uma tabela de "custos_aprovados"
+                    # e removeria de "aprovacao_custos".
+            with col_rejeitar:
+                if st.button(f"❌ Rejeitar Carga {carga}", key=f"rejeitar_carga_{carga}", disabled=not is_user_aprovador): # ATUALIZE ESTA LINHA
+                    st.info(f"Funcionalidade de rejeição para carga {carga} a ser implementada.")
+                    # Aqui você moveria os dados de volta para "cargas_geradas"
+                    # ou para uma tabela de "custos_rejeitados", e removeria de "aprovacao_custos".
 
 
     except Exception as e:
