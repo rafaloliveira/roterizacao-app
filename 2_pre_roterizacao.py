@@ -103,8 +103,6 @@ def autenticar_usuario(nome_usuario, senha):
 
         if dados.data:
             usuario = dados.data[0]
-            st.write(f"DEBUG AUTH: Objeto 'usuario' obtido: {usuario}") # <--- ADICIONE AQUI
-            st.write(f"DEBUG AUTH: Valor da 'classe' do Supabase: {usuario.get('classe', 'CLASSE_NAO_ENCONTRADA')}") # <--- ADICIONE AQUI
             hash_bruto = str(usuario["senha_hash"]).replace("\n", "").replace("\r", "").strip()
 
             if verificar_senha(senha, hash_bruto):
@@ -209,10 +207,6 @@ def login():
                 st.session_state.username = usuario["nome_usuario"]
                 st.session_state.is_admin = usuario.get("is_admin", False)
                 st.session_state.classe = usuario.get("classe", "colaborador") # <<< ADIÇÃO AQUI: Armazena a classe no session_state
-
-                st.write(f"DEBUG LOGIN: Conteúdo de st.session_state.username: {st.session_state.username}") # <--- ADICIONE AQUI
-                st.write(f"DEBUG LOGIN: Conteúdo de st.session_state.is_admin: {st.session_state.is_admin}") # <--- ADICIONE AQUI
-                st.write(f"DEBUG LOGIN: Conteúdo de st.session_state.classe: {st.session_state.classe}") # <--- ADICIONE AQUI
 
                 # Verifica se o usuário precisa alterar a senha (se houver essa flag no banco)
                 if usuario.get("precisa_alterar_senha") is True:
@@ -2739,7 +2733,11 @@ def pagina_cargas_geradas():
                                     st.session_state.pop(checkbox_key, None)
 
                                     st.session_state["reload_cargas_geradas"] = True
-                                    st.success(f"{len(chaves)} entrega(s) removida(s) da carga {carga} e retornada(s) à pré-rota.")
+                                    # >>> ADICIONE ESTA LINHA: Invalida o cache das Rotas Confirmadas <<<
+                                    st.session_state["reload_rotas_confirmadas"] = True 
+
+                                    # >>> ATUALIZE A MENSAGEM DE SUCESSO PARA SER MAIS ESPECÍFICA <<<
+                                    st.success(f"✅ {len(chaves)} entrega(s) removida(s) da carga {carga} e retornada(s) para Rotas Confirmadas.")
                                     time.sleep(1)
                                     st.rerun()
 
