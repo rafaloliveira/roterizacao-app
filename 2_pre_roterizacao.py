@@ -2852,7 +2852,7 @@ def pagina_aprovacao_custos():
                 df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
 
         # Exibe métricas gerais no topo da página
-        col1, col2 = st.columns([1, 1]) # Ajustado para 2 colunas como no código mais recente
+        col1, col2, _ = st.columns([1, 1, 8]) # Ajustado para 2 colunas como no código mais recente
         with col1:
             st.metric("Total de Cargas Pendentes", df["numero_carga"].nunique() if "numero_carga" in df.columns else 0)
         with col2:
