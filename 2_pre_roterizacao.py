@@ -2497,7 +2497,7 @@ def pagina_cargas_geradas():
                 "Cidade de Entrega", "Bairro do Destinatario", "Previsao de Entrega",
                 "Numero da Nota Fiscal", "Status", "Entrega Programada", "Particularidade",
                 "Codigo da Ultima Ocorrencia", "Peso Real em Kg", "Peso Calculado em Kg",
-                "Cubagem em m³", "Quantidade de Volumes", "valor_contratacao" # Inclui a nova coluna
+                "Cubagem em m³", "Quantidade de Volumes"
         ]
 
 
