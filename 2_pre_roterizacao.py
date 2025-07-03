@@ -696,7 +696,7 @@ def carregar_base_supabase():
 
 def gerar_proximo_numero_carga(supabase):
     try:
-        hoje = datetime.now().strftime("%Y%m%d")  # ex: '20250626'
+        hoje = datetime.now(FUSO_BRASIL).strftime("%Y%m%d")  # AGORA USA O FUSO HORÁRIO DO BRASIL
         prefixo = f"{hoje}-"
 
         # ⚠️ Supabase-py não suporta .like diretamente como usado antes
