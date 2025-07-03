@@ -3017,10 +3017,66 @@ def pagina_aprovacao_custos():
                         key=f"rejeitar_carga_{carga}",
                         disabled=not is_user_aprovador or not selecionadas # Desabilita se o usuário não é aprovador ou se nada está selecionado
                     ):
-                        st.info(f"Funcionalidade de rejeição para carga {carga} a ser implementada.")
-                        # Lógica para mover dados de volta para "cargas_geradas" ou "custos_rejeitados",
-                        # e remover de "aprovacao_custos".
-                        # Use 'selecionadas' aqui para as entregas a serem rejeitadas.
+                        try:
+                            with st.spinner("🔄 Rejeitando entregas e retornando para Cargas Geradas..."):
+                                df_rejeitar = pd.DataFrame(selecionadas)
+
+                                # 1. Preparar os dados para reinserção em 'cargas_geradas'
+                                # Remover a coluna "_selectedRowNodeInfo" que é interna do AgGrid
+                                df_rejeitar = df_rejeitar.drop(columns=["_selectedRowNodeInfo"], errors="ignore")
+                                
+                                # REMOVER A COLUNA 'valor_contratacao'
+                                df_rejeitar = df_rejeitar.drop(columns=["valor_contratacao"], errors="ignore")
+
+                                # Definir o novo Status para as entregas rejeitadas
+                                # Escolhemos "AGENDAR" para indicar que precisam de reavaliação
+                                df_rejeitar["Status"] = "AGENDAR" # OU "REJEITADA_CUSTOS" para um status mais específico
+
+                                # Garantir que as colunas de data/hora estejam em um formato amigável para o Supabase (ISO 8601)
+                                # As datas podem vir como objetos datetime ou strings formatadas; converter para ISO.
+                                date_cols_to_process = [
+                                    "Previsao de Entrega", "Entrega Programada", "Data de Emissao",
+                                    "Data de Autorizacao", "Data do Cancelamento", "Data do Escaneamento",
+                                    "Data da Entrega Realizada", "Data da Ultima Ocorrencia",
+                                    "Data de inclusao da Ultima Ocorrencia", "Data_Hora_Gerada"
+                                ]
+                                for col_name in date_cols_to_process:
+                                    if col_name in df_rejeitar.columns:
+                                        df_rejeitar[col_name] = pd.to_datetime(df_rejeitar[col_name], errors='coerce')
+                                        df_rejeitar[col_name] = df_rejeitar[col_name].apply(
+                                            lambda x: x.isoformat() if pd.notna(x) else None
+                                        )
+
+                                # Substituir NaNs, NaTs e strings vazias por None para compatibilidade com Supabase
+                                df_rejeitar = df_rejeitar.replace([np.nan, pd.NaT, "", np.inf, -np.inf], None)
+
+                                # Converter para lista de dicionários para inserção no Supabase
+                                registros_para_cargas_geradas = df_rejeitar.to_dict(orient="records")
+                                # Filtrar registros sem "Serie_Numero_CTRC" (chaves primárias)
+                                registros_para_cargas_geradas = [r for r in registros_para_cargas_geradas if r.get("Serie_Numero_CTRC")]
+
+                                # 2. Inserir os dados de volta na tabela 'cargas_geradas'
+                                if registros_para_cargas_geradas:
+                                    supabase.table("cargas_geradas").insert(registros_para_cargas_geradas).execute()
+
+                                # 3. Obter as chaves das entregas rejeitadas e remover da tabela 'aprovacao_custos'
+                                chaves_rejeitadas = [r.get("Serie_Numero_CTRC") for r in registros_para_cargas_geradas if r.get("Serie_Numero_CTRC")]
+                                if chaves_rejeitadas:
+                                    supabase.table("aprovacao_custos").delete().in_("Serie_Numero_CTRC", chaves_rejeitadas).execute()
+
+                                st.warning(f"✅ {len(registros_para_cargas_geradas)} entregas da carga {carga} rejeitadas e retornadas para Cargas Geradas.")
+                                
+                                # Invalidar caches para forçar a recarga dos dados nas próximas visualizações
+                                st.session_state["reload_aprovacao_custos"] = True
+                                st.session_state["reload_cargas_geradas"] = True
+                                # Limpar chaves do AgGrid e checkbox para forçar a reconstrução visual
+                                st.session_state.pop(grid_key, None)
+                                st.session_state.pop(checkbox_key, None)
+
+                                st.rerun() # Força uma nova execução para atualizar a interface
+
+                        except Exception as e:
+                            st.error(f"❌ Erro ao rejeitar carga: {e}")
 
     except Exception as e:
         st.error("Erro ao carregar aprovação de custos:")
