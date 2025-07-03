@@ -2873,16 +2873,27 @@ def pagina_aprovacao_custos():
 
             col1_badges, col2_placeholder = st.columns([5, 1])
             with col1_badges:
-                 st.markdown(
+                # --- INÍCIO: LINHAS DE DEBUGAGEM (ADICIONAR) ---
+                st.write(f"DEBUG: Sum Valor Frete: {df_carga['Valor do Frete'].sum()}")
+                st.write(f"DEBUG: Formatado Valor Frete: {formatar_brasileiro(df_carga['Valor do Frete'].sum())}")
+                st.write(f"DEBUG: Sum Cubagem: {df_carga['Cubagem em m³'].sum()}")
+                st.write(f"DEBUG: Formatado Cubagem: {formatar_brasileiro(df_carga['Cubagem em m³'].sum())}")
+                st.write(f"DEBUG: Sum Volumes: {df_carga['Quantidade de Volumes'].sum()}")
+                st.write(f"DEBUG: Formatado Volumes: {int(df_carga['Quantidade de Volumes'].sum())}")
+
+                st.write(f"DEBUG: Valor Contratação Carga: {valor_contratacao_carga}")
+                st.write(f"DEBUG: Formatado Valor Contratação Carga: {formatar_brasileiro(valor_contratacao_carga)}")
+
+                full_html_string_to_check = (
                     f"{badge(f'{len(df_carga)} entregas')}"
                     f"{badge(f'{formatar_brasileiro(df_carga["Peso Calculado em Kg"].sum())} kg calc')}"
                     f"{badge(f'{formatar_brasileiro(df_carga["Peso Real em Kg"].sum())} kg real')}"
                     f"{badge(f'R$ {formatar_brasileiro(df_carga["Valor do Frete"].sum())}')}"
                     f"{badge(f'{formatar_brasileiro(df_carga["Cubagem em m³"].sum())} m³')}"
                     f"{badge(f'{int(df_carga["Quantidade de Volumes"].sum())} volumes')}"
-                    f"{badge(f'Valor Contratação: R$ {formatar_brasileiro(valor_contratacao_carga)}')}",
-                    unsafe_allow_html=True
+                    f"{badge(f'Valor Contratação: R$ {formatar_brasileiro(valor_contratacao_carga)}')}"
                 )
+                st.write(f"DEBUG: STRING HTML COMPLETA A SER RENDERIZADA: {full_html_string_to_check}")
 
             with st.expander("🔽 Ver entregas da carga para Aprovação de Custos", expanded=False):
                 # NOVO: Checkbox "Marcar todas"
