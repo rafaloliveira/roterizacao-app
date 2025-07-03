@@ -2762,7 +2762,7 @@ def pagina_cargas_geradas():
                                 st.warning("Por favor, insira um valor de contratação válido (maior que zero).")
                             else:
                                 try:
-                                    with st.spinner("�� Enviando entregas para aprovação de custos..."):
+                                    with st.spinner(" Enviando entregas para aprovação de custos..."):
                                         df_aprovar_custos = pd.DataFrame(selecionadas)
                                         df_aprovar_custos = df_aprovar_custos.drop(columns=["_selectedRowNodeInfo"], errors="ignore")
 
@@ -2862,7 +2862,7 @@ def pagina_aprovacao_custos():
             "Cidade de Entrega", "Bairro do Destinatario", "Previsao de Entrega",
             "Numero da Nota Fiscal", "Status", "Entrega Programada", "Particularidade",
             "Codigo da Ultima Ocorrencia", "Peso Real em Kg", "Peso Calculado em Kg",
-            "Cubagem em m³", "Quantidade de Volumes", "valor_contratacao" # Coluna valor_contratacao
+            "Cubagem em m³", "Quantidade de Volumes", "valor_contratacao", "numero_carga" # Coluna valor_contratacao
         ]
 
         # Obtém as cargas únicas para iterar e exibir os grupos de entregas
@@ -3025,7 +3025,8 @@ def pagina_aprovacao_custos():
                                 # Definir o novo Status para as entregas rejeitadas
                                 # Escolhemos "AGENDAR" para indicar que precisam de reavaliação
                                 df_rejeitar["Status"] = "AGENDAR" # OU "REJEITADA_CUSTOS" para um status mais específico
-
+                                df_rejeitar["numero_carga"] = carga 
+                                
                                 # Garantir que as colunas de data/hora estejam em um formato amigável para o Supabase (ISO 8601)
                                 # As datas podem vir como objetos datetime ou strings formatadas; converter para ISO.
                                 date_cols_to_process = [
