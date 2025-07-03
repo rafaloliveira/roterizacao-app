@@ -2505,6 +2505,15 @@ def pagina_cargas_geradas():
                 )
 
             with st.expander("🔽 Ver entregas da carga", expanded=False):
+                # NOVO: Checkbox "Marcar todas" dentro do expander
+                checkbox_key = f"marcar_todas_carga_gerada_{carga}"
+                # Garante que o estado do checkbox seja inicializado
+                if checkbox_key not in st.session_state:
+                    st.session_state[checkbox_key] = False
+
+                marcar_todas = st.checkbox("Marcar todas", key=checkbox_key)
+
+
                 with st.spinner("🔄 Formatando entregas da carga..."):
                     df_formatado = df_carga[[col for col in colunas_exibir if col in df_carga.columns]].copy()
                     df_formatado = df_formatado.replace([np.nan, pd.NaT], "")
@@ -2534,7 +2543,7 @@ def pagina_cargas_geradas():
                     """))
                     gb.configure_grid_options(headerCheckboxSelection=True)
                     gb.configure_grid_options(rowSelection='multiple')
-                    gb.configure_grid_options(onGridReady=GRID_RESIZE_JS_CODE) # <<< ADICIONADO AQUI
+                    gb.configure_grid_options(onGridReady=GRID_RESIZE_JS_CODE)
 
                     for col in ['Peso Real em Kg', 'Peso Calculado em Kg', 'Cubagem em m³', 'Quantidade de Volumes', 'Valor do Frete']:
                         if col in df_formatado.columns:
@@ -2593,8 +2602,12 @@ def pagina_cargas_geradas():
                             }
                         }
                     )
+                # Lógica ajustada para considerar o checkbox "Marcar todas"
+                if marcar_todas:
+                    selecionadas = df_formatado[df_formatado["Serie_Numero_CTRC"].notna()].copy().to_dict(orient="records")
+                else:
+                    selecionadas = grid_response.get("selected_rows", [])
 
-                selecionadas = grid_response.get("selected_rows", [])
                 if selecionadas:
                     col_ret, col_aprov = st.columns([1, 1])
 
@@ -2619,11 +2632,14 @@ def pagina_cargas_geradas():
                                     df_remover = df_remover.replace([np.nan, pd.NaT, "", np.inf, -np.inf], None)
                                     registros = df_remover.to_dict(orient="records")
 
+                                    # Insere de volta em rotas_confirmadas
                                     supabase.table("rotas_confirmadas").insert(registros).execute()
 
+                                    # Remove de cargas_geradas
                                     chaves = df_remover["Serie_Numero_CTRC"].dropna().astype(str).tolist()
                                     supabase.table("cargas_geradas").delete().in_("Serie_Numero_CTRC", chaves).execute()
 
+                                    # Verifica se a carga ficou vazia para deletar o registro da carga se necessário
                                     dados_restantes = supabase.table("cargas_geradas").select("numero_carga").eq("numero_carga", carga).execute().data
                                     if not dados_restantes:
                                         supabase.table("cargas_geradas").delete().eq("numero_carga", carga).execute()
@@ -2631,7 +2647,8 @@ def pagina_cargas_geradas():
                                     st.session_state.pop("df_cargas_cache", None)
                                     grid_key_id = f"grid_carga_gerada_{carga}"
                                     st.session_state.pop(grid_key_id, None)
-
+                                    st.session_state.pop(checkbox_key, None) # Limpar o checkbox
+                                    
                                     st.session_state["reload_cargas_geradas"] = True
                                     st.success(f"{len(chaves)} entrega(s) removida(s) da carga {carga} e retornada(s) à pré-rota.")
                                     time.sleep(1)
