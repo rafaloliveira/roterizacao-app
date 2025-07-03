@@ -2873,14 +2873,14 @@ def pagina_aprovacao_custos():
 
             col1_badges, col2_placeholder = st.columns([5, 1])
             with col1_badges:
-                st.markdown(
-                    badge(f"{len(df_carga)} entregas") +
-                    badge(f"{formatar_brasileiro(df_carga['Peso Calculado em Kg'].sum())} kg calc") +
-                    badge(f"{formatar_brasileiro(df_carga['Peso Real em Kg'].sum())} kg real") +
-                    badge(f"R$ {formatar_brasileiro(df_carga['Valor do Frete'].sum())}") +
-                    badge(f"{formatar_brasileiro(df_carga['Cubagem em m³'].sum())} m³") +
-                    badge(f"{int(df_carga['Quantidade de Volumes'].sum())} volumes") +
-                    badge(f"Valor Contratação: R$ {formatar_brasileiro(valor_contratacao_carga)}"),
+                 st.markdown(
+                    f"{badge(f'{len(df_carga)} entregas')}"
+                    f"{badge(f'{formatar_brasileiro(df_carga["Peso Calculado em Kg"].sum())} kg calc')}"
+                    f"{badge(f'{formatar_brasileiro(df_carga["Peso Real em Kg"].sum())} kg real')}"
+                    f"{badge(f'R$ {formatar_brasileiro(df_carga["Valor do Frete"].sum())}')}"
+                    f"{badge(f'{formatar_brasileiro(df_carga["Cubagem em m³"].sum())} m³')}"
+                    f"{badge(f'{int(df_carga["Quantidade de Volumes"].sum())} volumes')}"
+                    f"{badge(f'Valor Contratação: R$ {formatar_brasileiro(valor_contratacao_carga)}')}",
                     unsafe_allow_html=True
                 )
 
