@@ -2543,7 +2543,7 @@ def pagina_cargas_geradas():
                     df_display[col] = pd.to_numeric(df_display[col], errors='coerce').fillna(0) # .fillna(0) para evitar NaNs em cálculos/exibição
             # --- FIM DA OTIMIZAÇÃO ---
 
-        col1, col2 = st.columns([1, 1]) # Ajustado para 2 colunas como no padrão geral
+        col1, col2, _ = st.columns([1, 1, 8]) # Ajustado para 2 colunas como no padrão geral
         with col1:
             st.metric("Total de Cargas", df["numero_carga"].nunique() if "numero_carga" in df.columns else 0)
         with col2:
