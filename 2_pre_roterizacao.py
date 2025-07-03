@@ -2889,21 +2889,20 @@ def pagina_aprovacao_custos():
             # Seção de badges/resumo da carga
             col1_badges, col2_placeholder = st.columns([5, 1])
             with col1_badges:
-                # Abre um container flexível para que os badges fiquem lado a lado e quebrem linha
                 st.markdown(
-                    f"<div style='display: flex; flex-wrap: wrap; gap: 8px;'>", # 'gap' adiciona espaçamento entre os badges
+                    f"""
+                    <div style='display: flex; flex-wrap: wrap; gap: 8px;'>
+                        {badge(f'{len(df_carga)} entregas')}
+                        {badge(f'{formatar_brasileiro(df_carga["Peso Calculado em Kg"].sum())} kg calc')}
+                        {badge(f'{formatar_brasileiro(df_carga["Peso Real em Kg"].sum())} kg real')}
+                        {badge(f'R$ {formatar_brasileiro(df_carga["Valor do Frete"].sum())}')}
+                        {badge(f'{formatar_brasileiro(df_carga["Cubagem em m³"].sum())} m³')}
+                        {badge(f'{int(df_carga["Quantidade de Volumes"].sum())} volumes')}
+                        {badge(f'Valor Contratação: R$ {formatar_brasileiro(valor_contratacao_carga)}')}
+                    </div>
+                    """,
                     unsafe_allow_html=True
                 )
-
-                # Renderiza cada badge individualmente com sua própria chamada st.markdown()
-                # Isso aumenta a robustez na renderização HTML e evita o problema da tag </span>
-                st.markdown(badge(f'{len(df_carga)} entregas'), unsafe_allow_html=True)
-                st.markdown(badge(f'{formatar_brasileiro(df_carga["Peso Calculado em Kg"].sum())} kg calc'), unsafe_allow_html=True)
-                st.markdown(badge(f'{formatar_brasileiro(df_carga["Peso Real em Kg"].sum())} kg real'), unsafe_allow_html=True)
-                st.markdown(badge(f'R$ {formatar_brasileiro(df_carga["Valor do Frete"].sum())}'), unsafe_allow_html=True)
-                st.markdown(badge(f'{formatar_brasileiro(df_carga["Cubagem em m³"].sum())} m³'), unsafe_allow_html=True)
-                st.markdown(badge(f'{int(df_carga["Quantidade de Volumes"].sum())} volumes'), unsafe_allow_html=True)
-                st.markdown(badge(f'Valor Contratação: R$ {formatar_brasileiro(valor_contratacao_carga)}'), unsafe_allow_html=True)
                 
                 # Fecha o container flexível
                 st.markdown(f"</div>", unsafe_allow_html=True)
