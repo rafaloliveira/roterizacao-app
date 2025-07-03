@@ -2543,11 +2543,12 @@ def pagina_cargas_geradas():
                     df_display[col] = pd.to_numeric(df_display[col], errors='coerce').fillna(0) # .fillna(0) para evitar NaNs em cálculos/exibição
             # --- FIM DA OTIMIZAÇÃO ---
 
-        col1, col2, _ = st.columns([1, 1, 8])
+        col1, col2 = st.columns([1, 1]) # Ajustado para 2 colunas como no padrão geral
         with col1:
-            st.metric("Total de Rotas", df["Rota"].nunique() if "Rota" in df.columns else 0)
+            st.metric("Total de Cargas", df["numero_carga"].nunique() if "numero_carga" in df.columns else 0)
         with col2:
             st.metric("Total de Entregas", len(df))
+
             formatter = JsCode("""
                 function(params) {
                     if (!params.value && params.value !== 0) return ''; // Inclui 0 como valor válido
@@ -2851,11 +2852,11 @@ def pagina_aprovacao_custos():
                 df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
 
         # Exibe métricas gerais no topo da página
-        col1, col2, _ = st.columns([1, 1, 8])
+        col1, col2 = st.columns([1, 1]) # Ajustado para 2 colunas como no código mais recente
         with col1:
-            st.metric("Total de Rotas", df["Rota"].nunique() if "Rota" in df.columns else 0)
+            st.metric("Total de Cargas Pendentes", df["numero_carga"].nunique() if "numero_carga" in df.columns else 0)
         with col2:
-            st.metric("Total de Entregas", len(df))
+            st.metric("Total de Entregas Pendentes", len(df))
 
         # Define as colunas que serão exibidas no AgGrid
         colunas_exibir = [
@@ -2994,11 +2995,6 @@ def pagina_aprovacao_custos():
 
                 if selecionadas:
                     st.markdown(f"**📦 Entregas selecionadas:** {len(selecionadas)}")
-
-
-
-
-
 
                 # MOVENDO E ADAPTANDO OS BOTÕES AQUI DENTRO DO EXPANDER
                 col_aprovar, col_rejeitar = st.columns(2)
