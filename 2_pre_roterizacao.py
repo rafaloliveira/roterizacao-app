@@ -95,17 +95,17 @@ def verificar_senha(senha_fornecida, senha_hash):
     return bcrypt.checkpw(senha_fornecida.encode(), senha_hash.encode())
 
 # ========== AUTENTICAÇÃO ========== #
+
 def autenticar_usuario(nome_usuario, senha):
     try:
         dados = supabase.table("usuarios").select("*").eq("nome_usuario", nome_usuario).execute()
-        #st.write("🔍 Dados retornados:", dados.data) # Mantido para contexto, mas geralmente desativado em produção
+        st.write(f"DEBUG AUTH: Dados retornados do Supabase para '{nome_usuario}':", dados.data) # <--- ADICIONE AQUI
 
         if dados.data:
             usuario = dados.data[0]
+            st.write(f"DEBUG AUTH: Objeto 'usuario' obtido: {usuario}") # <--- ADICIONE AQUI
+            st.write(f"DEBUG AUTH: Valor da 'classe' do Supabase: {usuario.get('classe', 'CLASSE_NAO_ENCONTRADA')}") # <--- ADICIONE AQUI
             hash_bruto = str(usuario["senha_hash"]).replace("\n", "").replace("\r", "").strip()
-
-            #st.write("➡️ Comparando senha:", senha) # Mantido para contexto, mas geralmente desativado em produção
-            #st.write("➡️ Hash corrigido:", hash_bruto) # Mantido para contexto, mas geralmente desativado em produção
 
             if verificar_senha(senha, hash_bruto):
                 return usuario
@@ -189,6 +189,8 @@ def login():
         nome = st.text_input("Usuário").strip()
         senha = st.text_input("Senha", type="password").strip()
 
+        # ... (dentro da função login) ...
+
         if st.button("Entrar"):
             usuario = autenticar_usuario(nome, senha)
             if usuario:
@@ -208,6 +210,10 @@ def login():
                 st.session_state.is_admin = usuario.get("is_admin", False)
                 st.session_state.classe = usuario.get("classe", "colaborador") # <<< ADIÇÃO AQUI: Armazena a classe no session_state
 
+                st.write(f"DEBUG LOGIN: Conteúdo de st.session_state.username: {st.session_state.username}") # <--- ADICIONE AQUI
+                st.write(f"DEBUG LOGIN: Conteúdo de st.session_state.is_admin: {st.session_state.is_admin}") # <--- ADICIONE AQUI
+                st.write(f"DEBUG LOGIN: Conteúdo de st.session_state.classe: {st.session_state.classe}") # <--- ADICIONE AQUI
+
                 # Verifica se o usuário precisa alterar a senha (se houver essa flag no banco)
                 if usuario.get("precisa_alterar_senha") is True:
                     st.warning("🔐 Você deve alterar sua senha antes de continuar.")
@@ -219,8 +225,7 @@ def login():
             else:
                 st.error("🛑 Usuário ou senha incorretos.")
 
-    st.stop() # Interrompe a execução aqui se o usuário não estiver logado
-
+    st.stop()
 
 
 # ========== PÁGINA: ALTERAR SENHA PRÓPRIA ========== #
@@ -2759,6 +2764,11 @@ def pagina_aprovacao_custos():
     # Obter a classe do usuário logado (assume 'colaborador' se não estiver definida por segurança)
     current_user_class = st.session_state.get("classe", "colaborador")
     is_user_aprovador = (current_user_class == "aprovador")
+
+    st.write(f"DEBUG APROV CUSTOS: Valor de st.session_state.classe lido: {st.session_state.get('classe', 'NÃO DEFINIDA NO SESSION STATE')}") # <--- ADICIONE AQUI
+    st.write(f"DEBUG APROV CUSTOS: current_user_class (após .get): {current_user_class}") # <--- ADICIONE AQUI
+    st.write(f"DEBUG APROV CUSTOS: is_user_aprovador (resultado final): {is_user_aprovador}") # <--- ADICIONE AQUI
+
 
     # Mensagem de aviso se o usuário não for aprovador
     if not is_user_aprovador:
