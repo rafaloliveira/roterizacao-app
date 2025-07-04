@@ -2278,6 +2278,7 @@ def pagina_rotas_confirmadas():
                 # Buscar todos os dados uma única vez para maior controle
                 dados_rotas = supabase.table("rotas_confirmadas").select("*").execute().data
                 dados_pre = supabase.table("pre_roterizacao").select("*").execute().data
+                dados_aprovacao_diretoria = supabase.table("aprovacao_diretoria").select("*").execute().data # NOVO: Buscar dados da Aprovação Diretoria
                 
                 # 🔎 Buscar entregas já atribuídas a cargas
                 dados_cargas = supabase.table("cargas_geradas").select("*").execute().data
@@ -2299,48 +2300,70 @@ def pagina_rotas_confirmadas():
 
 
                 chaves_inseridas_com_sucesso = [] # Para armazenar as chaves que foram realmente inseridas
-                for chave in chaves: # 'chave' aqui é a Chave CT-e do input do usuário
+
+
+                for chave in chaves:
                     try:
                         origem = None
                         entrega = None
 
-                        # ... (código para verificar se a chave já está em alguma carga) ...
+                        # Verificar se a chave já está em alguma carga (manter como está)
+                        if chave in entregas_ja_em_carga:
+                            st.warning(f"⚠️ A entrega com chave '{chave}' já está na carga {entregas_ja_em_carga[chave]}.")
+                            continue
 
-                        # Busca manual nas tabelas
-                        dados = [d for d in dados_rotas if str(d.get(chave_coluna_rotas, "")).strip() == chave]
+                        # Padroniza o nome da coluna Chave CT-e para busca
+                        chave_ct_e_col_name = "Chave CT-e" 
+
+                        # 1. Buscar em rotas_confirmadas
+                        dados = [d for d in dados_rotas if str(d.get(chave_ct_e_col_name, "")).strip() == chave]
                         if dados:
                             origem = "rotas_confirmadas"
                             entrega = dados[0]
-                            entrega.pop("id", None) # Remove 'id' que pode ser gerado pelo Supabase
+                            entrega.pop("id", None) # Remove 'id' se existir
+
                         else:
-                            dados = [d for d in dados_pre if str(d.get(chave_coluna_pre, "")).strip() == chave]
+                            # 2. Buscar em pre_roterizacao
+                            dados = [d for d in dados_pre if str(d.get(chave_ct_e_col_name, "")).strip() == chave]
                             if dados:
                                 origem = "pre_roterizacao"
                                 entrega = dados[0]
-                                entrega.pop("id", None) # Remove 'id' que pode ser gerado pelo Supabase
+                                entrega.pop("id", None) # Remove 'id' se existir
+                            
+                            else:
+                                # 3. Buscar em aprovacao_diretoria (NOVO)
+                                dados = [d for d in dados_aprovacao_diretoria if str(d.get(chave_ct_e_col_name, "")).strip() == chave]
+                                if dados:
+                                    origem = "aprovacao_diretoria"
+                                    entrega = dados[0]
+                                    entrega.pop("id", None) # Remove 'id' se existir
+
 
                         if not entrega:
-                            st.warning(f"⚠️ Chave {chave} não encontrada em nenhuma tabela ou já foi processada.")
+                            st.warning(f"⚠️ Chave {chave} não encontrada em nenhuma das tabelas de origem ou já foi processada.")
                             continue
                         
-                        # --- NOVO: Obtém o Serie_Numero_CTRC para exclusão ---
+                        # --- NOVO: Obtém o Serie_Numero_CTRC para exclusão/inserção ---
+                        # Usar Serie_Numero_CTRC como o identificador principal para garantir consistência
                         serie_numero_ctrc_para_excluir = str(entrega.get('Serie_Numero_CTRC', '')).strip()
                         if not serie_numero_ctrc_para_excluir:
                             st.warning(f"⚠️ Entrega com Chave CT-e '{chave}' não possui Serie_Numero_CTRC válido. Ignorando.")
                             continue # Pula esta entrega se não tiver um Serie_Numero_CTRC
 
+                        # Prepara a entrega para inserção em cargas_geradas
                         entrega["numero_carga"] = st.session_state["numero_nova_carga"]
-                        entrega["Data_Hora_Gerada"] = data_hora_brasil_iso() # CORRIGIDO AQUI
+                        entrega["Data_Hora_Gerada"] = data_hora_brasil_iso()
                         
                         # Limpa valores que podem causar problemas na inserção (NaN, NaT, objetos complexos)
-                        entrega = {k: (
+                        # Este é o bloco de tratamento de valores para Supabase
+                        entrega_limpa = {k: (
                             v.isoformat() if isinstance(v, (pd.Timestamp, datetime, date)) else # Converte datas para ISO
                             None if (isinstance(v, float) and (np.isnan(v) or np.isinf(v))) or pd.isna(v) else # Float NaN/Inf ou Pandas NaT para None
                             str(v) if isinstance(v, (dict, list)) else # Converte dict/list para string (se não forem JSON válidos)
                             v
                         ) for k, v in entrega.items()}
 
-                        # 🔒 Colunas válidas para serem inseridas em cargas_geradas
+                        # 🔒 Colunas válidas para serem inseridas em cargas_geradas (manter como está no seu código)
                         colunas_validas = [
                             'Serie_Numero_CTRC', 'Rota', 'Regiao', 'Cliente Pagador', 'Chave CT-e', 'Cliente Destinatario',
                             'Cidade de Entrega', 'Bairro do Destinatario', 'Previsao de Entrega',
@@ -2350,37 +2373,37 @@ def pagina_rotas_confirmadas():
                             'numero_carga', 'Data_Hora_Gerada'
                         ]
 
-                        entrega_filtrada = {k: v for k, v in entrega.items() if k in colunas_validas}
+                        entrega_filtrada = {k: v for k, v in entrega_limpa.items() if k in colunas_validas}
 
                         # Tenta inserir no Supabase
                         insert_response = supabase.table("cargas_geradas").insert(entrega_filtrada).execute()
+                        
                         if insert_response.error: # Verifica se a inserção falhou
                             st.error(f"Erro ao inserir {serie_numero_ctrc_para_excluir} na tabela 'cargas_geradas': {insert_response.error}")
                             continue # Se a inserção falhou, não tenta deletar e passa para a próxima chave
                         else:
                             # st.info(f"DEBUG: Inserido {serie_numero_ctrc_para_excluir} em cargas_geradas.") # Para depuração
                             entregas_encontradas.append(entrega) # Adiciona apenas se a inserção foi bem-sucedida
-                            chaves_inseridas_com_sucesso.append(serie_numero_ctrc_para_excluir)
+                            chaves_inseridas_com_sucesso.append(serie_numero_ctrc_para_excluir) # Usar o Serie_Numero_CTRC aqui
 
                         # --- MODIFICADO: Remove da tabela de origem usando Serie_Numero_CTRC ---
+                        delete_response = None # Inicializa para capturar a resposta do delete
                         if origem == "rotas_confirmadas":
                             delete_response = supabase.table(origem).delete().eq("Serie_Numero_CTRC", serie_numero_ctrc_para_excluir).execute()
-                            if delete_response.error:
-                                st.error(f"Erro ao deletar {serie_numero_ctrc_para_excluir} de {origem}: {delete_response.error}")
-                            # else: # Para depuração
-                                # st.info(f"DEBUG: Deletado {delete_response.count} registros para {serie_numero_ctrc_para_excluir} de {origem}.")
                             
                         elif origem == "pre_roterizacao":
                             delete_response = supabase.table(origem).delete().eq("Serie_Numero_CTRC", serie_numero_ctrc_para_excluir).execute()
-                            if delete_response.error:
-                                st.error(f"Erro ao deletar {serie_numero_ctrc_para_excluir} de {origem}: {delete_response.error}")
-                            # else: # Para depuração
-                                # st.info(f"DEBUG: Deletado {delete_response.count} registros para {serie_numero_ctrc_para_excluir} de {origem}.")
+                            
+                        elif origem == "aprovacao_diretoria": # NOVO: Excluir da Aprovação da Diretoria
+                            delete_response = supabase.table(origem).delete().eq("Serie_Numero_CTRC", serie_numero_ctrc_para_excluir).execute()
+
+                        if delete_response and delete_response.error:
+                             st.error(f"Erro ao deletar {serie_numero_ctrc_para_excluir} de {origem}: {delete_response.error}")
                             
                     except Exception as e_inner:
                         st.error(f"Erro geral ao processar chave '{chave}': {e_inner}")
 
-                # ... (restante do código, incluindo as invalidações de cache e st.rerun()) ...
+                # ... (restante do código, incluindo as invalidações de cache e st.rerun() - como definido na correção anterior) ...
 
 
 
@@ -2720,13 +2743,15 @@ def pagina_rotas_confirmadas():
                                 # Força recarga dos caches para que as tabelas reflitam as mudanças
                                 st.session_state["reload_rotas_confirmadas"] = True
                                 st.session_state["reload_cargas_geradas"] = True
-                                # Limpa keys dos grids para forçar reconstrução se necessário
-                                st.session_state.pop(grid_key, None)
-                                st.session_state.pop(checkbox_key, None) # Limpa o estado do checkbox
-                                st.session_state.pop(f"selectbox_carga_existente_{rota}", None) # Limpa o selectbox
+                                st.session_state["reload_pre_roterizacao"] = True # Garante que pré-roterização também recarregue, caso a entrega estivesse lá
+                                st.session_state["reload_aprovacao_diretoria"] = True # NOVO: Invalida o cache da Aprovação da Diretoria
 
-                                st.success(f"✅ Entregas adicionadas à carga {carga_escolhida}.")
-                                time.sleep(2)
+                                # Limpa keys dos grids para forçar reconstrução se necessário
+                                for key_prefix in ["grid_rotas_confirmadas_", "grid_carga_gerada_", "grid_aprovar_"]: # Inclui grids da aprovação
+                                    for key in list(st.session_state.keys()):
+                                        if key.startswith(key_prefix):
+                                            st.session_state.pop(key, None)
+                                # NENHUM time.sleep() AQUI
                                 st.rerun()
 
                             except Exception as e:
