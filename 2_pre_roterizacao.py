@@ -2357,11 +2357,10 @@ def pagina_rotas_confirmadas():
                         # Remove da tabela de origem
                         if origem == "rotas_confirmadas":
                             supabase.table("rotas_confirmadas").delete().eq("Chave CT-e", chave).execute()
-                            time.sleep(0.1)
+                            
                         elif origem == "pre_roterizacao":
                             supabase.table("pre_roterizacao").delete().eq("Chave CT-e", chave).execute() # Assume "Chave CT-e" como PK
-                            time.sleep(0.1)
-
+                            
                     except Exception as e_inner:
                         st.warning(f"Erro ao processar chave {chave}: {e_inner}")
 
@@ -2378,6 +2377,7 @@ def pagina_rotas_confirmadas():
                         for key in list(st.session_state.keys()):
                             if key.startswith(key_prefix):
                                 st.session_state.pop(key, None)
+                    # NENHUM time.sleep() AQUI
                     st.rerun()
 
                 else:
@@ -2631,8 +2631,7 @@ def pagina_rotas_confirmadas():
                                 st.session_state.pop(grid_key, None)
                                 st.session_state.pop(checkbox_key, None) # Limpa o estado do checkbox
 
-
-                                time.sleep(1)
+                                # NENHUM time.sleep() AQUI
                                 st.rerun()
 
                             else:
