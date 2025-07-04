@@ -2420,69 +2420,34 @@ def pagina_rotas_confirmadas():
                 st.error(f"Erro ao adicionar entregas manualmente: {e}")
 
 
-
-
-    # --- INÍCIO: CARREGAMENTO DOS DADOS DE ROTAS CONFIRMADAS E EXIBIÇÃO ---
-    # ... (restante do código da função pagina_rotas_confirmadas permanece inalterado) ...
-
     # --- INÍCIO: CARREGAMENTO DOS DADOS DE ROTAS CONFIRMADAS E EXIBIÇÃO ---
     try:
-        with st.spinner("�� Carregando dados das entregas..."):
+        with st.spinner("🔄 Carregando dados das entregas..."):
             recarregar = st.session_state.pop("reload_rotas_confirmadas", False)
             if recarregar or "df_rotas_confirmadas_cache" not in st.session_state:
-                # --- START OF MODIFICATION: NEW DEBUG LINES ---
-                st.write(f"DEBUG: Status do cache: recarregar={recarregar}, 'df_rotas_confirmadas_cache' existe?={'df_rotas_confirmadas_cache' in st.session_state}")
-                
                 # Fetching data from Supabase
                 data_from_supabase = supabase.table("rotas_confirmadas").select("*").execute().data
-                
-                st.write(f"DEBUG: Dados brutos recebidos do Supabase: {len(data_from_supabase)} registros.")
-                if data_from_supabase:
-                    st.write(f"DEBUG: Primeiro registro bruto: {data_from_supabase[0]}")
-                else:
-                    st.write("DEBUG: Nenhum dado bruto recebido do Supabase.")
-                # --- END OF MODIFICATION ---
-
                 df = pd.DataFrame(data_from_supabase)
                 st.session_state["df_rotas_confirmadas_cache"] = df
             else:
-            
                 df = st.session_state["df_rotas_confirmadas_cache"]
     except Exception as e:
         st.error(f"❌ Erro ao carregar as Rotas Confirmadas: {e}")
         df = pd.DataFrame() 
 
-
-    if not df.empty:
-        st.code("Primeiros 5 registros de df:\n" + df.head().to_string(), language="python")
-        # Crie um buffer StringIO para capturar a saída de df.info()
-        buffer_df_info = io.StringIO()
-        # Chame df.info() passando o buffer; df.info() irá escrever nele e retornar None
-        df.info(verbose=True, buf=buffer_df_info)
-        # Agora, obtenha o valor do buffer e passe para st.code
-        st.code("Colunas e tipos de df:\n" + buffer_df_info.getvalue(), language="python")
-        if 'Rota' in df.columns:
-            st.code(f"Rotas únicas em df: {sorted(df['Rota'].dropna().unique().tolist())}", language="python")
-        else:
-            st.code("DEBUG: Coluna 'Rota' não encontrada no DataFrame.", language="python")
-    else:
-        st.code("", language="python")
-    st.markdown("---") # Separador visual
-    # Se df estiver vazio, esta mensagem será exibida. O 'return' já foi removido.
+    # Se df estiver vazio, esta mensagem será exibida e o restante da função (métricas, grids) não será executado.
     if df.empty:
-        st.info("Nenhuma Rota Confirmada encontrada.")
-    # --- FIM: CARREGAMENTO DOS DADOS ---
+        st.info("🛈 Nenhuma Rota Confirmada encontrada. Sincronize os dados e confirme as entregas na seção 'Pré-Roterização'.")
+        return # Retorna para evitar a exibição de métricas ou grids vazios
 
-    # --- INÍCIO: EXIBIÇÃO DE MÉTRICAS E GRIDS (CÓDIGO ABAIXO DEVE SER EXECUTADO SEMPRE) ---
+    # --- INÍCIO: EXIBIÇÃO DE MÉTRICAS GERAIS (SÓ APARECE SE HOUVER DADOS) ---
     col1, col2, _ = st.columns([1, 1, 8])
     with col1:
-        # Se df.empty for True, len(df) será 0, e df["Rota"].nunique() também será 0 ou causará erro se 'Rota' não existir.
-        # Adicionei uma checagem adicional para evitar erro se df estiver vazio antes de tentar acessar colunas.
-        st.metric("Total de Rotas", df["Rota"].nunique() if "Rota" in df.columns and not df.empty else 0)
+        st.metric("Total de Rotas", df["Rota"].nunique() if "Rota" in df.columns else 0)
     with col2:
         st.metric("Total de Entregas", len(df))
 
-
+    # --- Definições de Badges e Colunas (podem permanecer aqui, pois não dependem de df.empty para serem definidas) ---
     def badge(label):
         return f"<span style='background:#eef2f7;border-radius:12px;padding:6px 12px;margin:4px;color:inherit;display:inline-block;'>{label}</span>"
 
@@ -2508,7 +2473,6 @@ def pagina_rotas_confirmadas():
             return null;
         }
     """)
-
     # --- START OF MODIFICATION: Ensuring rotas_unicas is properly handled if df is empty ---
     rotas_unicas = []
     if 'Rota' in df.columns and not df.empty:
