@@ -1038,8 +1038,7 @@ def inserir_em_lote(nome_tabela, df, lote=100, tentativas=3, pausa=0.2):
         "Data da Ultima Ocorrencia", "Data de inclusao da Ultima Ocorrencia",
         "Entrega Programada", "Previsao de Entrega",
         "Data de Emissao", "Data de Autorizacao", "Data do Cancelamento",
-        "Data do Escaneamento", "Data da Entrega Realizada","CEP de Entrega","CEP do Destinatario",
-        "'CEP do Remetente"
+        "Data do Escaneamento", "Data da Entrega Realizada"
     ]
 
     for col in df.columns:
@@ -1307,6 +1306,42 @@ def aplicar_regras_e_preencher_tabelas():
     except Exception as e:
         st.error(f"[ERRO] Regras de sincronização: {e}")
 
+# ==============================================================================
+# NOVAS CONSTANTES E FUNÇÃO AUXILIAR PARA FORMATO DE DATA BRASILEIRO
+# ==============================================================================
+
+# Formato de exibição de data e hora no padrão brasileiro
+DATE_DISPLAY_FORMAT_STRING = '%d-%m-%Y %H:%M:%S'
+
+# Lista de todas as colunas que são datas/horas no seu sistema e que devem ser formatadas para exibição
+# Esta lista será usada consistentemente em todas as páginas para formatar as colunas do grid
+GLOBAL_DATE_DISPLAY_COLUMNS = [
+    "Data de Emissao", "Data de Autorizacao", "Data de inclusao da Ultima Ocorrencia",
+    "Data da Ultima Ocorrencia", "Previsao de Entrega", "Entrega Programada",
+    "Data da Entrega Realizada", "Data do Cancelamento", "Data do Escaneamento",
+    "Data_Hora_Gerada" # Incluída aqui para que todas as datas sejam tratadas pela função
+]
+
+def apply_brazilian_date_format_for_display(df_to_format):
+    """
+    Aplica o formato de data brasileiro (DD-MM-YYYY HH:MM:SS) às colunas de data especificadas
+    em um DataFrame, tratando valores nulos (NaT) para exibir como strings vazias.
+    Garante que a coluna seja do tipo datetime antes de formatar.
+    """
+    for col in GLOBAL_DATE_DISPLAY_COLUMNS:
+        if col in df_to_format.columns:
+            # Primeiro, garante que a coluna é do tipo datetime.
+            # Isso é crucial caso os dados venham do banco como strings e não sejam datetime64[ns] ainda.
+            if not pd.api.types.is_datetime64_any_dtype(df_to_format[col]):
+                df_to_format[col] = pd.to_datetime(df_to_format[col], errors='coerce')
+
+            # Agora, aplica a formatação para exibição
+            df_to_format[col] = df_to_format[col].apply(
+                lambda x: x.strftime(DATE_DISPLAY_FORMAT_STRING)
+                if pd.notna(x) and isinstance(x, (Timestamp, datetime)) # Verifica se é um objeto Timestamp ou datetime nativo
+                else ''
+            )
+    return df_to_format
 
 ##########################################
 
@@ -1324,6 +1359,7 @@ def pagina_confirmar_producao():
             # A flag 'reload_confirmadas_producao' será usada para invalidar o cache e forçar um novo fetch
             recarregar = st.session_state.pop("reload_confirmadas_producao", False)
             if recarregar or "df_confirmadas_cache" not in st.session_state:
+                
                 df = pd.DataFrame(supabase.table("confirmadas_producao").select("*").execute().data)
                 st.session_state["df_confirmadas_cache"] = df
             else:
@@ -1431,20 +1467,10 @@ def pagina_confirmar_producao():
 
             # Criação e estilização do grid (usando o AgGrid)
             df_formatado = df_rota[[col for col in colunas_exibir if col in df_rota.columns]].copy()
+            df_formatado = apply_brazilian_date_format_for_display(df_formatado)
 
             # >>> AJUSTE ESTE BLOCO PARA FORMATAR DATAS COM VERIFICAÇÃO DE TIPO <<<
-            date_cols_to_format = ["Entrega Programada", "Previsao de Entrega", "Data de Emissao", "Data de Autorizacao", "Data de inclusao da Ultima Ocorrencia", "Data da Ultima Ocorrencia", "Data do Cancelamento", "Data do Escaneamento", "Data da Entrega Realizada"]
-            for col in date_cols_to_format:
-                if col in df_formatado.columns:
-                    # MAIS ROBUSTO: Garante que 'x' é um objeto Timestamp antes de chamar strftime
-                    df_formatado[col] = df_formatado[col].apply(
-                        lambda x: x.strftime('%Y-%m-%d %H:%M:%S')
-                        if pd.notna(x) and isinstance(x, pd.Timestamp) # <<< ADICIONADA A VERIFICAÇÃO DE TIPO
-                        else ''
-                    )
-
-
-
+            
             if not df_formatado.empty:
                 gb = GridOptionsBuilder.from_dataframe(df_formatado)
                 gb.configure_default_column(minWidth=150)
@@ -1658,7 +1684,8 @@ def pagina_aprovacao_diretoria():
 
 
         with st.expander("🔽 Selecionar entregas", expanded=False):
-            df_formatado = df_cliente[[col for col in colunas_exibir if col in df_cliente.columns]].copy()
+            
+            df_formatado = apply_brazilian_date_format_for_display(df_cliente[[col for col in colunas_exibir if col in df_cliente.columns]].copy())
 
              # NOVO: Checkbox "Marcar todas" dentro do expander
             checkbox_key = f"marcar_todas_aprov_{cliente}"
@@ -1860,7 +1887,7 @@ def pagina_pre_roterizacao():
                 st.session_state[checkbox_key] = False
             marcar_todas = st.checkbox("Marcar todas", key=checkbox_key)
 
-            df_formatado = df_rota[[col for col in colunas_exibir if col in df_rota.columns]].copy()
+            df_formatado = apply_brazilian_date_format_for_display(df_rota[[col for col in colunas_exibir if col in df_rota.columns]].copy())
 
             gb = GridOptionsBuilder.from_dataframe(df_formatado)
             gb.configure_default_column(minWidth=150)
@@ -2250,7 +2277,7 @@ def pagina_rotas_confirmadas():
             )
 
             with st.expander("🔽 Selecionar entregas", expanded=False):
-                df_formatado = df_rota[[col for col in colunas_exibir if col in df_rota.columns]].copy()
+                df_formatado = apply_brazilian_date_format_for_display(df_rota[[col for col in colunas_exibir if col in df_rota.columns]].copy())
 
                 # NOVO: Checkbox "Marcar todas" dentro do expander
                 checkbox_key = f"marcar_todas_rota_confirmada_{rota}"
@@ -2540,14 +2567,18 @@ def pagina_cargas_geradas():
             # Faça uma cópia para formatar e garantir que não alteramos o cache original
             df_display = df.copy()
 
-            # Tratar NaNs e pd.NaT em todo o DataFrame de uma vez
-            df_display = df_display.replace([np.nan, pd.NaT, None], "")
+            df_display = apply_brazilian_date_format_for_display(df_display)
 
-            # Formatar 'Data_Hora_Gerada' uma única vez
-            if "Data_Hora_Gerada" in df_display.columns:
-                # Certifique-se de que esta coluna é uma string ou datetime antes de aplicar formatar_data_hora_br
-                # A função formatar_data_hora_br já lida com diferentes tipos, então o apply direto deve ser seguro.
-                df_display["Data_Hora_Gerada"] = df_display["Data_Hora_Gerada"].apply(formatar_data_hora_br)
+            # Tratar NaNs e pd.NaT em todo o DataFrame de uma vez
+                        # Faça uma cópia para formatar e garantir que não alteramos o cache original
+            df_display = df.copy()
+
+            # Aplica o formato brasileiro a todas as colunas de data/hora
+            df_display = apply_brazilian_date_format_for_display(df_display)
+
+            # Tratar NaNs restantes em outras colunas (não datas) para exibição como string vazia
+            # (pd.NaT já foi tratado para colunas de data pela função acima)
+            df_display = df_display.replace([np.nan, None], "")
 
             # Colunas numéricas para garantir que são números antes do formatter JS
             numeric_cols_for_formatting = ['Peso Real em Kg', 'Peso Calculado em Kg', 'Cubagem em m³', 'Quantidade de Volumes', 'Valor do Frete']
@@ -2936,11 +2967,11 @@ def pagina_aprovacao_custos():
                 with st.spinner("🔄 Formatando entregas da carga para aprovação..."):
                     # Prepara o DataFrame para exibição no grid
                     df_formatado = df_carga[[col for col in colunas_exibir if col in df_carga.columns]].copy()
-                    df_formatado = df_formatado.replace([np.nan, pd.NaT], "") # Substitui NaN/NaT por string vazia para display
-
-                    # Formata 'Data_Hora_Gerada' se presente e a função de formatação estiver disponível
-                    if "Data_Hora_Gerada" in df_formatado.columns and 'formatar_data_hora_br' in globals():
-                        df_formatado["Data_Hora_Gerada"] = df_formatado["Data_Hora_Gerada"].apply(formatar_data_hora_br)
+                    # NOVO: Aplica o formato brasileiro a todas as colunas de data
+                    df_formatado = apply_brazilian_date_format_for_display(df_formatado)
+                    # Tratar NaNs restantes em outras colunas (não datas) para exibição como string vazia
+                    # (pd.NaT já foi tratado para colunas de data pela função acima)
+                    df_formatado = df_formatado.replace([np.nan, None], "")
 
                     # Configuração do AgGrid
                     gb = GridOptionsBuilder.from_dataframe(df_formatado)
@@ -3250,10 +3281,11 @@ def pagina_cargas_aprovadas():
 
                 with st.spinner("🔄 Formatando entregas da carga aprovada..."):
                     df_formatado = df_carga[[col for col in colunas_exibir if col in df_carga.columns]].copy()
-                    df_formatado = df_formatado.replace([np.nan, pd.NaT], "") 
-
-                    if "Data_Hora_Gerada" in df_formatado.columns and 'formatar_data_hora_br' in globals():
-                        df_formatado["Data_Hora_Gerada"] = df_formatado["Data_Hora_Gerada"].apply(formatar_data_hora_br)
+                    # NOVO: Aplica o formato brasileiro a todas as colunas de data
+                    df_formatado = apply_brazilian_date_format_for_display(df_formatado)
+                    # Tratar NaNs restantes em outras colunas (não datas) para exibição como string vazia
+                    # (pd.NaT já foi tratado para colunas de data pela função acima)
+                    df_formatado = df_formatado.replace([np.nan, None], "")
 
                     gb = GridOptionsBuilder.from_dataframe(df_formatado)
                     gb.configure_default_column(minWidth=150)
