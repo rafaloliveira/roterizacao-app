@@ -2442,7 +2442,12 @@ def pagina_rotas_confirmadas():
 
     if not df.empty:
         st.code("Primeiros 5 registros de df:\n" + df.head().to_string(), language="python")
-        st.code("Colunas e tipos de df:\n" + df.info(verbose=True, buf=io.StringIO()).getvalue(), language="python")
+        # Crie um buffer StringIO para capturar a saída de df.info()
+        buffer_df_info = io.StringIO()
+        # Chame df.info() passando o buffer; df.info() irá escrever nele e retornar None
+        df.info(verbose=True, buf=buffer_df_info)
+        # Agora, obtenha o valor do buffer e passe para st.code
+        st.code("Colunas e tipos de df:\n" + buffer_df_info.getvalue(), language="python")
         if 'Rota' in df.columns:
             st.code(f"Rotas únicas em df: {sorted(df['Rota'].dropna().unique().tolist())}", language="python")
         else:
