@@ -2375,6 +2375,30 @@ def pagina_rotas_confirmadas():
                             chaves_inseridas_com_sucesso.append(serie_numero_ctrc_para_excluir) # Usar o Serie_Numero_CTRC aqui
                         # --- MODIFICADO: Remove da tabela de origem usando Serie_Numero_CTRC ---
                         delete_response = None # Inicializa para capturar a resposta do delete
+                        
+                        try:
+                            if origem == "rotas_confirmadas":
+                                delete_response = supabase.table(origem).delete().eq("Serie_Numero_CTRC", serie_numero_ctrc_para_excluir).execute()
+                            elif origem == "pre_roterizacao":
+                                delete_response = supabase.table(origem).delete().eq("Serie_Numero_CTRC", serie_numero_ctrc_para_excluir).execute()
+                            elif origem == "aprovacao_diretoria":
+                                delete_response = supabase.table(origem).delete().eq("Serie_Numero_CTRC", serie_numero_ctrc_para_excluir).execute()
+
+                            if delete_response:
+                                if delete_response.error:
+                                    # Esta mensagem será mais detalhada
+                                    st.error(f"❌ Erro ao deletar {serie_numero_ctrc_para_excluir} de {origem}: {delete_response.error}. Resposta completa do Supabase: {delete_response.data}")
+                                else:
+                                    # Opcional: Adicionar uma mensagem de sucesso para a deleção durante a depuração
+                                    # st.info(f"✅ Entrega {serie_numero_ctrc_para_excluir} deletada de {origem} com sucesso.")
+                                    pass # A operação de exclusão foi bem-sucedida
+                            else:
+                                st.warning(f"⚠️ Nenhuma resposta de deleção recebida para {serie_numero_ctrc_para_excluir} de {origem}. Verifique se a condição de 'origem' foi atendida e se houve comunicação com o Supabase.")
+                        except Exception as e_delete:
+                            st.error(f"❌ Exceção inesperada durante a tentativa de deletar {serie_numero_ctrc_para_excluir} de {origem}: {e_delete}")
+
+
+
                         if origem == "rotas_confirmadas":
                             delete_response = supabase.table(origem).delete().eq("Serie_Numero_CTRC", serie_numero_ctrc_para_excluir).execute()
                             
