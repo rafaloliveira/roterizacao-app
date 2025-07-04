@@ -2213,8 +2213,7 @@ def pagina_pre_roterizacao():
 def pagina_rotas_confirmadas():
     st.markdown("## Rotas Confirmadas")
 
-    # --- INÍCIO: BLOCO DE CRIAÇÃO DE CARGA AVULSA (MANTENHA INALTERADO NO TOPO) ---
-    # Este bloco já está bem posicionado e deve funcionar independentemente dos dados da rota.
+    # --- INÍCIO: BLOCO DE CRIAÇÃO DE CARGA AVULSA (AGORA SEMPRE VISÍVEL) ---
     chaves_input = "" # Inicializa para ser usado no text_area
 
     if "nova_carga_em_criacao" not in st.session_state:
@@ -2242,7 +2241,7 @@ def pagina_rotas_confirmadas():
 
         col1, col2 = st.columns([5, 1])
         with col1:
-            adicionar = st.button("🚛 Adicionar Entregas à Carga", key="botao_manual")
+            adicionar = st.button("�� Adicionar Entregas à Carga", key="botao_manual")
         with col2:
             cancelar = st.button("❌", help="Cancelar Nova Carga")
 
@@ -2269,9 +2268,9 @@ def pagina_rotas_confirmadas():
                 # Buscar todos os dados uma única vez para maior controle
                 dados_rotas = supabase.table("rotas_confirmadas").select("*").execute().data
                 dados_pre = supabase.table("pre_roterizacao").select("*").execute().data
-                dados_aprovacao_diretoria = supabase.table("aprovacao_diretoria").select("*").execute().data # NOVO: Buscar dados da Aprovação Diretoria
+                # REMOVIDO: dados_aprovacao_diretoria = supabase.table("aprovacao_diretoria").select("*").execute().data # NOVO: Buscar dados da Aprovação Diretoria
                 
-                # 🔎 Buscar entregas já atribuídas a cargas
+                # 🔎 Buscar entregas já atribuídas a cargas (este bloco permanece para verificar duplicidade)
                 dados_cargas = supabase.table("cargas_geradas").select("*").execute().data
 
                 entregas_ja_em_carga = {}
@@ -2311,7 +2310,7 @@ def pagina_rotas_confirmadas():
                             entrega = dados[0]
                             entrega.pop("id", None) # Remove 'id' se existir
 
-                        else:
+                        else: # Agora, se não está em rotas_confirmadas, só pode estar em pre_roterizacao
                             # 2. Buscar em pre_roterizacao
                             dados = [d for d in dados_pre if str(d.get(chave_ct_e_col_name, "")).strip() == chave]
                             if dados:
@@ -2319,13 +2318,7 @@ def pagina_rotas_confirmadas():
                                 entrega = dados[0]
                                 entrega.pop("id", None) # Remove 'id' se existir
                             
-                            else:
-                                # 3. Buscar em aprovacao_diretoria (NOVO)
-                                dados = [d for d in dados_aprovacao_diretoria if str(d.get(chave_ct_e_col_name, "")).strip() == chave]
-                                if dados:
-                                    origem = "aprovacao_diretoria"
-                                    entrega = dados[0]
-                                    entrega.pop("id", None) # Remove 'id' se existir
+                            # REMOVIDO: else: (o bloco para aprovacao_diretoria foi removido aqui)
 
 
                         if not entrega:
@@ -2375,66 +2368,53 @@ def pagina_rotas_confirmadas():
                             # st.info(f"DEBUG: Inserido {serie_numero_ctrc_para_excluir} em cargas_geradas.") # Para depuração
                             entregas_encontradas.append(entrega) # Adiciona apenas se a inserção foi bem-sucedida
                             chaves_inseridas_com_sucesso.append(serie_numero_ctrc_para_excluir) # Usar o Serie_Numero_CTRC aqui
+                        
                         # --- MODIFICADO: Remove da tabela de origem usando Serie_Numero_CTRC ---
-
-
                         delete_response = None # Inicializa para capturar a resposta do delete
                         try:
                             if origem == "rotas_confirmadas":
                                 delete_response = supabase.table(origem).delete().eq("Serie_Numero_CTRC", serie_numero_ctrc_para_excluir).execute()
                             elif origem == "pre_roterizacao":
                                 delete_response = supabase.table(origem).delete().eq("Serie_Numero_CTRC", serie_numero_ctrc_para_excluir).execute()
-                            elif origem == "aprovacao_diretoria":
-                                delete_response = supabase.table(origem).delete().eq("Serie_Numero_CTRC", serie_numero_ctrc_para_excluir).execute()
-
-                                if delete_response:
-                                    # VERIFICAÇÃO CORRETA DE ERRO DE DELEÇÃO
-                                    if delete_response.postgrest_error: # <-- MUDANÇA AQUI
-                                        # Esta mensagem será mais detalhada
-                                        st.error(f"❌ Erro ao deletar {serie_numero_ctrc_para_excluir} de {origem}: {delete_response.postgrest_error.message}. Status: {delete_response.status_code}")
-                                    else:
-                                        # Opcional: Adicionar uma mensagem de sucesso para a deleção durante a depuração
-                                        # st.info(f"✅ Entrega {serie_numero_ctrc_para_excluir} deletada de {origem} com sucesso.")
-                                        pass # A operação de exclusão foi bem-sucedida
+                            # REMOVIDO: elif origem == "aprovacao_diretoria":
+                            # REMOVIDO:     delete_response = supabase.table(origem).delete().eq("Serie_Numero_CTRC", serie_numero_ctrc_para_excluir).execute()
+                            
+                            if delete_response:
+                                # VERIFICAÇÃO CORRETA DE ERRO DE DELEÇÃO
+                                if delete_response.postgrest_error: # <-- MUDANÇA AQUI
+                                    # Esta mensagem será mais detalhada
+                                    st.error(f"❌ Erro ao deletar {serie_numero_ctrc_para_excluir} de {origem}: {delete_response.postgrest_error.message}. Status: {delete_response.status_code}")
                                 else:
-                                    st.warning(f"⚠️ Nenhuma resposta de deleção recebida para {serie_numero_ctrc_para_excluir} de {origem}. Verifique se a condição de 'origem' foi atendida e se houve comunicação com o Supabase.")
+                                    # Opcional: Adicionar uma mensagem de sucesso para a deleção durante a depuração
+                                    # st.info(f"✅ Entrega {serie_numero_ctrc_para_excluir} deletada de {origem} com sucesso.")
+                                    pass # A operação de exclusão foi bem-sucedida
+                            else:
+                                st.warning(f"⚠️ Nenhuma resposta de deleção recebida para {serie_numero_ctrc_para_excluir} de {origem}. Verifique se a condição de 'origem' foi atendida e se houve comunicação com o Supabase.")
                         except Exception as e_delete:
                             st.error(f"❌ Exceção inesperada durante a tentativa de deletar {serie_numero_ctrc_para_excluir} de {origem}: {e_delete}")
-
-
-
-                        if origem == "rotas_confirmadas":
-                            delete_response = supabase.table(origem).delete().eq("Serie_Numero_CTRC", serie_numero_ctrc_para_excluir).execute()
-                            
-                        elif origem == "pre_roterizacao":
-                            delete_response = supabase.table(origem).delete().eq("Serie_Numero_CTRC", serie_numero_ctrc_para_excluir).execute()
-                            
-                        elif origem == "aprovacao_diretoria": # NOVO: Excluir da Aprovação da Diretoria
-                            delete_response = supabase.table(origem).delete().eq("Serie_Numero_CTRC", serie_numero_ctrc_para_excluir).execute()
-
-                        if delete_response and delete_response.error:
-                             st.error(f"Erro ao deletar {serie_numero_ctrc_para_excluir} de {origem}: {delete_response.error}")
-                            
+                        
                     except Exception as e_inner:
                         st.error(f"Erro geral ao processar chave '{chave}': {e_inner}")
 
-                # ... (restante do código, incluindo as invalidações de cache e st.rerun() - como definido na correção anterior) ...
                 if entregas_encontradas:
                     st.success(f"✅ {len(entregas_encontradas)} entrega(s) adicionada(s) à carga {st.session_state['numero_nova_carga']} com sucesso.")
-
-                    # Limpa o estado da carga criada para voltar à visualização normal
+                
+                # Limpa o estado da carga criada para voltar à visualização normal
                 st.success(f"Operação de adição manual concluída!") # Exemplo de sucesso
                 st.session_state["nova_carga_em_criacao"] = False # Volta para o estado inicial
                 st.session_state["numero_nova_carga"] = ""
                 st.session_state["reload_rotas_confirmadas"] = True # Recarrega as rotas confirmadas
                 st.session_state["reload_cargas_geradas"] = True # Recarrega as cargas geradas
                 st.session_state["reload_pre_roterizacao"] = True
-                st.session_state["reload_aprovacao_diretoria"] = True
+                st.session_state["reload_aprovacao_diretoria"] = True # Mantido, caso alguma operação futura precise recarregar.
 
                 st.rerun() # Força o rerun
 
             except Exception as e:
                 st.error(f"Erro ao adicionar entregas manualmente: {e}")
+
+    # --- INÍCIO: CARREGAMENTO DOS DADOS DE ROTAS CONFIRMADAS E EXIBIÇÃO ---
+    # ... (restante do código da função pagina_rotas_confirmadas permanece inalterado) ...
 
     # --- INÍCIO: CARREGAMENTO DOS DADOS DE ROTAS CONFIRMADAS E EXIBIÇÃO ---
     try:
