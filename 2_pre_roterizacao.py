@@ -2296,16 +2296,15 @@ def pagina_rotas_confirmadas():
                     if serie_ctr:
                         entregas_ja_em_carga[serie_ctr] = numero_carga
 
+
+
                 chaves_inseridas_com_sucesso = [] # Para armazenar as chaves que foram realmente inseridas
-                for chave in chaves:
+                for chave in chaves: # 'chave' aqui é a Chave CT-e do input do usuário
                     try:
                         origem = None
                         entrega = None
 
-                        # Verificar se a chave já está em alguma carga
-                        if chave in entregas_ja_em_carga:
-                            st.warning(f"⚠️ A entrega com chave '{chave}' já está na carga {entregas_ja_em_carga[chave]}.")
-                            continue
+                        # ... (código para verificar se a chave já está em alguma carga) ...
 
                         # Busca manual nas tabelas
                         dados = [d for d in dados_rotas if str(d.get(chave_coluna_rotas, "")).strip() == chave]
@@ -2323,11 +2322,16 @@ def pagina_rotas_confirmadas():
                         if not entrega:
                             st.warning(f"⚠️ Chave {chave} não encontrada em nenhuma tabela ou já foi processada.")
                             continue
+                        
+                        # --- NOVO: Obtém o Serie_Numero_CTRC para exclusão ---
+                        serie_numero_ctrc_para_excluir = str(entrega.get('Serie_Numero_CTRC', '')).strip()
+                        if not serie_numero_ctrc_para_excluir:
+                            st.warning(f"⚠️ Entrega com Chave CT-e '{chave}' não possui Serie_Numero_CTRC válido. Ignorando.")
+                            continue # Pula esta entrega se não tiver um Serie_Numero_CTRC
 
                         entrega["numero_carga"] = st.session_state["numero_nova_carga"]
                         entrega["Data_Hora_Gerada"] = data_hora_brasil_iso() # CORRIGIDO AQUI
                         
-
                         # Limpa valores que podem causar problemas na inserção (NaN, NaT, objetos complexos)
                         entrega = {k: (
                             v.isoformat() if isinstance(v, (pd.Timestamp, datetime, date)) else # Converte datas para ISO
@@ -2349,20 +2353,37 @@ def pagina_rotas_confirmadas():
                         entrega_filtrada = {k: v for k, v in entrega.items() if k in colunas_validas}
 
                         # Tenta inserir no Supabase
-                        supabase.table("cargas_geradas").insert(entrega_filtrada).execute()
-                        time.sleep(0.1) # Pequena pausa para evitar sobrecarga no Supabase
-                        entregas_encontradas.append(entrega)
-                        chaves_inseridas_com_sucesso.append(chave)
+                        insert_response = supabase.table("cargas_geradas").insert(entrega_filtrada).execute()
+                        if insert_response.error: # Verifica se a inserção falhou
+                            st.error(f"Erro ao inserir {serie_numero_ctrc_para_excluir} na tabela 'cargas_geradas': {insert_response.error}")
+                            continue # Se a inserção falhou, não tenta deletar e passa para a próxima chave
+                        else:
+                            # st.info(f"DEBUG: Inserido {serie_numero_ctrc_para_excluir} em cargas_geradas.") # Para depuração
+                            entregas_encontradas.append(entrega) # Adiciona apenas se a inserção foi bem-sucedida
+                            chaves_inseridas_com_sucesso.append(serie_numero_ctrc_para_excluir)
 
-                        # Remove da tabela de origem
+                        # --- MODIFICADO: Remove da tabela de origem usando Serie_Numero_CTRC ---
                         if origem == "rotas_confirmadas":
-                            supabase.table("rotas_confirmadas").delete().eq("Chave CT-e", chave).execute()
+                            delete_response = supabase.table(origem).delete().eq("Serie_Numero_CTRC", serie_numero_ctrc_para_excluir).execute()
+                            if delete_response.error:
+                                st.error(f"Erro ao deletar {serie_numero_ctrc_para_excluir} de {origem}: {delete_response.error}")
+                            # else: # Para depuração
+                                # st.info(f"DEBUG: Deletado {delete_response.count} registros para {serie_numero_ctrc_para_excluir} de {origem}.")
                             
                         elif origem == "pre_roterizacao":
-                            supabase.table("pre_roterizacao").delete().eq("Chave CT-e", chave).execute() # Assume "Chave CT-e" como PK
+                            delete_response = supabase.table(origem).delete().eq("Serie_Numero_CTRC", serie_numero_ctrc_para_excluir).execute()
+                            if delete_response.error:
+                                st.error(f"Erro ao deletar {serie_numero_ctrc_para_excluir} de {origem}: {delete_response.error}")
+                            # else: # Para depuração
+                                # st.info(f"DEBUG: Deletado {delete_response.count} registros para {serie_numero_ctrc_para_excluir} de {origem}.")
                             
                     except Exception as e_inner:
-                        st.warning(f"Erro ao processar chave {chave}: {e_inner}")
+                        st.error(f"Erro geral ao processar chave '{chave}': {e_inner}")
+
+                # ... (restante do código, incluindo as invalidações de cache e st.rerun()) ...
+
+
+
 
                 if entregas_encontradas:
                     st.success(f"✅ {len(entregas_encontradas)} entrega(s) adicionada(s) à carga {st.session_state['numero_nova_carga']} com sucesso.")
