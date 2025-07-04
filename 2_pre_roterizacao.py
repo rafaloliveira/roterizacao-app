@@ -2466,12 +2466,11 @@ def pagina_rotas_confirmadas():
         else:
             st.code("DEBUG: Coluna 'Rota' não encontrada no DataFrame.", language="python")
     else:
-        st.code("DataFrame 'df' está vazio após carregamento/processamento.", language="python")
+        st.code("", language="python")
     st.markdown("---") # Separador visual
-
     # Se df estiver vazio, esta mensagem será exibida. O 'return' já foi removido.
     if df.empty:
-        st.info("🛈 Nenhuma Rota Confirmada encontrada. Sincronize os dados e confirme as entregas na seção 'Pré-Roterização'.")
+        st.info("Nenhuma Rota Confirmada encontrada.")
     # --- FIM: CARREGAMENTO DOS DADOS ---
 
     # --- INÍCIO: EXIBIÇÃO DE MÉTRICAS E GRIDS (CÓDIGO ABAIXO DEVE SER EXECUTADO SEMPRE) ---
