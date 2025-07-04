@@ -2385,14 +2385,16 @@ def pagina_rotas_confirmadas():
                                     if hasattr(delete_response, 'error') and delete_response.error:
                                         st.error(f"❌ Erro ao deletar {serie_numero_ctrc_para_excluir} de {origem}: {delete_response.error}. Status: {delete_response.status_code if hasattr(delete_response, 'status_code') else 'N/A'}")
                                     else:
-                                        # Mensagens de depuração para deleção
-                                        if hasattr(delete_response, 'count') and delete_response.count > 0:
+                                        # Opcional: Adicionar uma mensagem de sucesso para a deleção durante a depuração
+                                        # Para confirmar se a deleção ocorreu (count > 0)
+                                        # Verifica se 'count' existe E não é None antes de comparar
+                                        if hasattr(delete_response, 'count') and (delete_response.count is not None and delete_response.count > 0):
                                             st.info(f"✅ Entrega {serie_numero_ctrc_para_excluir} deletada de {origem} com sucesso (linhas afetadas: {delete_response.count}).")
                                         elif hasattr(delete_response, 'data') and len(delete_response.data) > 0:
                                             st.info(f"✅ Entrega {serie_numero_ctrc_para_excluir} deletada de {origem} com sucesso (itens retornados: {len(delete_response.data)}).")
                                         else:
                                             st.warning(f"ℹ️ Deleção de {serie_numero_ctrc_para_excluir} de {origem} concluída, mas 0 linhas afetadas. Verifique se a entrega realmente existia lá.")
-                                        pass # Deleção bem-sucedida
+                                        pass # A operação de exclusão foi bem-sucedida
                                 else:
                                     st.warning(f"⚠️ Nenhuma resposta de deleção recebida para {serie_numero_ctrc_para_excluir} de {origem}. Verifique a comunicação com o Supabase.")
                             except Exception as e_delete:
