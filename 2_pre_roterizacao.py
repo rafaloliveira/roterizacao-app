@@ -2207,31 +2207,9 @@ def pagina_pre_roterizacao():
 def pagina_rotas_confirmadas():
     st.markdown("## Rotas Confirmadas")
 
-# --- INÍCIO: CARREGAMENTO DOS DADOS DE ROTAS CONFIRMADAS E EXIBIÇÃO ---
-    # Este bloco só é executado *depois* da lógica da carga avulsa (que está no trecho anterior).
-    try:
-        with st.spinner("🔄 Carregando dados das entregas..."):
-            recarregar = st.session_state.pop("reload_rotas_confirmadas", False)
-            if recarregar or "df_rotas_confirmadas_cache" not in st.session_state:          
-                data_from_supabase = supabase.table("rotas_confirmadas").select("*").execute().data
-                df = pd.DataFrame(data_from_supabase) # df será usado no restante do código
-                st.session_state["df_rotas_confirmadas_cache"] = df
-            else:
-                df = st.session_state["df_rotas_confirmadas_cache"]
-    except Exception as e:
-        st.error(f"❌ Erro ao carregar as Rotas Confirmadas: {e}")
-
-        df = pd.DataFrame() 
-
-    if df.empty:
-        st.info("🛈 Nenhuma Rota Confirmada.")
-        return # Retorna aqui para não renderizar o restante da página (métricas, grids, etc.) se não houver dados.
-    # --- FIM: CARREGAMENTO DOS DADOS ---
-
-
-
     # --- INÍCIO: BLOCO DE CRIAÇÃO DE CARGA AVULSA (SEMPRE VISÍVEL E INTERATIVO) ---
     chaves_input = "" # Inicializa para ser usado no text_area
+
     if "nova_carga_em_criacao" not in st.session_state:
         st.session_state["nova_carga_em_criacao"] = False
         st.session_state["numero_nova_carga"] = ""
@@ -2301,9 +2279,7 @@ def pagina_rotas_confirmadas():
                     if chave_cte:
                         entregas_ja_em_carga[chave_cte] = numero_carga
                     if serie_ctr:
-                        entregas_ja_em_carga[serie_ctr] = numero_carga
-
-
+                        entregas_ja_em_carga[serie_ctr] = numero_carga             
 
                 chaves_inseridas_com_sucesso = [] # Para armazenar as chaves que foram realmente inseridas
 
@@ -2421,16 +2397,37 @@ def pagina_rotas_confirmadas():
                 st.session_state["reload_cargas_geradas"] = True # Recarrega as cargas geradas
                 st.session_state["reload_pre_roterizacao"] = True
                 st.session_state["reload_aprovacao_diretoria"] = True
+
                 st.rerun() # Força o rerun
 
             except Exception as e:
                 st.error(f"Erro ao adicionar entregas manualmente: {e}")
 
-        col1, col2, _ = st.columns([1, 1, 8])
-        with col1:
-            st.metric("Total de Rotas", df["Rota"].nunique() if "Rota" in df.columns else 0)
-        with col2:
-            st.metric("Total de Entregas", len(df))
+            try:
+                with st.spinner("�� Carregando dados das entregas..."):
+                    recarregar = st.session_state.pop("reload_rotas_confirmadas", False)
+                    if recarregar or "df_rotas_confirmadas_cache" not in st.session_state:          
+                        data_from_supabase = supabase.table("rotas_confirmadas").select("*").execute().data
+                        df = pd.DataFrame(data_from_supabase)
+                        st.session_state["df_rotas_confirmadas_cache"] = df
+                    else:
+                        df = st.session_state["df_rotas_confirmadas_cache"]
+            except Exception as e:
+                st.error(f"❌ Erro ao carregar as Rotas Confirmadas: {e}")
+                df = pd.DataFrame() 
+
+            if df.empty:
+                st.info("🛈 Nenhuma Rota Confirmada encontrada. Sincronize os dados e confirme as entregas na seção 'Pré-Roterização'.")
+                return # Retorna aqui para não renderizar o restante da página (métricas, grids, etc.) se não houver dados.
+            # --- FIM: CARREGAMENTO DOS DADOS ---
+
+            # ... (restante do código de pagina_rotas_confirmadas, que processa e exibe o df) ...
+            col1, col2, _ = st.columns([1, 1, 8])
+            with col1:
+                st.metric("Total de Rotas", df["Rota"].nunique() if "Rota" in df.columns else 0)
+            with col2:
+                st.metric("Total de Entregas", len(df))
+
 
         def badge(label):
             return f"<span style='background:#eef2f7;border-radius:12px;padding:6px 12px;margin:4px;color:inherit;display:inline-block;'>{label}</span>"
