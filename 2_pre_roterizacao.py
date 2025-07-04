@@ -2418,7 +2418,7 @@ def pagina_rotas_confirmadas():
 
             if df.empty:
                 st.info("🛈 Nenhuma Rota Confirmada encontrada. Sincronize os dados e confirme as entregas na seção 'Pré-Roterização'.")
-                return # Retorna aqui para não renderizar o restante da página (métricas, grids, etc.) se não houver dados.
+                #return # Retorna aqui para não renderizar o restante da página (métricas, grids, etc.) se não houver dados.
             # --- FIM: CARREGAMENTO DOS DADOS ---
 
             # ... (restante do código de pagina_rotas_confirmadas, que processa e exibe o df) ...
