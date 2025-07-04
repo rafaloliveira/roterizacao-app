@@ -2207,27 +2207,13 @@ def pagina_pre_roterizacao():
 def pagina_rotas_confirmadas():
     st.markdown("## Rotas Confirmadas")
 
-    # Adicionando a lógica de cache ou recarga
-    with st.spinner("🔄 Carregando dados das entregas..."):
-        recarregar = st.session_state.pop("reload_rotas_confirmadas", False)
-        if recarregar or "df_rotas_confirmadas_cache" not in st.session_state:          
-            # AQUI É O PONTO CRÍTICO DA BUSCA (Correção da redundância)
-            data_from_supabase = supabase.table("rotas_confirmadas").select("*").execute().data
-            df_rotas = pd.DataFrame(data_from_supabase) # Usando os dados já buscados
-            st.session_state["df_rotas_confirmadas_cache"] = df_rotas
-        else:
-            
-            df_rotas = st.session_state["df_rotas_confirmadas_cache"]
-    if df_rotas.empty:
-        st.info("Nenhuma Rota Confirmada.")
-        return
-
-    # Lógica para criação de nova carga avulsa (mantida inalterada para o foco no problema)
-    chaves_input = ""
+    # --- INÍCIO: BLOCO DE CRIAÇÃO DE CARGA AVULSA (SEMPRE VISÍVEL E INTERATIVO) ---
+    chaves_input = "" # Inicializa para ser usado no text_area
     if "nova_carga_em_criacao" not in st.session_state:
         st.session_state["nova_carga_em_criacao"] = False
         st.session_state["numero_nova_carga"] = ""
 
+    # Se NÃO está em criação de carga, mostra o botão "Criar Nova Carga Avulsa"
     if not st.session_state["nova_carga_em_criacao"]:
         col1, col2 = st.columns([1, 1])
         with col1:
@@ -2237,11 +2223,11 @@ def pagina_rotas_confirmadas():
                     if numero_carga:
                         st.session_state["nova_carga_em_criacao"] = True
                         st.session_state["numero_nova_carga"] = numero_carga
-                        st.rerun()
+                        st.rerun() # Força rerun para exibir a nova interface de adição
                 except Exception as e:
                     st.error(f"Erro ao criar nova carga: {e}")
-
-    if st.session_state["nova_carga_em_criacao"]:
+    # Se JÁ está em criação de carga, mostra a interface para adicionar chaves CT-e
+    else:
         st.success(f"Nova Carga Criada: {st.session_state['numero_nova_carga']}")
         st.markdown("### Inserir Entregas na Carga")
         chaves_input = st.text_area("Insira as Chaves CT-e (uma por linha)")
@@ -2404,45 +2390,44 @@ def pagina_rotas_confirmadas():
                         st.error(f"Erro geral ao processar chave '{chave}': {e_inner}")
 
                 # ... (restante do código, incluindo as invalidações de cache e st.rerun() - como definido na correção anterior) ...
-
-
-
-
                 if entregas_encontradas:
                     st.success(f"✅ {len(entregas_encontradas)} entrega(s) adicionada(s) à carga {st.session_state['numero_nova_carga']} com sucesso.")
-                    # Limpa o estado da carga criada para voltar à visualização normal
-                    st.session_state["nova_carga_em_criacao"] = False
-                    st.session_state["numero_nova_carga"] = ""
-                    # Força a recarga dos caches para que as tabelas reflitam as mudanças
-                    st.session_state["reload_rotas_confirmadas"] = True
-                    st.session_state["reload_cargas_geradas"] = True
-                    # Limpa keys dos grids para forçar reconstrução se necessário
-                    for key_prefix in ["grid_rotas_confirmadas_", "grid_carga_gerada_"]:
-                        for key in list(st.session_state.keys()):
-                            if key.startswith(key_prefix):
-                                st.session_state.pop(key, None)
-                    # NENHUM time.sleep() AQUI
-                    st.rerun()
 
-                else:
-                    st.warning("⚠️ Nenhuma entrega válida foi adicionada ou encontrada.")
+                    # Limpa o estado da carga criada para voltar à visualização normal
+                st.success(f"Operação de adição manual concluída!") # Exemplo de sucesso
+                st.session_state["nova_carga_em_criacao"] = False # Volta para o estado inicial
+                st.session_state["numero_nova_carga"] = ""
+                st.session_state["reload_rotas_confirmadas"] = True # Recarrega as rotas confirmadas
+                st.session_state["reload_cargas_geradas"] = True # Recarrega as cargas geradas
+                st.session_state["reload_pre_roterizacao"] = True
+                st.session_state["reload_aprovacao_diretoria"] = True
+                st.rerun() # Força o rerun
 
             except Exception as e:
-                st.error(f"Erro ao adicionar entregas: {e}")
+                st.error(f"Erro ao adicionar entregas manualmente: {e}")
 
-    # A partir daqui, a lógica de exibição das rotas confirmadas continua
-    try:
-        # Reutiliza o DataFrame do cache ou recarrega para exibição
-        df = st.session_state.get("df_rotas_confirmadas_cache", pd.DataFrame())
-        df.columns = df.columns.str.strip()
-        # st.write("DEBUG: Conteúdo de df_rotas antes da exibição:") # DEBUG
-        # st.dataframe(df) # DEBUG
-        # st.write(f"DEBUG: df_rotas está vazia? {df.empty}") # DEBUG
 
-        if df.empty:
-            st.info("🛈 Nenhuma Rota Confirmada.")
-            # st.info("DEBUG: DataFrame df_rotas está vazio.") # DEBUG
-            return
+
+            # --- INÍCIO: CARREGAMENTO DOS DADOS DE ROTAS CONFIRMADAS E EXIBIÇÃO ---
+            # Este bloco só é executado *depois* da lógica da carga avulsa (que está no trecho anterior).
+            try:
+                with st.spinner("🔄 Carregando dados das entregas..."):
+                    recarregar = st.session_state.pop("reload_rotas_confirmadas", False)
+                    if recarregar or "df_rotas_confirmadas_cache" not in st.session_state:          
+                        data_from_supabase = supabase.table("rotas_confirmadas").select("*").execute().data
+                        df = pd.DataFrame(data_from_supabase) # df será usado no restante do código
+                        st.session_state["df_rotas_confirmadas_cache"] = df
+                    else:
+                        df = st.session_state["df_rotas_confirmadas_cache"]
+            except Exception as e:
+                st.error(f"❌ Erro ao carregar as Rotas Confirmadas: {e}")
+                return # Impede que o restante da página seja renderizado em caso de erro
+
+            if df.empty:
+                st.info("🛈 Nenhuma Rota Confirmada.")
+                return # Retorna aqui para não renderizar o restante da página (métricas, grids, etc.) se não houver dados.
+            # --- FIM: CARREGAMENTO DOS DADOS ---
+
 
         col1, col2, _ = st.columns([1, 1, 8])
         with col1:
@@ -2683,6 +2668,7 @@ def pagina_rotas_confirmadas():
 
                         except Exception as e:
                             st.error(f"Erro ao adicionar rota como carga: {e}")
+                            
 
                 #  Botão para adicionar à carga existente
                 cargas_existentes = supabase.table("cargas_geradas").select("numero_carga").execute().data
@@ -2759,8 +2745,7 @@ def pagina_rotas_confirmadas():
                 else:
                     st.info("Nenhuma carga existente encontrada para seleção.")
 
-    except Exception as e:
-        st.error(f"Erro ao processar entregas confirmadas: {e}")
+
 
 
 ##########################################
