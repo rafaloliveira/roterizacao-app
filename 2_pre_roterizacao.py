@@ -2446,16 +2446,12 @@ def pagina_rotas_confirmadas():
                 df = pd.DataFrame(data_from_supabase)
                 st.session_state["df_rotas_confirmadas_cache"] = df
             else:
-                st.write("DEBUG: Usando dados cacheados para 'rotas_confirmadas'.")
+            
                 df = st.session_state["df_rotas_confirmadas_cache"]
     except Exception as e:
         st.error(f"❌ Erro ao carregar as Rotas Confirmadas: {e}")
         df = pd.DataFrame() 
 
-    st.markdown("---") # Separador visual para depuração
-    st.markdown("### DEBUG - Informações do DataFrame 'df'")
-    st.code(f"df.empty: {df.empty}", language="python")
-    st.code(f"Número de registros em df: {len(df)}", language="python")
 
     if not df.empty:
         st.code("Primeiros 5 registros de df:\n" + df.head().to_string(), language="python")
@@ -2519,8 +2515,7 @@ def pagina_rotas_confirmadas():
     if 'Rota' in df.columns and not df.empty:
         rotas_unicas = sorted(df["Rota"].dropna().unique())
     
-    st.write(f"DEBUG: Rotas únicas para exibição (após filtragem): {rotas_unicas}")
-    # --- END OF MODIFICATION ---
+    
 
     for rota in rotas_unicas:
         df_rota = df[df["Rota"] == rota].copy()
