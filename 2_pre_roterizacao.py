@@ -1551,15 +1551,38 @@ def pagina_confirmar_producao():
                     if st.button(f"🚀 Enviar para Aprovação da Diretoria da Rota {rota}", key=f"btn_confirmar_{rota}"):
                         try:
                             # Prepara os dados para inserção na tabela de aprovacao_diretoria
+                                                        # Prepara os dados para inserção na tabela de aprovacao_diretoria
                             df_confirmar = selecionadas.drop(columns=["_selectedRowNodeInfo"], errors="ignore").copy()
                             df_confirmar["Rota"] = rota # Garante que a rota esteja na coluna correta
                             
-                            # Converte NaT/NaN para None para compatibilidade com Supabase
-                            df_confirmar = df_confirmar.replace([np.nan, np.inf, -np.inf, pd.NaT], None)
-                            # Formata colunas de data/hora para string ISO se existirem
+                            # --- NOVO/MODIFICADO: TRATAMENTO DE DATAS PARA INSERÇÃO NO SUPABASE ---
+                            # As colunas de data no 'selecionadas' vêm como strings no formato brasileiro (DD-MM-AAAA HH:MM:SS).
+                            # Primeiro, vamos converter essas strings de volta para objetos datetime.
+                            # Usamos GLOBAL_DATE_DISPLAY_COLUMNS e DATE_DISPLAY_FORMAT_STRING (definidas no seu código).
+                            for col_name in GLOBAL_DATE_DISPLAY_COLUMNS:
+                                if col_name in df_confirmar.columns:
+                                    df_confirmar[col_name] = pd.to_datetime(
+                                        df_confirmar[col_name],
+                                        format=DATE_DISPLAY_FORMAT_STRING, # Formato de origem (brasileiro)
+                                        errors='coerce' # Transforma erros de parse em NaT (Not a Time)
+                                    )
+                            
+                            # Agora que todas as datas foram (tentativamente) convertidas para datetime,
+                            # vamos padronizar valores nulos (NaT, NaN, Inf) para None e formatar para ISO.
+                            
+                            # Substitui NaT, NaN, inf por None para compatibilidade com Supabase.
+                            # Isso também tratará strings vazias ou nulas que não foram convertidas para NaT.
+                            df_confirmar = df_confirmar.replace([np.nan, np.inf, -np.inf, pd.NaT, ""], None)
+
+                            # Finalmente, formata as colunas que são objetos datetime64[ns] para o padrão ISO (AAAA-MM-DD HH:MM:SS) para o Supabase.
+                            # As colunas que não eram datas ou que falharam na conversão para datetime (e permaneceram como None ou outro tipo)
+                            # não serão afetadas por este loop, o que é o comportamento desejado.
                             for col in df_confirmar.select_dtypes(include=["datetime64[ns]"]).columns:
-                                if df_confirmar[col].notna().any(): # Apenas formata se houver valores não-NaT
-                                    df_confirmar[col] = df_confirmar[col].dt.strftime("%Y-%m-%d %H:%M:%S")
+                                # Certifica-se de que não estamos tentando chamar .dt.strftime() em None
+                                df_confirmar[col] = df_confirmar[col].apply(
+                                    lambda x: x.strftime("%Y-%m-%d %H:%M:%S") if x is not None else None
+                                )
+                            # --- FIM DO NOVO/MODIFICADO BLOCO DE TRATAMENTO DE DATAS ---
 
                             registros = df_confirmar.to_dict(orient="records")
                             # Filtra registros inválidos (sem Serie_Numero_CTRC)
