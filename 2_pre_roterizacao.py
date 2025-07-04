@@ -1432,11 +1432,16 @@ def pagina_confirmar_producao():
             # Criação e estilização do grid (usando o AgGrid)
             df_formatado = df_rota[[col for col in colunas_exibir if col in df_rota.columns]].copy()
 
+            # >>> AJUSTE ESTE BLOCO PARA FORMATAR DATAS COM VERIFICAÇÃO DE TIPO <<<
             date_cols_to_format = ["Entrega Programada", "Previsao de Entrega", "Data de Emissao", "Data de Autorizacao", "Data de inclusao da Ultima Ocorrencia", "Data da Ultima Ocorrencia", "Data do Cancelamento", "Data do Escaneamento", "Data da Entrega Realizada"]
             for col in date_cols_to_format:
                 if col in df_formatado.columns:
-                    # Converte pd.NaT para None, depois None ou datas válidas para string formatada ou vazia
-                    df_formatado[col] = df_formatado[col].apply(lambda x: x.strftime('%Y-%m-%d %H:%M:%S') if pd.notna(x) else '')
+                    # MAIS ROBUSTO: Garante que 'x' é um objeto Timestamp antes de chamar strftime
+                    df_formatado[col] = df_formatado[col].apply(
+                        lambda x: x.strftime('%Y-%m-%d %H:%M:%S')
+                        if pd.notna(x) and isinstance(x, pd.Timestamp) # <<< ADICIONADA A VERIFICAÇÃO DE TIPO
+                        else ''
+                    )
 
 
 
