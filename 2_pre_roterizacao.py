@@ -1432,6 +1432,14 @@ def pagina_confirmar_producao():
             # Criação e estilização do grid (usando o AgGrid)
             df_formatado = df_rota[[col for col in colunas_exibir if col in df_rota.columns]].copy()
 
+            date_cols_to_format = ["Entrega Programada", "Previsao de Entrega", "Data de Emissao", "Data de Autorizacao", "Data de inclusao da Ultima Ocorrencia", "Data da Ultima Ocorrencia", "Data do Cancelamento", "Data do Escaneamento", "Data da Entrega Realizada"]
+            for col in date_cols_to_format:
+                if col in df_formatado.columns:
+                    # Converte pd.NaT para None, depois None ou datas válidas para string formatada ou vazia
+                    df_formatado[col] = df_formatado[col].apply(lambda x: x.strftime('%Y-%m-%d %H:%M:%S') if pd.notna(x) else '')
+
+
+
             if not df_formatado.empty:
                 gb = GridOptionsBuilder.from_dataframe(df_formatado)
                 gb.configure_default_column(minWidth=150)
