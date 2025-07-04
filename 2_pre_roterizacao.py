@@ -1822,28 +1822,49 @@ def pagina_aprovacao_diretoria():
                                 with st.spinner("✅ Aprovando entregas e movendo para Pré-Roteirização..."):
                                     df_aprovar = pd.DataFrame(selecionadas)
                                     # Remove AgGrid internal info
+                                    df_aprovar = pd.DataFrame(selecionadas)
+                                    # Remove AgGrid internal info
                                     df_aprovar = df_aprovar.drop(columns=["_selectedRowNodeInfo"], errors="ignore")
 
-                                    # *** TRATAMENTO DE DATAS PARA INSERÇÃO NO SUPABASE (APROVAR) ***
-                                    # As colunas de data no 'selecionadas' vêm como strings no formato brasileiro (DD-MM-AAAA HH:MM:SS).
-                                    # Precisamos re-parseá-las para objetos datetime e depois formatá-las para ISO.
+                                    # --- INÍCIO DO NOVO TRATAMENTO ROBUSTO DE DATAS PARA SUPABASE (APROVAR) ---
+
+                                    # Step 1: Ensure date columns from AgGrid selection (strings in Brazilian format)
+                                    # are properly parsed into Pandas Timestamp objects.
                                     for col_name in GLOBAL_DATE_DISPLAY_COLUMNS:
                                         if col_name in df_aprovar.columns:
                                             df_aprovar[col_name] = pd.to_datetime(
                                                 df_aprovar[col_name],
-                                                format=DATE_DISPLAY_FORMAT_STRING, # Formato de origem (brasileiro)
-                                                errors='coerce' # Transforma erros de parse em NaT (Not a Time)
+                                                format=DATE_DISPLAY_FORMAT_STRING, # Brazilian format (DD-MM-AAAA HH:MM:SS)
+                                                errors='coerce' # Convert unparseable values to pd.NaT
                                             )
-                                    
-                                    # Handle NaNs, NaTs, empty strings for all columns (important before to_dict)
-                                    df_aprovar = df_aprovar.replace([np.nan, pd.NaT, "", np.inf, -np.inf], None)
 
-                                    # Convert datetime objects to ISO strings for Supabase (if they are datetime type)
-                                    for col in df_aprovar.select_dtypes(include=['datetime64[ns]']).columns:
-                                        df_aprovar[col] = df_aprovar[col].dt.strftime('%Y-%m-%d %H:%M:%S')
-                                    # *** FIM DO TRATAMENTO DE DATAS (APROVAR) ***
+                                    # Step 2: Iterate through all columns and convert any Pandas Timestamp or
+                                    # standard Python datetime.datetime objects to ISO 8601 strings.
+                                    # This catches cases where dtype might be 'object' but contains datetime objects.
+                                    for col_name in df_aprovar.columns:
+                                        # Only process columns that potentially contain datetime objects
+                                        # or are explicitly marked as date columns.
+                                        if col_name in GLOBAL_DATE_DISPLAY_COLUMNS or \
+                                           pd.api.types.is_datetime64_any_dtype(df_aprovar[col_name]):
+                                            df_aprovar[col_name] = df_aprovar[col_name].apply(
+                                                lambda x: x.strftime("%Y-%m-%d %H:%M:%S") if pd.notna(x) else None
+                                            )
+                                        # For other 'object' columns that are NOT date columns, ensure they don't contain datetimes
+                                        # by attempting conversion if they are actually datetime objects.
+                                        elif df_aprovar[col_name].dtype == 'object':
+                                            df_aprovar[col_name] = df_aprovar[col_name].apply(
+                                                lambda x: x.strftime("%Y-%m-%d %H:%M:%S") if isinstance(x, (pd.Timestamp, datetime)) else x
+                                            )
+
+                                    # Step 3: Replace any remaining numpy.nan, numpy.inf, or empty strings with None
+                                    # for general compatibility with Supabase. This should be done AFTER date formatting.
+                                    df_aprovar = df_aprovar.replace([np.nan, np.inf, -np.inf, ""], None)
+
+                                    # --- FIM DO NOVO TRATAMENTO ROBUSTO DE DATAS PARA SUPABASE (APROVAR) ---
 
                                     registros_para_pre_roterizacao = df_aprovar.to_dict(orient="records")
+
+
                                     # Filter out records without valid primary key (Serie_Numero_CTRC)
                                     registros_para_pre_roterizacao = [r for r in registros_para_pre_roterizacao if r.get("Serie_Numero_CTRC")]
 
@@ -1879,28 +1900,46 @@ def pagina_aprovacao_diretoria():
                         ):
                             try:
                                 with st.spinner("🔄 Rejeitando entregas e retornando para Confirmar Produção..."):
+
                                     df_rejeitar = pd.DataFrame(selecionadas)
                                     # Remove AgGrid internal info
                                     df_rejeitar = df_rejeitar.drop(columns=["_selectedRowNodeInfo"], errors="ignore")
 
-                                    # *** TRATAMENTO DE DATAS PARA INSERÇÃO NO SUPABASE (REJEITAR) ***
-                                    # As colunas de data no 'selecionadas' vêm como strings no formato brasileiro (DD-MM-AAAA HH:MM:SS).
-                                    # Precisamos re-parseá-las para objetos datetime e depois formatá-las para ISO.
+                                    # --- INÍCIO DO NOVO TRATAMENTO ROBUSTO DE DATAS PARA SUPABASE (REJEITAR) ---
+
+                                    # Step 1: Ensure date columns from AgGrid selection (strings in Brazilian format)
+                                    # are properly parsed into Pandas Timestamp objects.
                                     for col_name in GLOBAL_DATE_DISPLAY_COLUMNS:
                                         if col_name in df_rejeitar.columns:
                                             df_rejeitar[col_name] = pd.to_datetime(
                                                 df_rejeitar[col_name],
-                                                format=DATE_DISPLAY_FORMAT_STRING, # Formato de origem (brasileiro)
-                                                errors='coerce' # Transforma erros de parse em NaT (Not a Time)
+                                                format=DATE_DISPLAY_FORMAT_STRING, # Brazilian format (DD-MM-AAAA HH:MM:SS)
+                                                errors='coerce' # Convert unparseable values to pd.NaT
                                             )
-                                    
-                                    # Handle NaNs, NaTs, empty strings for all columns (important before to_dict)
-                                    df_rejeitar = df_rejeitar.replace([np.nan, pd.NaT, "", np.inf, -np.inf], None)
 
-                                    # Convert datetime objects to ISO strings for Supabase (if they are datetime type)
-                                    for col in df_rejeitar.select_dtypes(include=['datetime64[ns]']).columns:
-                                        df_rejeitar[col] = df_rejeitar[col].dt.strftime('%Y-%m-%d %H:%M:%S')
-                                    # *** FIM DO TRATAMENTO DE DATAS (REJEITAR) ***
+                                    # Step 2: Iterate through all columns and convert any Pandas Timestamp or
+                                    # standard Python datetime.datetime objects to ISO 8601 strings.
+                                    # This catches cases where dtype might be 'object' but contains datetime objects.
+                                    for col_name in df_rejeitar.columns:
+                                        # Only process columns that potentially contain datetime objects
+                                        # or are explicitly marked as date columns.
+                                        if col_name in GLOBAL_DATE_DISPLAY_COLUMNS or \
+                                           pd.api.types.is_datetime64_any_dtype(df_rejeitar[col_name]):
+                                            df_rejeitar[col_name] = df_rejeitar[col_name].apply(
+                                                lambda x: x.strftime("%Y-%m-%d %H:%M:%S") if pd.notna(x) else None
+                                            )
+                                        # For other 'object' columns that are NOT date columns, ensure they don't contain datetimes
+                                        # by attempting conversion if they are actually datetime objects.
+                                        elif df_rejeitar[col_name].dtype == 'object':
+                                            df_rejeitar[col_name] = df_rejeitar[col_name].apply(
+                                                lambda x: x.strftime("%Y-%m-%d %H:%M:%S") if isinstance(x, (pd.Timestamp, datetime)) else x
+                                            )
+
+                                    # Step 3: Replace any remaining numpy.nan, numpy.inf, or empty strings with None
+                                    # for general compatibility with Supabase. This should be done AFTER date formatting.
+                                    df_rejeitar = df_rejeitar.replace([np.nan, np.inf, -np.inf, ""], None)
+
+                                    # --- FIM DO NOVO TRATAMENTO ROBUSTO DE DATAS PARA SUPABASE (REJEITAR) ---
 
                                     registros_para_confirmar_producao = df_rejeitar.to_dict(orient="records")
                                     # Filter out records without valid primary key (Serie_Numero_CTRC)
