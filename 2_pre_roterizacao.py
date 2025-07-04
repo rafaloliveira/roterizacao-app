@@ -2291,12 +2291,13 @@ def pagina_rotas_confirmadas():
 
 
                 for chave in chaves:
-                    try:
-                        # Inicializa insert_response e delete_response no início do bloco try
-                        # para garantir que estejam sempre definidos e evitar avisos do Pylance.
-                        insert_response = None 
-                        delete_response = None
+                    # Inicializa insert_response e delete_response no início do bloco try
+                    # para garantir que estejam sempre definidos e evitar avisos do Pylance
+                    # e garantir a verificação robusta de erros.
+                    insert_response = None 
+                    delete_response = None
 
+                    try: # Este é o 'try' principal para cada chave
                         origem = None
                         entrega = None
 
@@ -2315,7 +2316,7 @@ def pagina_rotas_confirmadas():
                             entrega = dados[0]
                             entrega.pop("id", None) # Remove 'id' se existir
 
-                        else: # Agora, se não está em rotas_confirmadas, só pode estar em pre_roterizacao
+                        else: # Se não está em rotas_confirmadas, tenta em pre_roterizacao
                             # 2. Buscar em pre_roterizacao
                             dados = [d for d in dados_pre if str(d.get(chave_ct_e_col_name, "")).strip() == chave]
                             if dados:
@@ -2327,8 +2328,7 @@ def pagina_rotas_confirmadas():
                             st.warning(f"⚠️ Chave {chave} não encontrada em nenhuma das tabelas de origem ou já foi processada.")
                             continue
                         
-                        # --- NOVO: Obtém o Serie_Numero_CTRC para exclusão/inserção ---
-                        # Usar Serie_Numero_CTRC como o identificador principal para garantir consistência
+                        # --- Obtém o Serie_Numero_CTRC para exclusão/inserção ---
                         serie_numero_ctrc_para_excluir = str(entrega.get('Serie_Numero_CTRC', '')).strip()
                         if not serie_numero_ctrc_para_excluir:
                             st.warning(f"⚠️ Entrega com Chave CT-e '{chave}' não possui Serie_Numero_CTRC válido. Ignorando.")
@@ -2338,16 +2338,15 @@ def pagina_rotas_confirmadas():
                         entrega["numero_carga"] = st.session_state["numero_nova_carga"]
                         entrega["Data_Hora_Gerada"] = data_hora_brasil_iso()
                         
-                        # Limpa valores que podem causar problemas na inserção (NaN, NaT, objetos complexos)
-                        # Este é o bloco de tratamento de valores para Supabase
+                        # Limpa valores para Supabase
                         entrega_limpa = {k: (
-                            v.isoformat() if isinstance(v, (pd.Timestamp, datetime, date)) else # Converte datas para ISO
-                            None if (isinstance(v, float) and (np.isnan(v) or np.isinf(v))) or pd.isna(v) else # Float NaN/Inf ou Pandas NaT para None
-                            str(v) if isinstance(v, (dict, list)) else # Converte dict/list para string (se não forem JSON válidos)
+                            v.isoformat() if isinstance(v, (pd.Timestamp, datetime, date)) else
+                            None if (isinstance(v, float) and (np.isnan(v) or np.isinf(v))) or pd.isna(v) else
+                            str(v) if isinstance(v, (dict, list)) else
                             v
                         ) for k, v in entrega.items()}
 
-                        # 🔒 Colunas válidas para serem inseridas em cargas_geradas (manter como está no seu código)
+                        # Colunas válidas para serem inseridas em cargas_geradas
                         colunas_validas = [
                             'Serie_Numero_CTRC', 'Rota', 'Regiao', 'Cliente Pagador', 'Chave CT-e', 'Cliente Destinatario',
                             'Cidade de Entrega', 'Bairro do Destinatario', 'Previsao de Entrega',
@@ -2359,20 +2358,22 @@ def pagina_rotas_confirmadas():
 
                         entrega_filtrada = {k: v for k, v in entrega_limpa.items() if k in colunas_validas}
                         
-                        # Tenta inserir no Supabase
+                        # --- Tenta inserir em cargas_geradas ---
+                        # ATENÇÃO AQUI: `insert_response` deve ser definida ANTES de ser usada no if
                         insert_response = supabase.table("cargas_geradas").insert(entrega_filtrada).execute()
                         
-                        # VERIFICAÇÃO ROBÚSTA DE ERRO DE INSERÇÃO
+                        # --- VERIFICAÇÃO ROBÚSTA DE ERRO DE INSERÇÃO ---
                         if hasattr(insert_response, 'error') and insert_response.error:
                             st.error(f"Erro ao inserir {serie_numero_ctrc_para_excluir} na tabela 'cargas_geradas': {insert_response.error}. Código: {insert_response.status_code if hasattr(insert_response, 'status_code') else 'N/A'}")
-                            continue # Se a inserção falhou, não tenta deletar e passa para a próxima chave
-                        else: # Apenas se a inserção foi bem-sucedida, proceda com o restante
-                            # st.info(f"DEBUG: Inserido {serie_numero_ctrc_para_excluir} em cargas_geradas.") # Para depuração
+                            continue # Se a inserção falhou, pula para a próxima chave
+                        else: # --- Apenas se a inserção foi bem-sucedida, proceda com o restante ---
+                            # st.info(f"DEBUG: Inserido {serie_numero_ctrc_para_excluir} em cargas_geradas.")
                             entregas_encontradas.append(entrega) # Adiciona apenas se a inserção foi bem-sucedida
                             chaves_inseridas_com_sucesso.append(serie_numero_ctrc_para_excluir) # Usar o Serie_Numero_CTRC aqui
                             
-                            # --- MODIFICADO: Remove da tabela de origem usando Serie_Numero_CTRC ---
+                            # --- Remove da tabela de origem usando Serie_Numero_CTRC ---
                             # Este bloco só será executado se a inserção em cargas_geradas foi um sucesso.
+                            # `delete_response` também inicializado no início do loop `for chave in chaves`
                             try:
                                 if origem == "rotas_confirmadas":
                                     delete_response = supabase.table(origem).delete().eq("Serie_Numero_CTRC", serie_numero_ctrc_para_excluir).execute()
@@ -2382,42 +2383,42 @@ def pagina_rotas_confirmadas():
                                 if delete_response:
                                     # VERIFICAÇÃO ROBÚSTA DE ERRO DE DELEÇÃO
                                     if hasattr(delete_response, 'error') and delete_response.error:
-                                        # Esta mensagem será mais detalhada
                                         st.error(f"❌ Erro ao deletar {serie_numero_ctrc_para_excluir} de {origem}: {delete_response.error}. Status: {delete_response.status_code if hasattr(delete_response, 'status_code') else 'N/A'}")
                                     else:
-                                        # Opcional: Adicionar uma mensagem de sucesso para a deleção durante a depuração
-                                        # Para confirmar se a deleção ocorreu (count > 0)
+                                        # Mensagens de depuração para deleção
                                         if hasattr(delete_response, 'count') and delete_response.count > 0:
                                             st.info(f"✅ Entrega {serie_numero_ctrc_para_excluir} deletada de {origem} com sucesso (linhas afetadas: {delete_response.count}).")
-                                        elif hasattr(delete_response, 'data') and len(delete_response.data) > 0: # Algumas versões de Supabase-py retornam 'data' com os itens deletados
+                                        elif hasattr(delete_response, 'data') and len(delete_response.data) > 0:
                                             st.info(f"✅ Entrega {serie_numero_ctrc_para_excluir} deletada de {origem} com sucesso (itens retornados: {len(delete_response.data)}).")
                                         else:
                                             st.warning(f"ℹ️ Deleção de {serie_numero_ctrc_para_excluir} de {origem} concluída, mas 0 linhas afetadas. Verifique se a entrega realmente existia lá.")
-                                        pass # A operação de exclusão foi bem-sucedida
+                                        pass # Deleção bem-sucedida
                                 else:
-                                    st.warning(f"⚠️ Nenhuma resposta de deleção recebida para {serie_numero_ctrc_para_excluir} de {origem}. Verifique se a condição de 'origem' foi atendida e se houve comunicação com o Supabase.")
+                                    st.warning(f"⚠️ Nenhuma resposta de deleção recebida para {serie_numero_ctrc_para_excluir} de {origem}. Verifique a comunicação com o Supabase.")
                             except Exception as e_delete:
                                 st.error(f"❌ Exceção inesperada durante a tentativa de deletar {serie_numero_ctrc_para_excluir} de {origem}: {e_delete}")
                         
-                    except Exception as e_inner:
+                    except Exception as e_inner: # Catch all para erros dentro do loop da chave
                         st.error(f"Erro geral ao processar chave '{chave}': {e_inner}")
 
-                if entregas_encontradas:
+                if entregas_encontradas: # Este if/else está fora do loop 'for chave in chaves'
                     st.success(f"✅ {len(entregas_encontradas)} entrega(s) adicionada(s) à carga {st.session_state['numero_nova_carga']} com sucesso.")
                 
-                # Limpa o estado da carga criada para voltar à visualização normal
-                st.success(f"Operação de adição manual concluída!") # Exemplo de sucesso
-                st.session_state["nova_carga_em_criacao"] = False # Volta para o estado inicial
+                st.success(f"Operação de adição manual concluída!")
+                st.session_state["nova_carga_em_criacao"] = False
                 st.session_state["numero_nova_carga"] = ""
-                st.session_state["reload_rotas_confirmadas"] = True # Recarrega as rotas confirmadas
-                st.session_state["reload_cargas_geradas"] = True # Recarrega as cargas geradas
+                st.session_state["reload_rotas_confirmadas"] = True
+                st.session_state["reload_cargas_geradas"] = True
                 st.session_state["reload_pre_roterizacao"] = True
-                st.session_state["reload_aprovacao_diretoria"] = True # Mantido, caso alguma operação futura precise recarregar.
+                st.session_state["reload_aprovacao_diretoria"] = True
 
-                st.rerun() # Força o rerun
+                st.rerun()
 
-            except Exception as e:
+            except Exception as e: # Este é o 'except' para o bloco 'try' mais externo da adição manual
                 st.error(f"Erro ao adicionar entregas manualmente: {e}")
+
+
+
 
     # --- INÍCIO: CARREGAMENTO DOS DADOS DE ROTAS CONFIRMADAS E EXIBIÇÃO ---
     # ... (restante do código da função pagina_rotas_confirmadas permanece inalterado) ...
