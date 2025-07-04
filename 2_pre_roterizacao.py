@@ -2203,11 +2203,11 @@ def pagina_pre_roterizacao():
 # PÁGINA ROTAS CONFIRMADAS
 
 #########################################
-
 def pagina_rotas_confirmadas():
     st.markdown("## Rotas Confirmadas")
 
-    # --- INÍCIO: BLOCO DE CRIAÇÃO DE CARGA AVULSA (SEMPRE VISÍVEL E INTERATIVO) ---
+    # --- INÍCIO: BLOCO DE CRIAÇÃO DE CARGA AVULSA (MANTENHA INALTERADO NO TOPO) ---
+    # Este bloco já está bem posicionado e deve funcionar independentemente dos dados da rota.
     chaves_input = "" # Inicializa para ser usado no text_area
 
     if "nova_carga_em_criacao" not in st.session_state:
@@ -2356,7 +2356,6 @@ def pagina_rotas_confirmadas():
                         ]
 
                         entrega_filtrada = {k: v for k, v in entrega_limpa.items() if k in colunas_validas}
-
                         # Tenta inserir no Supabase
                         insert_response = supabase.table("cargas_geradas").insert(entrega_filtrada).execute()
                         
@@ -2367,7 +2366,6 @@ def pagina_rotas_confirmadas():
                             # st.info(f"DEBUG: Inserido {serie_numero_ctrc_para_excluir} em cargas_geradas.") # Para depuração
                             entregas_encontradas.append(entrega) # Adiciona apenas se a inserção foi bem-sucedida
                             chaves_inseridas_com_sucesso.append(serie_numero_ctrc_para_excluir) # Usar o Serie_Numero_CTRC aqui
-
                         # --- MODIFICADO: Remove da tabela de origem usando Serie_Numero_CTRC ---
                         delete_response = None # Inicializa para capturar a resposta do delete
                         if origem == "rotas_confirmadas":
@@ -2403,198 +2401,324 @@ def pagina_rotas_confirmadas():
             except Exception as e:
                 st.error(f"Erro ao adicionar entregas manualmente: {e}")
 
-            try:
-                with st.spinner("�� Carregando dados das entregas..."):
-                    recarregar = st.session_state.pop("reload_rotas_confirmadas", False)
-                    if recarregar or "df_rotas_confirmadas_cache" not in st.session_state:          
-                        data_from_supabase = supabase.table("rotas_confirmadas").select("*").execute().data
-                        df = pd.DataFrame(data_from_supabase)
-                        st.session_state["df_rotas_confirmadas_cache"] = df
-                    else:
-                        df = st.session_state["df_rotas_confirmadas_cache"]
-            except Exception as e:
-                st.error(f"❌ Erro ao carregar as Rotas Confirmadas: {e}")
-                df = pd.DataFrame() 
-
-            st.markdown("### DEBUG - Informações da Tabela Rotas Confirmadas")
-            st.code(f"df.empty: {df.empty}", language="python")
-            st.code(f"Número de registros em df: {len(df)}", language="python")
-
-            if not df.empty:
-                st.code("Primeiros 5 registros de df:\n" + df.head().to_string(), language="python")
-                st.code("Colunas e tipos de df:\n" + df.info(verbose=True, buf=io.StringIO()).getvalue(), language="python")
-                st.code(f"Rotas únicas em df: {sorted(df['Rota'].dropna().unique().tolist()) if 'Rota' in df.columns else 'Coluna Rota não encontrada'}", language="python")
-            else:
-                st.code("DataFrame 'df' está vazio.", language="python")
-            st.markdown("---") # Separador visual
-
-            if df.empty:
-                st.info("🛈 Nenhuma Rota Confirmada encontrada. Sincronize os dados e confirme as entregas na seção 'Pré-Roterização'.")
-                #return # Retorna aqui para não renderizar o restante da página (métricas, grids, etc.) se não houver dados.
-            # --- FIM: CARREGAMENTO DOS DADOS ---
-
-            # ... (restante do código de pagina_rotas_confirmadas, que processa e exibe o df) ...
-            col1, col2, _ = st.columns([1, 1, 8])
-            with col1:
-                st.metric("Total de Rotas", df["Rota"].nunique() if "Rota" in df.columns else 0)
-            with col2:
-                st.metric("Total de Entregas", len(df))
-
-
-        def badge(label):
-            return f"<span style='background:#eef2f7;border-radius:12px;padding:6px 12px;margin:4px;color:inherit;display:inline-block;'>{label}</span>"
-
-        colunas_exibir = [
-            "Serie_Numero_CTRC", "Rota", "Regiao","Valor do Frete", "Cliente Pagador", "Chave CT-e", "Cliente Destinatario",
-            "Cidade de Entrega", "Bairro do Destinatario", "Previsao de Entrega",
-            "Numero da Nota Fiscal", "Status", "Entrega Programada", "Particularidade",
-            "Codigo da Ultima Ocorrencia", "Peso Real em Kg", "Peso Calculado em Kg",
-            "Cubagem em m³", "Quantidade de Volumes"
-        ]
-
-        linha_destacar = JsCode("""
-            function(params) {
-                const status = params.data['Status'];
-                const entrega = params.data['Entrega Programada'];
-                const particularidade = params.data['Particularidade'];
-                if (status === 'AGENDAR' && (!entrega || entrega.trim() === '')) {
-                    return { 'background-color': '#ffe0b2', 'color': '#333' };
-                }
-                if (particularidade && particularidade.trim() !== "") {
-                    return { 'background-color': '#fff59d', 'color': '#333' };
-                }
-                return null;
-            }
-        """)
-
-        rotas_unicas = sorted(df["Rota"].dropna().unique())
-        # st.write(f"DEBUG: Rotas únicas a serem exibidas: {rotas_unicas}") # DEBUG
-
-        for rota in rotas_unicas:
-            df_rota = df[df["Rota"] == rota].copy()
-            if df_rota.empty:
-                # st.info(f"DEBUG: df_rota para {rota} está vazia, pulando.") # DEBUG
-                continue
-
-            st.markdown(f"""
-            <div style="margin-top:20px;padding:10px;background:#e8f0fe;border-left:4px solid #4285f4;border-radius:6px;display:inline-block;max-width:100%;">
-                <strong>Rota:</strong> {rota}
-            </div>
-            """, unsafe_allow_html=True)
-
-            st.markdown(
-                badge(f"{len(df_rota)} entregas") +
-                badge(f"{formatar_brasileiro(df_rota['Peso Calculado em Kg'].sum())} kg calc") +
-                badge(f"{formatar_brasileiro(df_rota['Peso Real em Kg'].sum())} kg real") +
-                badge(f"R$ {formatar_brasileiro(df_rota['Valor do Frete'].sum())}") +
-                badge(f"{formatar_brasileiro(df_rota['Cubagem em m³'].sum())} m³") +
-                badge(f"{int(df_rota['Quantidade de Volumes'].sum())} volumes"),
-                unsafe_allow_html=True
-            )
-
-            with st.expander("🔽 Selecionar entregas", expanded=False):
-                df_formatado = apply_brazilian_date_format_for_display(df_rota[[col for col in colunas_exibir if col in df_rota.columns]].copy())
-
-                # NOVO: Checkbox "Marcar todas" dentro do expander
-                checkbox_key = f"marcar_todas_rota_confirmada_{rota}"
-                if checkbox_key not in st.session_state:
-                    st.session_state[checkbox_key] = False
-                marcar_todas = st.checkbox("Marcar todas", key=checkbox_key)
-
-
-                gb = GridOptionsBuilder.from_dataframe(df_formatado)
-                gb.configure_default_column(minWidth=150)
-                gb.configure_selection("multiple", use_checkbox=True)
-                gb.configure_grid_options(paginationPageSize=12)
-                gb.configure_grid_options(alwaysShowHorizontalScroll=True)
-                gb.configure_grid_options(rowStyle={"font-size": "11px"})
-                gb.configure_grid_options(getRowStyle=linha_destacar)
-                gb.configure_grid_options(headerCheckboxSelection=True)
-                gb.configure_grid_options(rowSelection='multiple')
-                gb.configure_grid_options(onGridReady=GRID_RESIZE_JS_CODE) # <<< ADICIONADO AQUI
-
-                formatter = JsCode("""
-                    function(params) {
-                        if (!params.value) return '';
-                        return Number(params.value).toLocaleString('pt-BR', {
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2
-                        });
-                    }
-                """)
-
-                for col in ['Peso Real em Kg', 'Peso Calculado em Kg', 'Cubagem em m³', 'Quantidade de Volumes', 'Valor do Frete']:
-                    if col in df_formatado.columns:
-                        gb.configure_column(col, type=["numericColumn"], valueFormatter=formatter)
-
-                grid_options = gb.build()
-                grid_key = f"grid_rotas_confirmadas_{rota}"
-                if grid_key not in st.session_state:
-                    st.session_state[grid_key] = str(uuid.uuid4())
-
-                with st.spinner("🔄 Carregando entregas da rota no grid..."):
-                    grid_response = AgGrid(
-                        df_formatado,
-                        gridOptions=grid_options,
-                        update_mode=GridUpdateMode.SELECTION_CHANGED,
-                        fit_columns_on_grid_load=False,
-                        width="100%",
-                        height=400,
-                        allow_unsafe_jscode=True,
-                        key=st.session_state[grid_key],
-                        data_return_mode="AS_INPUT",
-                        theme=AgGridTheme.MATERIAL,
-                        show_toolbar=False,
-                        custom_css={
-                            ".ag-theme-material .ag-cell": {
-                                "font-size": "11px",
-                                "line-height": "18px",
-                                "border-right": "1px solid #ccc",
-                            },
-                            ".ag-theme-material .ag-row:last-child .ag-cell": {
-                                "border-bottom": "1px solid #ccc",
-                            },
-                            ".ag-theme-material .ag-header-cell": {
-                                "border-right": "1px solid #ccc",
-                                "border-bottom": "1px solid #ccc",
-                            },
-                            ".ag-theme-material .ag-root-wrapper": {
-                                "border": "1px solid black",
-                                "border-radius": "6px",
-                                "padding": "4px",
-                            },
-                            ".ag-theme-material .ag-header-cell-label": {
-                                "font-size": "11px",
-                            },
-                            ".ag-center-cols-viewport": {
-                                "overflow-x": "auto !important",
-                                "overflow-y": "hidden",
-                            },
-                            ".ag-center-cols-container": {
-                                "min-width": "100% !important",
-                            },
-                            "#gridToolBar": {
-                                "padding-bottom": "0px !important",
-                            }
-                        }
-                    )
-
-                # Lógica ajustada para considerar o checkbox "Marcar todas"
-                if marcar_todas:
-                    selecionadas = df_formatado[df_formatado["Serie_Numero_CTRC"].notna()].copy().to_dict(orient="records")
+    # --- INÍCIO: CARREGAMENTO DOS DADOS DE ROTAS CONFIRMADAS E EXIBIÇÃO ---
+    try:
+        with st.spinner("�� Carregando dados das entregas..."):
+            recarregar = st.session_state.pop("reload_rotas_confirmadas", False)
+            if recarregar or "df_rotas_confirmadas_cache" not in st.session_state:
+                # --- START OF MODIFICATION: NEW DEBUG LINES ---
+                st.write(f"DEBUG: Status do cache: recarregar={recarregar}, 'df_rotas_confirmadas_cache' existe?={'df_rotas_confirmadas_cache' in st.session_state}")
+                
+                # Fetching data from Supabase
+                data_from_supabase = supabase.table("rotas_confirmadas").select("*").execute().data
+                
+                st.write(f"DEBUG: Dados brutos recebidos do Supabase: {len(data_from_supabase)} registros.")
+                if data_from_supabase:
+                    st.write(f"DEBUG: Primeiro registro bruto: {data_from_supabase[0]}")
                 else:
-                    selecionadas = grid_response.get("selected_rows", [])
+                    st.write("DEBUG: Nenhum dado bruto recebido do Supabase.")
+                # --- END OF MODIFICATION ---
 
-                if selecionadas:
-                    st.info(f"{len(selecionadas)} entrega(s) selecionada(s) para a rota {rota}.")
+                df = pd.DataFrame(data_from_supabase)
+                st.session_state["df_rotas_confirmadas_cache"] = df
+            else:
+                st.write("DEBUG: Usando dados cacheados para 'rotas_confirmadas'.")
+                df = st.session_state["df_rotas_confirmadas_cache"]
+    except Exception as e:
+        st.error(f"❌ Erro ao carregar as Rotas Confirmadas: {e}")
+        df = pd.DataFrame() 
 
-                # 🔸 Botão para criar nova carga automaticamente
-                if st.button(f"➕ Criar Nova Carga com Entregas Selecionadas", key=f"botao_rota_{rota}"):
-                    if not selecionadas:
+    st.markdown("---") # Separador visual para depuração
+    st.markdown("### DEBUG - Informações do DataFrame 'df'")
+    st.code(f"df.empty: {df.empty}", language="python")
+    st.code(f"Número de registros em df: {len(df)}", language="python")
+
+    if not df.empty:
+        st.code("Primeiros 5 registros de df:\n" + df.head().to_string(), language="python")
+        st.code("Colunas e tipos de df:\n" + df.info(verbose=True, buf=io.StringIO()).getvalue(), language="python")
+        if 'Rota' in df.columns:
+            st.code(f"Rotas únicas em df: {sorted(df['Rota'].dropna().unique().tolist())}", language="python")
+        else:
+            st.code("DEBUG: Coluna 'Rota' não encontrada no DataFrame.", language="python")
+    else:
+        st.code("DataFrame 'df' está vazio após carregamento/processamento.", language="python")
+    st.markdown("---") # Separador visual
+
+    # Se df estiver vazio, esta mensagem será exibida. O 'return' já foi removido.
+    if df.empty:
+        st.info("🛈 Nenhuma Rota Confirmada encontrada. Sincronize os dados e confirme as entregas na seção 'Pré-Roterização'.")
+    # --- FIM: CARREGAMENTO DOS DADOS ---
+
+    # --- INÍCIO: EXIBIÇÃO DE MÉTRICAS E GRIDS (CÓDIGO ABAIXO DEVE SER EXECUTADO SEMPRE) ---
+    col1, col2, _ = st.columns([1, 1, 8])
+    with col1:
+        # Se df.empty for True, len(df) será 0, e df["Rota"].nunique() também será 0 ou causará erro se 'Rota' não existir.
+        # Adicionei uma checagem adicional para evitar erro se df estiver vazio antes de tentar acessar colunas.
+        st.metric("Total de Rotas", df["Rota"].nunique() if "Rota" in df.columns and not df.empty else 0)
+    with col2:
+        st.metric("Total de Entregas", len(df))
+
+
+    def badge(label):
+        return f"<span style='background:#eef2f7;border-radius:12px;padding:6px 12px;margin:4px;color:inherit;display:inline-block;'>{label}</span>"
+
+    colunas_exibir = [
+        "Serie_Numero_CTRC", "Rota", "Regiao","Valor do Frete", "Cliente Pagador", "Chave CT-e", "Cliente Destinatario",
+        "Cidade de Entrega", "Bairro do Destinatario", "Previsao de Entrega",
+        "Numero da Nota Fiscal", "Status", "Entrega Programada", "Particularidade",
+        "Codigo da Ultima Ocorrencia", "Peso Real em Kg", "Peso Calculado em Kg",
+        "Cubagem em m³", "Quantidade de Volumes"
+    ]
+
+    linha_destacar = JsCode("""
+        function(params) {
+            const status = params.data['Status'];
+            const entrega = params.data['Entrega Programada'];
+            const particularidade = params.data['Particularidade'];
+            if (status === 'AGENDAR' && (!entrega || entrega.trim() === '')) {
+                return { 'background-color': '#ffe0b2', 'color': '#333' };
+            }
+            if (particularidade && particularidade.trim() !== "") {
+                return { 'background-color': '#fff59d', 'color': '#333' };
+            }
+            return null;
+        }
+    """)
+
+    # --- START OF MODIFICATION: Ensuring rotas_unicas is properly handled if df is empty ---
+    rotas_unicas = []
+    if 'Rota' in df.columns and not df.empty:
+        rotas_unicas = sorted(df["Rota"].dropna().unique())
+    
+    st.write(f"DEBUG: Rotas únicas para exibição (após filtragem): {rotas_unicas}")
+    # --- END OF MODIFICATION ---
+
+    for rota in rotas_unicas:
+        df_rota = df[df["Rota"] == rota].copy()
+        if df_rota.empty:
+            st.write(f"DEBUG: df_rota para {rota} está vazia após filtragem, pulando.") # DEBUG
+            continue
+
+        st.markdown(f"""
+        <div style="margin-top:20px;padding:10px;background:#e8f0fe;border-left:4px solid #4285f4;border-radius:6px;display:inline-block;max-width:100%;">
+            <strong>Rota:</strong> {rota}
+        </div>
+        """, unsafe_allow_html=True)
+
+        st.markdown(
+            badge(f"{len(df_rota)} entregas") +
+            badge(f"{formatar_brasileiro(df_rota['Peso Calculado em Kg'].sum())} kg calc") +
+            badge(f"{formatar_brasileiro(df_rota['Peso Real em Kg'].sum())} kg real") +
+            badge(f"R$ {formatar_brasileiro(df_rota['Valor do Frete'].sum())}") +
+            badge(f"{formatar_brasileiro(df_rota['Cubagem em m³'].sum())} m³") +
+            badge(f"{int(df_rota['Quantidade de Volumes'].sum())} volumes"),
+            unsafe_allow_html=True
+        )
+
+        with st.expander("🔽 Selecionar entregas", expanded=False):
+            df_formatado = apply_brazilian_date_format_for_display(df_rota[[col for col in colunas_exibir if col in df_rota.columns]].copy())
+
+            # NOVO: Checkbox "Marcar todas" dentro do expander
+            checkbox_key = f"marcar_todas_rota_confirmada_{rota}"
+            if checkbox_key not in st.session_state:
+                st.session_state[checkbox_key] = False
+            marcar_todas = st.checkbox("Marcar todas", key=checkbox_key)
+
+
+            gb = GridOptionsBuilder.from_dataframe(df_formatado)
+            gb.configure_default_column(minWidth=150)
+            gb.configure_selection("multiple", use_checkbox=True)
+            gb.configure_grid_options(paginationPageSize=12)
+            gb.configure_grid_options(alwaysShowHorizontalScroll=True)
+            gb.configure_grid_options(rowStyle={"font-size": "11px"})
+            gb.configure_grid_options(getRowStyle=linha_destacar)
+            gb.configure_grid_options(headerCheckboxSelection=True)
+            gb.configure_grid_options(rowSelection='multiple')
+            gb.configure_grid_options(onGridReady=GRID_RESIZE_JS_CODE) # <<< ADICIONADO AQUI
+
+            formatter = JsCode("""
+                function(params) {
+                    if (!params.value) return '';
+                    return Number(params.value).toLocaleString('pt-BR', {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2
+                    });
+                }
+            """)
+
+            for col in ['Peso Real em Kg', 'Peso Calculado em Kg', 'Cubagem em m³', 'Quantidade de Volumes', 'Valor do Frete']:
+                if col in df_formatado.columns:
+                    gb.configure_column(col, type=["numericColumn"], valueFormatter=formatter)
+
+            grid_options = gb.build()
+            grid_key = f"grid_rotas_confirmadas_{rota}"
+            if grid_key not in st.session_state:
+                st.session_state[grid_key] = str(uuid.uuid4())
+
+            with st.spinner("🔄 Carregando entregas da rota no grid..."):
+                grid_response = AgGrid(
+                    df_formatado,
+                    gridOptions=grid_options,
+                    update_mode=GridUpdateMode.SELECTION_CHANGED,
+                    fit_columns_on_grid_load=False,
+                    width="100%",
+                    height=400,
+                    allow_unsafe_jscode=True,
+                    key=st.session_state[grid_key],
+                    data_return_mode="AS_INPUT",
+                    theme=AgGridTheme.MATERIAL,
+                    show_toolbar=False,
+                    custom_css={
+                        ".ag-theme-material .ag-cell": {
+                            "font-size": "11px",
+                            "line-height": "18px",
+                            "border-right": "1px solid #ccc",
+                        },
+                        ".ag-theme-material .ag-row:last-child .ag-cell": {
+                            "border-bottom": "1px solid #ccc",
+                        },
+                        ".ag-theme-material .ag-header-cell": {
+                            "border-right": "1px solid #ccc",
+                            "border-bottom": "1px solid #ccc",
+                        },
+                        ".ag-theme-material .ag-root-wrapper": {
+                            "border": "1px solid black",
+                            "border-radius": "6px",
+                            "padding": "4px",
+                        },
+                        ".ag-theme-material .ag-header-cell-label": {
+                            "font-size": "11px",
+                        },
+                        ".ag-center-cols-viewport": {
+                            "overflow-x": "auto !important",
+                            "overflow-y": "hidden",
+                        },
+                        ".ag-center-cols-container": {
+                            "min-width": "100% !important",
+                        },
+                        "#gridToolBar": {
+                            "padding-bottom": "0px !important",
+                        }
+                    }
+                )
+
+            # Lógica ajustada para considerar o checkbox "Marcar todas"
+            if marcar_todas:
+                selecionadas = df_formatado[df_formatado["Serie_Numero_CTRC"].notna()].copy().to_dict(orient="records")
+            else:
+                selecionadas = grid_response.get("selected_rows", [])
+
+            if selecionadas:
+                st.info(f"{len(selecionadas)} entrega(s) selecionada(s) para a rota {rota}.")
+
+            # 🔸 Botão para criar nova carga automaticamente
+            if st.button(f"➕ Criar Nova Carga com Entregas Selecionadas", key=f"botao_rota_{rota}"):
+                if not selecionadas:
+                    st.warning("Selecione ao menos uma entrega.")
+                else:
+                    try:
+                        #st.info("DEBUG: Tentando criar nova carga com entregas selecionadas.") # DEBUG
+                        df_selecionadas = pd.DataFrame(selecionadas)
+                        chaves = df_selecionadas["Serie_Numero_CTRC"].dropna().astype(str).str.strip().tolist()
+
+                        df_rota["Serie_Numero_CTRC"] = df_rota["Serie_Numero_CTRC"].astype(str).str.strip()
+                        df_confirmar = df_rota[df_rota["Serie_Numero_CTRC"].isin(chaves)].copy()
+                        df_confirmar = df_confirmar.replace([np.nan, np.inf, -np.inf], None)
+
+                        for col in df_confirmar.select_dtypes(include=['datetime64[ns]']).columns:
+                            df_confirmar[col] = df_confirmar[col].dt.strftime('%Y-%m-%d %H:%M:%S')
+
+                        numero_carga = gerar_proximo_numero_carga(supabase)
+                        df_confirmar["numero_carga"] = numero_carga
+                        df_confirmar["Data_Hora_Gerada"] = data_hora_brasil_iso() # CORRIGIDO AQUI
+                        
+
+                        colunas_validas = [
+                            'Serie_Numero_CTRC', 'Rota', 'Regiao', 'Cliente Pagador', 'Chave CT-e', 'Cliente Destinatario',
+                            'Cidade de Entrega', 'Bairro do Destinatario', 'Previsao de Entrega',
+                            'Numero da Nota Fiscal', 'Status', 'Entrega Programada', 'Particularidade',
+                            'Codigo da Ultima Ocorrencia', 'Peso Real em Kg', 'Peso Calculado em Kg',
+                            'Cubagem em m³', 'Quantidade de Volumes', 'Valor do Frete',
+                            'numero_carga', 'Data_Hora_Gerada'
+                        ]
+
+
+                        dados_filtrados = df_confirmar[[col for col in colunas_validas if col in df_confirmar.columns]].to_dict(orient="records")
+                        
+                        if not dados_filtrados:
+                            st.warning("DEBUG: Nenhum dado filtrado para inserir na carga.") # DEBUG
+                            return
+
+
+                        for tentativa in range(2):
+                            try:
+                                resultado_insercao = supabase.table("cargas_geradas").insert(dados_filtrados).execute()
+                                #st.info(f"DEBUG: Tentativa {tentativa+1} - Inserção em 'cargas_geradas' bem-sucedida.") # DEBUG
+                                break
+                            except Exception as e:
+                                if tentativa == 1:
+                                    raise e
+                                st.warning("Erro temporário ao inserir. Tentando novamente em 2s...")
+                                time.sleep(2)
+
+                        chaves_inseridas = [
+                            str(item.get("Serie_Numero_CTRC")).strip()
+                            for item in resultado_insercao.data
+                            if item.get("Serie_Numero_CTRC")
+                        ]
+
+                        if set(chaves_inseridas) == set(chaves):
+                            #st.info("DEBUG: Chaves inseridas correspondem às selecionadas. Deletando de 'rotas_confirmadas'.") # DEBUG
+                            for tentativa in range(2):
+                                try:
+                                    supabase.table("rotas_confirmadas").delete().in_("Serie_Numero_CTRC", chaves_inseridas).execute()
+                                    #st.info(f"DEBUG: Tentativa {tentativa+1} - Deleção de 'rotas_confirmadas' bem-sucedida.") # DEBUG
+                                    break
+                                except Exception as e:
+                                    if tentativa == 1:
+                                        raise e
+                                    st.warning("Erro temporário ao remover entregas. Tentando novamente em 2s...")
+                                    time.sleep(2)
+
+                            st.success(f"✅ {len(chaves_inseridas)} entrega(s) adicionada(s) à carga {numero_carga}.")
+
+                            # Força recarga dos caches para que as tabelas reflitam as mudanças
+                            st.session_state["reload_rotas_confirmadas"] = True
+                            st.session_state["reload_cargas_geradas"] = True
+                            # Limpa keys dos grids para forçar reconstrução se necessário
+                            st.session_state.pop(grid_key, None)
+                            st.session_state.pop(checkbox_key, None) # Limpa o estado do checkbox
+
+                            # NENHUM time.sleep() AQUI
+                            st.rerun()
+
+                        else:
+                            st.warning("Algumas entregas não foram inseridas corretamente.")
+
+                    except Exception as e:
+                        st.error(f"Erro ao adicionar rota como carga: {e}")
+
+
+            #  Botão para adicionar à carga existente
+            cargas_existentes = supabase.table("cargas_geradas").select("numero_carga").execute().data
+            cargas_disponiveis = sorted(set(item["numero_carga"] for item in cargas_existentes if item.get("numero_carga")))
+
+            if cargas_disponiveis:
+                opcoes_selectbox = ["Selecionar Carga"] + cargas_disponiveis
+                carga_escolhida = st.selectbox(
+                    "📦 Selecionar Carga Existente para adicionar as entregas",
+                    options=opcoes_selectbox,
+                    key=f"selectbox_carga_existente_{rota}"
+                )
+
+                if st.button(f"➕ Adicionar à Carga {carga_escolhida}", key=f"botao_add_existente_{rota}"):
+                    if carga_escolhida == "Selecionar Carga":
+                        st.warning("Selecione uma carga válida.")
+                    elif not selecionadas:
                         st.warning("Selecione ao menos uma entrega.")
                     else:
                         try:
-                            #st.info("DEBUG: Tentando criar nova carga com entregas selecionadas.") # DEBUG
+                            #st.info(f"DEBUG: Tentando adicionar à carga existente {carga_escolhida}.") # DEBUG
                             df_selecionadas = pd.DataFrame(selecionadas)
                             chaves = df_selecionadas["Serie_Numero_CTRC"].dropna().astype(str).str.strip().tolist()
 
@@ -2605,8 +2729,7 @@ def pagina_rotas_confirmadas():
                             for col in df_confirmar.select_dtypes(include=['datetime64[ns]']).columns:
                                 df_confirmar[col] = df_confirmar[col].dt.strftime('%Y-%m-%d %H:%M:%S')
 
-                            numero_carga = gerar_proximo_numero_carga(supabase)
-                            df_confirmar["numero_carga"] = numero_carga
+                            df_confirmar["numero_carga"] = carga_escolhida
                             df_confirmar["Data_Hora_Gerada"] = data_hora_brasil_iso() # CORRIGIDO AQUI
                             
 
@@ -2623,134 +2746,33 @@ def pagina_rotas_confirmadas():
                             dados_filtrados = df_confirmar[[col for col in colunas_validas if col in df_confirmar.columns]].to_dict(orient="records")
                             
                             if not dados_filtrados:
-                                st.warning("DEBUG: Nenhum dado filtrado para inserir na carga.") # DEBUG
+                                st.warning("DEBUG: Nenhum dado filtrado para adicionar à carga existente.") # DEBUG
                                 return
 
 
-                            for tentativa in range(2):
-                                try:
-                                    resultado_insercao = supabase.table("cargas_geradas").insert(dados_filtrados).execute()
-                                    #st.info(f"DEBUG: Tentativa {tentativa+1} - Inserção em 'cargas_geradas' bem-sucedida.") # DEBUG
-                                    break
-                                except Exception as e:
-                                    if tentativa == 1:
-                                        raise e
-                                    st.warning("Erro temporário ao inserir. Tentando novamente em 2s...")
-                                    time.sleep(2)
+                            supabase.table("cargas_geradas").insert(dados_filtrados).execute()
+                            #st.info(f"DEBUG: Inseridos {len(dados_filtrados)} registros em 'cargas_geradas' para carga existente.") # DEBUG
+                            supabase.table("rotas_confirmadas").delete().in_("Serie_Numero_CTRC", chaves).execute()
+                            #st.info(f"DEBUG: Removidos {len(chaves)} registros de 'rotas_confirmadas'.") # DEBUG
 
-                            chaves_inseridas = [
-                                str(item.get("Serie_Numero_CTRC")).strip()
-                                for item in resultado_insercao.data
-                                if item.get("Serie_Numero_CTRC")
-                            ]
+                            # Força recarga dos caches para que as tabelas reflitam as mudanças
+                            st.session_state["reload_rotas_confirmadas"] = True
+                            st.session_state["reload_cargas_geradas"] = True
+                            st.session_state["reload_pre_roterizacao"] = True # Garante que pré-roterização também recarregue, caso a entrega estivesse lá
+                            st.session_state["reload_aprovacao_diretoria"] = True # NOVO: Invalida o cache da Aprovação da Diretoria
 
-                            if set(chaves_inseridas) == set(chaves):
-                                #st.info("DEBUG: Chaves inseridas correspondem às selecionadas. Deletando de 'rotas_confirmadas'.") # DEBUG
-                                for tentativa in range(2):
-                                    try:
-                                        supabase.table("rotas_confirmadas").delete().in_("Serie_Numero_CTRC", chaves_inseridas).execute()
-                                        #st.info(f"DEBUG: Tentativa {tentativa+1} - Deleção de 'rotas_confirmadas' bem-sucedida.") # DEBUG
-                                        break
-                                    except Exception as e:
-                                        if tentativa == 1:
-                                            raise e
-                                        st.warning("Erro temporário ao remover entregas. Tentando novamente em 2s...")
-                                        time.sleep(2)
-
-                                st.success(f"✅ {len(chaves_inseridas)} entrega(s) adicionada(s) à carga {numero_carga}.")
-
-                                # Força recarga dos caches para que as tabelas reflitam as mudanças
-                                st.session_state["reload_rotas_confirmadas"] = True
-                                st.session_state["reload_cargas_geradas"] = True
-                                # Limpa keys dos grids para forçar reconstrução se necessário
-                                st.session_state.pop(grid_key, None)
-                                st.session_state.pop(checkbox_key, None) # Limpa o estado do checkbox
-
-                                # NENHUM time.sleep() AQUI
-                                st.rerun()
-
-                            else:
-                                st.warning("Algumas entregas não foram inseridas corretamente.")
+                            # Limpa keys dos grids para forçar reconstrução se necessáriof
+                            for key_prefix in ["grid_rotas_confirmadas_", "grid_carga_gerada_", "grid_aprovar_"]: # Inclui grids da aprovação
+                                for key in list(st.session_state.keys()):
+                                    if key.startswith(key_prefix):
+                                        st.session_state.pop(key, None)
+                            # NENHUM time.sleep() AQUI
+                            st.rerun()
 
                         except Exception as e:
-                            st.error(f"Erro ao adicionar rota como carga: {e}")
-
-
-                #  Botão para adicionar à carga existente
-                cargas_existentes = supabase.table("cargas_geradas").select("numero_carga").execute().data
-                cargas_disponiveis = sorted(set(item["numero_carga"] for item in cargas_existentes if item.get("numero_carga")))
-
-                if cargas_disponiveis:
-                    opcoes_selectbox = ["Selecionar Carga"] + cargas_disponiveis
-                    carga_escolhida = st.selectbox(
-                        "📦 Selecionar Carga Existente para adicionar as entregas",
-                        options=opcoes_selectbox,
-                        key=f"selectbox_carga_existente_{rota}"
-                    )
-
-                    if st.button(f"➕ Adicionar à Carga {carga_escolhida}", key=f"botao_add_existente_{rota}"):
-                        if carga_escolhida == "Selecionar Carga":
-                            st.warning("Selecione uma carga válida.")
-                        elif not selecionadas:
-                            st.warning("Selecione ao menos uma entrega.")
-                        else:
-                            try:
-                                #st.info(f"DEBUG: Tentando adicionar à carga existente {carga_escolhida}.") # DEBUG
-                                df_selecionadas = pd.DataFrame(selecionadas)
-                                chaves = df_selecionadas["Serie_Numero_CTRC"].dropna().astype(str).str.strip().tolist()
-
-                                df_rota["Serie_Numero_CTRC"] = df_rota["Serie_Numero_CTRC"].astype(str).str.strip()
-                                df_confirmar = df_rota[df_rota["Serie_Numero_CTRC"].isin(chaves)].copy()
-                                df_confirmar = df_confirmar.replace([np.nan, np.inf, -np.inf], None)
-
-                                for col in df_confirmar.select_dtypes(include=['datetime64[ns]']).columns:
-                                    df_confirmar[col] = df_confirmar[col].dt.strftime('%Y-%m-%d %H:%M:%S')
-
-                                df_confirmar["numero_carga"] = carga_escolhida
-                                df_confirmar["Data_Hora_Gerada"] = data_hora_brasil_iso() # CORRIGIDO AQUI
-                                
-
-                                colunas_validas = [
-                                    'Serie_Numero_CTRC', 'Rota', 'Regiao', 'Cliente Pagador', 'Chave CT-e', 'Cliente Destinatario',
-                                    'Cidade de Entrega', 'Bairro do Destinatario', 'Previsao de Entrega',
-                                    'Numero da Nota Fiscal', 'Status', 'Entrega Programada', 'Particularidade',
-                                    'Codigo da Ultima Ocorrencia', 'Peso Real em Kg', 'Peso Calculado em Kg',
-                                    'Cubagem em m³', 'Quantidade de Volumes', 'Valor do Frete',
-                                    'numero_carga', 'Data_Hora_Gerada'
-                                ]
-
-
-                                dados_filtrados = df_confirmar[[col for col in colunas_validas if col in df_confirmar.columns]].to_dict(orient="records")
-                                
-                                if not dados_filtrados:
-                                    st.warning("DEBUG: Nenhum dado filtrado para adicionar à carga existente.") # DEBUG
-                                    return
-
-
-                                supabase.table("cargas_geradas").insert(dados_filtrados).execute()
-                                #st.info(f"DEBUG: Inseridos {len(dados_filtrados)} registros em 'cargas_geradas' para carga existente.") # DEBUG
-                                supabase.table("rotas_confirmadas").delete().in_("Serie_Numero_CTRC", chaves).execute()
-                                #st.info(f"DEBUG: Removidos {len(chaves)} registros de 'rotas_confirmadas'.") # DEBUG
-
-                                # Força recarga dos caches para que as tabelas reflitam as mudanças
-                                st.session_state["reload_rotas_confirmadas"] = True
-                                st.session_state["reload_cargas_geradas"] = True
-                                st.session_state["reload_pre_roterizacao"] = True # Garante que pré-roterização também recarregue, caso a entrega estivesse lá
-                                st.session_state["reload_aprovacao_diretoria"] = True # NOVO: Invalida o cache da Aprovação da Diretoria
-
-                                # Limpa keys dos grids para forçar reconstrução se necessáriof
-                                for key_prefix in ["grid_rotas_confirmadas_", "grid_carga_gerada_", "grid_aprovar_"]: # Inclui grids da aprovação
-                                    for key in list(st.session_state.keys()):
-                                        if key.startswith(key_prefix):
-                                            st.session_state.pop(key, None)
-                                # NENHUM time.sleep() AQUI
-                                st.rerun()
-
-                            except Exception as e:
-                                st.error(f"Erro ao adicionar à carga existente: {e}")
-                else:
-                    st.info("Nenhuma carga existente encontrada para seleção.")
-
+                            st.error(f"Erro ao adicionar à carga existente: {e}")
+            else:
+                st.info("Nenhuma carga existente encontrada para seleção.")
 
 
 
