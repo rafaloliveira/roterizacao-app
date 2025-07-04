@@ -2366,16 +2366,19 @@ def pagina_rotas_confirmadas():
                         # Tenta inserir no Supabase
                         insert_response = supabase.table("cargas_geradas").insert(entrega_filtrada).execute()
                         
-                        if insert_response.error: # Verifica se a inserção falhou
-                            st.error(f"Erro ao inserir {serie_numero_ctrc_para_excluir} na tabela 'cargas_geradas': {insert_response.error}")
+                        # VERIFICAÇÃO CORRETA DE ERRO DE INSERÇÃO
+                        if insert_response.postgrest_error: # <-- MUDANÇA AQUI
+                            st.error(f"Erro ao inserir {serie_numero_ctrc_para_excluir} na tabela 'cargas_geradas': {insert_response.postgrest_error.message}. Código: {insert_response.status_code}")
                             continue # Se a inserção falhou, não tenta deletar e passa para a próxima chave
+
                         else:
                             # st.info(f"DEBUG: Inserido {serie_numero_ctrc_para_excluir} em cargas_geradas.") # Para depuração
                             entregas_encontradas.append(entrega) # Adiciona apenas se a inserção foi bem-sucedida
                             chaves_inseridas_com_sucesso.append(serie_numero_ctrc_para_excluir) # Usar o Serie_Numero_CTRC aqui
                         # --- MODIFICADO: Remove da tabela de origem usando Serie_Numero_CTRC ---
+
+
                         delete_response = None # Inicializa para capturar a resposta do delete
-                        
                         try:
                             if origem == "rotas_confirmadas":
                                 delete_response = supabase.table(origem).delete().eq("Serie_Numero_CTRC", serie_numero_ctrc_para_excluir).execute()
@@ -2384,16 +2387,17 @@ def pagina_rotas_confirmadas():
                             elif origem == "aprovacao_diretoria":
                                 delete_response = supabase.table(origem).delete().eq("Serie_Numero_CTRC", serie_numero_ctrc_para_excluir).execute()
 
-                            if delete_response:
-                                if delete_response.error:
-                                    # Esta mensagem será mais detalhada
-                                    st.error(f"❌ Erro ao deletar {serie_numero_ctrc_para_excluir} de {origem}: {delete_response.error}. Resposta completa do Supabase: {delete_response.data}")
+                                if delete_response:
+                                    # VERIFICAÇÃO CORRETA DE ERRO DE DELEÇÃO
+                                    if delete_response.postgrest_error: # <-- MUDANÇA AQUI
+                                        # Esta mensagem será mais detalhada
+                                        st.error(f"❌ Erro ao deletar {serie_numero_ctrc_para_excluir} de {origem}: {delete_response.postgrest_error.message}. Status: {delete_response.status_code}")
+                                    else:
+                                        # Opcional: Adicionar uma mensagem de sucesso para a deleção durante a depuração
+                                        # st.info(f"✅ Entrega {serie_numero_ctrc_para_excluir} deletada de {origem} com sucesso.")
+                                        pass # A operação de exclusão foi bem-sucedida
                                 else:
-                                    # Opcional: Adicionar uma mensagem de sucesso para a deleção durante a depuração
-                                    # st.info(f"✅ Entrega {serie_numero_ctrc_para_excluir} deletada de {origem} com sucesso.")
-                                    pass # A operação de exclusão foi bem-sucedida
-                            else:
-                                st.warning(f"⚠️ Nenhuma resposta de deleção recebida para {serie_numero_ctrc_para_excluir} de {origem}. Verifique se a condição de 'origem' foi atendida e se houve comunicação com o Supabase.")
+                                    st.warning(f"⚠️ Nenhuma resposta de deleção recebida para {serie_numero_ctrc_para_excluir} de {origem}. Verifique se a condição de 'origem' foi atendida e se houve comunicação com o Supabase.")
                         except Exception as e_delete:
                             st.error(f"❌ Exceção inesperada durante a tentativa de deletar {serie_numero_ctrc_para_excluir} de {origem}: {e_delete}")
 
