@@ -2207,6 +2207,29 @@ def pagina_pre_roterizacao():
 def pagina_rotas_confirmadas():
     st.markdown("## Rotas Confirmadas")
 
+# --- INÍCIO: CARREGAMENTO DOS DADOS DE ROTAS CONFIRMADAS E EXIBIÇÃO ---
+    # Este bloco só é executado *depois* da lógica da carga avulsa (que está no trecho anterior).
+    try:
+        with st.spinner("🔄 Carregando dados das entregas..."):
+            recarregar = st.session_state.pop("reload_rotas_confirmadas", False)
+            if recarregar or "df_rotas_confirmadas_cache" not in st.session_state:          
+                data_from_supabase = supabase.table("rotas_confirmadas").select("*").execute().data
+                df = pd.DataFrame(data_from_supabase) # df será usado no restante do código
+                st.session_state["df_rotas_confirmadas_cache"] = df
+            else:
+                df = st.session_state["df_rotas_confirmadas_cache"]
+    except Exception as e:
+        st.error(f"❌ Erro ao carregar as Rotas Confirmadas: {e}")
+
+        df = pd.DataFrame() 
+
+    if df.empty:
+        st.info("🛈 Nenhuma Rota Confirmada.")
+        return # Retorna aqui para não renderizar o restante da página (métricas, grids, etc.) se não houver dados.
+    # --- FIM: CARREGAMENTO DOS DADOS ---
+
+
+
     # --- INÍCIO: BLOCO DE CRIAÇÃO DE CARGA AVULSA (SEMPRE VISÍVEL E INTERATIVO) ---
     chaves_input = "" # Inicializa para ser usado no text_area
     if "nova_carga_em_criacao" not in st.session_state:
@@ -2248,9 +2271,8 @@ def pagina_rotas_confirmadas():
                 chaves = [re.sub(r"\s+", "", c) for c in chaves_input.splitlines() if c.strip()]
                 if not chaves:
                     st.warning("Nenhuma Chave CT-e válida informada.")
-                    return
-
-                entregas_encontradas = []
+                else: # APENAS PROSSIGA SE HOUVER CHAVES VÁLIDAS
+                    entregas_encontradas = []
 
                 def detectar_coluna_chave(tabela):
                     dados = supabase.table(tabela).select("*").limit(1).execute().data
@@ -2258,8 +2280,6 @@ def pagina_rotas_confirmadas():
                         return None
                     return next((k for k in dados[0].keys() if "chave" in k.lower() and "ct" in k.lower()), None)
 
-                chave_coluna_rotas = detectar_coluna_chave("rotas_confirmadas") or "Chave CT-e"
-                chave_coluna_pre = detectar_coluna_chave("pre_roterizacao") or "Chave CT-e"
 
                 # Buscar todos os dados uma única vez para maior controle
                 dados_rotas = supabase.table("rotas_confirmadas").select("*").execute().data
@@ -2405,29 +2425,6 @@ def pagina_rotas_confirmadas():
 
             except Exception as e:
                 st.error(f"Erro ao adicionar entregas manualmente: {e}")
-
-
-
-            # --- INÍCIO: CARREGAMENTO DOS DADOS DE ROTAS CONFIRMADAS E EXIBIÇÃO ---
-            # Este bloco só é executado *depois* da lógica da carga avulsa (que está no trecho anterior).
-            try:
-                with st.spinner("🔄 Carregando dados das entregas..."):
-                    recarregar = st.session_state.pop("reload_rotas_confirmadas", False)
-                    if recarregar or "df_rotas_confirmadas_cache" not in st.session_state:          
-                        data_from_supabase = supabase.table("rotas_confirmadas").select("*").execute().data
-                        df = pd.DataFrame(data_from_supabase) # df será usado no restante do código
-                        st.session_state["df_rotas_confirmadas_cache"] = df
-                    else:
-                        df = st.session_state["df_rotas_confirmadas_cache"]
-            except Exception as e:
-                st.error(f"❌ Erro ao carregar as Rotas Confirmadas: {e}")
-                return # Impede que o restante da página seja renderizado em caso de erro
-
-            if df.empty:
-                st.info("🛈 Nenhuma Rota Confirmada.")
-                return # Retorna aqui para não renderizar o restante da página (métricas, grids, etc.) se não houver dados.
-            # --- FIM: CARREGAMENTO DOS DADOS ---
-
 
         col1, col2, _ = st.columns([1, 1, 8])
         with col1:
@@ -2668,7 +2665,7 @@ def pagina_rotas_confirmadas():
 
                         except Exception as e:
                             st.error(f"Erro ao adicionar rota como carga: {e}")
-                            
+
 
                 #  Botão para adicionar à carga existente
                 cargas_existentes = supabase.table("cargas_geradas").select("numero_carga").execute().data
@@ -2732,7 +2729,7 @@ def pagina_rotas_confirmadas():
                                 st.session_state["reload_pre_roterizacao"] = True # Garante que pré-roterização também recarregue, caso a entrega estivesse lá
                                 st.session_state["reload_aprovacao_diretoria"] = True # NOVO: Invalida o cache da Aprovação da Diretoria
 
-                                # Limpa keys dos grids para forçar reconstrução se necessário
+                                # Limpa keys dos grids para forçar reconstrução se necessáriof
                                 for key_prefix in ["grid_rotas_confirmadas_", "grid_carga_gerada_", "grid_aprovar_"]: # Inclui grids da aprovação
                                     for key in list(st.session_state.keys()):
                                         if key.startswith(key_prefix):
