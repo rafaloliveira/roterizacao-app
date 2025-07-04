@@ -1591,6 +1591,7 @@ def pagina_confirmar_producao():
                             # Step 3: Replace any remaining numpy.nan, numpy.inf, or empty strings with None
                             # for general compatibility with Supabase. This should be done AFTER date formatting.
                             df_confirmar = df_confirmar.replace([np.nan, np.inf, -np.inf, ""], None)
+                            st.session_state["reload_aprovacao_diretoria"] = True 
 
                             # --- FIM DO NOVO TRATAMENTO ROBUSTO DE DATAS PARA SUPABASE ---
 
