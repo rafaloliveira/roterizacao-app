@@ -2437,7 +2437,7 @@ def pagina_rotas_confirmadas():
 
     # Se df estiver vazio, esta mensagem será exibida e o restante da função (métricas, grids) não será executado.
     if df.empty:
-        st.info("🛈 Nenhuma Rota Confirmada encontrada. Sincronize os dados e confirme as entregas na seção 'Pré-Roterização'.")
+        st.info("🛈 Nenhuma Rota Confirmada encontrada.")
         return # Retorna para evitar a exibição de métricas ou grids vazios
 
     # --- INÍCIO: EXIBIÇÃO DE MÉTRICAS GERAIS (SÓ APARECE SE HOUVER DADOS) ---
