@@ -1559,29 +1559,41 @@ def pagina_confirmar_producao():
                             # As colunas de data no 'selecionadas' vêm como strings no formato brasileiro (DD-MM-AAAA HH:MM:SS).
                             # Primeiro, vamos converter essas strings de volta para objetos datetime.
                             # Usamos GLOBAL_DATE_DISPLAY_COLUMNS e DATE_DISPLAY_FORMAT_STRING (definidas no seu código).
+                                                        # --- INÍCIO DO NOVO TRATAMENTO ROBUSTO DE DATAS PARA SUPABASE ---
+
+                            # Step 1: Ensure date columns from AgGrid selection (strings in Brazilian format)
+                            # are properly parsed into Pandas Timestamp objects.
                             for col_name in GLOBAL_DATE_DISPLAY_COLUMNS:
                                 if col_name in df_confirmar.columns:
                                     df_confirmar[col_name] = pd.to_datetime(
                                         df_confirmar[col_name],
-                                        format=DATE_DISPLAY_FORMAT_STRING, # Formato de origem (brasileiro)
-                                        errors='coerce' # Transforma erros de parse em NaT (Not a Time)
+                                        format=DATE_DISPLAY_FORMAT_STRING, # Brazilian format (DD-MM-AAAA HH:MM:SS)
+                                        errors='coerce' # Convert unparseable values to pd.NaT
                                     )
-                            
-                            # Agora que todas as datas foram (tentativamente) convertidas para datetime,
-                            # vamos padronizar valores nulos (NaT, NaN, Inf) para None e formatar para ISO.
-                            
-                            # Substitui NaT, NaN, inf por None para compatibilidade com Supabase.
-                            # Isso também tratará strings vazias ou nulas que não foram convertidas para NaT.
-                            df_confirmar = df_confirmar.replace([np.nan, np.inf, -np.inf, pd.NaT, ""], None)
 
-                            # Finalmente, formata as colunas que são objetos datetime64[ns] para o padrão ISO (AAAA-MM-DD HH:MM:SS) para o Supabase.
-                            # As colunas que não eram datas ou que falharam na conversão para datetime (e permaneceram como None ou outro tipo)
-                            # não serão afetadas por este loop, o que é o comportamento desejado.
-                            for col in df_confirmar.select_dtypes(include=["datetime64[ns]"]).columns:
-                                # Certifica-se de que não estamos tentando chamar .dt.strftime() em None
-                                df_confirmar[col] = df_confirmar[col].apply(
-                                    lambda x: x.strftime("%Y-%m-%d %H:%M:%S") if x is not None else None
-                                )
+                            # Step 2: Iterate through all columns and convert any Pandas Timestamp or
+                            # standard Python datetime.datetime objects to ISO 8601 strings.
+                            # This catches cases where dtype might be 'object' but contains datetime objects.
+                            for col_name in df_confirmar.columns:
+                                # Only process columns that potentially contain datetime objects
+                                # or are explicitly marked as date columns.
+                                if col_name in GLOBAL_DATE_DISPLAY_COLUMNS or \
+                                   pd.api.types.is_datetime64_any_dtype(df_confirmar[col_name]):
+                                    df_confirmar[col_name] = df_confirmar[col_name].apply(
+                                        lambda x: x.strftime("%Y-%m-%d %H:%M:%S") if pd.notna(x) else None
+                                    )
+                                # For other 'object' columns that are NOT date columns, ensure they don't contain datetimes
+                                elif df_confirmar[col_name].dtype == 'object':
+                                    df_confirmar[col_name] = df_confirmar[col_name].apply(
+                                        lambda x: x.strftime("%Y-%m-%d %H:%M:%S") if isinstance(x, (pd.Timestamp, datetime)) else x
+                                    )
+
+                            # Step 3: Replace any remaining numpy.nan, numpy.inf, or empty strings with None
+                            # for general compatibility with Supabase. This should be done AFTER date formatting.
+                            df_confirmar = df_confirmar.replace([np.nan, np.inf, -np.inf, ""], None)
+
+                            # --- FIM DO NOVO TRATAMENTO ROBUSTO DE DATAS PARA SUPABASE ---
+
                             # --- FIM DO NOVO/MODIFICADO BLOCO DE TRATAMENTO DE DATAS ---
 
                             registros = df_confirmar.to_dict(orient="records")
