@@ -1080,27 +1080,34 @@ def inserir_em_lote(nome_tabela, df, lote=100, tentativas=3, pausa=0.2):
 
 #------------------------------------------------------------------------------
 def limpar_tabelas_relacionadas():
-    tabelas = [
+    # Lista de tabelas que precisam ser limpas completamente
+    # 'fBaseroter' já é limpa separadamente no início da pagina_sincronizacao
+    tabelas_para_limpar_por_ctrc = [
         "confirmadas_producao", "aprovacao_diretoria", "pre_roterizacao",
         "rotas_confirmadas", "cargas_geradas", "aprovacao_custos", "cargas_aprovadas"
     ]
 
-    for tabela in tabelas:
+    for tabela in tabelas_para_limpar_por_ctrc:
         try:
-            res = supabase.table(tabela).select("*").limit(1).execute()
-            if res.data:
-                chave = list(res.data[0].keys())[0]
-                valor_exclusao = "00000000-0000-0000-0000-000000000000" if "uuid" in str(type(res.data[0][chave])).lower() else "0"
-
-                # Executa o delete com filtro válido
-                supabase.table(tabela).delete().neq(chave, valor_exclusao).execute()
-
-                # st.warning(f"[DEBUG] Dados da tabela '{tabela}' foram apagados.") # REMOVIDO
+            # A forma mais robusta de limpar uma tabela no Supabase é usar um filtro
+            # que é garantido que sempre será verdadeiro para todos os registros que você deseja apagar.
+            # Usaremos 'neq' (not equal to) em uma coluna que existe em todas essas tabelas
+            # ('Serie_Numero_CTRC') com um valor que nunca existirá.
+            # Adicionei um print para depuração.
+            st.write(f"DEBUG: Tentando limpar a tabela: {tabela}")
+            response = supabase.table(tabela).delete().neq("Serie_Numero_CTRC", "DUMMY_VALUE_FOR_FULL_CLEAN_12345").execute()
+            
+            if response.data: # Se 'data' não for None, significa que algo foi retornado/deletado.
+                st.success(f"✅ Tabela '{tabela}' limpa com sucesso. Registros afetados: {len(response.data) if response.data else 0}")
+            elif response.error:
+                st.error(f"❌ Erro ao limpar tabela '{tabela}': {response.error}")
             else:
-                # st.info(f"[DEBUG] Tabela '{tabela}' já estava vazia.") # REMOVIDO
-                pass # Mantido para evitar erro se 'else' for vazio
+                st.info(f"ℹ️ Tabela '{tabela}' já estava vazia ou não havia registros correspondentes para deletar.")
+
+
         except Exception as e:
-            st.error(f"[ERRO] Ao limpar tabela '{tabela}': {e}")
+            st.error(f"[ERRO GERAL] Ao tentar limpar a tabela '{tabela}': {e}. Por favor, verifique suas permissões (RLS) no Supabase ou se a coluna 'Serie_Numero_CTRC' existe em todas as tabelas listadas.")
+
 
 # ------------------------#############-------------------------------------------
 def adicionar_entregas_a_carga(chaves_cte):
