@@ -2416,6 +2416,18 @@ def pagina_rotas_confirmadas():
                 st.error(f"❌ Erro ao carregar as Rotas Confirmadas: {e}")
                 df = pd.DataFrame() 
 
+            st.markdown("### DEBUG - Informações da Tabela Rotas Confirmadas")
+            st.code(f"df.empty: {df.empty}", language="python")
+            st.code(f"Número de registros em df: {len(df)}", language="python")
+
+            if not df.empty:
+                st.code("Primeiros 5 registros de df:\n" + df.head().to_string(), language="python")
+                st.code("Colunas e tipos de df:\n" + df.info(verbose=True, buf=io.StringIO()).getvalue(), language="python")
+                st.code(f"Rotas únicas em df: {sorted(df['Rota'].dropna().unique().tolist()) if 'Rota' in df.columns else 'Coluna Rota não encontrada'}", language="python")
+            else:
+                st.code("DataFrame 'df' está vazio.", language="python")
+            st.markdown("---") # Separador visual
+
             if df.empty:
                 st.info("🛈 Nenhuma Rota Confirmada encontrada. Sincronize os dados e confirme as entregas na seção 'Pré-Roterização'.")
                 #return # Retorna aqui para não renderizar o restante da página (métricas, grids, etc.) se não houver dados.
