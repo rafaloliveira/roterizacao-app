@@ -99,7 +99,7 @@ def verificar_senha(senha_fornecida, senha_hash):
 def autenticar_usuario(nome_usuario, senha):
     try:
         dados = supabase.table("usuarios").select("*").eq("nome_usuario", nome_usuario).execute()
-        st.write(f"DEBUG AUTH: Dados retornados do Supabase para '{nome_usuario}':", dados.data) # <--- ADICIONE AQUI
+        
 
         if dados.data:
             usuario = dados.data[0]
@@ -1625,17 +1625,29 @@ def pagina_confirmar_producao():
 def pagina_aprovacao_diretoria():
     st.markdown("## Aprovação da Diretoria")
 
-    usuario = st.session_state.get("username")
-    dados_usuario = supabase.table("usuarios").select("classe").eq("nome_usuario", usuario).execute().data
-    if not dados_usuario or dados_usuario[0].get("classe") != "aprovador":
-        st.warning("🔒 Apenas usuários com classe 'aprovador' podem acessar esta página.")
-        return
+    # Obter a classe do usuário logado (assume 'colaborador' se não estiver definida por segurança)
+    current_user_class = st.session_state.get("classe", "colaborador")
+    is_user_aprovador = (current_user_class == "aprovador")
+
+    # Mensagem de aviso se o usuário não for aprovador
+    if not is_user_aprovador:
+        st.warning("⛔ Apenas usuários com classe 'aprovador' podem realizar ações de aprovação de diretoria.")
+        # Se a página só pode ser acessada por aprovadores e o usuário não é um, retorne.
+        # Caso contrário, se a intenção for apenas desabilitar botões, pode-se remover este 'return'.
+        # Mantendo o return por enquanto para seguir a lógica inicial de acesso restrito.
+        return # Esta linha deve permanecer se você quer impedir que não-aprovadores vejam a página.
 
     try:
         with st.spinner("🔄 Carregando entregas pendentes para aprovação..."):
-            df_aprovacao = pd.DataFrame(
-                supabase.table("aprovacao_diretoria").select("*").execute().data
-            )
+            # Lógica de cache para evitar múltiplas chamadas ao Supabase em reruns
+            recarregar = st.session_state.pop("reload_aprovacao_diretoria", False) # Adiciona recarregamento de cache
+            if recarregar or "df_aprovacao_diretoria_cache" not in st.session_state: # Verifica o cache
+                df_aprovacao = pd.DataFrame(
+                    supabase.table("aprovacao_diretoria").select("*").execute().data
+                )
+                st.session_state["df_aprovacao_diretoria_cache"] = df_aprovacao # Atualiza o cache
+            else:
+                df_aprovacao = st.session_state["df_aprovacao_diretoria_cache"] # Usa o cache existente
 
         if df_aprovacao.empty:
             st.info("Nenhuma entrega pendente para aprovação.")
@@ -1785,31 +1797,125 @@ def pagina_aprovacao_diretoria():
                 st.markdown(f"**📦 Entregas selecionadas:** {len(selecionadas)}")
 
                 if not selecionadas.empty:
-                    if st.button(f"🚀 Aprovar entregas", key=f"btn_aprovar_{cliente}"):
-                        try:
-                            chaves = selecionadas["Serie_Numero_CTRC"].dropna().astype(str).str.strip().tolist()
-                            df_aprovar = df_cliente[df_cliente["Serie_Numero_CTRC"].isin(chaves)].copy()
+                    col_aprovar, col_rejeitar = st.columns(2) # Adiciona duas colunas para os botões
 
-                            df_aprovar = df_aprovar.replace([np.nan, np.inf, -np.inf], None)
+                    with col_aprovar:
+                        if st.button(
+                            f"✅ Aprovar entregas",
+                            key=f"btn_aprovar_{cliente}",
+                            disabled=not is_user_aprovador # Desabilita se o usuário não é aprovador
+                        ):
+                            try:
+                                with st.spinner("✅ Aprovando entregas e movendo para Pré-Roteirização..."):
+                                    df_aprovar = pd.DataFrame(selecionadas)
+                                    # Remove AgGrid internal info
+                                    df_aprovar = df_aprovar.drop(columns=["_selectedRowNodeInfo"], errors="ignore")
 
-                            for col in df_aprovar.select_dtypes(include=['datetime64[ns]']).columns:
-                                df_aprovar[col] = df_aprovar[col].dt.strftime('%Y-%m-%d %H:%M:%S')
+                                    # *** TRATAMENTO DE DATAS PARA INSERÇÃO NO SUPABASE (APROVAR) ***
+                                    # As colunas de data no 'selecionadas' vêm como strings no formato brasileiro (DD-MM-AAAA HH:MM:SS).
+                                    # Precisamos re-parseá-las para objetos datetime e depois formatá-las para ISO.
+                                    for col_name in GLOBAL_DATE_DISPLAY_COLUMNS:
+                                        if col_name in df_aprovar.columns:
+                                            df_aprovar[col_name] = pd.to_datetime(
+                                                df_aprovar[col_name],
+                                                format=DATE_DISPLAY_FORMAT_STRING, # Formato de origem (brasileiro)
+                                                errors='coerce' # Transforma erros de parse em NaT (Not a Time)
+                                            )
+                                    
+                                    # Handle NaNs, NaTs, empty strings for all columns (important before to_dict)
+                                    df_aprovar = df_aprovar.replace([np.nan, pd.NaT, "", np.inf, -np.inf], None)
 
-                            registros = df_aprovar.to_dict(orient="records")
-                            registros = [r for r in registros if r.get("Serie_Numero_CTRC")]
+                                    # Convert datetime objects to ISO strings for Supabase (if they are datetime type)
+                                    for col in df_aprovar.select_dtypes(include=['datetime64[ns]']).columns:
+                                        df_aprovar[col] = df_aprovar[col].dt.strftime('%Y-%m-%d %H:%M:%S')
+                                    # *** FIM DO TRATAMENTO DE DATAS (APROVAR) ***
 
-                            supabase.table("pre_roterizacao").insert(registros).execute()
-                            supabase.table("aprovacao_diretoria").delete().in_("Serie_Numero_CTRC", chaves).execute()
+                                    registros_para_pre_roterizacao = df_aprovar.to_dict(orient="records")
+                                    # Filter out records without valid primary key (Serie_Numero_CTRC)
+                                    registros_para_pre_roterizacao = [r for r in registros_para_pre_roterizacao if r.get("Serie_Numero_CTRC")]
 
-                            # Limpa sessão e força reload
-                            for key in list(st.session_state.keys()):
-                                if key.startswith("grid_aprovar_") or key.startswith("sucesso_"):
-                                    st.session_state.pop(key, None)
-                            st.success(f"✅ {len(chaves)} entregas aprovadas e enviadas para Pré-Roteirização.")
-                            st.rerun()
+                                    # 1. Inserir os dados na tabela 'pre_roterizacao'
+                                    if registros_para_pre_roterizacao:
+                                        supabase.table("pre_roterizacao").insert(registros_para_pre_roterizacao).execute()
 
-                        except Exception as e:
-                            st.error(f"❌ Erro ao aprovar entregas: {e}")
+                                    # 2. Obter as chaves das entregas aprovadas e remover da tabela 'aprovacao_diretoria'
+                                    chaves_aprovadas = [r.get("Serie_Numero_CTRC") for r in registros_para_pre_roterizacao if r.get("Serie_Numero_CTRC")]
+                                    if chaves_aprovadas:
+                                        supabase.table("aprovacao_diretoria").delete().in_("Serie_Numero_CTRC", chaves_aprovadas).execute()
+
+                                    st.success(f"✅ {len(registros_para_pre_roterizacao)} entregas aprovadas e enviadas para Pré-Roteirização.")
+                                    
+                                    # Invalidate caches to force reload of data
+                                    st.session_state["reload_aprovacao_diretoria"] = True # Cache da própria página
+                                    st.session_state["reload_pre_roterizacao"] = True # Cache da Pré-Roteirização
+                                    
+                                    # Clear AgGrid key and checkbox for visual reconstruction
+                                    st.session_state.pop(grid_key_id, None)
+                                    st.session_state.pop(checkbox_key, None)
+
+                                    st.rerun() # Force a new execution to update the UI
+
+                            except Exception as e:
+                                st.error(f"❌ Erro ao aprovar entregas: {e}")
+
+                    with col_rejeitar:
+                        if st.button(
+                            f"❌ Rejeitar entregas",
+                            key=f"btn_rejeitar_{cliente}",
+                            disabled=not is_user_aprovador # Desabilita se o usuário não é aprovador
+                        ):
+                            try:
+                                with st.spinner("🔄 Rejeitando entregas e retornando para Confirmar Produção..."):
+                                    df_rejeitar = pd.DataFrame(selecionadas)
+                                    # Remove AgGrid internal info
+                                    df_rejeitar = df_rejeitar.drop(columns=["_selectedRowNodeInfo"], errors="ignore")
+
+                                    # *** TRATAMENTO DE DATAS PARA INSERÇÃO NO SUPABASE (REJEITAR) ***
+                                    # As colunas de data no 'selecionadas' vêm como strings no formato brasileiro (DD-MM-AAAA HH:MM:SS).
+                                    # Precisamos re-parseá-las para objetos datetime e depois formatá-las para ISO.
+                                    for col_name in GLOBAL_DATE_DISPLAY_COLUMNS:
+                                        if col_name in df_rejeitar.columns:
+                                            df_rejeitar[col_name] = pd.to_datetime(
+                                                df_rejeitar[col_name],
+                                                format=DATE_DISPLAY_FORMAT_STRING, # Formato de origem (brasileiro)
+                                                errors='coerce' # Transforma erros de parse em NaT (Not a Time)
+                                            )
+                                    
+                                    # Handle NaNs, NaTs, empty strings for all columns (important before to_dict)
+                                    df_rejeitar = df_rejeitar.replace([np.nan, pd.NaT, "", np.inf, -np.inf], None)
+
+                                    # Convert datetime objects to ISO strings for Supabase (if they are datetime type)
+                                    for col in df_rejeitar.select_dtypes(include=['datetime64[ns]']).columns:
+                                        df_rejeitar[col] = df_rejeitar[col].dt.strftime('%Y-%m-%d %H:%M:%S')
+                                    # *** FIM DO TRATAMENTO DE DATAS (REJEITAR) ***
+
+                                    registros_para_confirmar_producao = df_rejeitar.to_dict(orient="records")
+                                    # Filter out records without valid primary key (Serie_Numero_CTRC)
+                                    registros_para_confirmar_producao = [r for r in registros_para_confirmar_producao if r.get("Serie_Numero_CTRC")]
+
+                                    # 1. Inserir os dados na tabela 'confirmadas_producao'
+                                    if registros_para_confirmar_producao:
+                                        supabase.table("confirmadas_producao").insert(registros_para_confirmar_producao).execute()
+
+                                    # 2. Obter as chaves das entregas rejeitadas e remover da tabela 'aprovacao_diretoria'
+                                    chaves_rejeitadas = [r.get("Serie_Numero_CTRC") for r in registros_para_confirmar_producao if r.get("Serie_Numero_CTRC")]
+                                    if chaves_rejeitadas:
+                                        supabase.table("aprovacao_diretoria").delete().in_("Serie_Numero_CTRC", chaves_rejeitadas).execute()
+
+                                    st.warning(f"↩️ {len(registros_para_confirmar_producao)} entregas rejeitadas e retornadas para Confirmar Produção.")
+                                    
+                                    # Invalidate caches to force reload of data
+                                    st.session_state["reload_aprovacao_diretoria"] = True # Cache da própria página
+                                    st.session_state["reload_confirmadas_producao"] = True # Cache da Confirmar Produção
+                                    
+                                    # Clear AgGrid key and checkbox for visual reconstruction
+                                    st.session_state.pop(grid_key_id, None)
+                                    st.session_state.pop(checkbox_key, None)
+
+                                    st.rerun() # Force a new execution to update the UI
+
+                            except Exception as e:
+                                st.error(f"❌ Erro ao rejeitar entregas: {e}")
 
 
 
