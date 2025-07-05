@@ -3674,10 +3674,10 @@ def pagina_cargas_aprovadas():
 
                     except Exception as e:
                         st.error(f"Erro ao salvar e fechar carga {carga}: {e}")
-                st.markdown("---")
+                
 
 
-            with st.expander("�� Ver entregas da carga aprovada", expanded=False):
+            with st.expander("🔽 Ver entregas da carga aprovada", expanded=False):
                 checkbox_key = f"marcar_todas_cargas_aprovadas_{carga}"
                 if checkbox_key not in st.session_state:
                     st.session_state[checkbox_key] = False
