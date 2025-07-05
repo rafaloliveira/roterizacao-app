@@ -3396,7 +3396,7 @@ def pagina_aprovacao_custos():
         st.error("Erro ao carregar aprovação de custos:")
         st.exception(e)
 # ==============================================================================
-# NOVA FUNÇÃO: pagina_cargas_aprovadas()
+# FUNÇÃO: pagina_cargas_aprovadas() - ATUALIZADA para MOVER para cargas_fechadas
 # ==============================================================================
 def pagina_cargas_aprovadas():
     st.markdown("## Cargas Aprovadas")
@@ -3405,8 +3405,9 @@ def pagina_cargas_aprovadas():
         with st.spinner("🔄 Carregando dados para cargas aprovadas..."):
             recarregar = st.session_state.pop("reload_cargas_aprovadas", False)
             if recarregar or "df_cargas_aprovadas_cache" not in st.session_state:
-                # Modificação: Apenas cargas APROVADAS E NÃO FECHADAS (data_fechamento é null)
-                dados = supabase.table("cargas_aprovadas").select("*").is_("data_fechamento", "null").execute().data
+                # Agora, a página Cargas Aprovadas simplesmente consulta a tabela.
+                # As cargas 'fechadas' serão MOVIDAS para outra tabela, então não estarão mais aqui.
+                dados = supabase.table("cargas_aprovadas").select("*").execute().data
                 df = pd.DataFrame(dados)
                 st.session_state["df_cargas_aprovadas_cache"] = df
             else:
@@ -3429,6 +3430,7 @@ def pagina_cargas_aprovadas():
         # --- Certifica que 'Regiao', 'motorista', 'placa' são strings e tratam nulos ---
         if 'Regiao' in df.columns:
             df['Regiao'] = df['Regiao'].astype(str).str.strip().str.upper().replace('NAN', 'NÃO DEFINIDA')
+        # Estas colunas podem vir vazias, então o tratamento de nan para string é importante
         if 'motorista' in df.columns:
             df['motorista'] = df['motorista'].astype(str).str.strip().replace('nan', 'Não Informado')
         if 'placa' in df.columns:
@@ -3484,9 +3486,9 @@ def pagina_cargas_aprovadas():
                     # Filtra 'NÃO DEFINIDA' para o cálculo da região dominante se outras regiões existirem
                     regions_to_consider = df_carga['Regiao'][df_carga['Regiao'] != 'NÃO DEFINIDA']
                     if not regions_to_consider.empty:
-                        dominant_region = regions_to_consider.value_counts().idxmax() 
-                    elif not df_carga['Regiao'].empty: # If all are 'NÃO DEFINIDA', set it
-                        dominant_region = df_carga['Regiao'].iloc[0] # Just pick the first one which will be 'NÃO DEFINIDA'
+                        dominant_region = regions_to_consider.value_counts().idxmax()
+                    elif not df_carga['Regiao'].empty:
+                        dominant_region = df_carga['Regiao'].iloc[0]
 
                 max_cost_allowed = MAX_COST_PER_REGION.get(dominant_region, None) # Pega o limite para a região dominante
 
@@ -3541,24 +3543,63 @@ def pagina_cargas_aprovadas():
                 placa_edit = st.text_input("Placa do Veículo (ex: ABC-1234):", value=placa_carga, key=f"placa_edit_{carga}")
                 
                 if st.button(
-                    f"✅ Salvar e Fechar Carga {carga}", # Texto do botão unificado
-                    key=f"salvar_fechar_carga_{carga}", # Chave única para o botão
-                    # O botão só é habilitado se motorista e placa estiverem preenchidos (remove espaços em branco)
+                    f"✅ Salvar e Fechar Carga {carga}",
+                    key=f"salvar_fechar_carga_{carga}",
                     disabled=not motorista_edit.strip() or not placa_edit.strip() 
                 ):
                     try:
-                        update_data = {
-                            "motorista": motorista_edit,
-                            "placa": placa_edit,
-                            "data_fechamento": data_hora_brasil_iso() # Define a data/hora de fechamento
-                        }
-                        # Atualiza todos os campos de uma vez na mesma chamada ao Supabase
-                        supabase.table("cargas_aprovadas").update(update_data).eq("numero_carga", carga).execute()
-                        st.success(f"Carga {carga} salva e fechada com sucesso!")
+                        # 1. Obter todas as entregas desta carga de 'cargas_aprovadas'
+                        response_fetch = supabase.table("cargas_aprovadas").select("*").eq("numero_carga", carga).execute()
+                        data_to_move = response_fetch.data
+
+                        if not data_to_move:
+                            st.warning(f"Nenhuma entrega encontrada para a carga {carga} em Cargas Aprovadas para fechar.")
+                            st.rerun() # Recarrega para limpar estado
+                            return
+
+                        df_to_move = pd.DataFrame(data_to_move)
+
+                        # 2. Adicionar/Atualizar 'motorista', 'placa', 'data_fechamento' e 'situacao' no DataFrame
+                        df_to_move["motorista"] = motorista_edit
+                        df_to_move["placa"] = placa_edit
+                        df_to_move["data_fechamento"] = data_hora_brasil_iso() # Data e hora atual do Brasil
+                        df_to_move["situacao"] = "Fechada" # Definir a situação
+
+                        # 3. Preparar dados para inserção em 'cargas_fechadas'
+                        # Garantir que colunas de data/hora estejam no formato ISO 8601 e NaNs sejam None
+                        date_cols_to_process_for_insert = [
+                            "Previsao de Entrega", "Entrega Programada", "Data de Emissao",
+                            "Data de Autorizacao", "Data do Cancelamento", "Data do Escaneamento",
+                            "Data da Entrega Realizada", "Data da Ultima Ocorrencia",
+                            "Data de inclusao da Ultima Ocorrencia", "Data_Hora_Gerada",
+                            "data_fechamento" # A nova coluna que está sendo definida
+                        ]
+                        for col_name in date_cols_to_process_for_insert:
+                            if col_name in df_to_move.columns:
+                                df_to_move[col_name] = pd.to_datetime(df_to_move[col_name], errors='coerce')
+                                df_to_move[col_name] = df_to_move[col_name].apply(
+                                    lambda x: x.isoformat() if pd.notna(x) else None
+                                )
+                        df_to_move = df_to_move.replace([np.nan, pd.NaT, "", np.inf, -np.inf], None)
+
+                        records_to_insert = df_to_move.to_dict(orient="records")
+
+                        # 4. Inserir em 'cargas_fechadas'
+                        if records_to_insert:
+                            supabase.table("cargas_fechadas").insert(records_to_insert).execute()
+                            st.success(f"Carga {carga} movida para Cargas Fechadas com sucesso!")
+                        else:
+                            st.warning(f"Não há registros válidos para mover para Cargas Fechadas para a carga {carga}.")
+                            st.rerun() # Não deleta se não inseriu
+                            return 
+
+                        # 5. Deletar da 'cargas_aprovadas' (original)
+                        supabase.table("cargas_aprovadas").delete().eq("numero_carga", carga).execute()
                         
-                        st.session_state["reload_cargas_aprovadas"] = True # Recarrega para remover a carga da exibição atual
-                        st.session_state["reload_cargas_fechadas"] = True # Sinaliza para recarregar a nova página de cargas fechadas
-                        st.rerun() # Força um novo render para atualizar a UI
+                        st.session_state["reload_cargas_aprovadas"] = True # Força recarregamento da página atual
+                        st.session_state["reload_cargas_fechadas"] = True # Força recarregamento da nova página
+                        st.rerun() # Renderiza novamente para mostrar as mudanças
+
                     except Exception as e:
                         st.error(f"Erro ao salvar e fechar carga {carga}: {e}")
                 st.markdown("---")
@@ -3570,7 +3611,7 @@ def pagina_cargas_aprovadas():
                     st.session_state[checkbox_key] = False
                 marcar_todas = st.checkbox("Marcar todas", key=checkbox_key)
 
-                with st.spinner("🔄 Formatando entregas da carga aprovada..."):
+                with st.spinner("�� Formatando entregas da carga aprovada..."):
                     df_formatado = df_carga[[col for col in colunas_exibir if col in df_carga.columns]].copy()
                     df_formatado = apply_brazilian_date_format_for_display(df_formatado)
                     df_formatado = df_formatado.replace([np.nan, None], "")
@@ -3639,15 +3680,16 @@ def pagina_cargas_aprovadas():
                     selecionadas = grid_response.get("selected_rows", [])
 
                 if selecionadas:
-                    st.markdown(f"**📦 Entregas selecionadas:** {len(selecionadas)}")
+                    st.markdown(f"**�� Entregas selecionadas:** {len(selecionadas)}")
     except Exception as e:
         st.error("Erro ao carregar cargas aprovadas:")
         st.exception(e)
 
 
 
+
 # ==============================================================================
-# NOVA FUNÇÃO: pagina_cargas_fechadas()
+# FUNÇÃO: pagina_cargas_fechadas() - ATUALIZADA para ler de 'cargas_fechadas'
 # ==============================================================================
 def pagina_cargas_fechadas():
     st.markdown("## Cargas Fechadas")
@@ -3656,8 +3698,8 @@ def pagina_cargas_fechadas():
         with st.spinner("🔄 Carregando dados para cargas fechadas..."):
             recarregar = st.session_state.pop("reload_cargas_fechadas", False)
             if recarregar or "df_cargas_fechadas_cache" not in st.session_state:
-                # Modificação: Apenas cargas FECHADAS (data_fechamento não é null)
-                dados = supabase.table("cargas_aprovadas").select("*").not_.is_("data_fechamento", "null").execute().data
+                # Agora, consulta diretamente a nova tabela 'cargas_fechadas'
+                dados = supabase.table("cargas_fechadas").select("*").execute().data
                 df = pd.DataFrame(dados)
                 st.session_state["df_cargas_fechadas_cache"] = df
             else:
@@ -3678,13 +3720,15 @@ def pagina_cargas_fechadas():
                 df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
         
         # --- Certifica que 'Regiao', 'motorista', 'placa' são strings e tratam nulos ---
-        # Certifica também que data_fechamento é formatado
         if 'Regiao' in df.columns:
             df['Regiao'] = df['Regiao'].astype(str).str.strip().str.upper().replace('NAN', 'NÃO DEFINIDA')
         if 'motorista' in df.columns:
             df['motorista'] = df['motorista'].astype(str).str.strip().replace('nan', 'Não Informado')
         if 'placa' in df.columns:
             df['placa'] = df['placa'].astype(str).str.strip().replace('nan', 'Não Informada')
+        # A coluna 'situacao' já deve vir como string, mas é bom garantir
+        if 'situacao' in df.columns:
+            df['situacao'] = df['situacao'].astype(str).str.strip().replace('nan', 'Não Definida')
 
 
         col1, col2 = st.columns([1, 1])
@@ -3706,7 +3750,7 @@ def pagina_cargas_fechadas():
             "Numero da Nota Fiscal", "Status", "Entrega Programada", "Particularidade",
             "Codigo da Ultima Ocorrencia", "Peso Real em Kg", "Peso Calculado em Kg",
             "Cubagem em m³", "Quantidade de Volumes", "valor_contratacao", "numero_carga",
-            "motorista", "placa", "data_fechamento" # <--- Inclui data_fechamento para exibição
+            "motorista", "placa", "data_fechamento", "situacao" # <-- 'situacao' adicionada aqui
         ]
 
         cargas_unicas = sorted(df["numero_carga"].dropna().unique())
@@ -3719,10 +3763,11 @@ def pagina_cargas_fechadas():
             valor_contratacao_carga = df_carga["valor_contratacao"].iloc[0] if "valor_contratacao" in df_carga.columns and not df_carga["valor_contratacao"].isnull().all() else 0.0
             motorista_carga = df_carga["motorista"].iloc[0] if "motorista" in df_carga.columns and not df_carga["motorista"].isnull().all() else 'Não Informado'
             placa_carga = df_carga["placa"].iloc[0] if "placa" in df_carga.columns and not df_carga["placa"].isnull().all() else 'Não Informada'
-            data_fechamento_carga = df_carga["data_fechamento"].iloc[0] if "data_fechamento" in df_carga.columns and not df_carga["data_fechamento"].isnull().all() else 'Não Informada'
+            data_fechamento_carga = df_carga["data_fechamento"].iloc[0] if "data_fechamento" in df_carga.columns and not df_carga["data_fechamento"].isnull().all() else None # Pode ser None
+            situacao_carga = df_carga["situacao"].iloc[0] if "situacao" in df_carga.columns and not df_carga["situacao"].isnull().all() else 'Não Definida'
 
 
-            # --- Cálculos de Rentabilidade e Custo por Região ---
+            # --- Cálculos de Rentabilidade e Custo por Região (para exibição) ---
             total_frete_carga = df_carga["Valor do Frete"].sum()
             
             rentabilidade_percentual = 0.0
@@ -3782,27 +3827,22 @@ def pagina_cargas_fechadas():
                         {badge(f'Placa: {placa_carga}')}
                         {badge(f'Rentabilidade: {rentabilidade_percentual:.2f}%')}
                         <span style='background:{cor_situacao};color:white;border-radius:12px;padding:6px 12px;margin:4px;display:inline-block;'>Situação Custo: {situacao_custo_regional}</span>
-                        {badge(f'Fechada em: {formatar_data_hora_br(data_fechamento_carga)}')}
+                        {badge(f'Fechada em: {formatar_data_hora_br(data_fechamento_carga)}') if data_fechamento_carga else ''}
+                        {badge(f'Situação: {situacao_carga}')}
                     </div>
                     """,
                     unsafe_allow_html=True
                 )
                 # Removidos os campos de input e botões de ação, pois a carga já está fechada
-                # st.markdown("---")
-                # st.subheader(f"Editar Dados do Motorista e Veículo da Carga {carga}")
-                # motorista_edit = st.text_input("Nome do Motorista:", value=motorista_carga, key=f"motorista_edit_{carga}")
-                # placa_edit = st.text_input("Placa do Veículo (ex: ABC-1234):", value=placa_carga, key=f"placa_edit_{carga}")
-                # ... botões e lógica de salvar/fechar removidos ...
-                # st.markdown("---")
 
 
-            with st.expander("🔽 Ver entregas da carga fechada", expanded=False): # Texto ajustado
+            with st.expander("🔽 Ver entregas da carga fechada", expanded=False):
                 checkbox_key = f"marcar_todas_cargas_fechadas_{carga}"
                 if checkbox_key not in st.session_state:
                     st.session_state[checkbox_key] = False
                 marcar_todas = st.checkbox("Marcar todas", key=checkbox_key)
 
-                with st.spinner("🔄 Formatando entregas da carga fechada..."): # Texto ajustado
+                with st.spinner("🔄 Formatando entregas da carga fechada..."):
                     df_formatado = df_carga[[col for col in colunas_exibir if col in df_carga.columns]].copy()
                     df_formatado = apply_brazilian_date_format_for_display(df_formatado)
                     df_formatado = df_formatado.replace([np.nan, None], "")
@@ -3846,6 +3886,9 @@ def pagina_cargas_fechadas():
                                 return '';
                             }
                         """))
+                    # Adiciona formatador para situacao (opcional, só para garantir)
+                    if 'situacao' in df_formatado.columns:
+                        gb.configure_column('situacao', type=["textColumn"])
 
                     grid_options = gb.build()
                     grid_key_id = f"grid_cargas_fechadas_{carga}"
@@ -3886,17 +3929,6 @@ def pagina_cargas_fechadas():
     except Exception as e:
         st.error("Erro ao carregar cargas fechadas:")
         st.exception(e)
-
-
-
-
-
-
-
-
-
-
-
 
 
 # ========== EXECUÇÃO PRINCIPAL ========== #
@@ -3942,7 +3974,7 @@ if st.session_state.get("login", False):
             pagina_aprovacao_custos()
         with sub_tab_cargas_aprovadas:
             pagina_cargas_aprovadas()
-        with sub_tab_cargas_fechadas: # <<< NOVO BLOCO
+        with sub_tab_cargas_fechadas: 
             pagina_cargas_fechadas()
 
     with tab_admin_settings:
