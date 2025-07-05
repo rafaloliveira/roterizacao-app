@@ -3526,7 +3526,7 @@ def pagina_cargas_aprovadas():
                         {badge(f'{len(df_carga)} entregas')}
                         {badge(f'{formatar_brasileiro(df_carga["Peso Calculado em Kg"].sum())} kg calc')}
                         {badge(f'{formatar_brasileiro(df_carga["Peso Real em Kg"].sum())} kg real')}
-                        {badge(f'R$ {formatar_brasileiro(df_carga)}')}
+                        {badge(f'R$ {formatar_brasileiro(total_frete_carga)}')} # <-- CORRIGIDO AQUI
                         {badge(f'{formatar_brasileiro(df_carga["Cubagem em m³"].sum())} m³')}
                         {badge(f'{int(df_carga["Quantidade de Volumes"].sum())} volumes')}
                         {badge(f'Valor Contratação: R$ {formatar_brasileiro(valor_contratacao_carga)}')}
@@ -3618,6 +3618,7 @@ def pagina_cargas_aprovadas():
     except Exception as e:
         st.error("Erro ao carregar cargas aprovadas:")
         st.exception(e)
+
 
 
 
