@@ -3405,14 +3405,10 @@ def pagina_aprovacao_custos():
 def pagina_cargas_aprovadas():
     st.markdown("## Cargas Aprovadas")
 
-    # Não precisa de verificação de classe aqui, pois é uma página de visualização
-
     try:
         with st.spinner("🔄 Carregando dados para cargas aprovadas..."):
-            # Lógica de cache para evitar múltiplas chamadas ao Supabase em reruns
             recarregar = st.session_state.pop("reload_cargas_aprovadas", False)
             if recarregar or "df_cargas_aprovadas_cache" not in st.session_state:
-                # Busca os dados da tabela 'cargas_aprovadas' no Supabase
                 dados = supabase.table("cargas_aprovadas").select("*").execute().data
                 df = pd.DataFrame(dados)
                 st.session_state["df_cargas_aprovadas_cache"] = df
@@ -3423,55 +3419,105 @@ def pagina_cargas_aprovadas():
             st.info("Nenhuma carga foi aprovada ainda.")
             return
 
-        df.columns = df.columns.str.strip() # Remove espaços em branco dos nomes das colunas
+        df.columns = df.columns.str.strip()
 
-        # Garante que as colunas numéricas sejam tratadas como números para cálculos e exibição
         numeric_cols_to_convert = [
             'Peso Real em Kg', 'Peso Calculado em Kg', 'Cubagem em m³',
             'Quantidade de Volumes', 'Valor do Frete', 'valor_contratacao'
         ]
         for col in numeric_cols_to_convert:
             if col in df.columns:
-                # Converte para numérico, tratando erros (coerce) e preenche NaN com 0
                 df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+        
+        # --- Certifica que 'Regiao', 'motorista', 'placa' são strings e tratam nulos ---
+        if 'Regiao' in df.columns:
+            df['Regiao'] = df['Regiao'].astype(str).str.strip().str.upper().replace('NAN', 'NÃO DEFINIDA')
+        if 'motorista' in df.columns:
+            df['motorista'] = df['motorista'].astype(str).str.strip().replace('nan', 'Não Informado')
+        if 'placa' in df.columns:
+            df['placa'] = df['placa'].astype(str).str.strip().replace('nan', 'Não Informada')
 
-        # Exibe métricas gerais no topo da página
+
         col1, col2 = st.columns([1, 1])
         with col1:
             st.metric("Total de Cargas Aprovadas", df["numero_carga"].nunique() if "numero_carga" in df.columns else 0)
         with col2:
             st.metric("Total de Entregas Aprovadas", len(df))
 
-        # Define as colunas que serão exibidas no AgGrid
-        # Mesmas colunas da aprovacao_custos, incluindo 'numero_carga' e 'valor_contratacao'
+        # --- Definição dos Custos Máximos por Região ---
+        MAX_COST_PER_REGION = {
+            'INTERIOR 1': 0.35,  # 35%
+            'INTERIOR 2': 0.45,  # 45%
+            'POA CAPITAL': 0.30   # 30%
+        }
+
         colunas_exibir = [
             "Serie_Numero_CTRC", "Rota", "Regiao", "Valor do Frete", "Cliente Pagador", "Chave CT-e", "Cliente Destinatario",
             "Cidade de Entrega", "Bairro do Destinatario", "Previsao de Entrega",
             "Numero da Nota Fiscal", "Status", "Entrega Programada", "Particularidade",
             "Codigo da Ultima Ocorrencia", "Peso Real em Kg", "Peso Calculado em Kg",
-            "Cubagem em m³", "Quantidade de Volumes", "valor_contratacao", "numero_carga" 
+            "Cubagem em m³", "Quantidade de Volumes", "valor_contratacao", "numero_carga",
+            "motorista", "placa" # Adicionadas novas colunas para exibição
         ]
 
-        # Obtém as cargas únicas para iterar e exibir os grupos de entregas
         cargas_unicas = sorted(df["numero_carga"].dropna().unique())
 
         for carga in cargas_unicas:
-            # Filtra o DataFrame para a carga atual
             df_carga = df[df["numero_carga"] == carga].copy()
             if df_carga.empty:
                 continue
 
-            # Obtém o valor de contratação para esta carga (assumindo que é o mesmo para todas as entregas da carga)
             valor_contratacao_carga = df_carga["valor_contratacao"].iloc[0] if "valor_contratacao" in df_carga.columns and not df_carga["valor_contratacao"].isnull().all() else 0.0
+            motorista_carga = df_carga["motorista"].iloc[0] if "motorista" in df_carga.columns and not df_carga["motorista"].isnull().all() else 'Não Informado'
+            placa_carga = df_carga["placa"].iloc[0] if "placa" in df_carga.columns and not df_carga["placa"].isnull().all() else 'Não Informada'
 
-            # Título da carga
+            # --- Cálculos de Rentabilidade e Custo por Região ---
+            total_frete_carga = df_carga["Valor do Frete"].sum()
+            
+            rentabilidade_percentual = 0.0
+            situacao_custo_regional = "N/A"
+            cor_situacao = "gray"
+
+            if total_frete_carga > 0:
+                rentabilidade_percentual = ((total_frete_carga - valor_contratacao_carga) / total_frete_carga) * 100
+                
+                # Determinar a região dominante da carga
+                # Usamos value_counts() para encontrar a região mais frequente.
+                # .index[0] pega o nome da região mais frequente.
+                dominant_region = 'NÃO DEFINIDA'
+                if 'Regiao' in df_carga.columns and not df_carga['Regiao'].empty:
+                    # Filtra 'NÃO DEFINIDA' para o cálculo da região dominante se outras regiões existirem
+                    regions_to_consider = df_carga['Regiao'][df_carga['Regiao'] != 'NÃO DEFINIDA']
+                    if not regions_to_consider.empty:
+                        dominant_region = regions_to_consider.value_counts().idxmax()
+                    elif not df_carga['Regiao'].empty: # If all are 'NÃO DEFINIDA', set it
+                        dominant_region = df_carga['Regiao'].iloc[0] # Just pick the first one which will be 'NÃO DEFINIDA'
+
+                max_cost_allowed = MAX_COST_PER_REGION.get(dominant_region, None) # Pega o limite para a região dominante
+
+                if max_cost_allowed is not None:
+                    custo_receita_ratio = (valor_contratacao_carga / total_frete_carga)
+                    if custo_receita_ratio <= max_cost_allowed:
+                        situacao_custo_regional = f"Dentro do Limite ({max_cost_allowed*100:.0f}%)"
+                        cor_situacao = "#28a745" # Verde
+                    else:
+                        situacao_custo_regional = f"Acima do Limite ({max_cost_allowed*100:.0f}%)"
+                        cor_situacao = "#dc3545" # Vermelho
+                else:
+                    situacao_custo_regional = f"Região '{dominant_region}' sem limite definido"
+                    cor_situacao = "orange" # Laranja
+            else:
+                rentabilidade_percentual = 0.0
+                situacao_custo_regional = "Total do Frete zero, cálculo impossível."
+                cor_situacao = "gray"
+
+
             st.markdown(f"""
             <div style="margin-top:20px;padding:10px;background:#e8f0fe;border-left:4px solid #34a853;border-radius:6px;display:inline-block;max-width:100%;">
                 <strong>Carga:</strong> {carga}
             </div>
             """, unsafe_allow_html=True)
 
-            # Seção de badges/resumo da carga (com a correção do flexbox)
             col1_badges, col2_placeholder = st.columns([5, 1])
             with col1_badges:
                 st.markdown(
@@ -3480,18 +3526,20 @@ def pagina_cargas_aprovadas():
                         {badge(f'{len(df_carga)} entregas')}
                         {badge(f'{formatar_brasileiro(df_carga["Peso Calculado em Kg"].sum())} kg calc')}
                         {badge(f'{formatar_brasileiro(df_carga["Peso Real em Kg"].sum())} kg real')}
-                        {badge(f'R$ {formatar_brasileiro(df_carga["Valor do Frete"].sum())}')}
+                        {badge(f'R$ {formatar_brasileiro(df_carga)}')}
                         {badge(f'{formatar_brasileiro(df_carga["Cubagem em m³"].sum())} m³')}
                         {badge(f'{int(df_carga["Quantidade de Volumes"].sum())} volumes')}
                         {badge(f'Valor Contratação: R$ {formatar_brasileiro(valor_contratacao_carga)}')}
+                        {badge(f'Motorista: {motorista_carga}')}
+                        {badge(f'Placa: {placa_carga}')}
+                        {badge(f'Rentabilidade: {rentabilidade_percentual:.2f}%')}
+                        <span style='background:{cor_situacao};color:white;border-radius:12px;padding:6px 12px;margin:4px;display:inline-block;'>Situação Custo: {situacao_custo_regional}</span>
                     </div>
                     """,
                     unsafe_allow_html=True
                 )
 
-            # Expander para ver os detalhes da carga e interagir com o grid
             with st.expander("🔽 Ver entregas da carga aprovada", expanded=False):
-                # Checkbox "Marcar todas" e seleção do grid podem ser mantidos para consistência visual
                 checkbox_key = f"marcar_todas_cargas_aprovadas_{carga}"
                 if checkbox_key not in st.session_state:
                     st.session_state[checkbox_key] = False
@@ -3499,10 +3547,7 @@ def pagina_cargas_aprovadas():
 
                 with st.spinner("🔄 Formatando entregas da carga aprovada..."):
                     df_formatado = df_carga[[col for col in colunas_exibir if col in df_carga.columns]].copy()
-                    # NOVO: Aplica o formato brasileiro a todas as colunas de data
                     df_formatado = apply_brazilian_date_format_for_display(df_formatado)
-                    # Tratar NaNs restantes em outras colunas (não datas) para exibição como string vazia
-                    # (pd.NaT já foi tratado para colunas de data pela função acima)
                     df_formatado = df_formatado.replace([np.nan, None], "")
 
                     gb = GridOptionsBuilder.from_dataframe(df_formatado)
@@ -3512,17 +3557,16 @@ def pagina_cargas_aprovadas():
                     gb.configure_grid_options(alwaysShowHorizontalScroll=True)
                     gb.configure_grid_options(rowStyle={"font-size": "11px"})
                     
-                    # Estilo condicional das linhas (AGENDAR, Particularidade)
                     gb.configure_grid_options(getRowStyle=JsCode("""
                         function(params) {
                             const status = params.data.Status;
                             const entregaProg = params.data["Entrega Programada"];
                             const particularidade = params.data.Particularidade;
                             if (status === "AGENDAR" && (!entregaProg || entregaProg.trim() === "")) {
-                                return { 'background-color': '#ffe0b2', 'color': '#333' }; 
+                                return { 'background-color': '#ffe0b2', 'color': '#333' };
                             }
                             if (particularidade && particularidade.trim() !== "") {
-                                return { 'background-color': '#fff59d', 'color': '#333' }; 
+                                return { 'background-color': '#fff59d', 'color': '#333' };
                             }
                             return null;
                         }
@@ -3571,11 +3615,9 @@ def pagina_cargas_aprovadas():
 
                 if selecionadas:
                     st.markdown(f"**📦 Entregas selecionadas:** {len(selecionadas)}")
-                # Sem botões de ação (Aprovar/Rejeitar), pois esta é uma página de visualização
     except Exception as e:
         st.error("Erro ao carregar cargas aprovadas:")
         st.exception(e)
-
 
 
 
