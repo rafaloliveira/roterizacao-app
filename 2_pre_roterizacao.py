@@ -382,19 +382,54 @@ def data_hora_brasil_str():
 def formatar_data_hora_br(data_iso):
     """
     Converte string ou datetime para 'dd-mm-yyyy HH:MM:SS' no fuso de São Paulo.
+    Lida com valores nulos ou inválidos.
     """
+    if data_iso is None:
+        return '' # Retorna string vazia se o valor for None ou nulo
+    
+    # Tratamento para pandas.NaT (Not a Time) ou outros valores nulos de data
+    if pd.isna(data_iso):
+        return ''
+
+    dt = None # Inicializa dt como None
+
     if isinstance(data_iso, str):
         try:
+            # Tenta converter de string ISO, ou de formato DD-MM-YYYY (se a origem for um campo de texto não ISO)
+            # Prioriza fromisoformat para strings que já vêm do Supabase
             dt = datetime.fromisoformat(data_iso)
-        except Exception:
-            return data_iso
-    else:
-        dt = data_iso
+        except ValueError:
+            # Se não for ISO, tenta como formato brasileiro para strings
+            try:
+                dt = datetime.strptime(data_iso, "%d-%m-%Y %H:%M:%S")
+            except ValueError:
+                # Se ainda der erro, tenta apenas a data (sem tempo)
+                try:
+                    dt = datetime.strptime(data_iso, "%d-%m-%Y")
+                except ValueError:
+                    return str(data_iso) # Em último caso, retorna a string original se não puder converter
+        except Exception: # Captura outras exceções inesperadas na conversão de string
+            return str(data_iso) # Retorna a string original
 
-    # Se vier sem timezone, assume que é UTC
+    elif isinstance(data_iso, (datetime, date, pd.Timestamp)): # Já é um objeto de data/hora válido
+        dt = data_iso
+    else: # Tenta coercer para datetime se for outro tipo (e.g., numpy.datetime64)
+        try:
+            dt = pd.to_datetime(data_iso, errors='coerce')
+            if pd.isna(dt): # Se a conversão resultar em NaT, trata como nulo
+                return ''
+        except Exception:
+            return str(data_iso) # Retorna string se não puder converter
+
+    # Após todas as tentativas de conversão, verifica se dt é um objeto válido
+    if dt is None:
+        return ''
+
+    # Se dt vier sem timezone, assume que é UTC (Supabase armazena como UTC por padrão)
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc).astimezone(FUSO_BRASIL)
     else:
+        # Se já tem timezone, apenas converte para o fuso horário desejado
         dt = dt.astimezone(FUSO_BRASIL)
 
     return dt.strftime("%d-%m-%Y %H:%M:%S")
