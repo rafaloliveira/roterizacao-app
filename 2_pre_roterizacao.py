@@ -3395,10 +3395,6 @@ def pagina_aprovacao_custos():
     except Exception as e:
         st.error("Erro ao carregar aprovação de custos:")
         st.exception(e)
-
-# ==============================================================================
-# NOVA FUNÇÃO: pagina_cargas_aprovadas()
-# ==============================================================================
 # ==============================================================================
 # NOVA FUNÇÃO: pagina_cargas_aprovadas()
 # ==============================================================================
@@ -3488,7 +3484,7 @@ def pagina_cargas_aprovadas():
                     # Filtra 'NÃO DEFINIDA' para o cálculo da região dominante se outras regiões existirem
                     regions_to_consider = df_carga['Regiao'][df_carga['Regiao'] != 'NÃO DEFINIDA']
                     if not regions_to_consider.empty:
-                        dominant_region = regions_to_consider.value_counts().idxmax()
+                        dominant_region = regions_to_consider.value_counts().idxmax() 
                     elif not df_carga['Regiao'].empty: # If all are 'NÃO DEFINIDA', set it
                         dominant_region = df_carga['Regiao'].iloc[0] # Just pick the first one which will be 'NÃO DEFINIDA'
 
@@ -3538,48 +3534,33 @@ def pagina_cargas_aprovadas():
                     unsafe_allow_html=True
                 )
                 
-                # --- CAMPOS PARA MOTORISTA E PLACA PARA EDIÇÃO E BOTÃO FECHAR CARGA ---
+                # --- CAMPOS PARA MOTORISTA E PLACA PARA EDIÇÃO E BOTÃO ÚNICO DE SALVAR E FECHAR ---
                 st.markdown("---")
-                st.subheader(f"Editar Dados do Motorista e Veículo da Carga {carga}")
+                st.subheader(f"Informações do Motorista e Veículo da Carga {carga}")
                 motorista_edit = st.text_input("Nome do Motorista:", value=motorista_carga, key=f"motorista_edit_{carga}")
                 placa_edit = st.text_input("Placa do Veículo (ex: ABC-1234):", value=placa_carga, key=f"placa_edit_{carga}")
                 
-                col_save_motorista, col_fechar_carga = st.columns([1, 1]) # Duas colunas para os botões
-
-                with col_save_motorista:
-                    if st.button(f"💾 Salvar Motorista e Placa da Carga {carga}", key=f"save_motorista_placa_{carga}"):
-                        try:
-                            update_data = {
-                                "motorista": motorista_edit,
-                                "placa": placa_edit
-                            }
-                            # Adicionado .eq("numero_carga", carga) para garantir que a atualização é para a carga correta
-                            supabase.table("cargas_aprovadas").update(update_data).eq("numero_carga", carga).execute()
-                            st.success(f"Motorista e Placa da carga {carga} atualizados com sucesso!")
-                            st.session_state["reload_cargas_aprovadas"] = True # Força reload
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"Erro ao atualizar Motorista/Placa da carga {carga}: {e}")
-
-                with col_fechar_carga:
-                    if st.button(
-                        f"🚚 Fechar Carga {carga}", 
-                        key=f"fechar_carga_{carga}",
-                        # Botão desabilitado se motorista ou placa estiverem vazios (remove espaços em branco)
-                        disabled=not motorista_edit.strip() or not placa_edit.strip() 
-                    ):
-                        try:
-                            # Preenche data_fechamento com a data e hora atual do Brasil
-                            update_data = {
-                                "data_fechamento": data_hora_brasil_iso() # Usa sua função definida para o formato ISO
-                            }
-                            supabase.table("cargas_aprovadas").update(update_data).eq("numero_carga", carga).execute()
-                            st.success(f"Carga {carga} fechada com sucesso!")
-                            st.session_state["reload_cargas_aprovadas"] = True # Força reload para remover a carga da visualização
-                            st.session_state["reload_cargas_fechadas"] = True # Sinaliza para recarregar a nova página
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"Erro ao fechar carga {carga}: {e}")
+                if st.button(
+                    f"✅ Salvar e Fechar Carga {carga}", # Texto do botão unificado
+                    key=f"salvar_fechar_carga_{carga}", # Chave única para o botão
+                    # O botão só é habilitado se motorista e placa estiverem preenchidos (remove espaços em branco)
+                    disabled=not motorista_edit.strip() or not placa_edit.strip() 
+                ):
+                    try:
+                        update_data = {
+                            "motorista": motorista_edit,
+                            "placa": placa_edit,
+                            "data_fechamento": data_hora_brasil_iso() # Define a data/hora de fechamento
+                        }
+                        # Atualiza todos os campos de uma vez na mesma chamada ao Supabase
+                        supabase.table("cargas_aprovadas").update(update_data).eq("numero_carga", carga).execute()
+                        st.success(f"Carga {carga} salva e fechada com sucesso!")
+                        
+                        st.session_state["reload_cargas_aprovadas"] = True # Recarrega para remover a carga da exibição atual
+                        st.session_state["reload_cargas_fechadas"] = True # Sinaliza para recarregar a nova página de cargas fechadas
+                        st.rerun() # Força um novo render para atualizar a UI
+                    except Exception as e:
+                        st.error(f"Erro ao salvar e fechar carga {carga}: {e}")
                 st.markdown("---")
 
 
@@ -3662,6 +3643,7 @@ def pagina_cargas_aprovadas():
     except Exception as e:
         st.error("Erro ao carregar cargas aprovadas:")
         st.exception(e)
+
 
 
 # ==============================================================================
