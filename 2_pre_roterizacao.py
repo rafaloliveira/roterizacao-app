@@ -1595,7 +1595,7 @@ def pagina_confirmar_producao():
 
                 # Botão para confirmar produção
                 if not selecionadas.empty:
-                    if st.button(f"�� Enviar para Aprovação da Diretoria do Cliente {cliente_pagador}", key=f"btn_confirmar_{cliente_pagador}"):
+                    if st.button(f" Enviar para Aprovação"):
                         try:
                             # Prepara os dados para inserção na tabela de aprovacao_diretoria
                             df_confirmar = selecionadas.drop(columns=["_selectedRowNodeInfo"], errors="ignore").copy()
