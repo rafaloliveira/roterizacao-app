@@ -3789,6 +3789,14 @@ def pagina_cargas_fechadas():
             if recarregar or "df_cargas_fechadas_cache" not in st.session_state:
                 dados = supabase.table("cargas_fechadas").select("*").execute().data
                 df = pd.DataFrame(dados)
+
+                # --- Convert all relevant date columns to UTC datetime objects immediately ---
+                # Isso garante que as colunas de data sejam do tipo datetime antes de qualquer outra operação
+                for col_name in GLOBAL_DATE_DISPLAY_COLUMNS:
+                    if col_name in df.columns:
+                        df[col_name] = pd.to_datetime(df[col_name], errors='coerce', utc=True)
+                # --- End of date conversion ---
+
                 st.session_state["df_cargas_fechadas_cache"] = df
             else:
                 df = st.session_state["df_cargas_fechadas_cache"]
@@ -3822,11 +3830,6 @@ def pagina_cargas_fechadas():
         if 'fechador_carga_login' in df.columns:
             df['fechador_carga_login'] = df['fechador_carga_login'].astype(str).str.strip().replace('nan', 'Desconhecido')
 
-        # --- Conversão da coluna de data de fechamento para datetime para filtragem ---
-        # Garante que a coluna 'data_fechamento' é timezone-aware (UTC)
-        if 'data_fechamento' in df.columns:
-            df['data_fechamento'] = pd.to_datetime(df['data_fechamento'], errors='coerce', utc=True)
-
         # Exibição de métricas gerais antes da filtragem por data
         col1, col2 = st.columns([1, 1])
         with col1:
@@ -3837,16 +3840,16 @@ def pagina_cargas_fechadas():
         st.markdown("---") # Separador visual para os filtros
 
         # --- Filtro por Data de Fechamento ---
-        st.subheader("🗓️ Filtrar por Data de Fechamento")
+        st.subheader("��️ Filtrar por Data de Fechamento")
         col_data_inicio, col_data_fim = st.columns(2)
         with col_data_inicio:
             # Pega a data mínima do DataFrame, garante que seja um objeto date para o date_input
-            min_date = df['data_fechamento'].min().date() if not df['data_fechamento'].empty and pd.notna(df['data_fechamento'].min()) else None
-            data_inicio = st.date_input("Data Inicial", value=min_date, key="filtro_data_inicio")
+            min_date_val = df['data_fechamento'].min().date() if not df['data_fechamento'].empty and pd.notna(df['data_fechamento'].min()) else None
+            data_inicio = st.date_input("Data Inicial", value=min_date_val, key="filtro_data_inicio")
         with col_data_fim:
             # Pega a data máxima do DataFrame, garante que seja um objeto date para o date_input
-            max_date = df['data_fechamento'].max().date() if not df['data_fechamento'].empty and pd.notna(df['data_fechamento'].max()) else None
-            data_fim = st.date_input("Data Final", value=max_date, key="filtro_data_fim")
+            max_date_val = df['data_fechamento'].max().date() if not df['data_fechamento'].empty and pd.notna(df['data_fechamento'].max()) else None
+            data_fim = st.date_input("Data Final", value=max_date_val, key="filtro_data_fim")
 
         # Aplica a filtragem por data
         df_filtrado = df.copy()
@@ -3978,6 +3981,8 @@ def pagina_cargas_fechadas():
                 marcar_todas = st.checkbox("Marcar todas", key=checkbox_key)
 
                 with st.spinner("🔄 Formatando entregas da carga fechada..."):
+                    # Aqui, df_formatado é usado para a exibição no AgGrid, e apply_brazilian_date_format_for_display
+                    # irá converter as colunas de data para string, o que é o comportamento desejado para o grid.
                     df_formatado = df_carga[[col for col in colunas_exibir if col in df_carga.columns]].copy()
                     df_formatado = apply_brazilian_date_format_for_display(df_formatado)
                     df_formatado = df_formatado.replace([np.nan, None], "")
@@ -4073,7 +4078,8 @@ def pagina_cargas_fechadas():
                 # --- Botão de Download CSV e Botão de Impressão ---
                 st.markdown("---") # Separador
                 
-                # Prepara os dados para o CSV
+                # Prepara os dados para o CSV. Aqui df_carga ainda contém os objetos datetime
+                # porque df_formatado é uma cópia separada para o AgGrid.
                 colunas_para_csv = [
                     "Serie_Numero_CTRC", "Chave CT-e", "numero_carga", 
                     "Cliente Pagador", "Cliente Destinatario", "Cidade de Entrega",
@@ -4086,6 +4092,8 @@ def pagina_cargas_fechadas():
                 # Converte colunas de data para um formato legível em CSV
                 for col_date in ["Previsao de Entrega", "data_fechamento", "data_aprovacao_custos"]:
                     if col_date in df_csv.columns:
+                        # As colunas já são datetime objetos (UTC) devido à conversão inicial.
+                        # Basta aplicar o strftime, cuidando de NaT.
                         df_csv[col_date] = df_csv[col_date].apply(
                             lambda x: x.strftime("%d-%m-%Y %H:%M:%S") if pd.notna(x) else ""
                         )
