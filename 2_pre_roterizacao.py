@@ -1401,8 +1401,6 @@ def pagina_confirmar_producao():
     with st.spinner("🔄 Carregando entregas para confirmar produção..."):
         try:
             # Fonte de dados para esta página é 'confirmadas_producao'
-            # Usando cache para evitar múltiplas chamadas ao Supabase a cada rerun desnecessário
-            # A flag 'reload_confirmadas_producao' será usada para invalidar o cache e forçar um novo fetch
             recarregar = st.session_state.pop("reload_confirmadas_producao", False)
             if recarregar or "df_confirmadas_cache" not in st.session_state:
                 
@@ -1418,12 +1416,14 @@ def pagina_confirmar_producao():
                 if 'Status' in df.columns:
                     df['Status'] = df['Status'].fillna('').astype(str)
                 if 'Entrega Programada' in df.columns:
-                    df['Entrega Programada'] = pd.to_datetime(df['Entrega Programada'], errors='coerce')
-                    # O JsCode lida com NaT se convertermos para string no final, mas mantenha pd.NaT aqui para cálculos
+                    # Garante que seja datetime para que o JsCode possa lidar com NaT corretamente
+                    df['Entrega Programada'] = pd.to_datetime(df['Entrega Programada'], errors='coerce') 
                 if 'Particularidade' in df.columns:
                     df['Particularidade'] = df['Particularidade'].fillna('').astype(str)
                 if 'Serie_Numero_CTRC' in df.columns:
                     df['Serie_Numero_CTRC'] = df['Serie_Numero_CTRC'].astype(str)
+                if 'Cliente Pagador' in df.columns: # Novo: Garantir Cliente Pagador como string
+                    df['Cliente Pagador'] = df['Cliente Pagador'].fillna('').astype(str)
 
         except Exception as e:
             st.error(f"Erro ao consultar o banco de dados: {e}")
@@ -1436,7 +1436,8 @@ def pagina_confirmar_producao():
     # Exibir métricas gerais
     col1, col2, _ = st.columns([1, 1, 8])
     with col1:
-        st.metric("Total de Rotas", df["Rota"].nunique() if "Rota" in df.columns else 0)
+        # Agora conta clientes únicos
+        st.metric("Total de Clientes", df["Cliente Pagador"].nunique() if "Cliente Pagador" in df.columns else 0)
     with col2:
         st.metric("Total de Entregas", len(df))
 
@@ -1444,12 +1445,12 @@ def pagina_confirmar_producao():
     colunas_exibir = [
         "Serie_Numero_CTRC", "Rota", "Regiao", "Valor do Frete", "Cliente Pagador", "Chave CT-e",
         "Cliente Destinatario", "Cidade de Entrega", "Bairro do Destinatario", 
-        "Previsao de Entrega", "Numero da Nota Fiscal", "Status", "Entrega Programada", 
+        "Previsao de Entrega", "Numero da Nota Fiscal", "Status", "Entrega Programada",
         "Particularidade", "Codigo da Ultima Ocorrencia", "Peso Real em Kg", 
         "Peso Calculado em Kg", "Cubagem em m³", "Quantidade de Volumes"
     ]
 
-    # Configuração de estilo condicional do grid (JsCode)
+    # Configuração de estilo condicional do grid (JsCode) - Permanece a mesma, pois é por linha
     linha_destacar = JsCode("""
         function(params) {
             const status = params.data['Status'];
@@ -1467,32 +1468,34 @@ def pagina_confirmar_producao():
         }
     """)
 
-    # Iterar sobre as rotas únicas para exibir os grids
-    rotas_unicas = sorted(df["Rota"].dropna().unique()) if "Rota" in df.columns else []
+    # Iterar sobre os clientes pagadores únicos para exibir os grids
+    # Usamos 'Cliente Pagador' agora
+    clientes_pagadores_unicos = sorted(df["Cliente Pagador"].dropna().unique()) if "Cliente Pagador" in df.columns else []
 
-    for rota in rotas_unicas:
-        df_rota = df[df["Rota"] == rota].copy()
-        if df_rota.empty:
+    for cliente_pagador in clientes_pagadores_unicos:
+        # Filtra o DataFrame pelo cliente pagador atual
+        df_cliente = df[df["Cliente Pagador"] == cliente_pagador].copy()
+        if df_cliente.empty:
             continue
 
         st.markdown(f"""
         <div style="margin-top:20px;padding:10px;background:#e8f0fe;border-left:4px solid #4285f4;border-radius:6px;display:inline-block;max-width:100%;">
-            <strong>Rota:</strong> {rota}
+            <strong>Cliente Pagador:</strong> {cliente_pagador}
         </div>
         """, unsafe_allow_html=True)
 
-        # Informações agregadas sobre a rota (badges)
-        col_badge, col_check_placeholder = st.columns([5, 1]) # O checkbox master agora vai dentro do expander
+        # Informações agregadas sobre o cliente (badges)
+        col_badge, col_check_placeholder = st.columns([5, 1])
         with col_badge:
             # Garante que as colunas existem antes de tentar somar/formatar
-            peso_calc_sum = df_rota['Peso Calculado em Kg'].sum() if 'Peso Calculado em Kg' in df_rota.columns else 0
-            peso_real_sum = df_rota['Peso Real em Kg'].sum() if 'Peso Real em Kg' in df_rota.columns else 0
-            valor_frete_sum = df_rota['Valor do Frete'].sum() if 'Valor do Frete' in df_rota.columns else 0
-            cubagem_sum = df_rota['Cubagem em m³'].sum() if 'Cubagem em m³' in df_rota.columns else 0
-            volumes_sum = df_rota['Quantidade de Volumes'].sum() if 'Quantidade de Volumes' in df_rota.columns else 0
+            peso_calc_sum = df_cliente['Peso Calculado em Kg'].sum() if 'Peso Calculado em Kg' in df_cliente.columns else 0
+            peso_real_sum = df_cliente['Peso Real em Kg'].sum() if 'Peso Real em Kg' in df_cliente.columns else 0
+            valor_frete_sum = df_cliente['Valor do Frete'].sum() if 'Valor do Frete' in df_cliente.columns else 0
+            cubagem_sum = df_cliente['Cubagem em m³'].sum() if 'Cubagem em m³' in df_cliente.columns else 0
+            volumes_sum = df_cliente['Quantidade de Volumes'].sum() if 'Quantidade de Volumes' in df_cliente.columns else 0
 
             st.markdown(
-                f"<span style='background:#eef2f7;border-radius:12px;padding:6px 12px;margin:4px;color:inherit;display:inline-block;'>{len(df_rota)} entregas</span>"
+                f"<span style='background:#eef2f7;border-radius:12px;padding:6px 12px;margin:4px;color:inherit;display:inline-block;'>{len(df_cliente)} entregas</span>"
                 f"<span style='background:#eef2f7;border-radius:12px;padding:6px 12px;margin:4px;color:inherit;display:inline-block;'>{formatar_brasileiro(peso_calc_sum)} kg calc</span>"
                 f"<span style='background:#eef2f7;border-radius:12px;padding:6px 12px;margin:4px;color:inherit;display:inline-block;'>{formatar_brasileiro(peso_real_sum)} kg real</span>"
                 f"<span style='background:#eef2f7;border-radius:12px;padding:6px 12px;margin:4px;color:inherit;display:inline-block;'>Valor frete: R$ {formatar_brasileiro(valor_frete_sum)}</span>"
@@ -1504,7 +1507,7 @@ def pagina_confirmar_producao():
         # Expander para o grid
         with st.expander("🔽 Selecionar entregas", expanded=False):
             # NOVO: Checkbox "Marcar todas" dentro do expander
-            checkbox_key = f"marcar_todas_conf_prod_{rota}"
+            checkbox_key = f"marcar_todas_conf_prod_{cliente_pagador}"
             # Garante que o estado do checkbox seja inicializado
             if checkbox_key not in st.session_state:
                 st.session_state[checkbox_key] = False
@@ -1512,10 +1515,8 @@ def pagina_confirmar_producao():
             marcar_todas = st.checkbox("Marcar todas", key=checkbox_key)
 
             # Criação e estilização do grid (usando o AgGrid)
-            df_formatado = df_rota[[col for col in colunas_exibir if col in df_rota.columns]].copy()
+            df_formatado = df_cliente[[col for col in colunas_exibir if col in df_cliente.columns]].copy()
             df_formatado = apply_brazilian_date_format_for_display(df_formatado)
-
-            # >>> AJUSTE ESTE BLOCO PARA FORMATAR DATAS COM VERIFICAÇÃO DE TIPO <<<
             
             if not df_formatado.empty:
                 gb = GridOptionsBuilder.from_dataframe(df_formatado)
@@ -1531,7 +1532,7 @@ def pagina_confirmar_producao():
                 # Gerencia a chave única para o grid, essencial para o st.rerun() funcionar
                 # A chave do grid só é alterada se os dados subjacentes tiverem sido modificados
                 # Para evitar "winks" desnecessários
-                grid_key_id = f"grid_conf_prod_{rota}"
+                grid_key_id = f"grid_conf_prod_{cliente_pagador}"
                 if grid_key_id not in st.session_state:
                     st.session_state[grid_key_id] = str(uuid.uuid4()) # Inicializa com um UUID
 
@@ -1594,21 +1595,16 @@ def pagina_confirmar_producao():
 
                 # Botão para confirmar produção
                 if not selecionadas.empty:
-                    if st.button(f"🚀 Enviar para Aprovação da Diretoria da Rota {rota}", key=f"btn_confirmar_{rota}"):
+                    if st.button(f"�� Enviar para Aprovação da Diretoria do Cliente {cliente_pagador}", key=f"btn_confirmar_{cliente_pagador}"):
                         try:
                             # Prepara os dados para inserção na tabela de aprovacao_diretoria
-                                                        # Prepara os dados para inserção na tabela de aprovacao_diretoria
                             df_confirmar = selecionadas.drop(columns=["_selectedRowNodeInfo"], errors="ignore").copy()
-                            df_confirmar["Rota"] = rota # Garante que a rota esteja na coluna correta
+                            # A coluna "Rota" é um atributo da entrega e deve ser mantida, não confundir com o agrupamento
                             
                             # --- NOVO/MODIFICADO: TRATAMENTO DE DATAS PARA INSERÇÃO NO SUPABASE ---
                             # As colunas de data no 'selecionadas' vêm como strings no formato brasileiro (DD-MM-AAAA HH:MM:SS).
                             # Primeiro, vamos converter essas strings de volta para objetos datetime.
                             # Usamos GLOBAL_DATE_DISPLAY_COLUMNS e DATE_DISPLAY_FORMAT_STRING (definidas no seu código).
-                                                        # --- INÍCIO DO NOVO TRATAMENTO ROBUSTO DE DATAS PARA SUPABASE ---
-
-                            # Step 1: Ensure date columns from AgGrid selection (strings in Brazilian format)
-                            # are properly parsed into Pandas Timestamp objects.
                             for col_name in GLOBAL_DATE_DISPLAY_COLUMNS:
                                 if col_name in df_confirmar.columns:
                                     df_confirmar[col_name] = pd.to_datetime(
@@ -1619,29 +1615,18 @@ def pagina_confirmar_producao():
 
                             # Step 2: Iterate through all columns and convert any Pandas Timestamp or
                             # standard Python datetime.datetime objects to ISO 8601 strings.
-                            # This catches cases where dtype might be 'object' but contains datetime objects.
                             for col_name in df_confirmar.columns:
-                                # Only process columns that potentially contain datetime objects
-                                # or are explicitly marked as date columns.
                                 if col_name in GLOBAL_DATE_DISPLAY_COLUMNS or \
                                    pd.api.types.is_datetime64_any_dtype(df_confirmar[col_name]):
                                     df_confirmar[col_name] = df_confirmar[col_name].apply(
                                         lambda x: x.strftime("%Y-%m-%d %H:%M:%S") if pd.notna(x) else None
                                     )
-                                # For other 'object' columns that are NOT date columns, ensure they don't contain datetimes
                                 elif df_confirmar[col_name].dtype == 'object':
                                     df_confirmar[col_name] = df_confirmar[col_name].apply(
                                         lambda x: x.strftime("%Y-%m-%d %H:%M:%S") if isinstance(x, (pd.Timestamp, datetime)) else x
                                     )
 
-                            # Step 3: Replace any remaining numpy.nan, numpy.inf, or empty strings with None
-                            # for general compatibility with Supabase. This should be done AFTER date formatting.
                             df_confirmar = df_confirmar.replace([np.nan, np.inf, -np.inf, ""], None)
-                            st.session_state["reload_aprovacao_diretoria"] = True 
-
-                            # --- FIM DO NOVO TRATAMENTO ROBUSTO DE DATAS PARA SUPABASE ---
-
-                            # --- FIM DO NOVO/MODIFICADO BLOCO DE TRATAMENTO DE DATAS ---
 
                             registros = df_confirmar.to_dict(orient="records")
                             # Filtra registros inválidos (sem Serie_Numero_CTRC)
@@ -1652,25 +1637,21 @@ def pagina_confirmar_producao():
                                 supabase.table("aprovacao_diretoria").insert(registros).execute()
                             
                             # === CORREÇÃO: Remove as entregas da tabela 'confirmadas_producao' ===
-                            # As entregas são movidas da 'confirmadas_producao' para 'aprovacao_diretoria'.
                             chaves = [r["Serie_Numero_CTRC"] for r in registros]
                             if chaves: # Apenas deleta se houver chaves para deletar
                                 supabase.table("confirmadas_producao").delete().in_("Serie_Numero_CTRC", chaves).execute()
 
                             # Limpa o estado da sessão para forçar a recarga dos grids e evitar problemas de cache.
-                            # Isso é crucial para que o st.rerun() "veja" os dados atualizados do banco.
                             st.session_state["reload_confirmadas_producao"] = True # Sinaliza para recarregar os dados na próxima execução
                             st.session_state.pop(grid_key_id, None) # Remove a key do grid para forçar a reconstrução, se necessário
+                            st.session_state.pop(checkbox_key, None) # Limpa o estado do checkbox "Marcar todas" para esta rota após a ação
 
-                            # Limpa o estado do checkbox "Marcar todas" para esta rota após a ação
-                            st.session_state.pop(checkbox_key, None)
-                                
-                            st.success(f"✅ {len(chaves)} entregas da Rota {rota} foram enviadas para a próxima etapa (Aprovação da Diretoria).")
+                            st.success(f"✅ {len(chaves)} entregas do Cliente {cliente_pagador} foram enviadas para a próxima etapa (Aprovação da Diretoria).")
                             
                             # Força um rerun para atualizar a UI e refletir as mudanças
                             st.rerun()
                         except Exception as e:
-                            st.error(f"❌ Erro ao confirmar produção da rota {rota}: {e}")
+                            st.error(f"❌ Erro ao confirmar produção do cliente {cliente_pagador}: {e}")
 
                    
 
@@ -3178,6 +3159,7 @@ def pagina_aprovacao_custos():
         cargas_unicas = sorted(df["numero_carga"].dropna().unique())
 
         for carga in cargas_unicas:
+        
             st.write(f"DEBUG: Tentando renderizar a carga: {carga}") # Adicione esta linha
             df_carga = df[df["numero_carga"] == carga].copy()
             if df_carga.empty:
