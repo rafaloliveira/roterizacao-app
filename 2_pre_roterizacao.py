@@ -1495,7 +1495,7 @@ def pagina_confirmar_producao():
                 f"<span style='background:#eef2f7;border-radius:12px;padding:6px 12px;margin:4px;color:inherit;display:inline-block;'>{len(df_rota)} entregas</span>"
                 f"<span style='background:#eef2f7;border-radius:12px;padding:6px 12px;margin:4px;color:inherit;display:inline-block;'>{formatar_brasileiro(peso_calc_sum)} kg calc</span>"
                 f"<span style='background:#eef2f7;border-radius:12px;padding:6px 12px;margin:4px;color:inherit;display:inline-block;'>{formatar_brasileiro(peso_real_sum)} kg real</span>"
-                f"<span style='background:#eef2f7;border-radius:12px;padding:6px 12px;margin:4px;color:inherit;display:inline-block;'>R$ {formatar_brasileiro(valor_frete_sum)}</span>"
+                f"<span style='background:#eef2f7;border-radius:12px;padding:6px 12px;margin:4px;color:inherit;display:inline-block;'>R$ {formatar_brasileiro(valor_frete_sum)} Valor frete</span>"
                 f"<span style='background:#eef2f7;border-radius:12px;padding:6px 12px;margin:4px;color:inherit;display:inline-block;'>{formatar_brasileiro(cubagem_sum)} m³</span>"
                 f"<span style='background:#eef2f7;border-radius:12px;padding:6px 12px;margin:4px;color:inherit;display:inline-block;'>{int(volumes_sum)} volumes</span>",
                 unsafe_allow_html=True
@@ -2101,7 +2101,7 @@ def pagina_pre_roterizacao():
             badge(f"{len(df_rota)} entregas") +
             badge(f"{formatar_brasileiro(df_rota['Peso Calculado em Kg'].sum())} kg calc") +
             badge(f"{formatar_brasileiro(df_rota['Peso Real em Kg'].sum())} kg real") +
-            badge(f"R$ {formatar_brasileiro(df_rota['Valor do Frete'].sum())}") +
+            badge(f"R$ {formatar_brasileiro(df_rota['Valor do Frete'].sum())} Valor Frete") +
             badge(f"{formatar_brasileiro(df_rota['Cubagem em m³'].sum())} m³") +
             badge(f"{int(df_rota['Quantidade de Volumes'].sum())} volumes"),
             unsafe_allow_html=True
@@ -2535,7 +2535,7 @@ def pagina_rotas_confirmadas():
             badge(f"{len(df_rota)} entregas") +
             badge(f"{formatar_brasileiro(df_rota['Peso Calculado em Kg'].sum())} kg calc") +
             badge(f"{formatar_brasileiro(df_rota['Peso Real em Kg'].sum())} kg real") +
-            badge(f"R$ {formatar_brasileiro(df_rota['Valor do Frete'].sum())}") +
+            badge(f"R$ {formatar_brasileiro(df_rota['Valor do Frete'].sum())} Valor frete") +
             badge(f"{formatar_brasileiro(df_rota['Cubagem em m³'].sum())} m³") +
             badge(f"{int(df_rota['Quantidade de Volumes'].sum())} volumes"),
             unsafe_allow_html=True
@@ -2916,7 +2916,7 @@ def pagina_cargas_geradas():
                     badge(f"{len(df_carga_raw)} entregas") +
                     badge(f"{formatar_brasileiro(df_carga_raw['Peso Calculado em Kg'].sum())} kg calc") +
                     badge(f"{formatar_brasileiro(df_carga_raw['Peso Real em Kg'].sum())} kg real") +
-                    badge(f"R$ {formatar_brasileiro(total_frete_carga)}") +
+                    badge(f"R$ {formatar_brasileiro(total_frete_carga)} Valor frete") +
                     badge(f"{formatar_brasileiro(df_carga_raw['Cubagem em m³'].sum())} m³") +
                     badge(f"{int(df_carga_raw['Quantidade de Volumes'].sum())} volumes"),
                     unsafe_allow_html=True
@@ -3246,7 +3246,7 @@ def pagina_aprovacao_custos():
                     {badge(f'{len(df_carga)} entregas')}
                     {badge(f'{formatar_brasileiro(df_carga["Peso Calculado em Kg"].sum())} kg calc')}
                     {badge(f'{formatar_brasileiro(df_carga["Peso Real em Kg"].sum())} kg real')}
-                    {badge(f'R$ {formatar_brasileiro(total_frete_carga)}')}
+                    {badge(f'R$ {formatar_brasileiro(total_frete_carga)} Valor frete')}
                     {badge(f'{formatar_brasileiro(df_carga["Cubagem em m³"].sum())} m³')}
                     {badge(f'{int(df_carga["Quantidade de Volumes"].sum())} volumes')}
                     {badge(f'Valor Contratação: R$ {formatar_brasileiro(valor_contratacao_carga_existente)}')}
@@ -3264,7 +3264,7 @@ def pagina_aprovacao_custos():
                 st.session_state[checkbox_key] = False
             marcar_todas = st.checkbox("Marcar todas", key=checkbox_key)
 
-            with st.spinner("�� Formatando entregas da carga para aprovação..."):
+            with st.spinner("Formatando entregas da carga para aprovação..."):
                 df_formatado = df_carga[[col for col in colunas_exibir if col in df_carga.columns]].copy()
                 df_formatado = apply_brazilian_date_format_for_display(df_formatado)
                 df_formatado = df_formatado.replace([np.nan, None], "")
