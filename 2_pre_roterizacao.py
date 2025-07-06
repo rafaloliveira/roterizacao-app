@@ -765,32 +765,36 @@ def carregar_base_supabase():
     
 
 
+# A função gerar_proximo_numero_carga()
 def gerar_proximo_numero_carga(supabase):
     try:
-        hoje = datetime.now(FUSO_BRASIL).strftime("%Y%m%d")  # AGORA USA O FUSO HORÁRIO DO BRASIL
+        hoje = datetime.now(FUSO_BRASIL).strftime("%Y%m%d")
         prefixo = f"{hoje}-"
 
-        # ⚠️ Supabase-py não suporta .like diretamente como usado antes
+        # Consulta diretamente ao Supabase sem cache para garantir dados mais recentes
         cargas = supabase.table("cargas_geradas") \
             .select("numero_carga") \
             .execute().data
 
         numeros_existentes = []
         for c in cargas:
-            numero = str(c.get("numero_carga", ""))
+            numero = str(c.get("numero_carga", "")).strip() # Garante que está limpo
             if numero.startswith(prefixo):
                 sufixo = numero[len(prefixo):]
                 if sufixo.isdigit():
                     numeros_existentes.append(int(sufixo))
 
+        # Garante que sempre haverá um número, mesmo que não haja cargas para o dia
         proximo_numero = max(numeros_existentes) + 1 if numeros_existentes else 1
+        
         return f"{prefixo}{str(proximo_numero).zfill(6)}"
 
     except Exception as e:
         st.error(f"Erro ao gerar número da carga: {e}")
-        return f"{datetime.now().strftime('%Y%m%d')}-000001"
+        # Retorna um valor de fallback que ainda pode ser processado (mas é uma emergência)
+        return f"{datetime.now().strftime('%Y%m%d')}-0001"
 
-
+################################################################
 GRID_RESIZE_JS_CODE = JsCode("""
 function(params) {
     const gridApi = params.api;
@@ -3127,6 +3131,9 @@ def pagina_aprovacao_custos():
             if recarregar or "df_aprovacao_custos_cache" not in st.session_state:
                 dados = supabase.table("aprovacao_custos").select("*").execute().data
                 df = pd.DataFrame(dados)
+                # Garante que 'numero_carga' seja tratado como string no cache
+                if not df.empty and 'numero_carga' in df.columns:
+                    df['numero_carga'] = df['numero_carga'].astype(str) # Adicione ou garanta esta linha
                 st.session_state["df_aprovacao_custos_cache"] = df
             else:
                 df = st.session_state["df_aprovacao_custos_cache"]
@@ -3136,6 +3143,10 @@ def pagina_aprovacao_custos():
             return
 
         df.columns = df.columns.str.strip()
+
+
+        if 'numero_carga' in df.columns: # Garanta que esta linha esteja presente
+            df['numero_carga'] = df['numero_carga'].astype(str)
 
         numeric_cols_to_convert = [
             'Peso Real em Kg', 'Peso Calculado em Kg', 'Cubagem em m³',
@@ -3761,8 +3772,14 @@ def pagina_cargas_aprovadas():
 
 
 # ==============================================================================
-# FUNÇÃO: pagina_cargas_fechadas() - ATUALIZADA para ler e exibir mais colunas
+
+# FUNÇÃO: pagina_cargas_fechadas
+
 # ==============================================================================
+# ==============================================================================
+# Função pagina_cargas_fechadas() - com os ajustes aplicados
+# ==============================================================================
+
 def pagina_cargas_fechadas():
     st.markdown("## Cargas Fechadas")
 
@@ -3782,6 +3799,7 @@ def pagina_cargas_fechadas():
 
         df.columns = df.columns.str.strip()
 
+        # --- Tratamento de colunas numéricas ---
         numeric_cols_to_convert = [
             'Peso Real em Kg', 'Peso Calculado em Kg', 'Cubagem em m³',
             'Quantidade de Volumes', 'Valor do Frete', 'valor_contratacao'
@@ -3804,12 +3822,43 @@ def pagina_cargas_fechadas():
         if 'fechador_carga_login' in df.columns:
             df['fechador_carga_login'] = df['fechador_carga_login'].astype(str).str.strip().replace('nan', 'Desconhecido')
 
+        # --- Conversão da coluna de data de fechamento para datetime para filtragem ---
+        if 'data_fechamento' in df.columns:
+            df['data_fechamento'] = pd.to_datetime(df['data_fechamento'], errors='coerce')
 
+        # Exibição de métricas gerais antes da filtragem por data
         col1, col2 = st.columns([1, 1])
         with col1:
             st.metric("Total de Cargas Fechadas", df["numero_carga"].nunique() if "numero_carga" in df.columns else 0)
         with col2:
             st.metric("Total de Entregas Fechadas", len(df))
+
+        st.markdown("---") # Separador visual para os filtros
+
+        # --- Filtro por Data de Fechamento ---
+        st.subheader("🗓️ Filtrar por Data de Fechamento")
+        col_data_inicio, col_data_fim = st.columns(2)
+        with col_data_inicio:
+            # Pega a data mínima do DataFrame, garante que seja um objeto date para o date_input
+            min_date = df['data_fechamento'].min().date() if not df['data_fechamento'].empty and pd.notna(df['data_fechamento'].min()) else None
+            data_inicio = st.date_input("Data Inicial", value=min_date, key="filtro_data_inicio")
+        with col_data_fim:
+            # Pega a data máxima do DataFrame, garante que seja um objeto date para o date_input
+            max_date = df['data_fechamento'].max().date() if not df['data_fechamento'].empty and pd.notna(df['data_fechamento'].max()) else None
+            data_fim = st.date_input("Data Final", value=max_date, key="filtro_data_fim")
+
+        # Aplica a filtragem por data
+        df_filtrado = df.copy()
+        if data_inicio:
+            df_filtrado = df_filtrado[df_filtrado['data_fechamento'] >= pd.to_datetime(data_inicio)]
+        if data_fim:
+            # Para incluir o dia final completo, adiciona 1 dia e subtrai 1 segundo
+            df_filtrado = df_filtrado[df_filtrado['data_fechamento'] <= pd.to_datetime(data_fim) + pd.Timedelta(days=1, seconds=-1)]
+        
+        # Verifica se o DataFrame filtrado está vazio
+        if df_filtrado.empty:
+            st.info("Nenhuma carga encontrada para o período selecionado.")
+            return # Sai da função se não houver dados para exibir
 
         # --- Definição dos Custos Máximos por Região (para exibição) ---
         MAX_COST_PER_REGION = {
@@ -3828,12 +3877,14 @@ def pagina_cargas_fechadas():
             "aprovador_custos_login", "data_aprovacao_custos", "fechador_carga_login" # Novas colunas de auditoria
         ]
 
-        cargas_unicas = sorted(df["numero_carga"].dropna().unique())
+        # Usa o DataFrame filtrado para obter as cargas únicas
+        cargas_unicas = sorted(df_filtrado["numero_carga"].dropna().unique())
 
         for carga in cargas_unicas:
-            df_carga = df[df["numero_carga"] == carga].copy()
+            # df_carga agora é baseado no df_filtrado
+            df_carga = df_filtrado[df_filtrado["numero_carga"] == carga].copy()
             if df_carga.empty:
-                continue
+                continue # Deve ser desnecessário após o filtro, mas para segurança
 
             valor_contratacao_carga = df_carga["valor_contratacao"].iloc[0] if "valor_contratacao" in df_carga.columns and not df_carga["valor_contratacao"].isnull().all() else 0.0
             motorista_carga = df_carga["motorista"].iloc[0] if "motorista" in df_carga.columns and not df_carga["motorista"].isnull().all() else 'Não Informado'
@@ -3843,7 +3894,6 @@ def pagina_cargas_fechadas():
             aprovador_custos_login = df_carga["aprovador_custos_login"].iloc[0] if "aprovador_custos_login" in df_carga.columns and not df_carga["aprovador_custos_login"].isnull().all() else 'Desconhecido'
             data_aprovacao_custos = df_carga["data_aprovacao_custos"].iloc[0] if "data_aprovacao_custos" in df_carga.columns and not df_carga["data_aprovacao_custos"].isnull().all() else None
             fechador_carga_login = df_carga["fechador_carga_login"].iloc[0] if "fechador_carga_login" in df_carga.columns and not df_carga["fechador_carga_login"].isnull().all() else 'Desconhecido'
-
 
             # --- Cálculos de Rentabilidade e Custo por Região (para exibição) ---
             total_frete_carga = df_carga["Valor do Frete"].sum()
@@ -3914,16 +3964,14 @@ def pagina_cargas_fechadas():
                     """,
                     unsafe_allow_html=True
                 )
-                # Removidos os campos de input e botões de ação, pois a carga já está fechada
-
-
-            with st.expander("�� Ver entregas da carga fechada", expanded=False):
+                
+            with st.expander("👁️ Ver entregas da carga fechada", expanded=False):
                 checkbox_key = f"marcar_todas_cargas_fechadas_{carga}"
                 if checkbox_key not in st.session_state:
                     st.session_state[checkbox_key] = False
                 marcar_todas = st.checkbox("Marcar todas", key=checkbox_key)
 
-                with st.spinner("�� Formatando entregas da carga fechada..."):
+                with st.spinner("🔄 Formatando entregas da carga fechada..."):
                     df_formatado = df_carga[[col for col in colunas_exibir if col in df_carga.columns]].copy()
                     df_formatado = apply_brazilian_date_format_for_display(df_formatado)
                     df_formatado = df_formatado.replace([np.nan, None], "")
@@ -3956,21 +4004,20 @@ def pagina_cargas_fechadas():
                     for col in ['Peso Real em Kg', 'Peso Calculado em Kg', 'Cubagem em m³', 'Quantidade de Volumes', 'Valor do Frete', 'valor_contratacao']:
                         if col in df_formatado.columns:
                             gb.configure_column(col, type=["numericColumn"], valueFormatter=formatter)
-                    # Adiciona formatador para data_fechamento
+                    
                     if 'data_fechamento' in df_formatado.columns:
                         gb.configure_column('data_fechamento', valueFormatter=JsCode("""
                             function(params) {
                                 if (params.value) {
-                                    // Assumindo que params.value já é uma string formatada (e.g., 'DD-MM-YYYY HH:MM:SS')
                                     return params.value;
                                 }
                                 return '';
                             }
                         """))
-                    # Adiciona formatador para situacao (opcional, só para garantir)
+                    
                     if 'situacao' in df_formatado.columns:
                         gb.configure_column('situacao', type=["textColumn"])
-                    if 'data_aprovacao_custos' in df_formatado.columns: # Formata a nova coluna de data
+                    if 'data_aprovacao_custos' in df_formatado.columns:
                         gb.configure_column('data_aprovacao_custos', valueFormatter=JsCode("""
                             function(params) {
                                 if (params.value) {
@@ -4015,10 +4062,55 @@ def pagina_cargas_fechadas():
                     selecionadas = grid_response.get("selected_rows", [])
 
                 if selecionadas:
-                    st.markdown(f"**�� Entregas selecionadas:** {len(selecionadas)}")
+                    st.markdown(f"**📦 Entregas selecionadas:** {len(selecionadas)}")
+
+                # --- NOVO: Botão de Download CSV e Botão de Impressão ---
+                st.markdown("---") # Separador
+                
+                # Prepara os dados para o CSV
+                colunas_para_csv = [
+                    "Serie_Numero_CTRC", "Chave CT-e", "numero_carga", 
+                    "Cliente Pagador", "Cliente Destinatario", "Cidade de Entrega",
+                    "Bairro do Destinatario", "Previsao de Entrega", "Valor do Frete",
+                    "motorista", "placa", "data_fechamento", "situacao",
+                    "aprovador_custos_login", "data_aprovacao_custos", "fechador_carga_login"
+                ]
+                df_csv = df_carga[[col for col in colunas_para_csv if col in df_carga.columns]].copy()
+                
+                # Converte colunas de data para um formato legível em CSV
+                for col_date in ["Previsao de Entrega", "data_fechamento", "data_aprovacao_custos"]:
+                    if col_date in df_csv.columns:
+                        df_csv[col_date] = df_csv[col_date].apply(
+                            lambda x: x.strftime("%d-%m-%Y %H:%M:%S") if pd.notna(x) else ""
+                        )
+
+                csv_content = df_csv.to_csv(index=False, sep=';', encoding='utf-8-sig')
+                
+                col_csv_button, col_print_button = st.columns(2)
+
+                with col_csv_button:
+                    st.download_button(
+                        label=f"⬇️ Baixar CSV da Carga {carga}",
+                        data=csv_content,
+                        file_name=f"relatorio_carga_{carga}.csv",
+                        mime="text/csv",
+                        key=f"download_csv_{carga}"
+                    )
+                with col_print_button:
+                    # Este botão não inicia uma impressão direta, mas informa o usuário.
+                    st.button(
+                        label=f"🖨️ Imprimir Visualização da Carga {carga}",
+                        help="Utilize a função de impressão do seu navegador (Ctrl+P ou Cmd+P) para a visualização atual da carga.",
+                        key=f"print_button_{carga}"
+                    )
+                    st.info("Para imprimir, utilize a função de impressão do seu navegador (Ctrl+P ou Cmd+P).")
+
+                st.markdown("---") # Separador final para a seção de botões de cada carga
+
     except Exception as e:
         st.error("Erro ao carregar cargas fechadas:")
         st.exception(e)
+
 
 # ========== EXECUÇÃO PRINCIPAL ========== #
 
