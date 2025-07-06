@@ -3840,7 +3840,7 @@ def pagina_cargas_fechadas():
         st.markdown("---") # Separador visual para os filtros
 
         # --- Filtro por Data de Fechamento ---
-        st.subheader("��️ Filtrar por Data de Fechamento")
+        st.subheader("🔍Filtrar por Data de Fechamento")
         col_data_inicio, col_data_fim = st.columns(2)
         with col_data_inicio:
             # Pega a data mínima do DataFrame, garante que seja um objeto date para o date_input
@@ -3974,7 +3974,7 @@ def pagina_cargas_fechadas():
                     unsafe_allow_html=True
                 )
                 
-            with st.expander("👁️ Ver entregas da carga fechada", expanded=False):
+            with st.expander("🔽 Ver entregas da carga fechada", expanded=False):
                 checkbox_key = f"marcar_todas_cargas_fechadas_{carga}"
                 if checkbox_key not in st.session_state:
                     st.session_state[checkbox_key] = False
@@ -4117,7 +4117,7 @@ def pagina_cargas_fechadas():
                         help="Utilize a função de impressão do seu navegador (Ctrl+P ou Cmd+P) para a visualização atual da carga.",
                         key=f"print_button_{carga}"
                     )
-                    st.info("Para imprimir, utilize a função de impressão do seu navegador (Ctrl+P ou Cmd+P).")
+                    
 
                 st.markdown("---") # Separador final para a seção de botões de cada carga
 
