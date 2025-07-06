@@ -3823,8 +3823,9 @@ def pagina_cargas_fechadas():
             df['fechador_carga_login'] = df['fechador_carga_login'].astype(str).str.strip().replace('nan', 'Desconhecido')
 
         # --- Conversão da coluna de data de fechamento para datetime para filtragem ---
+        # Garante que a coluna 'data_fechamento' é timezone-aware (UTC)
         if 'data_fechamento' in df.columns:
-            df['data_fechamento'] = pd.to_datetime(df['data_fechamento'], errors='coerce')
+            df['data_fechamento'] = pd.to_datetime(df['data_fechamento'], errors='coerce', utc=True)
 
         # Exibição de métricas gerais antes da filtragem por data
         col1, col2 = st.columns([1, 1])
@@ -3850,10 +3851,15 @@ def pagina_cargas_fechadas():
         # Aplica a filtragem por data
         df_filtrado = df.copy()
         if data_inicio:
-            df_filtrado = df_filtrado[df_filtrado['data_fechamento'] >= pd.to_datetime(data_inicio)]
+            # Converte data_inicio (datetime.date) para um Timestamp timezone-aware (UTC)
+            start_of_day_utc = pd.Timestamp(data_inicio, tz='UTC')
+            df_filtrado = df_filtrado[df_filtrado['data_fechamento'] >= start_of_day_utc]
+
         if data_fim:
-            # Para incluir o dia final completo, adiciona 1 dia e subtrai 1 segundo
-            df_filtrado = df_filtrado[df_filtrado['data_fechamento'] <= pd.to_datetime(data_fim) + pd.Timedelta(days=1, seconds=-1)]
+            # Converte data_fim (datetime.date) para um Timestamp timezone-aware (UTC)
+            # e define-o para o final do dia (23:59:59.999...) em UTC
+            end_of_day_utc = pd.Timestamp(data_fim, tz='UTC') + pd.Timedelta(days=1) - pd.Timedelta(microseconds=1)
+            df_filtrado = df_filtrado[df_filtrado['data_fechamento'] <= end_of_day_utc]
         
         # Verifica se o DataFrame filtrado está vazio
         if df_filtrado.empty:
@@ -3884,7 +3890,7 @@ def pagina_cargas_fechadas():
             # df_carga agora é baseado no df_filtrado
             df_carga = df_filtrado[df_filtrado["numero_carga"] == carga].copy()
             if df_carga.empty:
-                continue # Deve ser desnecessário após o filtro, mas para segurança
+                continue 
 
             valor_contratacao_carga = df_carga["valor_contratacao"].iloc[0] if "valor_contratacao" in df_carga.columns and not df_carga["valor_contratacao"].isnull().all() else 0.0
             motorista_carga = df_carga["motorista"].iloc[0] if "motorista" in df_carga.columns and not df_carga["motorista"].isnull().all() else 'Não Informado'
@@ -4064,7 +4070,7 @@ def pagina_cargas_fechadas():
                 if selecionadas:
                     st.markdown(f"**📦 Entregas selecionadas:** {len(selecionadas)}")
 
-                # --- NOVO: Botão de Download CSV e Botão de Impressão ---
+                # --- Botão de Download CSV e Botão de Impressão ---
                 st.markdown("---") # Separador
                 
                 # Prepara os dados para o CSV
@@ -4110,7 +4116,6 @@ def pagina_cargas_fechadas():
     except Exception as e:
         st.error("Erro ao carregar cargas fechadas:")
         st.exception(e)
-
 
 # ========== EXECUÇÃO PRINCIPAL ========== #
 
