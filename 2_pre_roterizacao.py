@@ -2535,7 +2535,7 @@ def pagina_rotas_confirmadas():
             badge(f"{len(df_rota)} entregas") +
             badge(f"{formatar_brasileiro(df_rota['Peso Calculado em Kg'].sum())} kg calc") +
             badge(f"{formatar_brasileiro(df_rota['Peso Real em Kg'].sum())} kg real") +
-            badge(f"Valor frete: R$ {formatar_brasileiro(df_rota['Valor do Frete'].sum())} Valor frete") +
+            badge(f"Valor frete: R$ {formatar_brasileiro(df_rota['Valor do Frete'].sum())}") +
             badge(f"{formatar_brasileiro(df_rota['Cubagem em m³'].sum())} m³") +
             badge(f"{int(df_rota['Quantidade de Volumes'].sum())} volumes"),
             unsafe_allow_html=True
@@ -2916,7 +2916,7 @@ def pagina_cargas_geradas():
                     badge(f"{len(df_carga_raw)} entregas") +
                     badge(f"{formatar_brasileiro(df_carga_raw['Peso Calculado em Kg'].sum())} kg calc") +
                     badge(f"{formatar_brasileiro(df_carga_raw['Peso Real em Kg'].sum())} kg real") +
-                    badge(f"Valor frete: R$ {formatar_brasileiro(total_frete_carga)} Valor frete") +
+                    badge(f"Valor frete: R$ {formatar_brasileiro(total_frete_carga)}") +
                     badge(f"{formatar_brasileiro(df_carga_raw['Cubagem em m³'].sum())} m³") +
                     badge(f"{int(df_carga_raw['Quantidade de Volumes'].sum())} volumes"),
                     unsafe_allow_html=True
@@ -3178,8 +3178,10 @@ def pagina_aprovacao_custos():
         cargas_unicas = sorted(df["numero_carga"].dropna().unique())
 
         for carga in cargas_unicas:
+            st.write(f"DEBUG: Tentando renderizar a carga: {carga}") # Adicione esta linha
             df_carga = df[df["numero_carga"] == carga].copy()
             if df_carga.empty:
+                st.write(f"DEBUG: df_carga vazia para {carga}. Pulando.") # Adicione esta linha
                 continue
 
             valor_contratacao_carga_existente = df_carga["valor_contratacao"].iloc[0] if "valor_contratacao" in df_carga.columns and not df_carga["valor_contratacao"].isnull().all() else 0.0
@@ -3246,7 +3248,7 @@ def pagina_aprovacao_custos():
                     {badge(f'{len(df_carga)} entregas')}
                     {badge(f'{formatar_brasileiro(df_carga["Peso Calculado em Kg"].sum())} kg calc')}
                     {badge(f'{formatar_brasileiro(df_carga["Peso Real em Kg"].sum())} kg real')}
-                    {badge(f'Valor frete: R$ {formatar_brasileiro(total_frete_carga)} Valor frete')}
+                    {badge(f'Valor frete: R$ {formatar_brasileiro(total_frete_carga)}')}
                     {badge(f'{formatar_brasileiro(df_carga["Cubagem em m³"].sum())} m³')}
                     {badge(f'{int(df_carga["Quantidade de Volumes"].sum())} volumes')}
                     {badge(f'Valor Contratação: R$ {formatar_brasileiro(valor_contratacao_carga_existente)}')}
