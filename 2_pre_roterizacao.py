@@ -1359,18 +1359,38 @@ def aplicar_regras_e_preencher_tabelas():
 # NOVAS CONSTANTES E FUNÇÃO AUXILIAR PARA FORMATO DE DATA BRASILEIRO
 # ==============================================================================
 
-# Formato de exibição de data e hora no padrão brasileiro
+# Formato de exibição de data e hora no padrão brasileiro (completo com horas, minutos, segundos)
 DATE_DISPLAY_FORMAT_STRING = '%d-%m-%Y %H:%M:%S'
 
+# Formato de exibição de data no padrão brasileiro (apenas data)
+DATE_ONLY_DISPLAY_FORMAT_STRING = '%d-%m-%Y'
+
+
 # Lista de todas as colunas que são datas/horas no seu sistema e que devem ser formatadas para exibição
-# Esta lista será usada consistentemente em todas as páginas para formatar as colunas do grid
+# ATENÇÃO: As colunas nesta lista serão formatadas com HORA.
 GLOBAL_DATE_DISPLAY_COLUMNS = [
     "Data de Emissao", "Data de Autorizacao", "Data de inclusao da Ultima Ocorrencia",
     "Data da Ultima Ocorrencia", "Previsao de Entrega", "Entrega Programada",
     "Data da Entrega Realizada", "Data do Cancelamento", "Data do Escaneamento",
-    "Data_Hora_Gerada","data_fechamento", "data_aprovacao_custos"
+    "Data_Hora_Gerada", "data_fechamento", "data_aprovacao_custos"
 ]
 
+# Nova função para aplicar formato de data APENAS (sem hora)
+def apply_brazilian_date_only_format_for_display(df_to_format, date_cols):
+    for col in date_cols:
+        if col in df_to_format.columns:
+            if not pd.api.types.is_datetime64_any_dtype(df_to_format[col]):
+                df_to_format[col] = pd.to_datetime(df_to_format[col], errors='coerce')
+            df_to_format[col] = df_to_format[col].apply(
+                lambda x: x.strftime(DATE_ONLY_DISPLAY_FORMAT_STRING)
+                if pd.notna(x) and isinstance(x, (Timestamp, datetime))
+                else ''
+            )
+    return df_to_format
+
+
+#++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+# Ajuste a função apply_brazilian_date_format_for_display para usar o novo GLOBAL_DATE_DISPLAY_COLUMNS
 def apply_brazilian_date_format_for_display(df_to_format):
     """
     Aplica o formato de data brasileiro (DD-MM-YYYY HH:MM:SS) às colunas de data especificadas
@@ -1379,18 +1399,17 @@ def apply_brazilian_date_format_for_display(df_to_format):
     """
     for col in GLOBAL_DATE_DISPLAY_COLUMNS:
         if col in df_to_format.columns:
-            # Primeiro, garante que a coluna é do tipo datetime.
-            # Isso é crucial caso os dados venham do banco como strings e não sejam datetime64[ns] ainda.
             if not pd.api.types.is_datetime64_any_dtype(df_to_format[col]):
                 df_to_format[col] = pd.to_datetime(df_to_format[col], errors='coerce')
 
-            # Agora, aplica a formatação para exibição
             df_to_format[col] = df_to_format[col].apply(
                 lambda x: x.strftime(DATE_DISPLAY_FORMAT_STRING)
-                if pd.notna(x) and isinstance(x, (Timestamp, datetime)) # Verifica se é um objeto Timestamp ou datetime nativo
+                if pd.notna(x) and isinstance(x, (Timestamp, datetime))
                 else ''
             )
     return df_to_format
+
+
 
 ##########################################
 
@@ -2512,7 +2531,9 @@ def pagina_rotas_confirmadas():
         )
 
         with st.expander("🔽 Selecionar entregas", expanded=False):
-            df_formatado = apply_brazilian_date_format_for_display(df_rota[[col for col in colunas_exibir if col in df_rota.columns]].copy())
+            #df_formatado = apply_brazilian_date_format_for_display(df_rota[[col for col in colunas_exibir if col in df_rota.columns]].copy())
+            df_formatado = df_rota[[col for col in colunas_exibir if col in df_rota.columns]].copy()
+            df_formatado = apply_brazilian_date_format_for_display(df_formatado) # Aplica o formato completo (dd-mm-aaaa HH:MM:SS)
 
             # NOVO: Checkbox "Marcar todas" dentro do expander
             checkbox_key = f"marcar_todas_rota_confirmada_{rota}"
@@ -2532,6 +2553,9 @@ def pagina_rotas_confirmadas():
             gb.configure_grid_options(rowSelection='multiple')
             gb.configure_grid_options(onGridReady=GRID_RESIZE_JS_CODE) # <<< ADICIONADO AQUI
 
+
+
+
             formatter = JsCode("""
                 function(params) {
                     if (!params.value) return '';
@@ -2542,7 +2566,10 @@ def pagina_rotas_confirmadas():
                 }
             """)
 
+           
+
             for col in ['Peso Real em Kg', 'Peso Calculado em Kg', 'Cubagem em m³', 'Quantidade de Volumes', 'Valor do Frete']:
+                
                 if col in df_formatado.columns:
                     gb.configure_column(col, type=["numericColumn"], valueFormatter=formatter)
 
@@ -2900,7 +2927,9 @@ def pagina_cargas_geradas():
                 marcar_todas = st.checkbox("Marcar todas", key=checkbox_key)
 
                 with st.spinner("Carregando entregas da carga no grid..."):
-                    df_formatado = df_display[df_display["numero_carga"] == carga][[col for col in colunas_exibir if col in df_display.columns]]
+                    #df_formatado = df_display[df_display["numero_carga"] == carga][[col for col in colunas_exibir if col in df_display.columns]]
+                    df_formatado = df_display[df_display["numero_carga"] == carga][[col for col in colunas_exibir if col in df_display.columns]].copy()
+                    df_formatado = apply_brazilian_date_format_for_display(df_formatado) # Aplica o formato completo (dd-mm-aaaa HH:MM:SS)
 
                     gb = GridOptionsBuilder.from_dataframe(df_formatado)
                     gb.configure_default_column(minWidth=150)
@@ -3282,8 +3311,9 @@ def pagina_aprovacao_custos():
                 marcar_todas = st.checkbox("Marcar todas", key=checkbox_key)
 
                 with st.spinner("Formatando entregas da carga para aprovação..."):
+                    
                     df_formatado = df_carga[[col for col in colunas_exibir if col in df_carga.columns]].copy()
-                    df_formatado = apply_brazilian_date_format_for_display(df_formatado)
+                    df_formatado = apply_brazilian_date_format_for_display(df_formatado) # Aplica o formato completo (dd-mm-aaaa HH:MM:SS)
                     df_formatado = df_formatado.replace([np.nan, None], "")
 
                     gb = GridOptionsBuilder.from_dataframe(df_formatado)
@@ -3471,7 +3501,7 @@ def pagina_aprovacao_custos():
         st.error("Erro ao carregar aprovação de custos:")
         st.exception(e)
 # ==============================================================================
-# FUNÇÃO: pagina_cargas_aprovadas() - ATUALIZADA (Caps Lock, Login Fechamento, Movimentação)
+# FUNÇÃO: pagina_cargas_aprovadas() -
 # ==============================================================================
 def pagina_cargas_aprovadas():
     st.markdown("## Cargas Aprovadas")
@@ -3694,8 +3724,9 @@ def pagina_cargas_aprovadas():
                 marcar_todas = st.checkbox("Marcar todas", key=checkbox_key)
 
                 with st.spinner("🔄 Formatando entregas da carga aprovada..."):
+               
                     df_formatado = df_carga[[col for col in colunas_exibir if col in df_carga.columns]].copy()
-                    df_formatado = apply_brazilian_date_format_for_display(df_formatado)
+                    df_formatado = apply_brazilian_date_format_for_display(df_formatado) # Aplica o formato completo (dd-mm-aaaa HH:MM:SS)
                     df_formatado = df_formatado.replace([np.nan, None], "")
 
                     gb = GridOptionsBuilder.from_dataframe(df_formatado)
