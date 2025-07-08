@@ -3074,10 +3074,31 @@ def pagina_cargas_geradas():
                                         df_aprovar_custos["numero_carga"] = carga
                                         df_aprovar_custos["valor_contratacao"] = valor_contratacao # Garante que o valor do input é salvo
 
-                                        if "Data_Hora_Gerada" in df_aprovar_custos.columns:
-                                            df_aprovar_custos["Data_Hora_Gerada"] = df_aprovar_custos["Data_Hora_Gerada"].apply(
-                                                lambda x: datetime.strptime(x, "%d-%m-%Y %H:%M:%S").isoformat() if x else None
-                                            )
+                                        # --- TRATAMENTO DE DATAS PARA SUPABASE: Converte de string DD-MM-AAAA para ISO 8601 ---
+                                        # Primeiro, converte as colunas de data do formato de exibição (string) para objetos datetime
+                                        for col_name in GLOBAL_DATE_DISPLAY_COLUMNS:
+                                            if col_name in df_aprovar_custos.columns:
+                                                df_aprovar_custos[col_name] = pd.to_datetime(
+                                                    df_aprovar_custos[col_name],
+                                                    format=DATE_DISPLAY_FORMAT_STRING, # Usa o formato de entrada esperado (DD-MM-AAAA HH:MM:SS)
+                                                    errors='coerce' # Converte valores que não podem ser parseados para NaT (Not a Time)
+                                                )
+                                        
+                                        # Em seguida, converte os objetos datetime (e NaT) para strings ISO 8601 ou None
+                                        # Itera sobre todas as colunas do DataFrame, pois pode haver outras colunas de data.
+                                        for col_name in df_aprovar_custos.columns:
+                                            # Verifica se a coluna está na lista global de datas OU já é um tipo datetime (após o pd.to_datetime anterior)
+                                            if col_name in GLOBAL_DATE_DISPLAY_COLUMNS or \
+                                               pd.api.types.is_datetime64_any_dtype(df_aprovar_custos[col_name]):
+                                                df_aprovar_custos[col_name] = df_aprovar_custos[col_name].apply(
+                                                    lambda x: x.isoformat(timespec='seconds') if pd.notna(x) else None
+                                                )
+                                            # Garante que qualquer outro objeto que possa ser uma data/timestamp (mas não um datetime64) também seja convertido
+                                            elif isinstance(df_aprovar_custos[col_name].dtype, object) and any(isinstance(val, (pd.Timestamp, datetime)) for val in df_aprovar_custos[col_name] if pd.notna(val)):
+                                                df_aprovar_custos[col_name] = df_aprovar_custos[col_name].apply(
+                                                    lambda x: x.isoformat(timespec='seconds') if isinstance(x, (pd.Timestamp, datetime)) else x
+                                                )
+                                        # --- FIM DO TRATAMENTO DE DATAS ---
 
                                         df_aprovar_custos = df_aprovar_custos.replace([np.nan, pd.NaT, "", np.inf, -np.inf], None)
                                         registros_para_custos = df_aprovar_custos.to_dict(orient="records")
