@@ -1924,79 +1924,72 @@ def pagina_aprovacao_diretoria():
                             except Exception as e:
                                 st.error(f"❌ Erro ao aprovar entregas: {e}")
 
+                    # ... (código existente) ...
                     with col_rejeitar:
                         if st.button(
                             f"❌ Rejeitar entregas",
                             key=f"btn_rejeitar_{cliente}",
-                            disabled=not is_user_aprovador # Desabilita se o usuário não é aprovador
+                            disabled=not is_user_aprovador
                         ):
                             try:
                                 with st.spinner("🔄 Rejeitando entregas e retornando para Confirmar Produção..."):
-
                                     df_rejeitar = pd.DataFrame(selecionadas)
-                                    # Remove AgGrid internal info
                                     df_rejeitar = df_rejeitar.drop(columns=["_selectedRowNodeInfo"], errors="ignore")
 
-                                    # --- INÍCIO DO NOVO TRATAMENTO ROBUSTO DE DATAS PARA SUPABASE (REJEITAR) ---
-
-                                    # Step 1: Ensure date columns from AgGrid selection (strings in Brazilian format)
-                                    # are properly parsed into Pandas Timestamp objects.
+                                    # *** INTEGRIDADE DE DADOS: GARANTIR QUE DATAS VAZIAS PERMANEÇAM VAZIAS ***
+                                    # Este bloco garante que os tipos de dados estejam corretos para o Supabase
+                                    # e que valores vazios no grid (vindos como string) sejam None no banco.
                                     for col_name in GLOBAL_DATE_DISPLAY_COLUMNS:
                                         if col_name in df_rejeitar.columns:
                                             df_rejeitar[col_name] = pd.to_datetime(
                                                 df_rejeitar[col_name],
-                                                format=DATE_DISPLAY_FORMAT_STRING, # Brazilian format (DD-MM-AAAA HH:MM:SS)
-                                                errors='coerce' # Convert unparseable values to pd.NaT
+                                                format=DATE_DISPLAY_FORMAT_STRING,
+                                                errors='coerce'
                                             )
 
-                                    # Step 2: Iterate through all columns and convert any Pandas Timestamp or
-                                    # standard Python datetime.datetime objects to ISO 8601 strings.
-                                    # This catches cases where dtype might be 'object' but contains datetime objects.
                                     for col_name in df_rejeitar.columns:
-                                        # Only process columns that potentially contain datetime objects
-                                        # or are explicitly marked as date columns.
                                         if col_name in GLOBAL_DATE_DISPLAY_COLUMNS or \
                                            pd.api.types.is_datetime64_any_dtype(df_rejeitar[col_name]):
                                             df_rejeitar[col_name] = df_rejeitar[col_name].apply(
                                                 lambda x: x.strftime("%Y-%m-%d %H:%M:%S") if pd.notna(x) else None
                                             )
-                                        # For other 'object' columns that are NOT date columns, ensure they don't contain datetimes
-                                        # by attempting conversion if they are actually datetime objects.
                                         elif df_rejeitar[col_name].dtype == 'object':
                                             df_rejeitar[col_name] = df_rejeitar[col_name].apply(
                                                 lambda x: x.strftime("%Y-%m-%d %H:%M:%S") if isinstance(x, (pd.Timestamp, datetime)) else x
                                             )
 
-                                    # Step 3: Replace any remaining numpy.nan, numpy.inf, or empty strings with None
-                                    # for general compatibility with Supabase. This should be done AFTER date formatting.
                                     df_rejeitar = df_rejeitar.replace([np.nan, np.inf, -np.inf, ""], None)
-
-                                    # --- FIM DO NOVO TRATAMENTO ROBUSTO DE DATAS PARA SUPABASE (REJEITAR) ---
+                                    # *** FIM DA INTEGRIDADE DE DADOS ***
 
                                     registros_para_confirmar_producao = df_rejeitar.to_dict(orient="records")
-                                    # Filter out records without valid primary key (Serie_Numero_CTRC)
                                     registros_para_confirmar_producao = [r for r in registros_para_confirmar_producao if r.get("Serie_Numero_CTRC")]
 
-                                    # 1. Inserir os dados na tabela 'confirmadas_producao'
                                     if registros_para_confirmar_producao:
                                         supabase.table("confirmadas_producao").insert(registros_para_confirmar_producao).execute()
 
-                                    # 2. Obter as chaves das entregas rejeitadas e remover da tabela 'aprovacao_diretoria'
                                     chaves_rejeitadas = [r.get("Serie_Numero_CTRC") for r in registros_para_confirmar_producao if r.get("Serie_Numero_CTRC")]
                                     if chaves_rejeitadas:
                                         supabase.table("aprovacao_diretoria").delete().in_("Serie_Numero_CTRC", chaves_rejeitadas).execute()
-
+                                    
                                     st.warning(f"↩️ {len(registros_para_confirmar_producao)} entregas rejeitadas e retornadas para Confirmar Produção.")
                                     
-                                    # Invalidate caches to force reload of data
-                                    st.session_state["reload_aprovacao_diretoria"] = True # Cache da própria página
-                                    st.session_state["reload_confirmadas_producao"] = True # Cache da Confirmar Produção
-                                    
-                                    # Clear AgGrid key and checkbox for visual reconstruction
-                                    st.session_state.pop(grid_key_id, None)
-                                    st.session_state.pop(checkbox_key, None)
+                                    # --- ATUALIZAÇÃO DO GRID DE ORIGEM E DESTINO ---
+                                    st.session_state["reload_aprovacao_diretoria"] = True # Recarrega os dados da página atual
+                                    st.session_state.pop(grid_key_id, None) # Invalida o grid da página de origem
+                                    st.session_state.pop(checkbox_key, None) # Limpa o estado do checkbox
 
-                                    st.rerun() # Force a new execution to update the UI
+                                    # Invalidação da key do grid de destino (Confirmar Produção)
+                                    # Isso força o grid de Confirmar Produção a redesenhar com os itens que retornaram.
+                                    clientes_afetados = df_rejeitar["Cliente Pagador"].dropna().unique()
+                                    for cliente_afetado in clientes_afetados:
+                                        grid_key_confirmar_prod = f"grid_conf_prod_{cliente_afetado}"
+                                        if grid_key_confirmar_prod in st.session_state:
+                                            st.session_state.pop(grid_key_confirmar_prod, None)
+                                    
+                                    st.session_state["reload_confirmadas_producao"] = True # Recarrega os dados da página de destino
+                                    # --- FIM DA ATUALIZAÇÃO DO GRID ---
+
+                                    st.rerun()
 
                             except Exception as e:
                                 st.error(f"❌ Erro ao rejeitar entregas: {e}")
@@ -2983,21 +2976,37 @@ def pagina_cargas_geradas():
                 if selecionadas:
                     col_ret, col_aprov = st.columns([1, 1])
 
+                    # ... (código existente) ...
                     with col_ret:
                         if st.button(f"♻️ Retirar da Carga", key=f"btn_retirar_{carga}"):
                             try:
                                 with st.spinner("🔄 Retirando entregas da carga..."):
                                     df_remover = pd.DataFrame(selecionadas)
                                     df_remover = df_remover.drop(columns=["_selectedRowNodeInfo"], errors="ignore")
-                                    df_remover["Status"] = "AGENDAR"
+                                    
+                                    # *** INTEGRIDADE DE DADOS: REMOVIDA ATRIBUIÇÃO FORÇADA DE "AGENDAR" ***
+                                    # Removido para garantir que o Status original seja preservado.
+                                    # df_remover["Status"] = "AGENDAR" # REMOVA ESTA LINHA SE EXISTIR!
+                                    # *** FIM DA INTEGRIDADE DE DADOS ***
+                                    
                                     df_remover = df_remover.drop(columns=["numero_carga"], errors="ignore")
 
-                                    if "Data_Hora_Gerada" in df_remover.columns:
-                                        df_remover["Data_Hora_Gerada"] = df_remover["Data_Hora_Gerada"].apply(
-                                            lambda x: datetime.strptime(x, "%d-%m-%Y %H:%M:%S").isoformat() if x else None
-                                        )
-
+                                    # *** INTEGRIDADE DE DATAS: GARANTIR QUE DATAS VAZIAS PERMANEÇAM VAZIAS ***
+                                    # Este bloco garante que os tipos de dados estejam corretos para o Supabase
+                                    # e que valores vazios no grid (vindos como string) sejam None no banco.
+                                    for col_name in GLOBAL_DATE_DISPLAY_COLUMNS:
+                                        if col_name in df_remover.columns:
+                                            df_remover[col_name] = pd.to_datetime(
+                                                df_remover[col_name],
+                                                format=DATE_DISPLAY_FORMAT_STRING,
+                                                errors='coerce'
+                                            )
+                                            df_remover[col_name] = df_remover[col_name].apply(
+                                                lambda x: x.isoformat() if pd.notna(x) else None
+                                            )
                                     df_remover = df_remover.replace([np.nan, pd.NaT, "", np.inf, -np.inf], None)
+                                    # *** FIM DA INTEGRIDADE DE DATAS ***
+
                                     registros = df_remover.to_dict(orient="records")
 
                                     supabase.table("rotas_confirmadas").insert(registros).execute()
@@ -3005,34 +3014,37 @@ def pagina_cargas_geradas():
                                     chaves = df_remover["Serie_Numero_CTRC"].dropna().astype(str).tolist()
                                     supabase.table("cargas_geradas").delete().in_("Serie_Numero_CTRC", chaves).execute()
 
+                                    # Verifica se a carga ficou vazia e, se sim, a remove completamente
                                     dados_restantes = supabase.table("cargas_geradas").select("numero_carga").eq("numero_carga", carga).execute().data
                                     if not dados_restantes:
                                         supabase.table("cargas_geradas").delete().eq("numero_carga", carga).execute()
 
-                                    st.session_state.pop("df_cargas_cache", None)
-                                    grid_key_id = f"grid_carga_gerada_{carga}"
-                                    st.session_state.pop(grid_key_id, None)
-                                    st.session_state.pop(checkbox_key, None)
-
-                                    st.session_state["reload_cargas_geradas"] = True
-                                    st.session_state["reload_rotas_confirmadas"] = True 
-
-                                    # --- ADIÇÃO CRÍTICA PARA INVALIDAR A KEY DO AGGRID DAS ROTAS AFETADAS ---
-                                    # Obter as rotas únicas das entregas que foram removidas
-                                    rotas_afetadas = df_remover["Rota"].dropna().unique()
-                                    for rota_afetada in rotas_afetadas:
-                                        # Construir a chave do grid da rota afetada
-                                        grid_key_rotas_confirmadas = f"grid_rotas_confirmadas_{rota_afetada}"
-                                        # Remover a chave do estado da sessão para forçar a recriação do grid
-                                        if grid_key_rotas_confirmadas in st.session_state:
-                                            st.session_state.pop(grid_key_rotas_confirmadas, None)
-
                                     st.success(f"✅ {len(chaves)} entrega(s) removida(s) da carga {carga} e retornada(s) para Rotas Confirmadas.")
                                     
+                                    # --- ATUALIZAÇÃO DO GRID DE ORIGEM E DESTINO ---
+                                    st.session_state.pop("df_cargas_cache", None) # Recarrega os dados da página atual (cache global)
+                                    grid_key_id_origem = f"grid_carga_gerada_{carga}"
+                                    st.session_state.pop(grid_key_id_origem, None) # Invalida o grid da carga específica de origem
+                                    st.session_state.pop(checkbox_key, None) # Limpa o estado do checkbox
+
+                                    st.session_state["reload_cargas_geradas"] = True # Recarrega os dados da página de origem
+                                    
+                                    # Invalidação da key do grid de destino (Rotas Confirmadas)
+                                    # Isso força o grid de Rotas Confirmadas a redesenhar com os itens que retornaram.
+                                    rotas_afetadas = df_remover["Rota"].dropna().unique()
+                                    for rota_afetada in rotas_afetadas:
+                                        grid_key_rotas_confirmadas = f"grid_rotas_confirmadas_{rota_afetada}"
+                                        if grid_key_rotas_confirmadas in st.session_state:
+                                            st.session_state.pop(grid_key_rotas_confirmadas, None)
+                                    st.session_state["reload_rotas_confirmadas"] = True # Recarrega os dados da página de destino
+                                    # --- FIM DA ATUALIZAÇÃO DO GRID ---
+
                                     st.rerun()
 
                             except Exception as e:
                                 st.error(f"Erro ao retirar entregas da carga: {e}")
+
+
 
                     with col_aprov:
                         valor_contratacao_key = f"valor_contratacao_{carga}"
@@ -3414,6 +3426,7 @@ def pagina_aprovacao_custos():
                     except Exception as e:
                         st.error(f"❌ Erro ao aprovar carga: {e}")
 
+            # ... (código existente) ...
             with col_rejeitar:
                 if st.button(
                     f"❌ Rejeitar Carga {carga}",
@@ -3427,9 +3440,18 @@ def pagina_aprovacao_custos():
                             df_rejeitar = df_rejeitar.drop(columns=["_selectedRowNodeInfo"], errors="ignore")
                             df_rejeitar = df_rejeitar.drop(columns=["valor_contratacao"], errors="ignore")
                             
-                            df_rejeitar["Status"] = "AGENDAR"
+                            # *** INTEGRIDADE DE DADOS: O Status "AGENDAR" é aplicado aqui se a regra de negócio exigir. ***
+                            # Se a entrega *não* deveria ter Status "AGENDAR" ao retornar de "Aprovação de Custos"
+                            # e *não* for uma regra de negócio que a rejeição force este status, remova a linha abaixo.
+                            # Caso contrário, mantenha-a. A discussão anterior optou por manter regras de negócio.
+                            df_rejeitar["Status"] = "AGENDAR" 
+                            # *** FIM DA INTEGRIDADE DE DADOS ***
+
                             df_rejeitar["numero_carga"] = carga
                             
+                            # *** INTEGRIDADE DE DATAS: GARANTIR QUE DATAS VAZIAS PERMANEÇAM VAZIAS ***
+                            # Este bloco garante que os tipos de dados estejam corretos para o Supabase
+                            # e que valores vazios no grid (vindos como string) sejam None no banco.
                             date_cols_to_process = [
                                 "Previsao de Entrega", "Entrega Programada", "Data de Emissao",
                                 "Data de Autorizacao", "Data do Cancelamento", "Data do Escaneamento",
@@ -3444,6 +3466,7 @@ def pagina_aprovacao_custos():
                                     )
 
                             df_rejeitar = df_rejeitar.replace([np.nan, pd.NaT, "", np.inf, -np.inf], None)
+                            # *** FIM DA INTEGRIDADE DE DATAS ***
 
                             registros_para_cargas_geradas = df_rejeitar.to_dict(orient="records")
                             registros_para_cargas_geradas = [r for r in registros_para_cargas_geradas if r.get("Serie_Numero_CTRC")]
@@ -3457,10 +3480,18 @@ def pagina_aprovacao_custos():
 
                             st.warning(f"✅ {len(registros_para_cargas_geradas)} entregas da carga {carga} rejeitadas e retornadas para Cargas Geradas.")
                             
-                            st.session_state["reload_aprovacao_custos"] = True
-                            st.session_state["reload_cargas_geradas"] = True
-                            st.session_state.pop(grid_key, None)
-                            st.session_state.pop(checkbox_key, None)
+                            # --- ATUALIZAÇÃO DO GRID DE ORIGEM E DESTINO ---
+                            st.session_state["reload_aprovacao_custos"] = True # Recarrega os dados da página atual
+                            st.session_state.pop(grid_key, None) # Invalida o grid da página de origem
+                            st.session_state.pop(checkbox_key, None) # Limpa o estado do checkbox
+
+                            # Invalidação da key do grid de destino (Cargas Geradas)
+                            # Isso força o grid de Cargas Geradas a redesenhar com os itens que retornaram.
+                            grid_key_carga_gerada = f"grid_carga_gerada_{carga}"
+                            if grid_key_carga_gerada in st.session_state:
+                                st.session_state.pop(grid_key_carga_gerada, None)
+                            st.session_state["reload_cargas_geradas"] = True # Recarrega os dados da página de destino
+                            # --- FIM DA ATUALIZAÇÃO DO GRID ---
 
                             st.rerun()
 
