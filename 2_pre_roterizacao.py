@@ -2299,8 +2299,6 @@ def pagina_rotas_confirmadas():
     st.markdown("## Rotas Confirmadas")
 
     # --- INÍCIO: BLOCO DE CRIAÇÃO DE CARGA AVULSA ---
-    # Este bloco é mantido, pois a pergunta é sobre a página completa.
-    # O numero_nova_carga é gerado aqui para a carga avulsa.
     if "nova_carga_em_criacao" not in st.session_state:
         st.session_state["nova_carga_em_criacao"] = False
         st.session_state["numero_nova_carga"] = ""
@@ -2310,9 +2308,8 @@ def pagina_rotas_confirmadas():
         with col1:
             if st.button("🆕 Criar Nova Carga Avulsa"):
                 try:
-                    # GERAÇÃO DO NÚMERO DA CARGA AVULSA (COM VALIDAÇÃO DE UNICIDADE)
                     numero_carga = gerar_proximo_numero_carga(supabase)
-                    if numero_carga: # Se a função retornou um número válido (não None)
+                    if numero_carga:
                         st.session_state["nova_carga_em_criacao"] = True
                         st.session_state["numero_nova_carga"] = numero_carga
                         st.rerun()
@@ -2320,8 +2317,6 @@ def pagina_rotas_confirmadas():
                         st.error("Falha ao gerar um número de carga único. Por favor, tente novamente.")
                 except Exception as e:
                     st.error(f"Erro ao criar nova carga: {e}")
-    # ... (código existente antes do bloco de "Criação de Carga Avulsa") ...
-
     else:
         st.success(f"Nova Carga Criada: {st.session_state['numero_nova_carga']}")
         st.markdown("### Inserir Entregas na Carga")
@@ -2345,16 +2340,9 @@ def pagina_rotas_confirmadas():
             else:
                 try:
                     # Chamar a sua função existente para adicionar entregas à carga
-                    # Ela deve usar o numero_nova_carga do session_state
-                    # e já conter a lógica transacional robusta que forneci anteriormente.
                     adicionar_entregas_a_carga(chaves_ct_e_para_adicionar)
-                    # A função adicionar_entregas_a_carga já deve lidar com as mensagens de sucesso/erro
-                    # e o st.rerun().
                 except Exception as e:
                     st.error(f"Erro ao adicionar entregas manualmente: {e}")
-
-# ... (restante da pagina_rotas_confirmadas) ...
-                # Fim da lógica para adicionar a carga avulsa
     # --- FIM: BLOCO DE CRIAÇÃO DE CARGA AVULSA ---
 
     # --- INÍCIO: CARREGAMENTO DOS DADOS DE ROTAS CONFIRMADAS E EXIBIÇÃO ---
@@ -2434,7 +2422,7 @@ def pagina_rotas_confirmadas():
             unsafe_allow_html=True
         )
 
-        with st.expander("🔽 Selecionar entregas", expanded=False):
+        with st.expander("�� Selecionar entregas", expanded=False):
             df_formatado = df_rota[[col for col in colunas_exibir if col in df_rota.columns]].copy()
             df_formatado = apply_brazilian_date_format_for_display(df_formatado)
 
@@ -2528,16 +2516,17 @@ def pagina_rotas_confirmadas():
                         df_para_inserir = pd.DataFrame(selecionadas).drop(columns=["_selectedRowNodeInfo"], errors="ignore").copy()
                         chaves_ctrc_selecionadas = df_para_inserir["Serie_Numero_CTRC"].dropna().astype(str).str.strip().tolist()
 
-                        # 2. Trata as colunas de data para o formato aceito pelo Supabase (ISO 8601)
+                        # 2. Trata as colunas de data para o formato aceito pelo Supabase (ISO 8601 com UTC)
                         for col_name in GLOBAL_DATE_DISPLAY_COLUMNS:
                             if col_name in df_para_inserir.columns:
-                                df_para_inserir[col_name] = pd.to_datetime(
-                                    df_para_inserir[col_name],
-                                    format=DATE_DISPLAY_FORMAT_STRING,
-                                    errors='coerce'
-                                )
-                                df_para_inserir[col_name] = df_para_inserir[col_name].apply(
-                                    lambda x: x.isoformat(timespec='seconds') if pd.notna(x) else None
+                                dt_obj = pd.to_datetime(df_para_inserir[col_name], format=DATE_DISPLAY_FORMAT_STRING, errors='coerce')
+                                # Localiza o objeto datetime como sendo no fuso de Brasília
+                                dt_obj = dt_obj.dt.tz_localize(FUSO_BRASIL)
+                                # Converte para UTC
+                                dt_obj = dt_obj.dt.tz_convert('UTC')
+                                # Converte para string ISO 8601 (com 'Z' para indicar UTC)
+                                df_para_inserir[col_name] = dt_obj.apply(
+                                    lambda x: x.isoformat(timespec='seconds').replace('+00:00', 'Z') if pd.notna(x) else None
                                 )
                         df_para_inserir = df_para_inserir.replace([np.nan, pd.NaT, np.inf, -np.inf, ""], None)
 
@@ -2548,7 +2537,7 @@ def pagina_rotas_confirmadas():
                             return
 
                         df_para_inserir["numero_carga"] = numero_carga
-                        df_para_inserir["Data_Hora_Gerada"] = data_hora_brasil_iso()
+                        df_para_inserir["Data_Hora_Gerada"] = data_hora_brasil_iso() # Já retorna ISO com fuso horário local
 
                         # 4. Filtra apenas as colunas válidas para a tabela de destino
                         colunas_validas_carga = [
@@ -2650,16 +2639,17 @@ def pagina_rotas_confirmadas():
                             df_para_inserir = pd.DataFrame(selecionadas).drop(columns=["_selectedRowNodeInfo"], errors="ignore").copy()
                             chaves_ctrc_selecionadas = df_para_inserir["Serie_Numero_CTRC"].dropna().astype(str).str.strip().tolist()
 
-                            # 2. Trata as colunas de data para o formato aceito pelo Supabase (ISO 8601)
+                            # 2. Trata as colunas de data para o formato aceito pelo Supabase (ISO 8601 com UTC)
                             for col_name in GLOBAL_DATE_DISPLAY_COLUMNS:
                                 if col_name in df_para_inserir.columns:
-                                    df_para_inserir[col_name] = pd.to_datetime(
-                                        df_para_inserir[col_name],
-                                        format=DATE_DISPLAY_FORMAT_STRING,
-                                        errors='coerce'
-                                    )
-                                    df_para_inserir[col_name] = df_para_inserir[col_name].apply(
-                                        lambda x: x.isoformat(timespec='seconds') if pd.notna(x) else None
+                                    dt_obj = pd.to_datetime(df_para_inserir[col_name], format=DATE_DISPLAY_FORMAT_STRING, errors='coerce')
+                                    # Localiza o objeto datetime como sendo no fuso de Brasília
+                                    dt_obj = dt_obj.dt.tz_localize(FUSO_BRASIL)
+                                    # Converte para UTC
+                                    dt_obj = dt_obj.dt.tz_convert('UTC')
+                                    # Converte para string ISO 8601 (com 'Z' para indicar UTC)
+                                    df_para_inserir[col_name] = dt_obj.apply(
+                                        lambda x: x.isoformat(timespec='seconds').replace('+00:00', 'Z') if pd.notna(x) else None
                                     )
                             df_para_inserir = df_para_inserir.replace([np.nan, pd.NaT, np.inf, -np.inf, ""], None)
                             
