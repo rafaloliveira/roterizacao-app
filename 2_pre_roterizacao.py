@@ -771,28 +771,58 @@ def gerar_proximo_numero_carga(supabase):
         hoje = datetime.now(FUSO_BRASIL).strftime("%Y%m%d")
         prefixo = f"{hoje}-"
 
-        # Consulta diretamente ao Supabase sem cache para garantir dados mais recentes
-        cargas = supabase.table("cargas_geradas") \
-            .select("numero_carga") \
-            .execute().data
+        max_retries = 10  # Limite de tentativas para gerar um número único
+        for attempt in range(max_retries):
+            # 1. Busca os números de carga existentes para o dia atual.
+            # Essa consulta é feita dentro do loop para garantir que tenhamos os dados mais recentes,
+            # crucial para cenários de concorrência.
+            existing_loads_response = supabase.table("cargas_geradas") \
+                .select("numero_carga") \
+                .like("numero_carga", f"{prefixo}%") \
+                .execute()
 
-        numeros_existentes = []
-        for c in cargas:
-            numero = str(c.get("numero_carga", "")).strip() # Garante que está limpo
-            if numero.startswith(prefixo):
-                sufixo = numero[len(prefixo):]
-                if sufixo.isdigit():
-                    numeros_existentes.append(int(sufixo))
+            existing_numbers_today = set()
+            if existing_loads_response.data:
+                for c in existing_loads_response.data:
+                    numero_completo = str(c.get("numero_carga", "")).strip()
+                    if numero_completo.startswith(prefixo):
+                        sufixo_str = numero_completo[len(prefixo):]
+                        if sufixo_str.isdigit():
+                            existing_numbers_today.add(int(sufixo_str))
 
-        # Garante que sempre haverá um número, mesmo que não haja cargas para o dia
-        proximo_numero = max(numeros_existentes) + 1 if numeros_existentes else 1
-        
-        return f"{prefixo}{str(proximo_numero).zfill(6)}"
+            # 2. Determina o próximo sufixo a ser tentado.
+            # Se já existem números para hoje, pega o maior + 1. Senão, começa do 1.
+            if existing_numbers_today:
+                candidate_suffix = max(existing_numbers_today) + 1
+            else:
+                candidate_suffix = 1
+
+            generated_load_number = f"{prefixo}{str(candidate_suffix).zfill(6)}"
+
+            # 3. Verifica explicitamente se o número de carga *gerado* já existe no banco de dados.
+            check_response = supabase.table("cargas_geradas") \
+                .select("numero_carga") \
+                .eq("numero_carga", generated_load_number) \
+                .execute()
+
+            # Se a resposta não contiver dados, significa que o número é único.
+            if not check_response.data:
+                st.success(f"Número de carga único gerado: {generated_load_number}")
+                return generated_load_number
+            else:
+                # O número já existe, exibe um aviso e tenta novamente na próxima iteração do loop.
+                st.warning(f"Número de carga {generated_load_number} já existe. Tentando gerar um novo (tentativa {attempt + 1}/{max_retries})...")
+                # O loop continuará, e na próxima iteração, ele recalculará o max()
+                # com os dados mais recentes do banco, buscando o próximo disponível.
+
+        # Se o loop terminar sem encontrar um número único, exibe um erro.
+        st.error(f"Não foi possível gerar um número de carga único após {max_retries} tentativas. Por favor, tente novamente ou contate o suporte.")
+        # Retorna um valor que indica falha, para que a operação de criação de carga não prossiga.
+        return None # Importante retornar None ou levantar uma exceção para evitar usar um número inválido.
 
     except Exception as e:
-        st.error(f"Erro ao gerar número da carga: {e}")
-        # Retorna um valor de fallback que ainda pode ser processado (mas é uma emergência)
-        return f"{datetime.now().strftime('%Y%m%d')}-0001"
+        st.error(f"Erro inesperado ao gerar número da carga: {e}")
+        return None # Retorna None em caso de erro geral.
 
 ################################################################
 GRID_RESIZE_JS_CODE = JsCode("""
