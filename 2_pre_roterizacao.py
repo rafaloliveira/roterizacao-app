@@ -3153,7 +3153,7 @@ def pagina_aprovacao_custos():
                 df = pd.DataFrame(dados)
                 # Garante que 'numero_carga' seja tratado como string no cache
                 if not df.empty and 'numero_carga' in df.columns:
-                    df['numero_carga'] = df['numero_carga'].astype(str) # Adicione ou garanta esta linha
+                    df['numero_carga'] = df['numero_carga'].astype(str)
                 st.session_state["df_aprovacao_custos_cache"] = df
             else:
                 df = st.session_state["df_aprovacao_custos_cache"]
@@ -3165,7 +3165,7 @@ def pagina_aprovacao_custos():
         df.columns = df.columns.str.strip()
 
 
-        if 'numero_carga' in df.columns: # Garanta que esta linha esteja presente
+        if 'numero_carga' in df.columns:
             df['numero_carga'] = df['numero_carga'].astype(str)
 
         numeric_cols_to_convert = [
@@ -3199,10 +3199,10 @@ def pagina_aprovacao_custos():
 
         for carga in cargas_unicas:
         
-            st.write(f"DEBUG: Tentando renderizar a carga: {carga}") # Adicione esta linha
+            st.write(f"DEBUG: Tentando renderizar a carga: {carga}")
             df_carga = df[df["numero_carga"] == carga].copy()
             if df_carga.empty:
-                st.write(f"DEBUG: df_carga vazia para {carga}. Pulando.") # Adicione esta linha
+                st.write(f"DEBUG: df_carga vazia para {carga}. Pulando.")
                 continue
 
             valor_contratacao_carga_existente = df_carga["valor_contratacao"].iloc[0] if "valor_contratacao" in df_carga.columns and not df_carga["valor_contratacao"].isnull().all() else 0.0
@@ -3213,7 +3213,6 @@ def pagina_aprovacao_custos():
             rentabilidade_percentual = 0.0
             situacao_custo_regional = "N/A"
             cor_situacao = "gray"
-            valor_sugerido_contratacao = 0.0 # Inicializa o valor sugerido
 
             if total_frete_carga > 0:
                 rentabilidade_percentual = ((total_frete_carga - valor_contratacao_carga_existente) / total_frete_carga) * 100
@@ -3226,7 +3225,7 @@ def pagina_aprovacao_custos():
                     if not regions_to_consider.empty:
                         dominant_region = regions_to_consider.value_counts().idxmax()
                     elif not df_carga['Regiao'].empty: # Se todas forem 'NÃO DEFINIDA', pega a primeira
-                        dominant_region = df_carga['Regiao'].iloc[0] # Que será 'NÃO DEFINIDA'
+                        dominant_region = df_carga['Regiao'].iloc[0]
 
                 max_cost_allowed = MAX_COST_PER_REGION.get(dominant_region, None) # Pega o limite para a região dominante
 
@@ -3238,153 +3237,129 @@ def pagina_aprovacao_custos():
                     else:
                         situacao_custo_regional = f"Acima do Limite ({max_cost_allowed*100:.0f}%)"
                         cor_situacao = "#dc3545" # Vermelho
-                
-                # --- CÁLCULO DO VALOR SUGERIDO ---
-                valor_sugerido_contratacao = total_frete_carga * max_cost_allowed
-                # Arredonda para 2 casas decimais para exibição
-                valor_sugerido_contratacao = round(valor_sugerido_contratacao, 2)
-                # Garante que o valor sugerido não seja negativo (caso total_frete_carga seja negativo ou zero, embora improvável)
-                valor_sugerido_contratacao = max(0.0, valor_sugerido_contratacao)
-
-            else:
-                situacao_custo_regional = f"Região '{dominant_region}' sem limite definido"
-                cor_situacao = "orange" # Laranja
-        else:
-            rentabilidade_percentual = 0.0
-            situacao_custo_regional = "Total do Frete zero, cálculo impossível."
-            cor_situacao = "gray"
-            valor_sugerido_contratacao = 0.0 # Se o frete é zero, a sugestão de contratação também é zero
-
-        st.markdown(f"""
-        <div style="margin-top:20px;padding:10px;background:#e8f0fe;border-left:4px solid #f9ab00;border-radius:6px;display:inline-block;max-width:100%;">
-            <strong>Carga:</strong> {carga}
-        </div>
-        """, unsafe_allow_html=True)
-
-        col1_badges, col2_placeholder = st.columns([5, 1])
-        with col1_badges:
-            st.markdown(
-                f"""
-                <div style='display: flex; flex-wrap: wrap; gap: 8px;'>
-                    {badge(f'{len(df_carga)} entregas')}
-                    {badge(f'{formatar_brasileiro(df_carga["Peso Calculado em Kg"].sum())} kg calc')}
-                    {badge(f'{formatar_brasileiro(df_carga["Peso Real em Kg"].sum())} kg real')}
-                    {badge(f'Valor frete: R$ {formatar_brasileiro(total_frete_carga)}')}
-                    {badge(f'{formatar_brasileiro(df_carga["Cubagem em m³"].sum())} m³')}
-                    {badge(f'{int(df_carga["Quantidade de Volumes"].sum())} volumes')}
-                    {badge(f'Valor Contratação: R$ {formatar_brasileiro(valor_contratacao_carga_existente)}')}
-                    {badge(f'Rentabilidade: {rentabilidade_percentual:.2f}%')}
-                    <span style='background:{cor_situacao};color:white;border-radius:12px;padding:6px 12px;margin:4px;display:inline-block;'>Situação Custo: {situacao_custo_regional}</span>
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
-            st.markdown(f"</div>", unsafe_allow_html=True)
-
-        with st.expander("🔽 Ver entregas da carga para Aprovação de Custos", expanded=False):
-            checkbox_key = f"marcar_todas_aprov_custos_{carga}"
-            if checkbox_key not in st.session_state:
-                st.session_state[checkbox_key] = False
-            marcar_todas = st.checkbox("Marcar todas", key=checkbox_key)
-
-            with st.spinner("Formatando entregas da carga para aprovação..."):
-                df_formatado = df_carga[[col for col in colunas_exibir if col in df_carga.columns]].copy()
-                df_formatado = apply_brazilian_date_format_for_display(df_formatado)
-                df_formatado = df_formatado.replace([np.nan, None], "")
-
-                gb = GridOptionsBuilder.from_dataframe(df_formatado)
-                gb.configure_default_column(minWidth=150)
-                gb.configure_selection("multiple", use_checkbox=True)
-                gb.configure_grid_options(paginationPageSize=12)
-                gb.configure_grid_options(alwaysShowHorizontalScroll=True)
-                gb.configure_grid_options(rowStyle={"font-size": "11px"})
-                gb.configure_grid_options(getRowStyle=JsCode("""
-                    function(params) {
-                        const status = params.data.Status;
-                        const entregaProg = params.data["Entrega Programada"];
-                        const particularidade = params.data.Particularidade;
-                        if (status === "AGENDAR" && (!entregaProg || entregaProg.trim() === "")) {
-                            return { 'background-color': '#ffe0b2', 'color': '#333' };
-                        }
-                        if (particularidade && particularidade.trim() !== "") {
-                            return { 'background-color': '#fff59d', 'color': '#333' };
-                        }
-                        return null;
-                    }
-                """))
-                gb.configure_grid_options(headerCheckboxSelection=True)
-                gb.configure_grid_options(rowSelection='multiple')
-                gb.configure_grid_options(onGridReady=GRID_RESIZE_JS_CODE)
-
-                for col in ['Peso Real em Kg', 'Peso Calculado em Kg', 'Cubagem em m³', 'Quantidade de Volumes', 'Valor do Frete', 'valor_contratacao']:
-                    if col in df_formatado.columns:
-                        gb.configure_column(col, type=["numericColumn"], valueFormatter=formatter)
-
-                grid_options = gb.build()
-                grid_key_id = f"grid_aprovacao_custos_{carga}"
-                if grid_key_id not in st.session_state:
-                    st.session_state[grid_key_id] = str(uuid.uuid4())
-                grid_key = st.session_state[grid_key_id]
-
-            grid_response = AgGrid(
-                df_formatado,
-                gridOptions=grid_options,
-                update_mode=GridUpdateMode.SELECTION_CHANGED,
-                fit_columns_on_grid_load=False,
-                width="100%",
-                height=400,
-                allow_unsafe_jscode=True,
-                key=grid_key,
-                theme=AgGridTheme.MATERIAL,
-                show_toolbar=False,
-                custom_css={
-                    ".ag-theme-material .ag-cell": { "font-size": "11px", "line-height": "18px", "border-right": "1px solid #ccc", },
-                    ".ag-theme-material .ag-row:last-child .ag-cell": { "border-bottom": "1px solid #ccc", },
-                    ".ag-theme-material .ag-header-cell": { "border-right": "1px solid #ccc", "border-bottom": "1px solid #ccc", },
-                    ".ag-theme-material .ag-root-wrapper": { "border": "1px solid black", "border-radius": "6px", "padding": "4px", },
-                    ".ag-theme-material .ag-header-cell-label": { "font-size": "11px", },
-                    ".ag-center-cols-viewport": { "overflow-x": "auto !important", "overflow-y": "hidden", },
-                    ".ag-center-cols-container": { "min-width": "100% !important", },
-                    "#gridToolBar": { "padding-bottom": "0px !important", }
-                }
-            )
-
-            if marcar_todas:
-                selecionadas = df_formatado[df_formatado["Serie_Numero_CTRC"].notna()].copy().to_dict(orient="records")
-            else:
-                selecionadas = grid_response.get("selected_rows", [])
-
-            if selecionadas:
-                st.markdown(f"**📦 Entregas selecionadas:** {len(selecionadas)}")
-                
-                # --- AJUSTE AQUI: valor do input de contratação ---
-                valor_contratacao_key = f"valor_contratacao_{carga}"
-                st.markdown("---<br>", unsafe_allow_html=True) # Separador visual
-                st.subheader(f"Valor da Contratação e Sugestão para a Carga {carga}")
-                
-                # Exibe a sugestão visualmente
-                if valor_sugerido_contratacao > 0:
-                    st.info(f"**Sugestão de Valor de Contratação:** Para atingir a meta da região '{dominant_region}' ({MAX_COST_PER_REGION.get(dominant_region, 0)*100:.0f}%), o valor ideal seria de **R$ {formatar_brasileiro(valor_sugerido_contratacao)}**")
                 else:
-                    st.info("Não foi possível calcular uma sugestão de valor de contratação (frete total zero ou região sem limite definido).")
+                    situacao_custo_regional = f"Região '{dominant_region}' sem limite definido"
+                    cor_situacao = "orange"
+            else: # total_frete_carga is 0 or less
+                rentabilidade_percentual = 0.0
+                if valor_contratacao_carga_existente > 0:
+                    situacao_custo_regional = "Frete total zero, Contratação > 0"
+                    cor_situacao = "#dc3545" # Vermelho
+                else:
+                    situacao_custo_regional = "Frete total zero, Contratação zero"
+                    cor_situacao = "gray"
 
-                valor_contratacao = st.number_input(
-                    "Valor da Contratação da Carga (R$)",
-                    min_value=0.0,
-                    value=valor_contratacao_carga_existente if valor_contratacao_carga_existente > 0 else valor_sugerido_contratacao, # Usa valor existente ou sugerido
-                    step=0.01,
-                    format="%.2f",
-                    key=valor_contratacao_key
+
+            st.markdown(f"""
+            <div style="margin-top:20px;padding:10px;background:#e8f0fe;border-left:4px solid #f9ab00;border-radius:6px;display:inline-block;max-width:100%;">
+                <strong>Carga:</strong> {carga}
+            </div>
+            """, unsafe_allow_html=True)
+
+            col1_badges, col2_placeholder = st.columns([5, 1])
+            with col1_badges:
+                st.markdown(
+                    f"""
+                    <div style='display: flex; flex-wrap: wrap; gap: 8px;'>
+                        {badge(f'{len(df_carga)} entregas')}
+                        {badge(f'{formatar_brasileiro(df_carga["Peso Calculado em Kg"].sum())} kg calc')}
+                        {badge(f'{formatar_brasileiro(df_carga["Peso Real em Kg"].sum())} kg real')}
+                        {badge(f'Valor frete: R\$ {formatar_brasileiro(total_frete_carga)}')}
+                        {badge(f'{formatar_brasileiro(df_carga["Cubagem em m³"].sum())} m³')}
+                        {badge(f'{int(df_carga["Quantidade de Volumes"].sum())} volumes')}
+                        {badge(f'Valor Contratação: R\$ {formatar_brasileiro(valor_contratacao_carga_existente)}')}
+                        {badge(f'Rentabilidade: {rentabilidade_percentual:.2f}%')}
+                        <span style='background:{cor_situacao};color:white;border-radius:12px;padding:6px 12px;margin:4px;display:inline-block;'>Situação Custo: {situacao_custo_regional}</span>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
                 )
-                st.markdown("<br>---", unsafe_allow_html=True) # Separador visual
-                # --- FIM DO AJUSTE ---
+                
+            with st.expander("🔽 Ver entregas da carga para Aprovação de Custos", expanded=False):
+                checkbox_key = f"marcar_todas_aprov_custos_{carga}"
+                if checkbox_key not in st.session_state:
+                    st.session_state[checkbox_key] = False
+                marcar_todas = st.checkbox("Marcar todas", key=checkbox_key)
+
+                with st.spinner("Formatando entregas da carga para aprovação..."):
+                    df_formatado = df_carga[[col for col in colunas_exibir if col in df_carga.columns]].copy()
+                    df_formatado = apply_brazilian_date_format_for_display(df_formatado)
+                    df_formatado = df_formatado.replace([np.nan, None], "")
+
+                    gb = GridOptionsBuilder.from_dataframe(df_formatado)
+                    gb.configure_default_column(minWidth=150)
+                    gb.configure_selection("multiple", use_checkbox=True)
+                    gb.configure_grid_options(paginationPageSize=12)
+                    gb.configure_grid_options(alwaysShowHorizontalScroll=True)
+                    gb.configure_grid_options(rowStyle={"font-size": "11px"})
+                    
+                    gb.configure_grid_options(getRowStyle=JsCode("""
+                        function(params) {
+                            const status = params.data.Status;
+                            const entregaProg = params.data["Entrega Programada"];
+                            const particularidade = params.data.Particularidade;
+                            if (status === "AGENDAR" && (!entregaProg || entregaProg.trim() === "")) {
+                                return { 'background-color': '#ffe0b2', 'color': '#333' }; 
+                            }
+                            if (particularidade && particularidade.trim() !== "") {
+                                return { 'background-color': '#fff59d', 'color': '#333' }; 
+                            }
+                            return null;
+                        }
+                    """))
+                    gb.configure_grid_options(headerCheckboxSelection=True)
+                    gb.configure_grid_options(rowSelection='multiple')
+                    gb.configure_grid_options(onGridReady=GRID_RESIZE_JS_CODE)
+
+                    for col in ['Peso Real em Kg', 'Peso Calculado em Kg', 'Cubagem em m³', 'Quantidade de Volumes', 'Valor do Frete', 'valor_contratacao']:
+                        if col in df_formatado.columns:
+                            gb.configure_column(col, type=["numericColumn"], valueFormatter=formatter)
+
+                    grid_options = gb.build()
+                    grid_key_id = f"grid_aprovacao_custos_{carga}"
+                    if grid_key_id not in st.session_state:
+                        st.session_state[grid_key_id] = str(uuid.uuid4())
+                    grid_key = st.session_state[grid_key_id]
+
+                grid_response = AgGrid(
+                    df_formatado,
+                    gridOptions=grid_options,
+                    update_mode=GridUpdateMode.SELECTION_CHANGED,
+                    fit_columns_on_grid_load=False,
+                    width="100%",
+                    height=400,
+                    allow_unsafe_jscode=True,
+                    key=grid_key,
+                    theme=AgGridTheme.MATERIAL,
+                    show_toolbar=False,
+                    custom_css={ 
+                        ".ag-theme-material .ag-cell": { "font-size": "11px", "line-height": "18px", "border-right": "1px solid #ccc", },
+                        ".ag-theme-material .ag-row:last-child .ag-cell": { "border-bottom": "1px solid #ccc", },
+                        ".ag-theme-material .ag-header-cell": { "border-right": "1px solid #ccc", "border-bottom": "1px solid #ccc", },
+                        ".ag-theme-material .ag-root-wrapper": { "border": "1px solid black", "border-radius": "6px", "padding": "4px", },
+                        ".ag-theme-material .ag-header-cell-label": { "font-size": "11px", },
+                        ".ag-center-cols-viewport": { "overflow-x": "auto !important", "overflow-y": "hidden", },
+                        ".ag-center-cols-container": { "min-width": "100% !important", },
+                        "#gridToolBar": { "padding-bottom": "0px !important", }
+                    }
+                )
+
+                if marcar_todas:
+                    selecionadas = df_formatado[df_formatado["Serie_Numero_CTRC"].notna()].copy().to_dict(orient="records")
+                else:
+                    selecionadas = grid_response.get("selected_rows", [])
+
+                if selecionadas:
+                    st.markdown(f"**📦 Entregas selecionadas:** {len(selecionadas)}")
+                    # --- REMOVIDO: CAMPO DE ENTRADA E SUGESTÃO ---
+                    # Não há campo para preencher valor de contratação nem mostrar sugestão nesta página.
 
             col_aprovar, col_rejeitar = st.columns(2)
             with col_aprovar:
                 if st.button(
                     f"✅ Aprovar Carga {carga}",
                     key=f"aprovar_carga_{carga}",
-                    disabled=not is_user_aprovador or not selecionadas or valor_contratacao <= 0
+                    disabled=not is_user_aprovador or not selecionadas # Removido 'or valor_contratacao <= 0'
                 ):
                     try:
                         with st.spinner("✅ Aprovando entregas e movendo para Cargas Aprovadas..."):
@@ -3393,19 +3368,17 @@ def pagina_aprovacao_custos():
                             df_aprovar = df_aprovar.drop(columns=["_selectedRowNodeInfo"], errors="ignore")
                             
                             df_aprovar["numero_carga"] = carga
-                            df_aprovar["valor_contratacao"] = valor_contratacao # Garante que o valor preenchido seja usado
-
-                            # --- NOVAS COLUNAS DE AUDITORIA DE APROVAÇÃO ---
+                            df_aprovar["valor_contratacao"] = valor_contratacao_carga_existente # Usa o valor existente da carga
+                            
                             df_aprovar["aprovador_custos_login"] = st.session_state.get("username", "Desconhecido")
                             df_aprovar["data_aprovacao_custos"] = data_hora_brasil_iso()
-                            # --- FIM NOVAS COLUNAS ---
 
                             date_cols_to_process = [
                                 "Previsao de Entrega", "Entrega Programada", "Data de Emissao",
                                 "Data de Autorizacao", "Data do Cancelamento", "Data do Escaneamento",
                                 "Data da Entrega Realizada", "Data da Ultima Ocorrencia",
                                 "Data de inclusao da Ultima Ocorrencia", "Data_Hora_Gerada",
-                                "data_aprovacao_custos" # Adicionada para formatação antes de inserir
+                                "data_aprovacao_custos"
                             ]
                             for col_name in date_cols_to_process:
                                 if col_name in df_aprovar.columns:
@@ -3427,7 +3400,6 @@ def pagina_aprovacao_custos():
                                 supabase.table("aprovacao_custos").delete().in_("Serie_Numero_CTRC", chaves_aprovadas).execute()
 
                             st.success(f"✅ {len(registros_para_cargas_aprovadas)} entregas da carga {carga} aprovadas e movidas para Cargas Aprovadas.")
-                            
                             st.session_state["reload_aprovacao_custos"] = True
                             st.session_state["reload_cargas_aprovadas"] = True
                             st.session_state.pop(grid_key, None)
@@ -3438,7 +3410,6 @@ def pagina_aprovacao_custos():
                     except Exception as e:
                         st.error(f"❌ Erro ao aprovar carga: {e}")
 
-            # ... (código existente) ...
             with col_rejeitar:
                 if st.button(
                     f"❌ Rejeitar Carga {carga}",
@@ -3450,20 +3421,11 @@ def pagina_aprovacao_custos():
                             df_rejeitar = pd.DataFrame(selecionadas)
 
                             df_rejeitar = df_rejeitar.drop(columns=["_selectedRowNodeInfo"], errors="ignore")
-                            df_rejeitar = df_rejeitar.drop(columns=["valor_contratacao"], errors="ignore")
+                            df_rejeitar = df_rejeitar.drop(columns=["valor_contratacao"], errors="ignore") # valor_contratacao é removido ao rejeitar
                             
-                            # *** INTEGRIDADE DE DADOS: O Status "AGENDAR" é aplicado aqui se a regra de negócio exigir. ***
-                            # Se a entrega *não* deveria ter Status "AGENDAR" ao retornar de "Aprovação de Custos"
-                            # e *não* for uma regra de negócio que a rejeição force este status, remova a linha abaixo.
-                            # Caso contrário, mantenha-a. A discussão anterior optou por manter regras de negócio.
                             df_rejeitar["Status"] = "AGENDAR" 
-                            # *** FIM DA INTEGRIDADE DE DADOS ***
-
                             df_rejeitar["numero_carga"] = carga
                             
-                            # *** INTEGRIDADE DE DATAS: GARANTIR QUE DATAS VAZIAS PERMANEÇAM VAZIAS ***
-                            # Este bloco garante que os tipos de dados estejam corretos para o Supabase
-                            # e que valores vazios no grid (vindos como string) sejam None no banco.
                             date_cols_to_process = [
                                 "Previsao de Entrega", "Entrega Programada", "Data de Emissao",
                                 "Data de Autorizacao", "Data do Cancelamento", "Data do Escaneamento",
@@ -3478,7 +3440,6 @@ def pagina_aprovacao_custos():
                                     )
 
                             df_rejeitar = df_rejeitar.replace([np.nan, pd.NaT, "", np.inf, -np.inf], None)
-                            # *** FIM DA INTEGRIDADE DE DATAS ***
 
                             registros_para_cargas_geradas = df_rejeitar.to_dict(orient="records")
                             registros_para_cargas_geradas = [r for r in registros_para_cargas_geradas if r.get("Serie_Numero_CTRC")]
@@ -3492,18 +3453,14 @@ def pagina_aprovacao_custos():
 
                             st.warning(f"✅ {len(registros_para_cargas_geradas)} entregas da carga {carga} rejeitadas e retornadas para Cargas Geradas.")
                             
-                            # --- ATUALIZAÇÃO DO GRID DE ORIGEM E DESTINO ---
-                            st.session_state["reload_aprovacao_custos"] = True # Recarrega os dados da página atual
-                            st.session_state.pop(grid_key, None) # Invalida o grid da página de origem
-                            st.session_state.pop(checkbox_key, None) # Limpa o estado do checkbox
+                            st.session_state["reload_aprovacao_custos"] = True
+                            st.session_state.pop(grid_key, None)
+                            st.session_state.pop(checkbox_key, None)
 
-                            # Invalidação da key do grid de destino (Cargas Geradas)
-                            # Isso força o grid de Cargas Geradas a redesenhar com os itens que retornaram.
                             grid_key_carga_gerada = f"grid_carga_gerada_{carga}"
                             if grid_key_carga_gerada in st.session_state:
                                 st.session_state.pop(grid_key_carga_gerada, None)
-                            st.session_state["reload_cargas_geradas"] = True # Recarrega os dados da página de destino
-                            # --- FIM DA ATUALIZAÇÃO DO GRID ---
+                            st.session_state["reload_cargas_geradas"] = True
 
                             st.rerun()
 
