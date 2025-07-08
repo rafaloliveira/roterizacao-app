@@ -19,6 +19,7 @@ import time
 import numpy as np
 import pandas as pd
 import streamlit as st
+import random
 
 from zoneinfo import ZoneInfo
 from datetime import datetime, timedelta, timezone
@@ -767,96 +768,50 @@ def carregar_base_supabase():
 
 # A função gerar_proximo_numero_carga()
 def gerar_proximo_numero_carga(supabase):
-    try:
-        hoje = datetime.now(FUSO_BRASIL).strftime("%Y%m%d")
-        prefixo = f"{hoje}-"
+    """
+    Gera um número de carga aleatório de 6 dígitos, garantindo sua unicidade
+    em todas as tabelas de cargas do Supabase.
+    Retorna o número de carga único ou None em caso de falha ou esgotamento de tentativas.
+    """
+    cargo_tables = ["cargas_geradas", "aprovacao_custos", "cargas_aprovadas", "cargas_fechadas"]
+    max_retries = 1000 # Limite de tentativas para encontrar um número único
+    
+    st.info("Iniciando geração de número de carga aleatório e único...")
 
-        # LISTA DE TODAS AS TABELAS QUE PODEM CONTER NÚMEROS DE CARGA
-        load_number_tables = [
-            "cargas_geradas",
-            "aprovacao_custos",
-            "cargas_aprovadas",
-            "cargas_fechadas"
-        ]
-
-        max_retries = 20  # Aumentando o limite de tentativas para maior segurança
-        for attempt in range(max_retries):
-            all_existing_suffixes_today = set()
-            st.info(f"DEBUG: Início da Tentativa {attempt + 1} para gerar número de carga.")
-
-            # 1. CONSOLIDA TODOS OS SUFIXOS DE CARGA EXISTENTES DE TODAS AS TABELAS
-            for table_name in load_number_tables:
-                try:
-                    # Consulta ao Supabase para cada tabela
-                    response = supabase.table(table_name) \
-                        .select("numero_carga") \
-                        .like("numero_carga", f"{prefixo}%") \
-                        .execute()
-
-                    st.info(f"DEBUG: Consulta Supabase para '{table_name}'. Data recebida: {response.data}")
-
-                    if response.data:
-                        for item in response.data:
-                            num_completo = str(item.get("numero_carga", "")).strip()
-                            if num_completo.startswith(prefixo):
-                                sufixo_str = num_completo[len(prefixo):]
-                                if sufixo_str.isdigit():
-                                    all_existing_suffixes_today.add(int(sufixo_str))
-                except Exception as e:
-                    # Em caso de erro ao consultar uma tabela (ex: permissões, tabela inexistente),
-                    # exibe um aviso mas não interrompe o processo.
-                    st.warning(f"Erro ao consultar tabela '{table_name}' para números de carga existentes: {e}")
-                    # Continua para a próxima tabela se uma falhar
-
-            st.info(f"DEBUG: Sufixos existentes consolidados para hoje: {all_existing_suffixes_today}")
-
-            # 2. DETERMINA O PRÓXIMO SUFIXO CANDIDATO COM BASE EM TODOS OS NÚMEROS ENCONTRADOS
-            if all_existing_suffixes_today:
-                candidate_suffix = max(all_existing_suffixes_today) + 1
-            else:
-                candidate_suffix = 1 # Começa do 1 se nenhuma carga foi encontrada para o dia
-
-            generated_load_number = f"{prefixo}{str(candidate_suffix).zfill(6)}"
-            st.info(f"DEBUG: Número de carga candidato gerado: {generated_load_number}")
-
-            # 3. VERIFICA SE O NÚMERO CANDIDATO JÁ EXISTE NO BANCO DE DADOS (verificação final)
-            # Esta verificação é crucial e deve ser contra o banco de dados.
-            # Se o número for max()+1, ele não deveria estar no set local.
-            # Mas, se for o caso de concorrência ou um erro anterior que deixou um buraco,
-            # precisamos verificar no DB.
-            is_unique_in_db = True
-            for table_name in load_number_tables:
-                try:
-                    check_response = supabase.table(table_name) \
-                        .select("numero_carga") \
-                        .eq("numero_carga", generated_load_number) \
-                        .execute()
-                    if check_response.data:
-                        st.warning(f"DEBUG: O número {generated_load_number} já foi encontrado em '{table_name}'.")
-                        is_unique_in_db = False
-                        break # Encontrou em uma tabela, não precisa verificar as outras.
-                except Exception as e:
-                    st.error(f"DEBUG: Erro ao verificar unicidade no DB para '{table_name}': {e}")
-                    # Considerar como não único se não puder verificar (erro de conexão, etc.)
-                    is_unique_in_db = False
-                    break # Aborta verificação
-
-            if is_unique_in_db:
-                st.success(f"Número de carga único gerado e verificado: {generated_load_number}")
-                return generated_load_number
-            else:
-                st.warning(f"Número de carga {generated_load_number} não é único. Tentando gerar um novo (tentativa {attempt + 1}/{max_retries})...")
-                # A próxima iteração recalculará o max() com os dados mais recentes do banco,
-                # ou tentará um novo número.
-
-        # Se o loop terminar sem encontrar um número único, exibe um erro.
-        st.error(f"Não foi possível gerar um número de carga único após {max_retries} tentativas. Por favor, tente novamente ou contate o suporte.")
-        return None
-
-    except Exception as e:
-        st.error(f"Erro inesperado ao gerar número da carga: {e}")
-        return None
-
+    for attempt in range(max_retries):
+        # Gera um número aleatório de 6 dígitos, formatado com zeros à esquerda
+        random_cargo_number = f"{random.randint(0, 999999):06d}"
+        
+        is_unique_candidate = True
+        
+        # Verifica a unicidade em todas as tabelas relevantes
+        for table_name in cargo_tables:
+            try:
+                # Consulta a tabela para ver se este número de carga já existe
+                # Assume que 'numero_carga' é o nome da coluna em todas essas tabelas
+                response = supabase.table(table_name).select("numero_carga").eq("numero_carga", random_cargo_number).limit(1).execute()
+                
+                if response.data and len(response.data) > 0:
+                    # Número de carga já existe nesta tabela, não é único
+                    is_unique_candidate = False
+                    st.warning(f"Candidato '{random_cargo_number}' já existe na tabela '{table_name}'. Tentando outro...")
+                    break # Sai do loop de tabelas e tenta um novo random_cargo_number
+            except Exception as e:
+                # ERRO CRÍTICO: Se a consulta ao Supabase falhar, não podemos garantir a unicidade.
+                # É mais seguro falhar no processo de geração e informar o usuário.
+                st.error(f"Erro CRÍTICO de comunicação com o Supabase ao verificar unicidade em '{table_name}'.")
+                st.error(f"Detalhes do erro: {e}")
+                st.warning("Não foi possível garantir a unicidade do número da carga devido a problemas com o banco de dados. Por favor, tente novamente e verifique os logs do Supabase.")
+                return None # Indica falha
+        
+        if is_unique_candidate:
+            # Encontrou um número aleatório único!
+            st.success(f"Número de carga único gerado com sucesso: {random_cargo_number} (Tentativa {attempt + 1})")
+            return random_cargo_number
+            
+    # Se o loop terminar sem encontrar um número único após max_retries
+    st.error(f"Não foi possível gerar um número de carga único após {max_retries} tentativas. O espaço de números pode estar saturado ou há um problema persistente na comunicação.")
+    return None # Indica falha
 ################################################################
 GRID_RESIZE_JS_CODE = JsCode("""
 function(params) {
