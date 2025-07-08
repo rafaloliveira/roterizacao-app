@@ -3264,10 +3264,10 @@ def pagina_aprovacao_custos():
                         {badge(f'{len(df_carga)} entregas')}
                         {badge(f'{formatar_brasileiro(df_carga["Peso Calculado em Kg"].sum())} kg calc')}
                         {badge(f'{formatar_brasileiro(df_carga["Peso Real em Kg"].sum())} kg real')}
-                        {badge(f'Valor frete: R\$ {formatar_brasileiro(total_frete_carga)}')}
+                        {badge(f'Valor frete: R$ {formatar_brasileiro(total_frete_carga)}')}
                         {badge(f'{formatar_brasileiro(df_carga["Cubagem em m³"].sum())} m³')}
                         {badge(f'{int(df_carga["Quantidade de Volumes"].sum())} volumes')}
-                        {badge(f'Valor Contratação: R\$ {formatar_brasileiro(valor_contratacao_carga_existente)}')}
+                        {badge(f'Valor Contratação: R$ {formatar_brasileiro(valor_contratacao_carga_existente)}')}
                         {badge(f'Rentabilidade: {rentabilidade_percentual:.2f}%')}
                         <span style='background:{cor_situacao};color:white;border-radius:12px;padding:6px 12px;margin:4px;display:inline-block;'>Situação Custo: {situacao_custo_regional}</span>
                     </div>
