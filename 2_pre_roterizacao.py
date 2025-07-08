@@ -2566,6 +2566,14 @@ def pagina_rotas_confirmadas():
                 }
             """)
 
+            # NOVO: Formatter para exibir APENAS a parte da data (dd-mm-aaaa)
+            date_only_formatter = JsCode("""
+                function(params) {
+                    if (params.value === null || typeof params.value === 'undefined' || params.value === '') return '';
+                    const parts = params.value.split(' ')[0]; // Extrai "dd-mm-aaaa" de "dd-mm-aaaa HH:MM:SS"
+                    return parts;
+                }
+            """)
            
 
             for col in ['Peso Real em Kg', 'Peso Calculado em Kg', 'Cubagem em m³', 'Quantidade de Volumes', 'Valor do Frete']:
@@ -2573,7 +2581,14 @@ def pagina_rotas_confirmadas():
                 if col in df_formatado.columns:
                     gb.configure_column(col, type=["numericColumn"], valueFormatter=formatter)
 
+            # --- NOVO: Configuração para colunas de data que devem ser APENAS dd-mm-aaaa ---
+            for col in ['Previsao de Entrega', 'Entrega Programada']: # Adicione outras colunas de data se quiser que sejam APENAS data
+                if col in df_formatado.columns:
+                    gb.configure_column(col, valueFormatter=date_only_formatter)
+            # --- Fim da Configuração de colunas de data ---
+
             grid_options = gb.build()
+
             grid_key = f"grid_rotas_confirmadas_{rota}"
             if grid_key not in st.session_state:
                 st.session_state[grid_key] = str(uuid.uuid4())
@@ -2927,7 +2942,26 @@ def pagina_cargas_geradas():
                 marcar_todas = st.checkbox("Marcar todas", key=checkbox_key)
 
                 with st.spinner("Carregando entregas da carga no grid..."):
-                    #df_formatado = df_display[df_display["numero_carga"] == carga][[col for col in colunas_exibir if col in df_display.columns]]
+                    # Define formatter for numeric values (geralmente está mais acima na função, mas incluído aqui para clareza local)
+                    formatter = JsCode("""
+                        function(params) {
+                            if (!params.value && params.value !== 0) return '';
+                            return Number(params.value).toLocaleString('pt-BR', {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2
+                            });
+                        }
+                    """)
+
+                    # NOVO: Formatter para exibir APENAS a parte da data (dd-mm-aaaa)
+                    date_only_formatter = JsCode("""
+                        function(params) {
+                            if (params.value === null || typeof params.value === 'undefined' || params.value === '') return '';
+                            const parts = params.value.split(' ')[0];
+                            return parts;
+                        }
+                    """)
+
                     df_formatado = df_display[df_display["numero_carga"] == carga][[col for col in colunas_exibir if col in df_display.columns]].copy()
                     df_formatado = apply_brazilian_date_format_for_display(df_formatado) # Aplica o formato completo (dd-mm-aaaa HH:MM:SS)
 
@@ -2955,9 +2989,15 @@ def pagina_cargas_geradas():
                     gb.configure_grid_options(rowSelection='multiple')
                     gb.configure_grid_options(onGridReady=GRID_RESIZE_JS_CODE)
 
-                    for col in numeric_cols_for_formatting:
+
+                    for col in ['Peso Real em Kg', 'Peso Calculado em Kg', 'Cubagem em m³', 'Quantidade de Volumes', 'Valor do Frete']:
                         if col in df_formatado.columns:
                             gb.configure_column(col, type=["numericColumn"], valueFormatter=formatter)
+
+                    # --- NOVO: Configuração para colunas de data que devem ser APENAS dd-mm-aaaa ---
+                    for col in ['Previsao de Entrega', 'Entrega Programada']: # Adicione outras colunas de data se quiser que sejam APENAS data
+                        if col in df_formatado.columns:
+                            gb.configure_column(col, valueFormatter=date_only_formatter)
 
                     grid_options = gb.build()
 
@@ -3311,9 +3351,28 @@ def pagina_aprovacao_custos():
                 marcar_todas = st.checkbox("Marcar todas", key=checkbox_key)
 
                 with st.spinner("Formatando entregas da carga para aprovação..."):
+                    # Define formatter for numeric values
+                    formatter = JsCode("""
+                        function(params) {
+                            if (!params.value && params.value !== 0) return '';
+                            return Number(params.value).toLocaleString('pt-BR', {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2
+                            });
+                        }
+                    """)
+
+                    # NOVO: Formatter para exibir APENAS a parte da data (dd-mm-aaaa)
+                    date_only_formatter = JsCode("""
+                        function(params) {
+                            if (params.value === null || typeof params.value === 'undefined' || params.value === '') return '';
+                            const parts = params.value.split(' ')[0];
+                            return parts;
+                        }
+                    """)
                     
                     df_formatado = df_carga[[col for col in colunas_exibir if col in df_carga.columns]].copy()
-                    df_formatado = apply_brazilian_date_format_for_display(df_formatado) # Aplica o formato completo (dd-mm-aaaa HH:MM:SS)
+                    df_formatado = apply_brazilian_date_format_for_display(df_formatado)
                     df_formatado = df_formatado.replace([np.nan, None], "")
 
                     gb = GridOptionsBuilder.from_dataframe(df_formatado)
@@ -3344,6 +3403,15 @@ def pagina_aprovacao_custos():
                     for col in ['Peso Real em Kg', 'Peso Calculado em Kg', 'Cubagem em m³', 'Quantidade de Volumes', 'Valor do Frete', 'valor_contratacao']:
                         if col in df_formatado.columns:
                             gb.configure_column(col, type=["numericColumn"], valueFormatter=formatter)
+
+                    # --- NOVO: Configuração para colunas de data que devem ser APENAS dd-mm-aaaa ---
+                    for col in ['Previsao de Entrega', 'Entrega Programada']: # Adicione outras colunas de data se quiser que sejam APENAS data
+                        if col in df_formatado.columns:
+                            gb.configure_column(col, valueFormatter=date_only_formatter)
+                    # --- Fim da Configuração de colunas de data ---
+
+
+
 
                     grid_options = gb.build()
                     grid_key_id = f"grid_aprovacao_custos_{carga}"
@@ -3723,7 +3791,27 @@ def pagina_cargas_aprovadas():
                     st.session_state[checkbox_key] = False
                 marcar_todas = st.checkbox("Marcar todas", key=checkbox_key)
 
+
                 with st.spinner("🔄 Formatando entregas da carga aprovada..."):
+                    # Define formatter for numeric values
+                    formatter = JsCode("""
+                        function(params) {
+                            if (!params.value && params.value !== 0) return '';
+                            return Number(params.value).toLocaleString('pt-BR', {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2
+                            });
+                        }
+                    """)
+
+                    # NOVO: Formatter para exibir APENAS a parte da data (dd-mm-aaaa)
+                    date_only_formatter = JsCode("""
+                        function(params) {
+                            if (params.value === null || typeof params.value === 'undefined' || params.value === '') return '';
+                            const parts = params.value.split(' ')[0];
+                            return parts;
+                        }
+                    """)
                
                     df_formatado = df_carga[[col for col in colunas_exibir if col in df_carga.columns]].copy()
                     df_formatado = apply_brazilian_date_format_for_display(df_formatado) # Aplica o formato completo (dd-mm-aaaa HH:MM:SS)
@@ -3758,34 +3846,52 @@ def pagina_cargas_aprovadas():
                         if col in df_formatado.columns:
                             gb.configure_column(col, type=["numericColumn"], valueFormatter=formatter)
 
+                    # --- NOVO: Configuração para colunas de data que devem ser APENAS dd-mm-aaaa ---
+                    for col in ['Previsao de Entrega', 'Entrega Programada']: # Adicione outras colunas de data se quiser que sejam APENAS data
+                        if col in df_formatado.columns:
+                            gb.configure_column(col, valueFormatter=date_only_formatter)
+                    # --- Fim da Configuração de colunas de data ---
+
+                    # Formatação específica para as novas colunas de auditoria que podem ser datas completas
+                    for col in ['data_aprovacao_custos']:
+                        if col in df_formatado.columns:
+                            gb.configure_column(col, valueFormatter=JsCode("""
+                                function(params) {
+                                    if (params.value) {
+                                        return params.value; // Já está em dd-mm-yyyy HH:MM:SS
+                                    }
+                                    return '';
+                                }
+                            """))
                     grid_options = gb.build()
                     grid_key_id = f"grid_cargas_aprovadas_{carga}"
                     if grid_key_id not in st.session_state:
                         st.session_state[grid_key_id] = str(uuid.uuid4())
                     grid_key = st.session_state[grid_key_id]
 
-                grid_response = AgGrid(
-                    df_formatado,
-                    gridOptions=grid_options,
-                    update_mode=GridUpdateMode.SELECTION_CHANGED,
-                    fit_columns_on_grid_load=False,
-                    width="100%",
-                    height=400,
-                    allow_unsafe_jscode=True,
-                    key=grid_key,
-                    theme=AgGridTheme.MATERIAL,
-                    show_toolbar=False,
-                    custom_css={ 
-                        ".ag-theme-material .ag-cell": { "font-size": "11px", "line-height": "18px", "border-right": "1px solid #ccc", },
-                        ".ag-theme-material .ag-row:last-child .ag-cell": { "border-bottom": "1px solid #ccc", },
-                        ".ag-theme-material .ag-header-cell": { "border-right": "1px solid #ccc", "border-bottom": "1px solid #ccc", },
-                        ".ag-theme-material .ag-root-wrapper": { "border": "1px solid black", "border-radius": "6px", "padding": "4px", },
-                        ".ag-theme-material .ag-header-cell-label": { "font-size": "11px", },
-                        ".ag-center-cols-viewport": { "overflow-x": "auto !important", "overflow-y": "hidden", },
-                        ".ag-center-cols-container": { "min-width": "100% !important", },
-                        "#gridToolBar": { "padding-bottom": "0px !important", }
-                    }
-                )
+                    # AQUI ESTÁ A CORREÇÃO: A chamada para AgGrid agora está dentro do bloco 'with'
+                    grid_response = AgGrid(
+                        df_formatado,
+                        gridOptions=grid_options,
+                        update_mode=GridUpdateMode.SELECTION_CHANGED,
+                        fit_columns_on_grid_load=False,
+                        width="100%",
+                        height=400,
+                        allow_unsafe_jscode=True,
+                        key=grid_key,
+                        theme=AgGridTheme.MATERIAL,
+                        show_toolbar=False,
+                        custom_css={ 
+                            ".ag-theme-material .ag-cell": { "font-size": "11px", "line-height": "18px", "border-right": "1px solid #ccc", },
+                            ".ag-theme-material .ag-row:last-child .ag-cell": { "border-bottom": "1px solid #ccc", },
+                            ".ag-theme-material .ag-header-cell": { "border-right": "1px solid #ccc", "border-bottom": "1px solid #ccc", },
+                            ".ag-theme-material .ag-root-wrapper": { "border": "1px solid black", "border-radius": "6px", "padding": "4px", },
+                            ".ag-theme-material .ag-header-cell-label": { "font-size": "11px", },
+                            ".ag-center-cols-viewport": { "overflow-x": "auto !important", "overflow-y": "hidden", },
+                            ".ag-center-cols-container": { "min-width": "100% !important", },
+                            "#gridToolBar": { "padding-bottom": "0px !important", }
+                        }
+                    )
 
                 if marcar_todas:
                     selecionadas = df_formatado[df_formatado["Serie_Numero_CTRC"].notna()].copy().to_dict(orient="records")
@@ -3801,11 +3907,9 @@ def pagina_cargas_aprovadas():
 
 
 
-# ==============================================================================
 
-# FUNÇÃO: pagina_cargas_fechadas
 
-# ==============================================================================
+
 # ==============================================================================
 # Função pagina_cargas_fechadas() - com os ajustes aplicados
 # ==============================================================================
@@ -4011,8 +4115,26 @@ def pagina_cargas_fechadas():
                 marcar_todas = st.checkbox("Marcar todas", key=checkbox_key)
 
                 with st.spinner("🔄 Formatando entregas da carga fechada..."):
-                    # Aqui, df_formatado é usado para a exibição no AgGrid, e apply_brazilian_date_format_for_display
-                    # irá converter as colunas de data para string, o que é o comportamento desejado para o grid.
+                    # Define formatter for numeric values
+                    formatter = JsCode("""
+                        function(params) {
+                            if (!params.value && params.value !== 0) return '';
+                            return Number(params.value).toLocaleString('pt-BR', {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2
+                            });
+                        }
+                    """)
+
+                    # NOVO: Formatter para exibir APENAS a parte da data (dd-mm-aaaa)
+                    date_only_formatter = JsCode("""
+                        function(params) {
+                            if (params.value === null || typeof params.value === 'undefined' || params.value === '') return '';
+                            const parts = params.value.split(' ')[0];
+                            return parts;
+                        }
+                    """)
+                    
                     df_formatado = df_carga[[col for col in colunas_exibir if col in df_carga.columns]].copy()
                     df_formatado = apply_brazilian_date_format_for_display(df_formatado)
                     df_formatado = df_formatado.replace([np.nan, None], "")
@@ -4045,12 +4167,18 @@ def pagina_cargas_fechadas():
                     for col in ['Peso Real em Kg', 'Peso Calculado em Kg', 'Cubagem em m³', 'Quantidade de Volumes', 'Valor do Frete', 'valor_contratacao']:
                         if col in df_formatado.columns:
                             gb.configure_column(col, type=["numericColumn"], valueFormatter=formatter)
+
+                    # --- NOVO: Configuração para colunas de data que devem ser APENAS dd-mm-aaaa ---
+                    for col in ['Previsao de Entrega', 'Entrega Programada']: # Adicione outras colunas de data se quiser que sejam APENAS data
+                        if col in df_formatado.columns:
+                            gb.configure_column(col, valueFormatter=date_only_formatter)
+                    # --- Fim da Configuração de colunas de data ---
                     
                     if 'data_fechamento' in df_formatado.columns:
                         gb.configure_column('data_fechamento', valueFormatter=JsCode("""
                             function(params) {
                                 if (params.value) {
-                                    return params.value;
+                                    return params.value; // Já está em dd-mm-yyyy HH:MM:SS
                                 }
                                 return '';
                             }
@@ -4062,7 +4190,7 @@ def pagina_cargas_fechadas():
                         gb.configure_column('data_aprovacao_custos', valueFormatter=JsCode("""
                             function(params) {
                                 if (params.value) {
-                                    return params.value;
+                                    return params.value; // Já está em dd-mm-yyyy HH:MM:SS
                                 }
                                 return '';
                             }
