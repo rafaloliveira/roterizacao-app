@@ -1844,82 +1844,73 @@ def pagina_aprovacao_diretoria():
                 if not selecionadas.empty:
                     col_aprovar, col_rejeitar = st.columns(2) # Adiciona duas colunas para os botões
 
+                    # ... (código existente) ...
                     with col_aprovar:
                         if st.button(
                             f"✅ Aprovar entregas",
                             key=f"btn_aprovar_{cliente}",
-                            disabled=not is_user_aprovador # Desabilita se o usuário não é aprovador
+                            disabled=not is_user_aprovador
                         ):
                             try:
                                 with st.spinner("✅ Aprovando entregas e movendo para Pré-Roteirização..."):
                                     df_aprovar = pd.DataFrame(selecionadas)
-                                    # Remove AgGrid internal info
-                                    df_aprovar = pd.DataFrame(selecionadas)
-                                    # Remove AgGrid internal info
                                     df_aprovar = df_aprovar.drop(columns=["_selectedRowNodeInfo"], errors="ignore")
 
-                                    # --- INÍCIO DO NOVO TRATAMENTO ROBUSTO DE DATAS PARA SUPABASE (APROVAR) ---
-
-                                    # Step 1: Ensure date columns from AgGrid selection (strings in Brazilian format)
-                                    # are properly parsed into Pandas Timestamp objects.
+                                    # --- TRATAMENTO DE DATAS PARA SUPABASE ---
                                     for col_name in GLOBAL_DATE_DISPLAY_COLUMNS:
                                         if col_name in df_aprovar.columns:
                                             df_aprovar[col_name] = pd.to_datetime(
                                                 df_aprovar[col_name],
-                                                format=DATE_DISPLAY_FORMAT_STRING, # Brazilian format (DD-MM-AAAA HH:MM:SS)
-                                                errors='coerce' # Convert unparseable values to pd.NaT
+                                                format=DATE_DISPLAY_FORMAT_STRING,
+                                                errors='coerce'
                                             )
 
-                                    # Step 2: Iterate through all columns and convert any Pandas Timestamp or
-                                    # standard Python datetime.datetime objects to ISO 8601 strings.
-                                    # This catches cases where dtype might be 'object' but contains datetime objects.
                                     for col_name in df_aprovar.columns:
-                                        # Only process columns that potentially contain datetime objects
-                                        # or are explicitly marked as date columns.
                                         if col_name in GLOBAL_DATE_DISPLAY_COLUMNS or \
                                            pd.api.types.is_datetime64_any_dtype(df_aprovar[col_name]):
                                             df_aprovar[col_name] = df_aprovar[col_name].apply(
                                                 lambda x: x.strftime("%Y-%m-%d %H:%M:%S") if pd.notna(x) else None
                                             )
-                                        # For other 'object' columns that are NOT date columns, ensure they don't contain datetimes
-                                        # by attempting conversion if they are actually datetime objects.
                                         elif df_aprovar[col_name].dtype == 'object':
                                             df_aprovar[col_name] = df_aprovar[col_name].apply(
                                                 lambda x: x.strftime("%Y-%m-%d %H:%M:%S") if isinstance(x, (pd.Timestamp, datetime)) else x
                                             )
 
-                                    # Step 3: Replace any remaining numpy.nan, numpy.inf, or empty strings with None
-                                    # for general compatibility with Supabase. This should be done AFTER date formatting.
                                     df_aprovar = df_aprovar.replace([np.nan, np.inf, -np.inf, ""], None)
-
-                                    # --- FIM DO NOVO TRATAMENTO ROBUSTO DE DATAS PARA SUPABASE (APROVAR) ---
+                                    # --- FIM DO TRATAMENTO ---
 
                                     registros_para_pre_roterizacao = df_aprovar.to_dict(orient="records")
-
-
-                                    # Filter out records without valid primary key (Serie_Numero_CTRC)
                                     registros_para_pre_roterizacao = [r for r in registros_para_pre_roterizacao if r.get("Serie_Numero_CTRC")]
 
-                                    # 1. Inserir os dados na tabela 'pre_roterizacao'
                                     if registros_para_pre_roterizacao:
                                         supabase.table("pre_roterizacao").insert(registros_para_pre_roterizacao).execute()
 
-                                    # 2. Obter as chaves das entregas aprovadas e remover da tabela 'aprovacao_diretoria'
                                     chaves_aprovadas = [r.get("Serie_Numero_CTRC") for r in registros_para_pre_roterizacao if r.get("Serie_Numero_CTRC")]
                                     if chaves_aprovadas:
                                         supabase.table("aprovacao_diretoria").delete().in_("Serie_Numero_CTRC", chaves_aprovadas).execute()
 
                                     st.success(f"✅ {len(registros_para_pre_roterizacao)} entregas aprovadas e enviadas para Pré-Roteirização.")
                                     
-                                    # Invalidate caches to force reload of data
-                                    st.session_state["reload_aprovacao_diretoria"] = True # Cache da própria página
-                                    st.session_state["reload_pre_roterizacao"] = True # Cache da Pré-Roteirização
-                                    
-                                    # Clear AgGrid key and checkbox for visual reconstruction
-                                    st.session_state.pop(grid_key_id, None)
-                                    st.session_state.pop(checkbox_key, None)
+                                    # --- INVALIDAÇÃO DE CACHES E KEYS DE GRIDS (Origem e Destino) ---
+                                    st.session_state["reload_aprovacao_diretoria"] = True # Recarrega a página atual
+                                    st.session_state.pop(grid_key_id, None) # Invalida o grid da página de origem
+                                    st.session_state.pop(checkbox_key, None) # Limpa o estado do checkbox
 
-                                    st.rerun() # Force a new execution to update the UI
+                                    # Invalidação da key do grid de destino (Pré Roterização)
+                                    rotas_afetadas = df_aprovar["Rota"].dropna().unique()
+                                    # AQUI ESTÁ O AJUSTE PRINCIPAL: Remove a chave do UUID do AgGrid
+                                    for rota_afetadas_val in rotas_afetadas:
+                                        # Primeiro, remove a chave que guarda o UUID do AgGrid
+                                        # Esta é a chave 'pai' que dita o UUID real do grid
+                                        key_do_session_state_para_o_uuid = f"grid_pre_rota_{rota_afetadas_val}"
+                                        if key_do_session_state_para_o_uuid in st.session_state:
+                                            st.session_state.pop(key_do_session_state_para_o_uuid, None)
+
+                                    st.session_state["reload_pre_roterizacao"] = True # Recarrega a página de destino (dados)
+                                    st.write(f"DEBUG - Rotas sendo processadas para invalidação do grid de Pré-Roterização: {rotas_afetadas.tolist()}")
+                                    # --- FIM DA INVALIDAÇÃO ---
+
+                                    st.rerun()
 
                             except Exception as e:
                                 st.error(f"❌ Erro ao aprovar entregas: {e}")
