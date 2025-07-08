@@ -2529,7 +2529,7 @@ def pagina_rotas_confirmadas():
             #df_formatado = apply_brazilian_date_format_for_display(df_rota[[col for col in colunas_exibir if col in df_rota.columns]].copy())
             df_formatado = df_rota[[col for col in colunas_exibir if col in df_rota.columns]].copy()
             df_formatado = apply_brazilian_date_format_for_display(df_formatado) # Aplica o formato completo (dd-mm-aaaa HH:MM:SS)
-            st.write(f"DEBUG: Dados formatados para a Rota {rota} antes do AgGrid:")
+            #st.write(f"DEBUG: Dados formatados para a Rota {rota} antes do AgGrid:")
             st.dataframe(df_formatado[['Previsao de Entrega', 'Entrega Programada', 'Serie_Numero_CTRC']]) # Exibe as colunas 
 
             # NOVO: Checkbox "Marcar todas" dentro do expander
