@@ -2643,7 +2643,7 @@ def pagina_rotas_confirmadas():
                         st.error(f"❌ Ocorreu um erro inesperado durante a operação de mover entregas para cargas: {e_main}")
                         st.warning("A operação pode ter sido interrompida. Por favor, verifique a situação das entregas nas tabelas 'Rotas Confirmadas' e 'Cargas Geradas'.")
                         st.session_state["reload_rotas_confirmadas"] = True
-                        
+                        #st.rerun()
 
 # ... (restante da sua função pagina_rotas_confirmadas) ...
 
