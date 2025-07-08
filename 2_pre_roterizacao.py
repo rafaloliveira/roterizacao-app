@@ -1392,16 +1392,11 @@ def apply_brazilian_date_only_format_for_display(df_to_format, date_cols):
 #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 # Ajuste a função apply_brazilian_date_format_for_display para usar o novo GLOBAL_DATE_DISPLAY_COLUMNS
 def apply_brazilian_date_format_for_display(df_to_format):
-    """
-    Aplica o formato de data brasileiro (DD-MM-YYYY HH:MM:SS) às colunas de data especificadas
-    em um DataFrame, tratando valores nulos (NaT) para exibir como strings vazias.
-    Garante que a coluna seja do tipo datetime antes de formatar.
-    """
     for col in GLOBAL_DATE_DISPLAY_COLUMNS:
         if col in df_to_format.columns:
             if not pd.api.types.is_datetime64_any_dtype(df_to_format[col]):
-                df_to_format[col] = pd.to_datetime(df_to_format[col], errors='coerce')
-
+                # Adicione 'dayfirst=True' aqui
+                df_to_format[col] = pd.to_datetime(df_to_format[col], errors='coerce', dayfirst=True)
             df_to_format[col] = df_to_format[col].apply(
                 lambda x: x.strftime(DATE_DISPLAY_FORMAT_STRING)
                 if pd.notna(x) and isinstance(x, (Timestamp, datetime))
@@ -2198,12 +2193,12 @@ def pagina_pre_roterizacao():
 
                         for col_name in date_cols_to_process:
                             if col_name in df_confirmar.columns:
-                                # Passo 1: Tenta converter a coluna para tipo datetime.
-                                # Erros (como strings vazias, NaNs, etc.) serão convertidos para pd.NaT.
-                                df_confirmar[col_name] = pd.to_datetime(df_confirmar[col_name], errors='coerce')
-
-                                # Passo 2: Itera sobre a coluna para converter pd.NaT para None
-                                # e formatar as datas válidas para a string esperada pelo banco.
+                                # FIX PRINCIPAL AQUI: Especifique o formato de entrada para pd.to_datetime
+                                df_confirmar[col_name] = pd.to_datetime(
+                                    df_confirmar[col_name],
+                                    format=DATE_DISPLAY_FORMAT_STRING, # <-- Adicione esta linha!
+                                    errors='coerce'
+                                )
                                 df_confirmar[col_name] = df_confirmar[col_name].apply(
                                     lambda x: x.strftime("%Y-%m-%d %H:%M:%S") if pd.notna(x) else None
                                 )
