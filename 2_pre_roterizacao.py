@@ -2279,12 +2279,16 @@ def pagina_rotas_confirmadas():
             if st.button("🆕 Criar Nova Carga Avulsa"):
                 try:
                     numero_carga = gerar_proximo_numero_carga(supabase)
-                    if numero_carga:
+                    if numero_carga: # <-- AQUI! Certifica-se de que numero_carga não é None
                         st.session_state["nova_carga_em_criacao"] = True
                         st.session_state["numero_nova_carga"] = numero_carga
                         st.rerun() # Força rerun para exibir a nova interface de adição
+                    else: # Se numero_carga for None, exibe uma mensagem de erro ao usuário
+                        st.error("Falha ao gerar um número de carga único. Por favor, tente novamente.")
                 except Exception as e:
                     st.error(f"Erro ao criar nova carga: {e}")
+
+
     # Se JÁ está em criação de carga, mostra a interface para adicionar chaves CT-e
     else:
         st.success(f"Nova Carga Criada: {st.session_state['numero_nova_carga']}")
@@ -2693,6 +2697,13 @@ def pagina_rotas_confirmadas():
                             df_confirmar[col] = df_confirmar[col].dt.strftime('%Y-%m-%d %H:%M:%S')
 
                         numero_carga = gerar_proximo_numero_carga(supabase)
+                        
+                        # --- INÍCIO DO AJUSTE AQUI ---
+                        if not numero_carga: # Se gerar_proximo_numero_carga retornou None, significa que falhou.
+                            st.error("Não foi possível gerar um número de carga único. Por favor, tente novamente.")
+                            return # Aborta a execução para não prosseguir com um número de carga inválido.
+                        # --- FIM DO AJUSTE ---
+
                         df_confirmar["numero_carga"] = numero_carga
                         df_confirmar["Data_Hora_Gerada"] = data_hora_brasil_iso() # CORRIGIDO AQUI
                         
