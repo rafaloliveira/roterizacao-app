@@ -771,28 +771,68 @@ def gerar_proximo_numero_carga(supabase):
         hoje = datetime.now(FUSO_BRASIL).strftime("%Y%m%d")
         prefixo = f"{hoje}-"
 
-        # Consulta diretamente ao Supabase sem cache para garantir dados mais recentes
-        cargas = supabase.table("cargas_geradas") \
-            .select("numero_carga") \
-            .execute().data
+        # LISTA DE TODAS AS TABELAS QUE PODEM CONTER NÚMEROS DE CARGA
+        load_number_tables = [
+            "cargas_geradas",
+            "aprovacao_custos",
+            "cargas_aprovadas",
+            "cargas_fechadas"
+        ]
 
-        numeros_existentes = []
-        for c in cargas:
-            numero = str(c.get("numero_carga", "")).strip() # Garante que está limpo
-            if numero.startswith(prefixo):
-                sufixo = numero[len(prefixo):]
-                if sufixo.isdigit():
-                    numeros_existentes.append(int(sufixo))
+        max_retries = 20  # Aumentando o limite de tentativas para maior segurança
+        for attempt in range(max_retries):
+            all_existing_suffixes_today = set()
 
-        # Garante que sempre haverá um número, mesmo que não haja cargas para o dia
-        proximo_numero = max(numeros_existentes) + 1 if numeros_existentes else 1
-        
-        return f"{prefixo}{str(proximo_numero).zfill(6)}"
+            # 1. CONSOLIDA TODOS OS SUFIXOS DE CARGA EXISTENTES DE TODAS AS TABELAS
+            for table_name in load_number_tables:
+                try:
+                    # Consulta ao Supabase para cada tabela
+                    response = supabase.table(table_name) \
+                        .select("numero_carga") \
+                        .like("numero_carga", f"{prefixo}%") \
+                        .execute()
+
+                    if response.data:
+                        for item in response.data:
+                            num_completo = str(item.get("numero_carga", "")).strip()
+                            if num_completo.startswith(prefixo):
+                                sufixo_str = num_completo[len(prefixo):]
+                                if sufixo_str.isdigit():
+                                    all_existing_suffixes_today.add(int(sufixo_str))
+                except Exception as e:
+                    # Em caso de erro ao consultar uma tabela (ex: permissões, tabela inexistente),
+                    # exibe um aviso mas não interrompe o processo.
+                    st.warning(f"Erro ao consultar tabela '{table_name}' para números de carga existentes: {e}")
+                    # Continua para a próxima tabela se uma falhar
+
+            # 2. DETERMINA O PRÓXIMO SUFIXO CANDIDATO COM BASE EM TODOS OS NÚMEROS ENCONTRADOS
+            if all_existing_suffixes_today:
+                candidate_suffix = max(all_existing_suffixes_today) + 1
+            else:
+                candidate_suffix = 1 # Começa do 1 se nenhuma carga foi encontrada para o dia
+
+            generated_load_number = f"{prefixo}{str(candidate_suffix).zfill(6)}"
+
+            # 3. VERIFICA SE O NÚMERO GERADO JÁ EXISTE NO CONJUNTO QUE ACABAMOS DE CONSTRUIR
+            # Isso é eficiente porque a verificação é feita em memória (no set),
+            # e o set foi populado com dados de todas as tabelas.
+            if candidate_suffix not in all_existing_suffixes_today:
+                st.success(f"Número de carga único gerado: {generated_load_number}")
+                return generated_load_number
+            else:
+                # Este caso deve ser raro, mas pode acontecer em altíssima concorrência.
+                # Se o número candidato ainda estiver no conjunto, significa que ele foi inserido
+                # por outro processo *após* a última consulta dentro deste loop.
+                # A próxima iteração recalculará o max() com o número recém-adicionado.
+                st.warning(f"Número de carga {generated_load_number} colidiu localmente. Tentando gerar um novo (tentativa {attempt + 1}/{max_retries})...")
+
+        # Se o loop terminar sem encontrar um número único, exibe um erro.
+        st.error(f"Não foi possível gerar um número de carga único após {max_retries} tentativas. Por favor, tente novamente ou contate o suporte.")
+        return None # Importante retornar None ou levantar uma exceção para evitar usar um número inválido.
 
     except Exception as e:
-        st.error(f"Erro ao gerar número da carga: {e}")
-        # Retorna um valor de fallback que ainda pode ser processado (mas é uma emergência)
-        return f"{datetime.now().strftime('%Y%m%d')}-0001"
+        st.error(f"Erro inesperado ao gerar número da carga: {e}")
+        return None # Retorna None em caso de erro geral.
 
 ################################################################
 GRID_RESIZE_JS_CODE = JsCode("""
