@@ -801,23 +801,23 @@ function(params) {
     const gridDiv = params.eGridDiv; // O elemento DOM raiz do grid
 
     const resizeColumns = () => {
-        // FORÇA O NAVEGADOR A RECALCULAR O LAYOUT DO ELEMENTO.
-        // Ao acessar uma propriedade como offsetWidth, o navegador é obrigado
-        // a garantir que o elemento tenha seu layout mais atualizado.
-        gridDiv.offsetWidth; // <--- ADICIONADO AQUI!
+        // --- ADIÇÃO AQUI: Verifica se gridApi é válido antes de usar ---
+        if (!gridApi) {
+            console.warn("AgGrid API não disponível no momento do redimensionamento de colunas.");
+            return; // Aborta a execução se gridApi for undefined
+        }
+        // --- FIM DA ADIÇÃO ---
 
+        gridDiv.offsetWidth; // Força reflow para layout mais atualizado
         gridApi.sizeColumnsToFit();
-        // gridApi.onGridSizeChanged(); // Esta chamada pode ser um complemento se sizeColumnsToFit() não for suficiente sozinho
     };
 
-    // Mantemos um pequeno atraso para a chamada inicial para dar tempo
-    // à estrutura DOM do Streamlit se assentar.
-    setTimeout(resizeColumns, 200); // Reduzindo o atraso para 200ms, pois o reflow é mais rápido.
+    // Pequeno atraso para dar tempo à estrutura DOM do Streamlit
+    setTimeout(resizeColumns, 200);
 
     const resizeObserver = new ResizeObserver(entries => {
         for (let entry of entries) {
-            // Força o reflow antes de redimensionar novamente para futuras mudanças
-            entry.target.offsetWidth; // <--- ADICIONADO AQUI também para o observer!
+            entry.target.offsetWidth;
             resizeColumns();
         }
     });
@@ -825,7 +825,6 @@ function(params) {
     resizeObserver.observe(gridDiv);
 }
 """);
-
 def badge(label):
     """
     Retorna uma string HTML formatada como um 'badge' estilizado.
