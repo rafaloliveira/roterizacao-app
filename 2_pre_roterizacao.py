@@ -2352,10 +2352,17 @@ def pagina_rotas_confirmadas():
         }
     """)
     
+    # === MODIFICAÇÃO AQUI: Sanitização e extração de rotas_unicas ===
     rotas_unicas = []
     if 'Rota' in df.columns and not df.empty:
+        # 1. Converte para string e remove espaços em branco (início/fim)
+        df['Rota'] = df['Rota'].astype(str).str.strip()
+        # 2. Substitui strings vazias (ou apenas espaços) por NaN para que dropna funcione
+        df['Rota'] = df['Rota'].replace('', np.nan) 
+        # 3. Pega os valores únicos e ordena
         rotas_unicas = sorted(df["Rota"].dropna().unique())
-    
+    # === FIM DA MODIFICAÇÃO ===
+
     for rota in rotas_unicas:
         df_rota = df[df["Rota"] == rota].copy()
         if df_rota.empty:
@@ -2371,13 +2378,13 @@ def pagina_rotas_confirmadas():
             badge(f"{len(df_rota)} entregas") +
             badge(f"{formatar_brasileiro(df_rota['Peso Calculado em Kg'].sum())} kg calc") +
             badge(f"{formatar_brasileiro(df_rota['Peso Real em Kg'].sum())} kg real") +
-            badge(f"Valor frete: R$ {formatar_brasileiro(df_rota['Valor do Frete'].sum())}") +
+            badge(f"Valor frete: R\$ {formatar_brasileiro(df_rota['Valor do Frete'].sum())}") +
             badge(f"{formatar_brasileiro(df_rota['Cubagem em m³'].sum())} m³") +
             badge(f"{int(df_rota['Quantidade de Volumes'].sum())} volumes"),
             unsafe_allow_html=True
         )
 
-        with st.expander("�� Selecionar entregas", expanded=False):
+        with st.expander("🔽 Selecionar entregas", expanded=False):
             df_formatado = df_rota[[col for col in colunas_exibir if col in df_rota.columns]].copy()
             df_formatado = apply_brazilian_date_format_for_display(df_formatado)
 
@@ -2429,7 +2436,7 @@ def pagina_rotas_confirmadas():
             if grid_key not in st.session_state:
                 st.session_state[grid_key] = str(uuid.uuid4())
 
-            with st.spinner("🔄 Carregando entregas da rota no grid..."):
+            with st.spinner(" Carregando entregas da rota no grid..."):
                 grid_response = AgGrid(
                     df_formatado,
                     gridOptions=grid_options,
@@ -2461,8 +2468,9 @@ def pagina_rotas_confirmadas():
             if selecionadas:
                 st.info(f"{len(selecionadas)} entrega(s) selecionada(s) para a rota {rota}.")
 
-            # 🔸 Botão para criar nova carga automaticamente
-            if st.button(f"➕ Criar Nova Carga com Entregas Selecionadas", key=f"botao_rota_{rota}"):
+            # === MODIFICAÇÃO AQUI: Chave do botão ===
+            if st.button(f"➕ Criar Nova Carga com Entregas Selecionadas", key=f"btn_criar_carga_{rota}"):
+            # === FIM DA MODIFICAÇÃO ===
                 if not selecionadas:
                     st.warning("Selecione ao menos uma entrega.")
                 else:
@@ -2471,28 +2479,59 @@ def pagina_rotas_confirmadas():
                         df_para_inserir = pd.DataFrame(selecionadas).drop(columns=["_selectedRowNodeInfo"], errors="ignore").copy()
                         chaves_ctrc_selecionadas = df_para_inserir["Serie_Numero_CTRC"].dropna().astype(str).str.strip().tolist()
 
-                        # 2. Trata as colunas de data para o formato aceito pelo Supabase (ISO 8601 com UTC)
+                        # NOVO PASSO: Verifique se as entregas já existem em 'cargas_geradas'
+                        existing_ctrcs_in_target = set()
+                        if chaves_ctrc_selecionadas: # Apenas consulta se há chaves para verificar
+                            try:
+                                response = supabase.table("cargas_geradas").select("Serie_Numero_CTRC").in_("Serie_Numero_CTRC", chaves_ctrc_selecionadas).execute()
+                                if response.data:
+                                    existing_ctrcs_in_target = {item["Serie_Numero_CTRC"] for item in response.data}
+                            except Exception as e:
+                                # Captura erros de comunicação do Supabase durante a verificação de existência
+                                st.warning(f"Aviso: Não foi possível verificar entregas existentes na tabela 'cargas_geradas' devido a erro de comunicação: {e}")
+                                # Não retornamos aqui, mas a inserção pode falhar se o item já existir e a verificação falhou
+
+                        if existing_ctrcs_in_target:
+                            st.warning(f"As seguintes entregas já existem em 'cargas_geradas' e não serão inseridas novamente: {', '.join(existing_ctrcs_in_target)}")
+                            df_para_inserir = df_para_inserir[~df_para_inserir["Serie_Numero_CTRC"].isin(existing_ctrcs_in_target)]
+                            chaves_ctrc_selecionadas = df_para_inserir["Serie_Numero_CTRC"].dropna().astype(str).str.strip().tolist()
+                            
+                            if not chaves_ctrc_selecionadas:
+                                st.info("Todas as entregas selecionadas já existem na carga. Nenhuma nova entrega para processar.")
+                                st.session_state["reload_rotas_confirmadas"] = True # Recarrega a página atual para limpar a seleção
+                                st.session_state["reload_cargas_geradas"] = True   # Recarrega a página de destino (para o caso de já estarem lá e não serem exibidas)
+                                st.rerun()
+                                return # Sai da função se não há entregas para inserir
+
+                        # Se após a filtragem não houver mais entregas para inserir, pare.
+                        if not chaves_ctrc_selecionadas:
+                            st.info("Nenhuma entrega elegível para ser adicionada à carga.")
+                            st.session_state["reload_rotas_confirmadas"] = True
+                            st.rerun()
+                            return
+
+                        # ... (Seu código existente para tratamento de datas para Supabase) ...
                         for col_name in GLOBAL_DATE_DISPLAY_COLUMNS:
                             if col_name in df_para_inserir.columns:
                                 dt_obj = pd.to_datetime(df_para_inserir[col_name], format=DATE_DISPLAY_FORMAT_STRING, errors='coerce')
-                                # Localiza o objeto datetime como sendo no fuso de Brasília
                                 dt_obj = dt_obj.dt.tz_localize(FUSO_BRASIL)
-                                # Converte para UTC
                                 dt_obj = dt_obj.dt.tz_convert('UTC')
-                                # Converte para string ISO 8601 (com 'Z' para indicar UTC)
                                 df_para_inserir[col_name] = dt_obj.apply(
                                     lambda x: x.isoformat(timespec='seconds').replace('+00:00', 'Z') if pd.notna(x) else None
                                 )
                         df_para_inserir = df_para_inserir.replace([np.nan, pd.NaT, np.inf, -np.inf, ""], None)
 
+
                         # 3. GERAÇÃO DO NÚMERO DA CARGA (COM VALIDAÇÃO DE UNICIDADE)
                         numero_carga = gerar_proximo_numero_carga(supabase)
                         if not numero_carga: # Se a função retornou None, significa que falhou a geração de um número único.
                             st.error("Não foi possível gerar um número de carga único. Operação cancelada.")
+                            st.session_state["reload_rotas_confirmadas"] = True # Força reload para limpar o estado
+                            st.rerun()
                             return
 
                         df_para_inserir["numero_carga"] = numero_carga
-                        df_para_inserir["Data_Hora_Gerada"] = data_hora_brasil_iso() # Já retorna ISO com fuso horário local
+                        df_para_inserir["Data_Hora_Gerada"] = data_hora_brasil_iso()
 
                         # 4. Filtra apenas as colunas válidas para a tabela de destino
                         colunas_validas_carga = [
@@ -2507,6 +2546,8 @@ def pagina_rotas_confirmadas():
 
                         if not dados_para_insercao:
                             st.warning("Nenhum dado válido para inserir na carga após o processamento.")
+                            st.session_state["reload_rotas_confirmadas"] = True
+                            st.rerun()
                             return
 
                         # 5. Tenta inserir os dados na tabela 'cargas_geradas' com re-tentativas
@@ -2523,12 +2564,14 @@ def pagina_rotas_confirmadas():
                             except Exception as e_insert:
                                 st.warning(f"Tentativa {tentativa+1}/2: Exceção durante inserção em 'cargas_geradas': {e_insert}")
                                 if tentativa == 0: time.sleep(1)
-
+                        
+                        # --- MODIFICAÇÃO CHAVE AQUI ---
                         if not insert_success:
-                            st.error(f"❌ Falha ao inserir entregas na carga após múltiplas tentativas. As entregas NÃO foram movidas de 'Rotas Confirmadas'.")
-                            st.session_state["reload_rotas_confirmadas"] = True
-                            st.rerun()
-                            return
+                            st.error(f"❌ Falha completa ao inserir entregas na carga após múltiplas tentativas. As entregas NÃO foram movidas de 'Rotas Confirmadas' ou já existiam. Por favor, verifique a tabela 'cargas_geradas' manualmente.")
+                            st.session_state["reload_cargas_geradas"] = True # Garante que a página de cargas geradas seja atualizada
+                            st.session_state["reload_rotas_confirmadas"] = True # Garante que a página atual seja atualizada
+                            st.rerun() # Força uma nova renderização
+                            return # Sai para evitar processamento adicional se a inserção falhou
 
                         st.success(f"✅ {len(dados_para_insercao)} entregas inseridas na Carga {numero_carga}.")
 
@@ -2557,6 +2600,16 @@ def pagina_rotas_confirmadas():
                         st.session_state["reload_cargas_geradas"] = True
                         st.session_state["reload_pre_roterizacao"] = True
                         st.session_state["reload_aprovacao_diretoria"] = True
+                        st.session_state["reload_aprovacao_custos"] = True
+                        st.session_state["reload_cargas_aprovadas"] = True
+
+                        # Remove todas as chaves de grid da página "Cargas Geradas" para forçar uma recriação completa
+                        keys_to_pop_cargas_geradas = [key for key in st.session_state.keys() if key.startswith("grid_carga_gerada_")]
+                        for key in keys_to_pop_cargas_geradas:
+                            st.session_state.pop(key, None)
+
+                        # Adiciona um pequeno atraso para permitir que o banco de dados propague a gravação
+                        time.sleep(1.5) # Aumentado para 1.5 segundos para maior robustez na sincronização
 
                         grid_key_of_current_rota = f"grid_rotas_confirmadas_{rota}"
                         st.session_state.pop(grid_key_of_current_rota, None)
