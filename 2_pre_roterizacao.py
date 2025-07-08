@@ -1914,9 +1914,6 @@ def pagina_aprovacao_diretoria():
                                     # Invalidate caches to force reload of data
                                     st.session_state["reload_aprovacao_diretoria"] = True # Cache da própria página
                                     st.session_state["reload_pre_roterizacao"] = True # Cache da Pré-Roteirização
-
-                                    st.session_state['active_main_tab'] = "Operações" # Garante que a aba principal seja "Operações"
-                                    st.session_state['active_sub_tab_operacoes'] = "Confirmar Produção" # Redireciona para "Confirmar Produção"
                                     
                                     # Clear AgGrid key and checkbox for visual reconstruction
                                     st.session_state.pop(grid_key_id, None)
@@ -3092,9 +3089,6 @@ def pagina_cargas_geradas():
                                             st.session_state["reload_cargas_geradas"] = True
                                             st.session_state["reload_aprovacao_custos"] = True
 
-                                            st.session_state['active_main_tab'] = "Operações" # Garante que a aba principal seja "Operações"
-                                            st.session_state['active_sub_tab_operacoes'] = "Rotas Confirmadas" # Redireciona para "Rotas Confirmadas"
-
                                             st.session_state.pop(grid_key_id, None)
 
                                             st.success(f"✅ {len(registros_para_custos)} entregas da carga {carga} enviadas para Aprovação de Custos com valor R$ {valor_contratacao:.2f}.")
@@ -4136,14 +4130,6 @@ login()  # Garante que o usuário esteja logado
 
 # Mostra welcome + botão sair no topo da página principal
 if st.session_state.get("login", False):
-    if 'active_main_tab' not in st.session_state:
-        st.session_state['active_main_tab'] = "Operações" # Aba principal padrão ao logar
-    if 'active_sub_tab_operacoes' not in st.session_state:
-        st.session_state['active_sub_tab_operacoes'] = "Confirmar Produção"
-
-
-
-
     col_welcome, col_logout = st.columns([10, 2]) # Ajuste as proporções das colunas conforme necessário
     with col_welcome:
         st.markdown(f"👋 **Bem-vindo, {st.session_state.get('username','Usuário')}!**")
@@ -4157,61 +4143,32 @@ if st.session_state.get("login", False):
 
     # Definir as abas principais
     # Adicionei uma aba para "Administração e Configurações" para agrupar as opções de usuário.
-    main_tabs_labels = ["Sincronização", "Operações", "Administração e Configurações"]
-    
-    # Encontra o índice da aba principal que deve estar selecionada
-    selected_main_tab_index = main_tabs_labels.index(st.session_state['active_main_tab']) if st.session_state['active_main_tab'] in main_tabs_labels else 0
-    st.write(f"DEBUG - Valor de active_main_tab: {st.session_state.get('active_main_tab', 'Não definido')}")
-    st.write(f"DEBUG - Tipo de active_main_tab: {type(st.session_state.get('active_main_tab'))}")
-    st.write(f"DEBUG - selected_main_tab_index: {selected_main_tab_index}")
-    st.write(f"DEBUG - Tipo de selected_main_tab_index: {type(selected_main_tab_index)}")
-    st.write(f"DEBUG - main_tabs_labels: {main_tabs_labels}")
-    st.write(f"DEBUG - Tipo de main_tabs_labels: {type(main_tabs_labels)}")
+    tab_sync, tab_operacoes, tab_admin_settings = st.tabs(["Sincronização", "Operações", "Administração e Configurações"])
 
+    with tab_sync:
+        pagina_sincronizacao()
 
-    tab_sync, tab_operacoes, tab_admin_settings = st.tabs(
-        main_tabs_labels,
-        selected=0,
-        key="main_tabs_container" # Chave única para este componente tabs
-    )
-
-    # Atualiza o session_state quando uma aba principal é clicada pelo usuário
-    if tab_sync.selected: st.session_state['active_main_tab'] = "Sincronização"
-    if tab_operacoes.selected: st.session_state['active_main_tab'] = "Operações"
-    if tab_admin_settings.selected: st.session_state['active_main_tab'] = "Administração e Configurações"
-
-
-
-    with tab_operacoes:
-    # Sub-abas para as operações de roteirização
-        sub_tabs_operacoes_labels = [
-            "Confirmar Produção", "Aprovação Diretoria", "Pré Roterização", 
-            "Rotas Confirmadas", "Cargas Geradas", "Aprovação de Custos", 
-            "Cargas Aprovadas", "Cargas Fechadas"
-        ]
-        
-        # Encontra o índice da sub-aba que deve estar selecionada
-        selected_sub_tab_index = sub_tabs_operacoes_labels.index(st.session_state['active_sub_tab_operacoes']) if st.session_state['active_sub_tab_operacoes'] in sub_tabs_operacoes_labels else 0
-
-        sub_tab_confirmar_prod, sub_tab_aprov_dir, sub_tab_pre_rot, \
-        sub_tab_rotas_conf, sub_tab_cargas, sub_tab_aprov_custos, \
-        sub_tab_cargas_aprovadas, sub_tab_cargas_fechadas = st.tabs(
-            sub_tabs_operacoes_labels,
-            selected=selected_sub_tab_index, # Usa o índice do session_state
-            key="sub_tabs_operacoes_container" # Chave única para este componente tabs
-        )
-        
-        # Atualiza o session_state quando uma sub-aba é clicada pelo usuário
-        if sub_tab_confirmar_prod.selected: st.session_state['active_sub_tab_operacoes'] = "Confirmar Produção"
-        if sub_tab_aprov_dir.selected: st.session_state['active_sub_tab_operacoes'] = "Aprovação Diretoria"
-        if sub_tab_pre_rot.selected: st.session_state['active_sub_tab_operacoes'] = "Pré Roterização"
-        if sub_tab_rotas_conf.selected: st.session_state['active_sub_tab_operacoes'] = "Rotas Confirmadas"
-        if sub_tab_cargas.selected: st.session_state['active_sub_tab_operacoes'] = "Cargas Geradas"
-        if sub_tab_aprov_custos.selected: st.session_state['active_sub_tab_operacoes'] = "Aprovação de Custos"
-        if sub_tab_cargas_aprovadas.selected: st.session_state['active_sub_tab_operacoes'] = "Cargas Aprovadas"
-        if sub_tab_cargas_fechadas.selected: st.session_state['active_sub_tab_operacoes'] = "Cargas Fechadas"
-        
-        # ... (seu código existente para chamar as páginas dentro de cada sub-aba) ...
+        with tab_operacoes:
+        # Sub-abas para as operações de roteirização
+            sub_tab_confirmar_prod, sub_tab_aprov_dir, sub_tab_pre_rot, sub_tab_rotas_conf, sub_tab_cargas, sub_tab_aprov_custos, sub_tab_cargas_aprovadas, sub_tab_cargas_fechadas = st.tabs([ # <<< ADICIONE sub_tab_cargas_fechadas AQUI
+            "Confirmar Produção", "Aprovação Diretoria", "Pré Roterização", "Rotas Confirmadas", "Cargas Geradas", "Aprovação de Custos", "Cargas Aprovadas", "Cargas Fechadas" # <<< ADICIONE "Cargas Fechadas" AQUI
+        ])
+        with sub_tab_confirmar_prod:
+            pagina_confirmar_producao()
+        with sub_tab_aprov_dir:
+            pagina_aprovacao_diretoria()
+        with sub_tab_pre_rot:
+            pagina_pre_roterizacao()
+        with sub_tab_rotas_conf:
+            pagina_rotas_confirmadas()
+        with sub_tab_cargas:
+            pagina_cargas_geradas()
+        with sub_tab_aprov_custos:
+            pagina_aprovacao_custos()
+        with sub_tab_cargas_aprovadas:
+            pagina_cargas_aprovadas()
+        with sub_tab_cargas_fechadas: 
+            pagina_cargas_fechadas()
 
     with tab_admin_settings:
         # Conteúdo da aba de Administração e Configurações
