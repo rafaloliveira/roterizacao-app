@@ -4161,10 +4161,17 @@ if st.session_state.get("login", False):
     
     # Encontra o índice da aba principal que deve estar selecionada
     selected_main_tab_index = main_tabs_labels.index(st.session_state['active_main_tab']) if st.session_state['active_main_tab'] in main_tabs_labels else 0
+    st.write(f"DEBUG - Valor de active_main_tab: {st.session_state.get('active_main_tab', 'Não definido')}")
+    st.write(f"DEBUG - Tipo de active_main_tab: {type(st.session_state.get('active_main_tab'))}")
+    st.write(f"DEBUG - selected_main_tab_index: {selected_main_tab_index}")
+    st.write(f"DEBUG - Tipo de selected_main_tab_index: {type(selected_main_tab_index)}")
+    st.write(f"DEBUG - main_tabs_labels: {main_tabs_labels}")
+    st.write(f"DEBUG - Tipo de main_tabs_labels: {type(main_tabs_labels)}")
+
 
     tab_sync, tab_operacoes, tab_admin_settings = st.tabs(
         main_tabs_labels,
-        selected=selected_main_tab_index, # Usa o índice do session_state
+        selected=0,
         key="main_tabs_container" # Chave única para este componente tabs
     )
 
