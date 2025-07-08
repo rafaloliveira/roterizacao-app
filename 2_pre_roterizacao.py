@@ -4149,10 +4149,13 @@ if st.session_state.get("login", False):
         pagina_sincronizacao()
 
         with tab_operacoes:
-        # Sub-abas para as operações de roteirização
-            sub_tab_confirmar_prod, sub_tab_aprov_dir, sub_tab_pre_rot, sub_tab_rotas_conf, sub_tab_cargas, sub_tab_aprov_custos, sub_tab_cargas_aprovadas, sub_tab_cargas_fechadas = st.tabs([ # <<< ADICIONE sub_tab_cargas_fechadas AQUI
-            "Confirmar Produção", "Aprovação Diretoria", "Pré Roterização", "Rotas Confirmadas", "Cargas Geradas", "Aprovação de Custos", "Cargas Aprovadas", "Cargas Fechadas" # <<< ADICIONE "Cargas Fechadas" AQUI
-        ])
+            sub_tab_confirmar_prod, sub_tab_aprov_dir, sub_tab_pre_rot, \
+            sub_tab_rotas_conf, sub_tab_cargas, sub_tab_aprov_custos, \
+            sub_tab_cargas_aprovadas, sub_tab_cargas_fechadas = st.tabs([
+                "Confirmar Produção", "Aprovação Diretoria", "Pré Roterização", 
+                "Rotas Confirmadas", "Cargas Geradas", "Aprovação de Custos", 
+                "Cargas Aprovadas", "Cargas Fechadas"
+])
         with sub_tab_confirmar_prod:
             pagina_confirmar_producao()
         with sub_tab_aprov_dir:
