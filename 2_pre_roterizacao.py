@@ -1458,7 +1458,7 @@ def apply_brazilian_date_format_for_display(df_to_format):
         if col in df_to_format.columns:
             if not pd.api.types.is_datetime64_any_dtype(df_to_format[col]):
                 # Adicione 'dayfirst=True' aqui
-                df_to_format[col] = pd.to_datetime(df_to_format[col], errors='coerce', dayfirst=True)
+                df_to_format[col] = pd.to_datetime(df_to_format[col], errors='coerce')
             df_to_format[col] = df_to_format[col].apply(
                 lambda x: x.strftime(DATE_DISPLAY_FORMAT_STRING)
                 if pd.notna(x) and isinstance(x, (Timestamp, datetime))
