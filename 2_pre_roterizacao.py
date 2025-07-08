@@ -1000,12 +1000,15 @@ def pagina_sincronizacao():
         
             st.session_state["reload_cargas_aprovadas"] = True
             st.session_state.pop("df_cargas_aprovadas_cache", None)
+
+            if 'carregar_base_supabase' in locals() or 'carregar_base_supabase' in globals():
+                carregar_base_supabase.clear() # Limpa o cache da função
             
             
             progress_bar.progress(100) # 100%
 
             # --- TRECHO PARA MENSAGEM DE SUCESSO E BALÕES ---
-            st.success("✅ Sincronização concluída com sucesso!")
+            #st.success("✅ Sincronização concluída com sucesso!")
             st.balloons() 
             
             # CRUCIAL: Adicione um pequeno atraso para que o Streamlit possa renderizar os balões e a mensagem
@@ -1111,7 +1114,7 @@ def inserir_em_lote(nome_tabela, df, lote=100, tentativas=3, pausa=0.2):
                 break
             except Exception as e:
                 st.warning(f"[TENTATIVA {tentativa + 1}] Erro ao inserir lote {i}–{i + len(sublote) - 1}: {e}")
-                time.sleep(1)
+                time.sleep(2)
         else:
             st.error(f"[ERRO] Falha final ao inserir lote {i}–{i + len(sublote) - 1} na tabela '{nome_tabela}'.")
         time.sleep(pausa)
@@ -1645,6 +1648,8 @@ def pagina_confirmar_producao():
                             st.session_state["reload_confirmadas_producao"] = True # Sinaliza para recarregar os dados na próxima execução
                             st.session_state.pop(grid_key_id, None) # Remove a key do grid para forçar a reconstrução, se necessário
                             st.session_state.pop(checkbox_key, None) # Limpa o estado do checkbox "Marcar todas" para esta rota após a ação
+
+                            st.session_state["reload_aprovacao_diretoria"] = True
 
                             st.success(f"✅ {len(chaves)} entregas do Cliente {cliente_pagador} foram enviadas para a próxima etapa (Aprovação da Diretoria).")
                             
@@ -3012,8 +3017,18 @@ def pagina_cargas_geradas():
                                     st.session_state["reload_cargas_geradas"] = True
                                     st.session_state["reload_rotas_confirmadas"] = True 
 
+                                    # --- ADIÇÃO CRÍTICA PARA INVALIDAR A KEY DO AGGRID DAS ROTAS AFETADAS ---
+                                    # Obter as rotas únicas das entregas que foram removidas
+                                    rotas_afetadas = df_remover["Rota"].dropna().unique()
+                                    for rota_afetada in rotas_afetadas:
+                                        # Construir a chave do grid da rota afetada
+                                        grid_key_rotas_confirmadas = f"grid_rotas_confirmadas_{rota_afetada}"
+                                        # Remover a chave do estado da sessão para forçar a recriação do grid
+                                        if grid_key_rotas_confirmadas in st.session_state:
+                                            st.session_state.pop(grid_key_rotas_confirmadas, None)
+
                                     st.success(f"✅ {len(chaves)} entrega(s) removida(s) da carga {carga} e retornada(s) para Rotas Confirmadas.")
-                                    time.sleep(1)
+                                    
                                     st.rerun()
 
                             except Exception as e:
@@ -3077,7 +3092,7 @@ def pagina_cargas_geradas():
                                             st.session_state.pop(grid_key_id, None)
 
                                             st.success(f"✅ {len(registros_para_custos)} entregas da carga {carga} enviadas para Aprovação de Custos com valor R$ {valor_contratacao:.2f}.")
-                                            time.sleep(1)
+                                            
                                             st.rerun()
                                         else:
                                             st.warning("Nenhuma entrega válida selecionada para enviar para aprovação de custos.")
