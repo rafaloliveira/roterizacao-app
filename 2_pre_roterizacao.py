@@ -3459,7 +3459,7 @@ def pagina_cargas_geradas():
                         st.subheader(f"Valor da Contratação da Carga {carga}")
                         
                         if valor_sugerido_contratacao > 0:
-                            st.info(f"**Sugestão de Valor:** Para atingir a meta da região '{dominant_region}' ({MAX_COST_PER_REGION.get(dominant_region, 0)*100:.0f}%), o valor ideal seria de **R\$ {formatar_brasileiro(valor_sugerido_contratacao)}**")
+                            st.info(f"**Sugestão de Valor:** Para atingir a meta da região '{dominant_region}' ({MAX_COST_PER_REGION.get(dominant_region, 0)*100:.0f}%), o valor ideal seria de **R$ {formatar_brasileiro(valor_sugerido_contratacao)}**")
                         elif total_frete_carga > 0:
                             st.warning(f"Não foi possível calcular uma sugestão de valor de contratação para a região '{dominant_region}'.")
                         else:
@@ -3530,7 +3530,7 @@ def pagina_cargas_geradas():
 
                                             st.session_state.pop(grid_key_id, None)
 
-                                            st.success(f"✅ {len(registros_para_custos)} entregas da carga {carga} enviadas para Aprovação de Custos com valor R\$ {valor_contratacao:.2f}.")
+                                            st.success(f"✅ {len(registros_para_custos)} entregas da carga {carga} enviadas para Aprovação de Custos com valor R$ {valor_contratacao:.2f}.")
                                             
                                             st.rerun()
                                         else:
@@ -3623,9 +3623,9 @@ def pagina_aprovacao_custos():
             total_frete_carga = df_carga["Valor do Frete"].sum()
             
             # DEBUG: Adicionar logs para verificar os valores
-            st.write(f"🔍 **DEBUG - Carga {carga}:**")
-            st.write(f"- Total Frete: R\$ {total_frete_carga:.2f}")
-            st.write(f"- Valor Contratação: R\$ {valor_contratacao_carga_existente:.2f}")
+            #st.write(f"🔍 **DEBUG - Carga {carga}:**")
+            #st.write(f"- Total Frete: R\$ {total_frete_carga:.2f}")
+            #st.write(f"- Valor Contratação: R\$ {valor_contratacao_carga_existente:.2f}")
             
             rentabilidade_percentual = 0.0
             situacao_custo_regional = "N/A"
@@ -3645,12 +3645,12 @@ def pagina_aprovacao_custos():
                         dominant_region = df_carga['Regiao'].iloc[0]
 
                 # DEBUG: Verificar região
-                st.write(f"- Região Dominante: {dominant_region}")
+                #st.write(f"- Região Dominante: {dominant_region}")
                 
                 max_cost_allowed = MAX_COST_PER_REGION.get(dominant_region, None)
                 
                 # DEBUG: Verificar limite
-                st.write(f"- Limite da Região: {max_cost_allowed}")
+                #st.write(f"- Limite da Região: {max_cost_allowed}")
 
                 if max_cost_allowed is not None:
                     custo_receita_ratio = (valor_contratacao_carga_existente / total_frete_carga)
@@ -3663,9 +3663,9 @@ def pagina_aprovacao_custos():
                     # 🚀 FIM DO AJUSTE 🚀
                     
                     # DEBUG: Verificar cálculo
-                    st.write(f"- Ratio Calculado: {custo_receita_ratio:.4f} ({custo_receita_ratio*100:.2f}%)")
-                    st.write(f"- Limite Permitido: {max_cost_allowed:.4f} ({max_cost_allowed*100:.2f}%)")
-                    st.write(f"- Comparação: {custo_receita_ratio:.4f} <= {max_cost_allowed:.4f} = {custo_receita_ratio <= max_cost_allowed}")
+                    #st.write(f"- Ratio Calculado: {custo_receita_ratio:.4f} ({custo_receita_ratio*100:.2f}%)")
+                    #st.write(f"- Limite Permitido: {max_cost_allowed:.4f} ({max_cost_allowed*100:.2f}%)")
+                    #st.write(f"- Comparação: {custo_receita_ratio:.4f} <= {max_cost_allowed:.4f} = {custo_receita_ratio <= max_cost_allowed}")
                     
                     if custo_receita_ratio <= max_cost_allowed:
                         situacao_custo_regional = f"Dentro do Limite ({max_cost_allowed*100:.0f}%)"
@@ -3686,9 +3686,9 @@ def pagina_aprovacao_custos():
                     cor_situacao = "gray"
 
             # DEBUG: Resultado final
-            st.write(f"- **Situação Final:** {situacao_custo_regional}")
-            st.write(f"- **Cor:** {cor_situacao}")
-            st.write("---")
+            #st.write(f"- **Situação Final:** {situacao_custo_regional}")
+            #st.write(f"- **Cor:** {cor_situacao}")
+            #st.write("---")
 
 
             st.markdown(f"""
@@ -3705,10 +3705,10 @@ def pagina_aprovacao_custos():
                         {badge(f'{len(df_carga)} entregas')}
                         {badge(f'{formatar_brasileiro(df_carga["Peso Calculado em Kg"].sum())} kg calc')}
                         {badge(f'{formatar_brasileiro(df_carga["Peso Real em Kg"].sum())} kg real')}
-                        {badge(f'Valor frete: R\$ {formatar_brasileiro(total_frete_carga)}')}
+                        {badge(f'Valor frete: R$ {formatar_brasileiro(total_frete_carga)}')}
                         {badge(f'{formatar_brasileiro(df_carga["Cubagem em m³"].sum())} m³')}
                         {badge(f'{int(df_carga["Quantidade de Volumes"].sum())} volumes')}
-                        {badge(f'Valor Contratação: R\$ {formatar_brasileiro(valor_contratacao_carga_existente)}')}
+                        {badge(f'Valor Contratação: R$ {formatar_brasileiro(valor_contratacao_carga_existente)}')}
                         {badge(f'Rentabilidade: {rentabilidade_percentual:.2f}%')}
                         <span style='background:{cor_situacao};color:white;border-radius:12px;padding:6px 12px;margin:4px;display:inline-block;'>Situação Custo: {situacao_custo_regional}</span>
                     </div>
