@@ -3697,6 +3697,24 @@ def pagina_aprovacao_custos():
             </div>
             """, unsafe_allow_html=True)
 
+            col1_badges, col2_placeholder = st.columns([5, 1])
+            with col1_badges:
+                st.markdown(
+                    f"""
+                    <div style='display: flex; flex-wrap: wrap; gap: 8px;'>
+                        {badge(f'{len(df_carga)} entregas')}
+                        {badge(f'{formatar_brasileiro(df_carga["Peso Calculado em Kg"].sum())} kg calc')}
+                        {badge(f'{formatar_brasileiro(df_carga["Peso Real em Kg"].sum())} kg real')}
+                        {badge(f'Valor frete: R\$ {formatar_brasileiro(total_frete_carga)}')}
+                        {badge(f'{formatar_brasileiro(df_carga["Cubagem em m³"].sum())} m³')}
+                        {badge(f'{int(df_carga["Quantidade de Volumes"].sum())} volumes')}
+                        {badge(f'Valor Contratação: R\$ {formatar_brasileiro(valor_contratacao_carga_existente)}')}
+                        {badge(f'Rentabilidade: {rentabilidade_percentual:.2f}%')}
+                        <span style='background:{cor_situacao};color:white;border-radius:12px;padding:6px 12px;margin:4px;display:inline-block;'>Situação Custo: {situacao_custo_regional}</span>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
                 
             with st.expander("🔽 Ver entregas da carga para Aprovação de Custos", expanded=False):
                 checkbox_key = f"marcar_todas_aprov_custos_{carga}"
