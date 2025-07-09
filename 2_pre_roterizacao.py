@@ -3128,13 +3128,15 @@ def pagina_cargas_geradas():
                 else:
                     selecionadas = grid_response.get("selected_rows", [])
 
+
+
                 if selecionadas:
                     col_ret, col_aprov = st.columns([1, 1])
 
                     with col_ret:
                         if st.button(f"♻️ Retirar da Carga", key=f"btn_retirar_{carga}"):
                             try:
-                                with st.spinner("Retirando entregas da carga..."):
+                                with st.spinner("🔄 Retirando entregas da carga..."):
                                     df_remover = pd.DataFrame(selecionadas)
                                     df_remover = df_remover.drop(columns=["_selectedRowNodeInfo"], errors="ignore")
                                     
@@ -3192,13 +3194,19 @@ def pagina_cargas_geradas():
                                     # >>> APENAS UMA CHAMADA DE INSERÇÃO AQUI! <<<
                                     try:
                                         insert_response = supabase.table("rotas_confirmadas").insert(registros).execute()
-                                        if insert_response.error:
-                                            # Levanta uma exceção para o bloco outer try-except capturar
-                                            raise Exception(insert_response.error.message)
+                                        
+                                        # >>> CORREÇÃO DO ERRO 'APIResponse' object has no attribute 'error' <<<
+                                        if insert_response and hasattr(insert_response, 'error') and insert_response.error:
+                                            error_details = insert_response.error
+                                            # Acessa 'message' de forma segura, ou usa a representação de string do erro
+                                            error_message = getattr(error_details, 'message', str(error_details))
+                                            raise Exception(error_message)
+                                        # Se não houver erro, insert_response.data deve ser verificado se RLS permite retorno de dados.
+                                        # Por enquanto, assumimos sucesso se não houver objeto de erro.
+                                        
                                     except Exception as e_insert:
                                         # Captura o erro específico de duplicidade e dá uma mensagem mais clara
                                         if "23505" in str(e_insert) and "duplicate key value violates unique constraint" in str(e_insert):
-                                            # Assume que o erro 23505 é para a primeira entrega (ou pega a primeira chave se registros não estiver vazio)
                                             key_info = registros[0].get('Serie_Numero_CTRC', 'Desconhecida') if registros else 'Desconhecida'
                                             st.error(f"❌ Erro de duplicidade ao retornar entrega {key_info} para Rotas Confirmadas: Já existe um registro com essa chave. Isso pode indicar uma falha de deleção anterior ou um dado inconsistente. Por favor, verifique o Supabase manualmente.")
                                         else:
@@ -3246,14 +3254,14 @@ def pagina_cargas_geradas():
                                     
                                     # >>> Mensagens de feedback finais sobre a deleção <<<
                                     if not delete_success and attempted_delete: # Se tentamos deletar e falhamos
-                                        st.error(f"❌ As entregas foram inseridas em 'rotas_confirmadas', mas **FALHARAM AO SEREM REMOVIDAS** de 'cargas_geradas' após múltiplas tentativas. "
-                                                 f"**POR FAVOR, VERIFIQUE AS POLÍTICAS RLS NO SUPABASE PARA A TABELA `cargas_geradas` E A CONSISTÊNCIA DOS DADOS MANUALMENTE.**")
+                                        # Raise an exception here to be caught by the outer try-except for a critical error
+                                        raise Exception(f"Falha CRÍTICA na remoção de {len(chaves_para_deletar)} entrega(s) de 'Cargas Geradas'. "
+                                                        f"Verifique as políticas RLS ou inconsistência de dados no Supabase.")
                                     elif deleted_count > 0: # Se ao menos um registro foi deletado
                                         st.success(f"✅ {deleted_count} entregas removidas de 'Cargas Geradas'.")
                                     elif attempted_delete and deleted_count == 0: # Se tentamos deletar, mas 0 foram deletadas (e não houve erro explícito)
-                                        st.warning(f"ℹ️ Deleção de 'Cargas Geradas' concluída, mas 0 entregas foram removidas. Verifique RLS ou se os itens já haviam sido movidos.")
-                                    elif not attempted_delete: # Se não havia nada para deletar (chaves_para_deletar estava vazio)
-                                        st.info("Nenhuma entrega selecionada para remoção de 'Cargas Geradas'.")
+                                        st.warning(f"ℹ️ Deleção de 'Cargas Geradas' concluída, mas 0 entregas foram removidas. Isso pode indicar RLS ou que já haviam sido movidas.")
+                                    # Nenhuma mensagem específica se não houver chaves para deletar (attempted_delete é False), pois não é um erro.
 
 
                                     # Verifica se restam entregas na carga após a remoção
@@ -3267,7 +3275,8 @@ def pagina_cargas_geradas():
                                             st.info(f"DEBUG: Ainda restam {len(dados_restantes)} entregas na carga {carga}. Não removendo a entrada da carga.")
 
 
-                                    # ... (o restante do código de atualização de session_state e rerun) ...
+                                    # O st.rerun() final vai recarregar a página e o grid de Cargas Geradas.
+                                    # Se a deleção no Supabase realmente ocorreu, os itens não serão mais carregados.
                                     st.session_state.pop("df_cargas_cache", None)
                                     grid_key_id = f"grid_carga_gerada_{carga}"
                                     st.session_state.pop(grid_key_id, None)
@@ -3289,7 +3298,7 @@ def pagina_cargas_geradas():
 
                             except Exception as e:
                                 # Este except captura erros mais genéricos que não foram tratados nos blocos internos
-                                st.error(f"❌ Erro geral inesperado ao retirar entregas da carga: {e}")
+                                st.error(f"❌ Ocorreu um erro inesperado ao retirar entregas da carga: {e}")
                                 st.warning("A operação pode ter sido interrompida. Por favor, verifique a situação das entregas nas tabelas 'Rotas Confirmadas' e 'Cargas Geradas'.")
 
                     with col_aprov:
@@ -3378,6 +3387,8 @@ def pagina_cargas_geradas():
                                             st.warning("Nenhuma entrega válida selecionada para enviar para aprovação de custos.")
                                 except Exception as e:
                                     st.error(f"❌ Erro ao enviar entregas para aprovação de custos: {e}")
+
+
     except Exception as e:
         # Este except captura erros mais genéricos que não foram tratados nos blocos internos
         st.error(f"❌ Erro geral inesperado ao retirar entregas da carga: {e}")
