@@ -3062,6 +3062,21 @@ def pagina_cargas_geradas():
                     df_formatado = apply_brazilian_date_format_for_display(df_formatado) # <<< ESTA LINHA É CRUCIAL!
                     df_formatado = df_formatado.replace([np.nan, None], "") # Certifica-se de que não há NaNs ou Nones
 
+                     # =============================================================
+                    # INÍCIO DO NOVO BLOCO DE DEBUG AQUI
+                    # =============================================================
+                    st.write("--- DEBUG de Formato de Data (Página Cargas Geradas - Antes do AgGrid) ---")
+                    if not df_formatado.empty:
+                        if 'Previsao de Entrega' in df_formatado.columns:
+                            # Exibe o tipo de dado da coluna
+                            st.write(f"Tipo de dado 'Previsao de Entrega': {df_formatado['Previsao de Entrega'].dtype}")
+                            # Exibe a primeira data para inspeção
+                            st.write(f"Exemplo 'Previsao de Entrega': '{df_formatado['Previsao de Entrega'].iloc[0]}'")
+                        if 'Entrega Programada' in df_formatado.columns:
+                            st.write(f"Tipo de dado 'Entrega Programada': {df_formatado['Entrega Programada'].dtype}")
+                            st.write(f"Exemplo 'Entrega Programada': '{df_formatado['Entrega Programada'].iloc[0]}'")
+                    st.write("--- FIM do DEBUG de Formato de Data ---")
+
                     gb = GridOptionsBuilder.from_dataframe(df_formatado)
                     gb.configure_default_column(minWidth=150)
                     gb.configure_selection("multiple", use_checkbox=True)
