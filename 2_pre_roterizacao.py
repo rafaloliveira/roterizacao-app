@@ -3130,7 +3130,7 @@ def pagina_cargas_geradas():
                                 with st.spinner("🔄 Retirando entregas da carga..."):
                                     df_remover = pd.DataFrame(selecionadas)
                                     df_remover = df_remover.drop(columns=["_selectedRowNodeInfo"], errors="ignore")
-                                    df_remover["Status"] = "AGENDAR"
+                                    #df_remover["Status"] = "AGENDAR"
                                     df_remover = df_remover.drop(columns=["numero_carga"], errors="ignore")
 
                                     if "Data_Hora_Gerada" in df_remover.columns:
