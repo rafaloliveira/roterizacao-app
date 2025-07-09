@@ -3052,12 +3052,14 @@ def pagina_cargas_geradas():
                     
                     date_only_formatter = JsCode("""
                         function(params) {
+                            // Adicione esta linha para logar o valor no console do navegador
+                            console.log('AgGrid date_only_formatter input:', params.value);
+
                             if (params.value === null || typeof params.value === 'undefined' || params.value === '') return '';
                             const parts = params.value.split(' ')[0]; // Pega apenas a parte da data
                             return parts;
                         }
                     """)
-
                     df_formatado = df_display[df_display["numero_carga"] == carga][[col for col in colunas_exibir if col in df_display.columns]].copy()
                     df_formatado = apply_brazilian_date_format_for_display(df_formatado) # <<< ESTA LINHA É CRUCIAL!
                     df_formatado = df_formatado.replace([np.nan, None], "") # Certifica-se de que não há NaNs ou Nones
