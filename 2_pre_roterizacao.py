@@ -3049,14 +3049,7 @@ def pagina_cargas_geradas():
                         }
                     """)
 
-                    # NOVO: Formatter para exibir APENAS a parte da data (dd-mm-aaaa)
-                    date_only_formatter = JsCode("""
-                        function(params) {
-                            if (params.value === null || typeof params.value === 'undefined' || params.value === '') return '';
-                            const parts = params.value.split(' ')[0];
-                            return parts;
-                        }
-                    """)
+                    
 
                     df_formatado = df_display[df_display["numero_carga"] == carga][[col for col in colunas_exibir if col in df_display.columns]].copy()
                     df_formatado = apply_brazilian_date_format_for_display(df_formatado) # Aplica o formato completo (dd-mm-aaaa HH:MM:SS)
@@ -3090,10 +3083,7 @@ def pagina_cargas_geradas():
                         if col in df_formatado.columns:
                             gb.configure_column(col, type=["numericColumn"], valueFormatter=formatter)
 
-                    # --- NOVO: Configuração para colunas de data que devem ser APENAS dd-mm-aaaa ---
-                    for col in ['Previsao de Entrega', 'Entrega Programada']: # Adicione outras colunas de data se quiser que sejam APENAS data
-                        if col in df_formatado.columns:
-                            gb.configure_column(col, valueFormatter=date_only_formatter)
+                  
 
                     grid_options = gb.build()
 
