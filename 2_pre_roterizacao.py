@@ -3020,7 +3020,7 @@ def pagina_rotas_confirmadas():
                 # ... Seu código anterior da pagina_rotas_confirmadas ...
 
             # 🔸 Botão para criar nova carga automaticamente
-                if st.button(f"➕ Criar Nova Carga com Entregas Selecionadas", key=f"botao_rota_{rota}"):
+                if st.button(f"➕ Adicionar ", key=f"botao_rota_{rota}"):
                     if not selecionadas:
                         st.warning("Selecione ao menos uma entrega.")
                     else:
