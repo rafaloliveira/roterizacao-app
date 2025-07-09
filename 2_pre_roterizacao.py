@@ -1389,7 +1389,8 @@ GLOBAL_DATE_DISPLAY_COLUMNS = [
     "Data de Emissao", "Data de Autorizacao", "Data de inclusao da Ultima Ocorrencia",
     "Data da Ultima Ocorrencia", "Previsao de Entrega", "Entrega Programada",
     "Data da Entrega Realizada", "Data do Cancelamento", "Data do Escaneamento",
-    "Data_Hora_Gerada", "data_fechamento", "data_aprovacao_custos"
+    "Data_Hora_Gerada", "data_fechamento", "data_aprovacao_custos","Data_Hora_Gerada", 
+    "data_fechamento", "data_aprovacao_custos"
 ]
 
 # Nova função para aplicar formato de data APENAS (sem hora)
@@ -1422,6 +1423,10 @@ def apply_brazilian_date_format_for_display(df_to_format):
     return df_to_format
 
 
+
+# Constantes para colunas que devem ser tratadas como APENAS DATA (sem hora)
+# em algumas conversões (e.g., re-parsing do AgGrid para Supabase)
+DATE_ONLY_REPARSE_COLUMNS = ['Previsao de Entrega', 'Entrega Programada']
 
 ##########################################
 
@@ -2511,15 +2516,37 @@ def pagina_rotas_confirmadas():
                             return
 
                         # ... (Seu código existente para tratamento de datas para Supabase) ...
-                        for col_name in GLOBAL_DATE_DISPLAY_COLUMNS:
+                                                # O dataframe 'df_para_inserir' (que veio de 'selecionadas') contém colunas de data como STRINGS formatadas.
+                        # Precisamos convertê-las de volta para datetime antes de enviar para o Supabase.
+                        # As colunas Previsao de Entrega e Entrega Programada virão como 'DD-MM-AAAA'.
+                        # As outras colunas de data (se selecionadas) virão como 'DD-MM-AAAA HH:MM:SS'.
+
+                        for col_name in GLOBAL_DATE_DISPLAY_COLUMNS: # GLOBAL_DATE_DISPLAY_COLUMNS é a lista abrangente
                             if col_name in df_para_inserir.columns:
-                                dt_obj = pd.to_datetime(df_para_inserir[col_name], format=DATE_DISPLAY_FORMAT_STRING, errors='coerce')
-                                dt_obj = dt_obj.dt.tz_localize(FUSO_BRASIL)
-                                dt_obj = dt_obj.dt.tz_convert('UTC')
-                                df_para_inserir[col_name] = dt_obj.apply(
+                                # Determina o formato de input correto para pd.to_datetime com base na coluna
+                                if col_name in DATE_ONLY_REPARSE_COLUMNS:
+                                    # Espera formato 'DD-MM-AAAA' (sem hora)
+                                    input_format_str = DATE_ONLY_DISPLAY_FORMAT_STRING # (e.g., '%d-%m-%Y')
+                                else:
+                                    # Espera formato 'DD-MM-AAAA HH:MM:SS' (com hora)
+                                    input_format_str = DATE_DISPLAY_FORMAT_STRING # (e.g., '%d-%m-%Y %H:%M:%S')
+
+                                # Tenta converter a string para um objeto datetime
+                                dt_obj_series = pd.to_datetime(df_para_inserir[col_name], format=input_format_str, errors='coerce')
+                                
+                                # Se o objeto de data/hora é naive (sem fuso horário), assumimos que é fuso do Brasil
+                                # e o convertemos para UTC, que é o que o Supabase prefere.
+                                # Adiciona timezone-aware local e converte para UTC
+                                dt_obj_series = dt_obj_series.dt.tz_localize(FUSO_BRASIL, ambiguous='NaT', nonexistent='NaT')
+                                dt_obj_series = dt_obj_series.dt.tz_convert('UTC')
+
+                                # Converte o objeto datetime (agora UTC) para a string ISO 8601 que o Supabase espera
+                                df_para_inserir[col_name] = dt_obj_series.apply(
                                     lambda x: x.isoformat(timespec='seconds').replace('+00:00', 'Z') if pd.notna(x) else None
                                 )
+                        
                         df_para_inserir = df_para_inserir.replace([np.nan, pd.NaT, np.inf, -np.inf, ""], None)
+                        
 
 
                         # 3. GERAÇÃO DO NÚMERO DA CARGA (COM VALIDAÇÃO DE UNICIDADE)
@@ -3170,6 +3197,7 @@ def pagina_cargas_geradas():
                                     # e que valores vazios no grid (vindos como string) sejam None no banco.
                                     for col_name in GLOBAL_DATE_DISPLAY_COLUMNS:
                                         if col_name in df_remover.columns:
+
                                             df_remover[col_name] = pd.to_datetime(
                                                 df_remover[col_name],
                                                 format=DATE_DISPLAY_FORMAT_STRING,
