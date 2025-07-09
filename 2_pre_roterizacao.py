@@ -3298,7 +3298,7 @@ def pagina_cargas_geradas():
                             st.info("Não foi possível calcular uma sugestão de valor de contratação (frete total zero).")
 
                         valor_contratacao = st.number_input(
-                            "Valor da Contratação da Carga (R\$)",
+                            "Valor da Contratação da Carga (R$)",
                             min_value=0.0,
                             value=valor_sugerido_contratacao, # Pré-preenche com a sugestão
                             step=0.01,
