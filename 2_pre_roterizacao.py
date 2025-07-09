@@ -3062,6 +3062,7 @@ def pagina_rotas_confirmadas():
                             #st.info(f"DEBUG: Inseridos {len(dados_filtrados)} registros em 'cargas_geradas' para carga existente.") # DEBUG
                             supabase.table("rotas_confirmadas").delete().in_("Serie_Numero_CTRC", chaves).execute()
                             #st.info(f"DEBUG: Removidos {len(chaves)} registros de 'rotas_confirmadas'.") # DEBUG
+                            st.success(f"✅ {len(dados_filtrados)} entrega(s) adicionada(s) com sucesso à carga {carga_escolhida}!")
 
                             # Força recarga dos caches para que as tabelas reflitam as mudanças
                             st.session_state["reload_rotas_confirmadas"] = True
