@@ -3655,6 +3655,13 @@ def pagina_aprovacao_custos():
                 if max_cost_allowed is not None:
                     custo_receita_ratio = (valor_contratacao_carga_existente / total_frete_carga)
                     
+                    # 🚀 INÍCIO DO AJUSTE 🚀
+                    # Arredonda o ratio calculado para 4 casas decimais para precisão na comparação
+                    custo_receita_ratio = round(custo_receita_ratio, 4)
+                    # Arredonda o limite permitido para 4 casas decimais para consistência na comparação
+                    max_cost_allowed = round(max_cost_allowed, 4)
+                    # 🚀 FIM DO AJUSTE 🚀
+                    
                     # DEBUG: Verificar cálculo
                     st.write(f"- Ratio Calculado: {custo_receita_ratio:.4f} ({custo_receita_ratio*100:.2f}%)")
                     st.write(f"- Limite Permitido: {max_cost_allowed:.4f} ({max_cost_allowed*100:.2f}%)")
@@ -3682,6 +3689,7 @@ def pagina_aprovacao_custos():
             st.write(f"- **Situação Final:** {situacao_custo_regional}")
             st.write(f"- **Cor:** {cor_situacao}")
             st.write("---")
+
 
             st.markdown(f"""
             <div style="margin-top:20px;padding:10px;background:#e8f0fe;border-left:4px solid #f9ab00;border-radius:6px;display:inline-block;max-width:100%;">
