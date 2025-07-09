@@ -2930,7 +2930,25 @@ def pagina_cargas_geradas():
 
             df_display = df.copy()
 
+            # APLICAR FORMATO BRASILEIRO PARA EXIBIÇÃO
             df_display = apply_brazilian_date_format_for_display(df_display)
+
+            # --- INÍCIO: DEBUG DE FORMATO DE DATA ---
+            st.markdown("### DEBUG: Verificação de Formato de Data (Página Cargas Geradas)")
+            if not df_display.empty:
+                # Exibe uma amostra da coluna 'Previsao de Entrega' (ou outra coluna de data comum)
+                # para verificar o formato da string e o tipo de dado.
+                if 'Previsao de Entrega' in df_display.columns:
+                    st.write(f"Amostra da coluna 'Previsao de Entrega' (primeiras 5 linhas, após formatação):")
+                    st.dataframe(df_display[['Serie_Numero_CTRC', 'Previsao de Entrega']].head())
+                    st.write(f"Tipo de dado da coluna 'Previsao de Entrega' após formatação: `{df_display['Previsao de Entrega'].dtype}`")
+                    
+                    # Verifique uma string de data específica para garantir que o formato é o esperado
+                    if not df_display['Previsao de Entrega'].empty and pd.notna(df_display['Previsao de Entrega'].iloc[0]):
+                        st.write(f"Primeira string de data formatada: `{df_display['Previsao de Entrega'].iloc[0]}`")
+            else:
+                st.write("DataFrame de exibição está vazio, não é possível verificar formatos de data.")
+            st.markdown("---")
 
             df_display = df_display.replace([np.nan, None], "")
 
