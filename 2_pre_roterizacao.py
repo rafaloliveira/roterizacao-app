@@ -2957,25 +2957,7 @@ def pagina_cargas_geradas():
 
             df_display = df.copy()
 
-            # APLICAR FORMATO BRASILEIRO PARA EXIBIÇÃO
             df_display = apply_brazilian_date_format_for_display(df_display)
-
-            # --- INÍCIO: DEBUG DE FORMATO DE DATA ---
-            st.markdown("### DEBUG: Verificação de Formato de Data (Página Cargas Geradas)")
-            if not df_display.empty:
-                # Exibe uma amostra da coluna 'Previsao de Entrega' (ou outra coluna de data comum)
-                # para verificar o formato da string e o tipo de dado.
-                if 'Previsao de Entrega' in df_display.columns:
-                    st.write(f"Amostra da coluna 'Previsao de Entrega' (primeiras 5 linhas, após formatação):")
-                    st.dataframe(df_display[['Serie_Numero_CTRC', 'Previsao de Entrega']].head())
-                    st.write(f"Tipo de dado da coluna 'Previsao de Entrega' após formatação: `{df_display['Previsao de Entrega'].dtype}`")
-                    
-                    # Verifique uma string de data específica para garantir que o formato é o esperado
-                    if not df_display['Previsao de Entrega'].empty and pd.notna(df_display['Previsao de Entrega'].iloc[0]):
-                        st.write(f"Primeira string de data formatada: `{df_display['Previsao de Entrega'].iloc[0]}`")
-            else:
-                st.write("DataFrame de exibição está vazio, não é possível verificar formatos de data.")
-            st.markdown("---")
 
             df_display = df_display.replace([np.nan, None], "")
 
@@ -3065,46 +3047,7 @@ def pagina_cargas_geradas():
                 marcar_todas = st.checkbox("Marcar todas", key=checkbox_key)
 
                 with st.spinner("Carregando entregas da carga no grid..."):
-                    # Define formatter for numeric values (geralmente está mais acima na função, mas incluído aqui para clareza local)
-                    formatter = JsCode("""
-                        function(params) {
-                            if (!params.value && params.value !== 0) return '';
-                            return Number(params.value).toLocaleString('pt-BR', {
-                                minimumFractionDigits: 2,
-                                maximumFractionDigits: 2
-                            });
-                        }
-                    """)
-
-                    
-                    date_only_formatter = JsCode("""
-                        function(params) {
-                            // Adicione esta linha para logar o valor no console do navegador
-                            console.log('AgGrid date_only_formatter input:', params.value);
-
-                            if (params.value === null || typeof params.value === 'undefined' || params.value === '') return '';
-                            const parts = params.value.split(' ')[0]; // Pega apenas a parte da data
-                            return parts;
-                        }
-                    """)
-                    df_formatado = df_display[df_display["numero_carga"] == carga][[col for col in colunas_exibir if col in df_display.columns]].copy()
-                    df_formatado = apply_brazilian_date_format_for_display(df_formatado) # <<< ESTA LINHA É CRUCIAL!
-                    df_formatado = df_formatado.replace([np.nan, None], "") # Certifica-se de que não há NaNs ou Nones
-
-                     # =============================================================
-                    # INÍCIO DO NOVO BLOCO DE DEBUG AQUI
-                    # =============================================================
-                    st.write("--- DEBUG de Formato de Data (Página Cargas Geradas - Antes do AgGrid) ---")
-                    if not df_formatado.empty:
-                        if 'Previsao de Entrega' in df_formatado.columns:
-                            # Exibe o tipo de dado da coluna
-                            st.write(f"Tipo de dado 'Previsao de Entrega': {df_formatado['Previsao de Entrega'].dtype}")
-                            # Exibe a primeira data para inspeção
-                            st.write(f"Exemplo 'Previsao de Entrega': '{df_formatado['Previsao de Entrega'].iloc[0]}'")
-                        if 'Entrega Programada' in df_formatado.columns:
-                            st.write(f"Tipo de dado 'Entrega Programada': {df_formatado['Entrega Programada'].dtype}")
-                            st.write(f"Exemplo 'Entrega Programada': '{df_formatado['Entrega Programada'].iloc[0]}'")
-                    st.write("--- FIM do DEBUG de Formato de Data ---")
+                    df_formatado = df_display[df_display["numero_carga"] == carga][[col for col in colunas_exibir if col in df_display.columns]]
 
                     gb = GridOptionsBuilder.from_dataframe(df_formatado)
                     gb.configure_default_column(minWidth=150)
@@ -3112,7 +3055,6 @@ def pagina_cargas_geradas():
                     gb.configure_grid_options(paginationPageSize=12)
                     gb.configure_grid_options(alwaysShowHorizontalScroll=True)
                     gb.configure_grid_options(rowStyle={"font-size": "11px"})
-
                     gb.configure_grid_options(getRowStyle=JsCode("""
                         function(params) {
                             const status = params.data.Status;
@@ -3131,14 +3073,9 @@ def pagina_cargas_geradas():
                     gb.configure_grid_options(rowSelection='multiple')
                     gb.configure_grid_options(onGridReady=GRID_RESIZE_JS_CODE)
 
-
-                    for col in ['Peso Real em Kg', 'Peso Calculado em Kg', 'Cubagem em m³', 'Quantidade de Volumes', 'Valor do Frete']:
+                    for col in numeric_cols_for_formatting:
                         if col in df_formatado.columns:
                             gb.configure_column(col, type=["numericColumn"], valueFormatter=formatter)
-
-                    for col in ['Previsao de Entrega', 'Entrega Programada']:
-                        if col in df_formatado.columns:
-                            gb.configure_column(col, valueFormatter=date_only_formatter)
 
                     grid_options = gb.build()
 
@@ -3177,38 +3114,21 @@ def pagina_cargas_geradas():
                 if selecionadas:
                     col_ret, col_aprov = st.columns([1, 1])
 
-                    # ... (código existente) ...
                     with col_ret:
                         if st.button(f"♻️ Retirar da Carga", key=f"btn_retirar_{carga}"):
                             try:
                                 with st.spinner("🔄 Retirando entregas da carga..."):
                                     df_remover = pd.DataFrame(selecionadas)
                                     df_remover = df_remover.drop(columns=["_selectedRowNodeInfo"], errors="ignore")
-                                    
-                                    # *** INTEGRIDADE DE DADOS: REMOVIDA ATRIBUIÇÃO FORÇADA DE "AGENDAR" ***
-                                    # Removido para garantir que o Status original seja preservado.
-                                    # df_remover["Status"] = "AGENDAR" # REMOVA ESTA LINHA SE EXISTIR!
-                                    # *** FIM DA INTEGRIDADE DE DADOS ***
-                                    
+                                    df_remover["Status"] = "AGENDAR"
                                     df_remover = df_remover.drop(columns=["numero_carga"], errors="ignore")
 
-                                    # *** INTEGRIDADE DE DATAS: GARANTIR QUE DATAS VAZIAS PERMANEÇAM VAZIAS ***
-                                    # Este bloco garante que os tipos de dados estejam corretos para o Supabase
-                                    # e que valores vazios no grid (vindos como string) sejam None no banco.
-                                    for col_name in GLOBAL_DATE_DISPLAY_COLUMNS:
-                                        if col_name in df_remover.columns:
+                                    if "Data_Hora_Gerada" in df_remover.columns:
+                                        df_remover["Data_Hora_Gerada"] = df_remover["Data_Hora_Gerada"].apply(
+                                            lambda x: datetime.strptime(x, "%d-%m-%Y %H:%M:%S").isoformat() if x else None
+                                        )
 
-                                            df_remover[col_name] = pd.to_datetime(
-                                                df_remover[col_name],
-                                                format=DATE_DISPLAY_FORMAT_STRING,
-                                                errors='coerce'
-                                            )
-                                            df_remover[col_name] = df_remover[col_name].apply(
-                                                lambda x: x.isoformat() if pd.notna(x) else None
-                                            )
                                     df_remover = df_remover.replace([np.nan, pd.NaT, "", np.inf, -np.inf], None)
-                                    # *** FIM DA INTEGRIDADE DE DATAS ***
-
                                     registros = df_remover.to_dict(orient="records")
 
                                     supabase.table("rotas_confirmadas").insert(registros).execute()
@@ -3216,37 +3136,34 @@ def pagina_cargas_geradas():
                                     chaves = df_remover["Serie_Numero_CTRC"].dropna().astype(str).tolist()
                                     supabase.table("cargas_geradas").delete().in_("Serie_Numero_CTRC", chaves).execute()
 
-                                    # Verifica se a carga ficou vazia e, se sim, a remove completamente
                                     dados_restantes = supabase.table("cargas_geradas").select("numero_carga").eq("numero_carga", carga).execute().data
                                     if not dados_restantes:
                                         supabase.table("cargas_geradas").delete().eq("numero_carga", carga).execute()
 
-                                    st.success(f"✅ {len(chaves)} entrega(s) removida(s) da carga {carga} e retornada(s) para Rotas Confirmadas.")
-                                    
-                                    # --- ATUALIZAÇÃO DO GRID DE ORIGEM E DESTINO ---
-                                    st.session_state.pop("df_cargas_cache", None) # Recarrega os dados da página atual (cache global)
-                                    grid_key_id_origem = f"grid_carga_gerada_{carga}"
-                                    st.session_state.pop(grid_key_id_origem, None) # Invalida o grid da carga específica de origem
-                                    st.session_state.pop(checkbox_key, None) # Limpa o estado do checkbox
+                                    st.session_state.pop("df_cargas_cache", None)
+                                    grid_key_id = f"grid_carga_gerada_{carga}"
+                                    st.session_state.pop(grid_key_id, None)
+                                    st.session_state.pop(checkbox_key, None)
 
-                                    st.session_state["reload_cargas_geradas"] = True # Recarrega os dados da página de origem
-                                    
-                                    # Invalidação da key do grid de destino (Rotas Confirmadas)
-                                    # Isso força o grid de Rotas Confirmadas a redesenhar com os itens que retornaram.
+                                    st.session_state["reload_cargas_geradas"] = True
+                                    st.session_state["reload_rotas_confirmadas"] = True 
+
+                                    # --- ADIÇÃO CRÍTICA PARA INVALIDAR A KEY DO AGGRID DAS ROTAS AFETADAS ---
+                                    # Obter as rotas únicas das entregas que foram removidas
                                     rotas_afetadas = df_remover["Rota"].dropna().unique()
                                     for rota_afetada in rotas_afetadas:
+                                        # Construir a chave do grid da rota afetada
                                         grid_key_rotas_confirmadas = f"grid_rotas_confirmadas_{rota_afetada}"
+                                        # Remover a chave do estado da sessão para forçar a recriação do grid
                                         if grid_key_rotas_confirmadas in st.session_state:
                                             st.session_state.pop(grid_key_rotas_confirmadas, None)
-                                    st.session_state["reload_rotas_confirmadas"] = True # Recarrega os dados da página de destino
-                                    # --- FIM DA ATUALIZAÇÃO DO GRID ---
 
+                                    st.success(f"✅ {len(chaves)} entrega(s) removida(s) da carga {carga} e retornada(s) para Rotas Confirmadas.")
+                                    
                                     st.rerun()
 
                             except Exception as e:
                                 st.error(f"Erro ao retirar entregas da carga: {e}")
-
-
 
                     with col_aprov:
                         valor_contratacao_key = f"valor_contratacao_{carga}"
@@ -3285,31 +3202,10 @@ def pagina_cargas_geradas():
                                         df_aprovar_custos["numero_carga"] = carga
                                         df_aprovar_custos["valor_contratacao"] = valor_contratacao # Garante que o valor do input é salvo
 
-                                        # --- TRATAMENTO DE DATAS PARA SUPABASE: Converte de string DD-MM-AAAA para ISO 8601 ---
-                                        # Primeiro, converte as colunas de data do formato de exibição (string) para objetos datetime
-                                        for col_name in GLOBAL_DATE_DISPLAY_COLUMNS:
-                                            if col_name in df_aprovar_custos.columns:
-                                                df_aprovar_custos[col_name] = pd.to_datetime(
-                                                    df_aprovar_custos[col_name],
-                                                    format=DATE_DISPLAY_FORMAT_STRING, # Usa o formato de entrada esperado (DD-MM-AAAA HH:MM:SS)
-                                                    errors='coerce' # Converte valores que não podem ser parseados para NaT (Not a Time)
-                                                )
-                                        
-                                        # Em seguida, converte os objetos datetime (e NaT) para strings ISO 8601 ou None
-                                        # Itera sobre todas as colunas do DataFrame, pois pode haver outras colunas de data.
-                                        for col_name in df_aprovar_custos.columns:
-                                            # Verifica se a coluna está na lista global de datas OU já é um tipo datetime (após o pd.to_datetime anterior)
-                                            if col_name in GLOBAL_DATE_DISPLAY_COLUMNS or \
-                                               pd.api.types.is_datetime64_any_dtype(df_aprovar_custos[col_name]):
-                                                df_aprovar_custos[col_name] = df_aprovar_custos[col_name].apply(
-                                                    lambda x: x.isoformat(timespec='seconds') if pd.notna(x) else None
-                                                )
-                                            # Garante que qualquer outro objeto que possa ser uma data/timestamp (mas não um datetime64) também seja convertido
-                                            elif isinstance(df_aprovar_custos[col_name].dtype, object) and any(isinstance(val, (pd.Timestamp, datetime)) for val in df_aprovar_custos[col_name] if pd.notna(val)):
-                                                df_aprovar_custos[col_name] = df_aprovar_custos[col_name].apply(
-                                                    lambda x: x.isoformat(timespec='seconds') if isinstance(x, (pd.Timestamp, datetime)) else x
-                                                )
-                                        # --- FIM DO TRATAMENTO DE DATAS ---
+                                        if "Data_Hora_Gerada" in df_aprovar_custos.columns:
+                                            df_aprovar_custos["Data_Hora_Gerada"] = df_aprovar_custos["Data_Hora_Gerada"].apply(
+                                                lambda x: datetime.strptime(x, "%d-%m-%Y %H:%M:%S").isoformat() if x else None
+                                            )
 
                                         df_aprovar_custos = df_aprovar_custos.replace([np.nan, pd.NaT, "", np.inf, -np.inf], None)
                                         registros_para_custos = df_aprovar_custos.to_dict(orient="records")
