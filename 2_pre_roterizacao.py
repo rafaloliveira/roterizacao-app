@@ -2375,6 +2375,8 @@ def pagina_pre_roterizacao():
 def pagina_rotas_confirmadas():
     st.markdown("## Rotas Confirmadas")
 
+
+
     # --- INÍCIO: BLOCO DE CRIAÇÃO DE CARGA AVULSA ---
     if "nova_carga_em_criacao" not in st.session_state:
         st.session_state["nova_carga_em_criacao"] = False
@@ -2440,13 +2442,14 @@ def pagina_rotas_confirmadas():
                     # 1. Busca em pre_roterizacao usando "Chave CT-e"
                     try:
                         response_pre = supabase.table("pre_roterizacao").select("*").in_("Chave CT-e", chaves_cte_para_busca).execute()
-                        if response_pre.data:
+                        if response_pre.data: # Se encontrou dados
                             df_pre = pd.DataFrame(response_pre.data)
                             df_pre["origem_tabela"] = "pre_roterizacao"
                             entregas_coletadas.extend(df_pre.to_dict(orient='records'))
                             found_ctrc_in_pre_roterizacao.update(df_pre["Serie_Numero_CTRC"].tolist())
                             st.info(f"DEBUG: Encontradas {len(df_pre)} entregas em 'pre_roterizacao'.")
-                        elif response_pre.error:
+                        # CORREÇÃO AQUI: Verifica se 'error' existe antes de acessar
+                        elif hasattr(response_pre, 'error') and response_pre.error: 
                             st.error(f"Erro ao consultar 'pre_roterizacao': {response_pre.error.message}")
                     except Exception as e:
                         st.error(f"Erro inesperado ao consultar 'pre_roterizacao': {e}")
@@ -2470,15 +2473,14 @@ def pagina_rotas_confirmadas():
                                 entregas_coletadas.extend(df_conf.to_dict(orient='records'))
                                 found_ctrc_in_rotas_confirmadas.update(df_conf["Serie_Numero_CTRC"].tolist())
                                 st.info(f"DEBUG: Encontradas {len(df_conf)} entregas em 'rotas_confirmadas'.")
-                            elif response_conf.error:
+                            # CORREÇÃO AQUI: Verifica se 'error' existe antes de acessar
+                            elif hasattr(response_conf, 'error') and response_conf.error:
                                 st.error(f"Erro ao consultar 'rotas_confirmadas': {response_conf.error.message}")
                         except Exception as e:
                             st.error(f"Erro inesperado ao consultar 'rotas_confirmadas': {e}")
 
                     if not entregas_coletadas:
                         st.warning("⚠️ Nenhuma entrega encontrada para as Chaves CT-e informadas em 'Pré-Roterização' ou 'Rotas Confirmadas'.")
-                        # Se não encontrou entregas, sai do try e não tenta inserir/deletar
-                        # O erro generalizado do try/except externo pegaria isso, mas um retorno aqui é mais limpo.
                         return 
 
 
@@ -2526,7 +2528,8 @@ def pagina_rotas_confirmadas():
                                 insert_success = True
                                 st.success(f"✅ {len(insert_response.data)} entrega(s) adicionada(s) à Carga {numero_carga}.")
                                 break
-                            elif insert_response.error:
+                            # CORREÇÃO AQUI: Verifica se 'error' existe antes de acessar
+                            elif hasattr(insert_response, 'error') and insert_response.error:
                                 st.warning(f"Tentativa {tentativa+1}/2: Erro ao inserir na 'cargas_geradas': {insert_response.error.message}")
                                 if tentativa == 0: time.sleep(1)
                             else:
@@ -2545,22 +2548,24 @@ def pagina_rotas_confirmadas():
                         ctrcs_to_delete_from_pre = list(set(inserted_ctrcs).intersection(found_ctrc_in_pre_roterizacao))
                         if ctrcs_to_delete_from_pre:
                             try:
-                                delete_response_pre = supabase.table("pre_roterizacao").delete().in_("Serie_Numero_CTRC", ctrcs_to_delete_from_pre).execute()
-                                if delete_response_pre.error:
-                                    st.warning(f"Erro ao deletar de 'pre_roterizacao': {delete_response_pre.error.message}")
+                                delete_response_pre_source = supabase.table("pre_roterizacao").delete().in_("Serie_Numero_CTRC", ctrcs_to_delete_from_pre).execute()
+                                # CORREÇÃO AQUI: Verifica se 'error' existe antes de acessar
+                                if hasattr(delete_response_pre_source, 'error') and delete_response_pre_source.error:
+                                    st.warning(f"Erro ao deletar de 'pre_roterizacao': {delete_response_pre_source.error.message}")
                                 else:
-                                    st.info(f"Removidas {len(delete_response_pre.data)} entregas de 'pre_roterizacao'.")
+                                    st.info(f"Removidas {len(delete_response_pre_source.data)} entregas de 'pre_roterizacao'.")
                             except Exception as e:
                                 st.warning(f"Exceção ao deletar de 'pre_roterizacao': {e}")
 
                         ctrcs_to_delete_from_conf = list(set(inserted_ctrcs).intersection(found_ctrc_in_rotas_confirmadas))
                         if ctrcs_to_delete_from_conf:
                             try:
-                                delete_response_conf = supabase.table("rotas_confirmadas").delete().in_("Serie_Numero_CTRC", ctrcs_to_delete_from_conf).execute()
-                                if delete_response_conf.error:
-                                    st.warning(f"Erro ao deletar de 'rotas_confirmadas': {delete_response_conf.error.message}")
+                                delete_response_conf_source = supabase.table("rotas_confirmadas").delete().in_("Serie_Numero_CTRC", ctrcs_to_delete_from_conf).execute()
+                                # CORREÇÃO AQUI: Verifica se 'error' existe antes de acessar
+                                if hasattr(delete_response_conf_source, 'error') and delete_response_conf_source.error:
+                                    st.warning(f"Erro ao deletar de 'rotas_confirmadas': {delete_response_conf_source.error.message}")
                                 else:
-                                    st.info(f"Removidas {len(delete_response_conf.data)} entregas de 'rotas_confirmadas'.")
+                                    st.info(f"Removidas {len(delete_response_conf_source.data)} entregas de 'rotas_confirmadas'.")
                             except Exception as e:
                                 st.warning(f"Exceção ao deletar de 'rotas_confirmadas': {e}")
                     else:
