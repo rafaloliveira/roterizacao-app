@@ -3050,9 +3050,17 @@ def pagina_cargas_geradas():
                     """)
 
                     
+                    date_only_formatter = JsCode("""
+                        function(params) {
+                            if (params.value === null || typeof params.value === 'undefined' || params.value === '') return '';
+                            const parts = params.value.split(' ')[0]; // Pega apenas a parte da data
+                            return parts;
+                        }
+                    """)
 
                     df_formatado = df_display[df_display["numero_carga"] == carga][[col for col in colunas_exibir if col in df_display.columns]].copy()
-                    df_formatado = apply_brazilian_date_format_for_display(df_formatado) # Aplica o formato completo (dd-mm-aaaa HH:MM:SS)
+                    df_formatado = apply_brazilian_date_format_for_display(df_formatado) # <<< ESTA LINHA É CRUCIAL!
+                    df_formatado = df_formatado.replace([np.nan, None], "") # Certifica-se de que não há NaNs ou Nones
 
                     gb = GridOptionsBuilder.from_dataframe(df_formatado)
                     gb.configure_default_column(minWidth=150)
@@ -3060,6 +3068,7 @@ def pagina_cargas_geradas():
                     gb.configure_grid_options(paginationPageSize=12)
                     gb.configure_grid_options(alwaysShowHorizontalScroll=True)
                     gb.configure_grid_options(rowStyle={"font-size": "11px"})
+
                     gb.configure_grid_options(getRowStyle=JsCode("""
                         function(params) {
                             const status = params.data.Status;
@@ -3083,7 +3092,9 @@ def pagina_cargas_geradas():
                         if col in df_formatado.columns:
                             gb.configure_column(col, type=["numericColumn"], valueFormatter=formatter)
 
-                  
+                    for col in ['Previsao de Entrega', 'Entrega Programada']:
+                        if col in df_formatado.columns:
+                            gb.configure_column(col, valueFormatter=date_only_formatter)
 
                     grid_options = gb.build()
 
