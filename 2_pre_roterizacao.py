@@ -3134,12 +3134,10 @@ def pagina_cargas_geradas():
                     with col_ret:
                         if st.button(f"♻️ Retirar da Carga", key=f"btn_retirar_{carga}"):
                             try:
-                                with st.spinner("🔄 Retirando entregas da carga..."):
+                                with st.spinner("Retirando entregas da carga..."):
                                     df_remover = pd.DataFrame(selecionadas)
                                     df_remover = df_remover.drop(columns=["_selectedRowNodeInfo"], errors="ignore")
                                     
-                                    # Garante que 'numero_carga' seja removido ANTES da inserção em rotas_confirmadas
-                                    # pois rotas_confirmadas não tem essa coluna.
                                     df_remover = df_remover.drop(columns=["numero_carga"], errors="ignore")
 
                                     # >> BLOCO ROBUSTO DE TRATAMENTO DE DATAS <<
@@ -3211,40 +3209,51 @@ def pagina_cargas_geradas():
                                     chaves_para_deletar = df_remover["Serie_Numero_CTRC"].dropna().astype(str).tolist()
                                     delete_success = False
                                     deleted_count = 0 
+                                    # Flag para saber se tentamos deletar algo (se chaves_para_deletar não estava vazio)
+                                    attempted_delete = bool(chaves_para_deletar) 
+
                                     for tentativa in range(2):
+                                        # Se não houver chaves para deletar, não precisamos tentar. Marca como sucesso e sai.
+                                        if not attempted_delete: 
+                                            delete_success = True
+                                            break
+
                                         try:
                                             st.info(f"DEBUG: Tentando deletar {len(chaves_para_deletar)} CTRCs da tabela 'cargas_geradas' (tentativa {tentativa+1}).")
                                             delete_response = supabase.table("cargas_geradas").delete().in_("Serie_Numero_CTRC", chaves_para_deletar).execute()
 
-                                            if delete_response.data: 
+                                            if delete_response.data: # Se `data` não for vazio, houve deleção
                                                 deleted_count = len(delete_response.data)
                                                 st.success(f"DEBUG: Deleção em 'cargas_geradas' na Tentativa {tentativa+1} bem-sucedida! {deleted_count} registros realmente deletados.")
                                                 delete_success = True
-                                                break 
-                                            else:
-                                                if chaves_para_deletar:
-                                                    st.warning(f"DEBUG: Deleção em 'cargas_geradas' na Tentativa {tentativa+1} retornou sem erro, mas 0 registros deletados. Possível problema de RLS ou itens não encontrados. Resposta: {delete_response}")
-                                                    delete_success = True 
-                                                    break
-                                                else:
-                                                    st.info(f"DEBUG: Nenhuma chave para deletar de 'cargas_geradas'. Operação de deleção não necessária.")
-                                                    delete_success = True
-                                                    break
+                                                break # Sucesso, sai do loop de retries
+                                            elif delete_response.error: # Se Supabase retornou um erro explícito
+                                                # Propaga o erro para o except mais externo, que já lida com tentativas
+                                                raise Exception(delete_response.error.message) 
+                                            else: # `delete_response.data` é vazio, mas sem erro explícito. 0 registros afetados.
+                                                  # Isso significa que a deleção falhou (RLS ou registros não encontrados).
+                                                st.warning(f"DEBUG: Deleção em 'cargas_geradas' na Tentativa {tentativa+1} retornou sem erro, mas 0 registros deletados. Possível problema de RLS ou itens não encontrados. Resposta: {delete_response}")
+                                                # NÃO definimos delete_success = True aqui. Ela permanece False para indicar falha.
+                                                if tentativa < 1: time.sleep(1) # Tenta novamente se não for a última tentativa
+                                                continue # Próxima tentativa
 
                                         except Exception as e_delete:
                                             error_message = str(e_delete)
                                             st.error(f"DEBUG: Exceção inesperada durante deleção de 'cargas_geradas': {e_delete} (Tipo: {type(e_delete)})")
                                             st.warning(f"Tentativa {tentativa+1}/2: Exceção geral durante remoção de 'cargas_geradas': {e_delete}")
-                                            if tentativa == 0: time.sleep(1) 
+                                            if tentativa < 1: time.sleep(1) # Tenta novamente se não for a última tentativa
+                                            continue # Próxima tentativa
                                     
-                                    if not delete_success:
+                                    # >>> Mensagens de feedback finais sobre a deleção <<<
+                                    if not delete_success and attempted_delete: # Se tentamos deletar e falhamos
                                         st.error(f"❌ As entregas foram inseridas em 'rotas_confirmadas', mas **FALHARAM AO SEREM REMOVIDAS** de 'cargas_geradas' após múltiplas tentativas. "
                                                  f"**POR FAVOR, VERIFIQUE AS POLÍTICAS RLS NO SUPABASE PARA A TABELA `cargas_geradas` E A CONSISTÊNCIA DOS DADOS MANUALMENTE.**")
-                                    else:
-                                        if deleted_count > 0:
-                                            st.success(f"✅ {deleted_count} entregas removidas de 'Cargas Geradas'.")
-                                        else:
-                                            st.warning(f"ℹ️ Deleção de 'Cargas Geradas' concluída, mas 0 entregas foram removidas. Verifique RLS ou se os itens já haviam sido movidos.")
+                                    elif deleted_count > 0: # Se ao menos um registro foi deletado
+                                        st.success(f"✅ {deleted_count} entregas removidas de 'Cargas Geradas'.")
+                                    elif attempted_delete and deleted_count == 0: # Se tentamos deletar, mas 0 foram deletadas (e não houve erro explícito)
+                                        st.warning(f"ℹ️ Deleção de 'Cargas Geradas' concluída, mas 0 entregas foram removidas. Verifique RLS ou se os itens já haviam sido movidos.")
+                                    elif not attempted_delete: # Se não havia nada para deletar (chaves_para_deletar estava vazio)
+                                        st.info("Nenhuma entrega selecionada para remoção de 'Cargas Geradas'.")
 
 
                                     # Verifica se restam entregas na carga após a remoção
@@ -3298,7 +3307,7 @@ def pagina_cargas_geradas():
                             st.info("Não foi possível calcular uma sugestão de valor de contratação (frete total zero).")
 
                         valor_contratacao = st.number_input(
-                            "Valor da Contratação da Carga (R$)",
+                            "Valor da Contratação da Carga (R\$)",
                             min_value=0.0,
                             value=valor_sugerido_contratacao, # Pré-preenche com a sugestão
                             step=0.01,
