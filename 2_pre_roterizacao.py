@@ -2469,8 +2469,8 @@ def pagina_rotas_confirmadas():
                 st.info(f"{len(selecionadas)} entrega(s) selecionada(s) para a rota {rota}.")
 
             # === MODIFICAÇÃO AQUI: Chave do botão ===
+            # 🔸 Botão para criar nova carga automaticamente
             if st.button(f"➕ Criar Nova Carga com Entregas Selecionadas", key=f"btn_criar_carga_{rota}"):
-            # === FIM DA MODIFICAÇÃO ===
                 if not selecionadas:
                     st.warning("Selecione ao menos uma entrega.")
                 else:
@@ -2554,67 +2554,94 @@ def pagina_rotas_confirmadas():
                         insert_success = False
                         for tentativa in range(2):
                             try:
+                                st.info(f"DEBUG: Tentando inserir {len(dados_para_insercao)} registros na tabela 'cargas_geradas' (tentativa {tentativa+1}).")
                                 insert_response = supabase.table("cargas_geradas").insert(dados_para_insercao).execute()
-                                if insert_response.error:
-                                    st.warning(f"Tentativa {tentativa+1}/2: Erro ao inserir na tabela 'cargas_geradas': {insert_response.error.message}")
-                                    if tentativa == 0: time.sleep(1)
-                                else:
+
+                                # Se a execução chegou aqui sem exceção, a chamada API foi bem-sucedida.
+                                # Agora verificamos se o .data contém os registros inseridos.
+                                if insert_response.data:
+                                    st.success(f"DEBUG: Inserção em 'cargas_geradas' na Tentativa {tentativa+1} bem-sucedida! {len(insert_response.data)} registros inseridos.")
                                     insert_success = True
-                                    break
+                                    break # Sucesso, sai do loop de retries
+                                else:
+                                    # Caso raro: API retorna sucesso, mas .data é vazio. Pode ser RLS impedindo retorno dos dados.
+                                    st.warning(f"DEBUG: Inserção em 'cargas_geradas' na Tentativa {tentativa+1} retornou sem erro, mas sem dados afetados. Resposta: {insert_response}")
+                                    if tentativa == 0: time.sleep(1) # Tenta novamente
+                                    continue # Próxima tentativa
+
                             except Exception as e_insert:
-                                st.warning(f"Tentativa {tentativa+1}/2: Exceção durante inserção em 'cargas_geradas': {e_insert}")
-                                if tentativa == 0: time.sleep(1)
+                                error_message = str(e_insert)
+                                # Verifica se é o erro de chave duplicada (PostgreSQL 23505)
+                                if "23505" in error_message and "duplicate key value violates unique constraint" in error_message:
+                                    st.warning(f"DEBUG: Erro de chave duplicada ({error_message}) detectado. A entrega já existe em 'cargas_geradas'. Considerado sucesso para esta fase (já está lá).")
+                                    insert_success = True # A entrega já está no destino, então a "operação" foi bem-sucedida
+                                    break # Sai do loop de retries
+                                else:
+                                    # Loga qualquer outra exceção inesperada
+                                    st.error(f"DEBUG: Exceção inesperada durante inserção em 'cargas_geradas': {e_insert} (Tipo: {type(e_insert)})")
+                                    st.warning(f"Tentativa {tentativa+1}/2: Exceção geral durante inserção em 'cargas_geradas': {e_insert}")
+                                    if tentativa == 0: time.sleep(1) # Tenta novamente
+                                    continue # Próxima tentativa
                         
                         # --- MODIFICAÇÃO CHAVE AQUI ---
                         if not insert_success:
-                            st.error(f"❌ Falha completa ao inserir entregas na carga após múltiplas tentativas. As entregas NÃO foram movidas de 'Rotas Confirmadas' ou já existiam. Por favor, verifique a tabela 'cargas_geradas' manualmente.")
+                            st.error(f"❌ Falha completa ao inserir entregas na carga após múltiplas tentativas. As entregas NÃO foram movidas de 'Rotas Confirmadas'. Por favor, verifique a tabela 'cargas_geradas' manualmente.")
                             st.session_state["reload_cargas_geradas"] = True # Garante que a página de cargas geradas seja atualizada
                             st.session_state["reload_rotas_confirmadas"] = True # Garante que a página atual seja atualizada
                             st.rerun() # Força uma nova renderização
                             return # Sai para evitar processamento adicional se a inserção falhou
 
-                        # ... (código anterior da pagina_rotas_confirmadas) ...
-
                         st.success(f"✅ {len(dados_para_insercao)} entregas inseridas na Carga {numero_carga}.")
 
                         # 6. SOMENTE SE A INSERÇÃO FOI BEM-SUCEDIDA, TENTA DELETAR DA ORIGEM ('rotas_confirmadas')
                         delete_success = False
+                        deleted_count = 0 # Para rastrear quantas foram realmente deletadas
                         for tentativa in range(2):
                             try:
-                                st.info(f"DEBUG: Tentando deletar chaves {chaves_ctrc_selecionadas} da tabela 'rotas_confirmadas' (tentativa {tentativa+1}).")
+                                st.info(f"DEBUG: Tentando deletar {len(chaves_ctrc_selecionadas)} CTRCs da tabela 'rotas_confirmadas' (tentativa {tentativa+1}).")
                                 # Executa a deleção
                                 delete_response = supabase.table("rotas_confirmadas").delete().in_("Serie_Numero_CTRC", chaves_ctrc_selecionadas).execute()
 
-                                # Verifica se a resposta do Supabase contém um erro explícito
-                                if delete_response.error:
-                                    st.error(f"DEBUG: Erro explícito do Supabase DETECTADO ao deletar de 'rotas_confirmadas': {delete_response.error.message}")
-                                    st.warning(f"Tentativa {tentativa+1}/2: Erro ao remover de 'rotas_confirmadas': {delete_response.error.message}")
-                                    if tentativa == 0: time.sleep(1) # Aguarda para tentar novamente
+                                # Se a execução chegou aqui sem exceção, a chamada API foi bem-sucedida.
+                                # Agora verificamos se o .data contém os registros deletados.
+                                if delete_response.data: # Para DELETE, .data contém a lista de objetos deletados
+                                    deleted_count = len(delete_response.data)
+                                    st.success(f"DEBUG: Deleção em 'rotas_confirmadas' na Tentativa {tentativa+1} bem-sucedida! {deleted_count} registros realmente deletados.")
+                                    delete_success = True
+                                    break # Sucesso, sai do loop de retries
                                 else:
-                                    # Se não há erro, verifica se a lista de dados deletados está vazia
-                                    # Uma deleção bem-sucedida geralmente retorna os objetos deletados em data
-                                    if not delete_response.data and chaves_ctrc_selecionadas: # Se havia chaves para deletar, mas nenhum dado foi retornado
-                                        st.warning(f"DEBUG: Deleção reportou sucesso, mas NENHUM registro foi retornado como deletado. "
-                                                   f"Isso pode indicar problema de RLS ou que os itens não existiam na tabela de origem. Chaves tentadas: {chaves_ctrc_selecionadas}")
-                                        # Considere isso uma falha para forçar a próxima tentativa ou erro final
-                                        if tentativa == 0: time.sleep(1) 
+                                    # Este caminho é tomado se execute() não levantou um erro, mas .data está vazio.
+                                    # Isso é um forte indicador de RLS impedindo a deleção, ou que não havia linhas correspondentes.
+                                    if chaves_ctrc_selecionadas: # Se realmente tentamos deletar algo
+                                        st.warning(f"DEBUG: Deleção em 'rotas_confirmadas' na Tentativa {tentativa+1} retornou sem erro, mas 0 registros deletados. Possível problema de RLS ou itens não encontrados. Resposta: {delete_response}")
+                                        # Como o Supabase não lançou um erro, mas disse 0 linhas, consideramos como "sucesso" (a API funcionou),
+                                        # mas alertamos o usuário se ele esperava deleções.
+                                        delete_success = True # Considera "sucesso" porque a chamada API funcionou
+                                        break # Sai do loop de retries
                                     else:
-                                        # Sucesso na deleção, e dados foram retornados (opcional, mas bom indicativo)
-                                        st.success(f"DEBUG: Sucesso na deleção! Registros realmente deletados (pelo Supabase): {len(delete_response.data) if delete_response.data else 0}")
+                                        # Não havia itens para deletar, então é uma operação bem-sucedida de não-operação.
+                                        st.info(f"DEBUG: Nenhuma chave para deletar de 'rotas_confirmadas'. Operação de deleção não necessária.")
                                         delete_success = True
-                                        break # Sai do loop de tentativas
+                                        break # Sai do loop de retries
 
                             except Exception as e_delete:
-                                # Captura exceções Python inesperadas (ex: problemas de rede)
-                                st.error(f"DEBUG: Exceção Python inesperada ao tentar deletar de 'rotas_confirmadas': {e_delete}")
-                                st.warning(f"Tentativa {tentativa+1}/2: Exceção durante remoção de 'rotas_confirmadas': {e_delete}")
-                                if tentativa == 0: time.sleep(1) # Aguarda para tentar novamente
+                                # Captura qualquer exceção lançada por execute() (ex: problemas de rede, erros gerais da API)
+                                error_message = str(e_delete)
+                                st.error(f"DEBUG: Exceção inesperada durante deleção de 'rotas_confirmadas': {e_delete} (Tipo: {type(e_delete)})")
+                                st.warning(f"Tentativa {tentativa+1}/2: Exceção geral durante remoção de 'rotas_confirmadas': {e_delete}")
+                                if tentativa == 0: time.sleep(1) # Tenta novamente
+                                # Se for um erro geral, delete_success permanece False, então ele tentará novamente ou falhará completamente.
 
-                        if not delete_success:
+                        # --- MODIFICAÇÃO CHAVE AQUI ---
+                        if not delete_success: # Isso agora realmente significa que a operação de deleção falhou após as retries.
                             st.error(f"⚠️ As entregas foram inseridas em 'cargas_geradas', mas **FALHARAM AO SEREM REMOVIDAS** de 'rotas_confirmadas' após múltiplas tentativas. "
-                                     f"**POR FAVOR, VERIFIQUE AS POLÍTICAS RLS NO SUPABASE PARA A TABELA `rotas_confirmadas` E A CONSISTÊNCIA DOS DADOS MANULMENTE.**")
+                                     f"**POR FAVOR, VERIFIQUE AS POLÍTICAS RLS NO SUPABASE PARA A TABELA `rotas_confirmadas` E A CONSISTÊNCIA DOS DADOS MANUALMENTE.**")
                         else:
-                            st.success(f"✅ {len(chaves_ctrc_selecionadas)} entregas removidas de 'Rotas Confirmadas'.")
+                            if deleted_count > 0:
+                                st.success(f"✅ {deleted_count} entregas removidas de 'Rotas Confirmadas'.")
+                            else:
+                                st.warning(f"ℹ️ Deleção de 'Rotas Confirmadas' concluída, mas 0 entregas foram removidas. Verifique RLS ou se os itens já haviam sido movidos.")
+                        # --- FIM DA MODIFICAÇÃO CHAVE ---
 
                         # 7. Atualiza o estado da sessão para forçar a recarga dos caches e grids
                         st.session_state["reload_rotas_confirmadas"] = True
@@ -2643,7 +2670,7 @@ def pagina_rotas_confirmadas():
                         st.error(f"❌ Ocorreu um erro inesperado durante a operação de mover entregas para cargas: {e_main}")
                         st.warning("A operação pode ter sido interrompida. Por favor, verifique a situação das entregas nas tabelas 'Rotas Confirmadas' e 'Cargas Geradas'.")
                         st.session_state["reload_rotas_confirmadas"] = True
-                        #st.rerun()
+                        st.rerun()
 
 # ... (restante da sua função pagina_rotas_confirmadas) ...
 
