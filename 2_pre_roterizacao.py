@@ -1377,7 +1377,7 @@ def aplicar_regras_e_preencher_tabelas():
 # ==============================================================================
 
 # Formato de exibição de data e hora no padrão brasileiro (completo com horas, minutos, segundos)
-DATE_DISPLAY_FORMAT_STRING = '%d-%m-%Y %H:%M:%S'
+DATE_DISPLAY_FORMAT_STRING = '%d-%m-%Y'
 
 # Formato de exibição de data no padrão brasileiro (apenas data)
 DATE_ONLY_DISPLAY_FORMAT_STRING = '%d-%m-%Y'
@@ -1389,9 +1389,9 @@ GLOBAL_DATE_DISPLAY_COLUMNS = [
     "Data de Emissao", "Data de Autorizacao", "Data de inclusao da Ultima Ocorrencia",
     "Data da Ultima Ocorrencia", "Previsao de Entrega", "Entrega Programada",
     "Data da Entrega Realizada", "Data do Cancelamento", "Data do Escaneamento",
-    "Data_Hora_Gerada", "data_fechamento", "data_aprovacao_custos","Data_Hora_Gerada", 
-    "data_fechamento", "data_aprovacao_custos"
+    "Data_Hora_Gerada", "data_fechamento", "data_aprovacao_custos"
 ]
+
 
 # Nova função para aplicar formato de data APENAS (sem hora)
 def apply_brazilian_date_only_format_for_display(df_to_format, date_cols):
@@ -1413,7 +1413,6 @@ def apply_brazilian_date_format_for_display(df_to_format):
     for col in GLOBAL_DATE_DISPLAY_COLUMNS:
         if col in df_to_format.columns:
             if not pd.api.types.is_datetime64_any_dtype(df_to_format[col]):
-                # Adicione 'dayfirst=True' aqui
                 df_to_format[col] = pd.to_datetime(df_to_format[col], errors='coerce')
             df_to_format[col] = df_to_format[col].apply(
                 lambda x: x.strftime(DATE_DISPLAY_FORMAT_STRING)
@@ -2515,35 +2514,46 @@ def pagina_rotas_confirmadas():
                             st.rerun()
                             return
 
-                        # ... (Seu código existente para tratamento de datas para Supabase) ...
-                                                # O dataframe 'df_para_inserir' (que veio de 'selecionadas') contém colunas de data como STRINGS formatadas.
-                        # Precisamos convertê-las de volta para datetime antes de enviar para o Supabase.
-                        # As colunas Previsao de Entrega e Entrega Programada virão como 'DD-MM-AAAA'.
-                        # As outras colunas de data (se selecionadas) virão como 'DD-MM-AAAA HH:MM:SS'.
+                    
 
-                        for col_name in GLOBAL_DATE_DISPLAY_COLUMNS: # GLOBAL_DATE_DISPLAY_COLUMNS é a lista abrangente
+                        for col_name in GLOBAL_DATE_DISPLAY_COLUMNS:
                             if col_name in df_para_inserir.columns:
-                                # Determina o formato de input correto para pd.to_datetime com base na coluna
-                                if col_name in DATE_ONLY_REPARSE_COLUMNS:
-                                    # Espera formato 'DD-MM-AAAA' (sem hora)
-                                    input_format_str = DATE_ONLY_DISPLAY_FORMAT_STRING # (e.g., '%d-%m-%Y')
-                                else:
-                                    # Espera formato 'DD-MM-AAAA HH:MM:SS' (com hora)
-                                    input_format_str = DATE_DISPLAY_FORMAT_STRING # (e.g., '%d-%m-%Y %H:%M:%S')
+                                # Passo 1: Converter a coluna para strings e remover espaços em branco
+                                temp_str_series = df_para_inserir[col_name].astype(str).str.strip()
 
-                                # Tenta converter a string para um objeto datetime
-                                dt_obj_series = pd.to_datetime(df_para_inserir[col_name], format=input_format_str, errors='coerce')
+                                # Passo 2: Identificar valores que são "vazios" ou "não são datas" na forma de string
+                                is_empty_or_invalid_str = temp_str_series.isin(['', 'nat', 'nan'])
+
+                                # Passo 3: Definir diretamente como None (que será NULL no Supabase) para estes casos
+                                df_para_inserir.loc[is_empty_or_invalid_str, col_name] = None
+
+                                # Passo 4: Processar apenas os valores que não são vazios/inválidos como string
+                                to_parse_indices = df_para_inserir.loc[~is_empty_or_invalid_str, col_name].index
                                 
-                                # Se o objeto de data/hora é naive (sem fuso horário), assumimos que é fuso do Brasil
-                                # e o convertemos para UTC, que é o que o Supabase prefere.
-                                # Adiciona timezone-aware local e converte para UTC
-                                dt_obj_series = dt_obj_series.dt.tz_localize(FUSO_BRASIL, ambiguous='NaT', nonexistent='NaT')
-                                dt_obj_series = dt_obj_series.dt.tz_convert('UTC')
+                                if not to_parse_indices.empty: # Verifica se há valores válidos para parsear
+                                    current_col_values_to_parse = df_para_inserir.loc[to_parse_indices, col_name]
+                                    
+                                    # Determinar o formato de entrada correto para pd.to_datetime (data ou data+hora)
+                                    input_format_str = DATE_ONLY_DISPLAY_FORMAT_STRING if col_name in DATE_ONLY_REPARSE_COLUMNS else DATE_DISPLAY_FORMAT_STRING
+                                    
+                                    # Tentar parsear a data usando o formato inferido ou especificado
+                                    parsed_dates = pd.to_datetime(
+                                        current_col_values_to_parse,
+                                        format=input_format_str,
+                                        errors='coerce' 
+                                    )
 
-                                # Converte o objeto datetime (agora UTC) para a string ISO 8601 que o Supabase espera
-                                df_para_inserir[col_name] = dt_obj_series.apply(
-                                    lambda x: x.isoformat(timespec='seconds').replace('+00:00', 'Z') if pd.notna(x) else None
-                                )
+                                    # Localizar para o fuso horário do Brasil e converter para UTC (o padrão do Supabase)
+                                    localized_utc_dates = parsed_dates.apply(
+                                        lambda x: x.tz_localize(FUSO_BRASIL, ambiguous='NaT', nonexistent='NaT').tz_convert('UTC')
+                                        if pd.notna(x) else pd.NaT # Se pd.to_datetime já deu NaT, mantenha como NaT
+                                    )
+
+                                    # Converter para string ISO 8601 (formato preferido do Supabase) ou None para NaT
+                                    df_para_inserir.loc[to_parse_indices, col_name] = localized_utc_dates.apply(
+                                        lambda x: x.isoformat(timespec='seconds').replace('+00:00', 'Z') 
+                                        if pd.notna(x) else None
+                                    )
                         
                         df_para_inserir = df_para_inserir.replace([np.nan, pd.NaT, np.inf, -np.inf, ""], None)
                         
