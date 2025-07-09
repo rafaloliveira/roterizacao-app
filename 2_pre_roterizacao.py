@@ -2383,7 +2383,7 @@ def pagina_rotas_confirmadas():
             badge(f"{len(df_rota)} entregas") +
             badge(f"{formatar_brasileiro(df_rota['Peso Calculado em Kg'].sum())} kg calc") +
             badge(f"{formatar_brasileiro(df_rota['Peso Real em Kg'].sum())} kg real") +
-            badge(f"Valor frete: R\$ {formatar_brasileiro(df_rota['Valor do Frete'].sum())}") +
+            badge(f"Valor frete: R$ {formatar_brasileiro(df_rota['Valor do Frete'].sum())}") +
             badge(f"{formatar_brasileiro(df_rota['Cubagem em m³'].sum())} m³") +
             badge(f"{int(df_rota['Quantidade de Volumes'].sum())} volumes"),
             unsafe_allow_html=True
