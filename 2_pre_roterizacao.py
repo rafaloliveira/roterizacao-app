@@ -2630,6 +2630,8 @@ def pagina_rotas_confirmadas():
 
                         st.success(f"✅ {len(dados_para_insercao)} entregas inseridas na Carga {numero_carga}.")
 
+                        
+
                         # 6. SOMENTE SE A INSERÇÃO FOI BEM-SUCEDIDA, TENTA DELETAR DA ORIGEM ('rotas_confirmadas')
                         delete_success = False
                         deleted_count = 0 # Para rastrear quantas foram realmente deletadas
@@ -2673,6 +2675,10 @@ def pagina_rotas_confirmadas():
                         if not delete_success: # Isso agora realmente significa que a operação de deleção falhou após as retries.
                             st.error(f"⚠️ As entregas foram inseridas em 'cargas_geradas', mas **FALHARAM AO SEREM REMOVIDAS** de 'rotas_confirmadas' após múltiplas tentativas. "
                                      f"**POR FAVOR, VERIFIQUE AS POLÍTICAS RLS NO SUPABASE PARA A TABELA `rotas_confirmadas` E A CONSISTÊNCIA DOS DADOS MANUALMENTE.**")
+                            
+
+
+
                         else:
                             if deleted_count > 0:
                                 st.success(f"✅ {deleted_count} entregas removidas de 'Rotas Confirmadas'.")
@@ -3116,6 +3122,7 @@ def pagina_cargas_geradas():
                         "#gridToolBar": { "padding-bottom": "0px !important", }
                     }
                 )
+
                 if marcar_todas:
                     selecionadas = df_formatado[df_formatado["Serie_Numero_CTRC"].notna()].copy().to_dict(orient="records")
                 else:
@@ -3131,9 +3138,11 @@ def pagina_cargas_geradas():
                                     df_remover = pd.DataFrame(selecionadas)
                                     df_remover = df_remover.drop(columns=["_selectedRowNodeInfo"], errors="ignore")
                                     
+                                    # Garante que 'numero_carga' seja removido ANTES da inserção em rotas_confirmadas
+                                    # pois rotas_confirmadas não tem essa coluna.
                                     df_remover = df_remover.drop(columns=["numero_carga"], errors="ignore")
 
-                                    # >> MUDANÇA PRINCIPAL AQUI: BLOCO ROBUSTO DE TRATAMENTO DE DATAS <<
+                                    # >> BLOCO ROBUSTO DE TRATAMENTO DE DATAS <<
                                     # Este bloco converte as strings de data (dd-mm-aaaa, etc.) que vêm do AgGrid
                                     # de volta para objetos datetime e, em seguida, para o formato ISO (UTC)
                                     # que o Supabase prefere, garantindo a originalidade do dado.
@@ -3182,26 +3191,74 @@ def pagina_cargas_geradas():
                                     registros = df_remover.to_dict(orient="records")
 
                                     # Insere de volta em rotas_confirmadas
-                                    supabase.table("rotas_confirmadas").insert(registros).execute()
+                                    # >>> APENAS UMA CHAMADA DE INSERÇÃO AQUI! <<<
+                                    try:
+                                        insert_response = supabase.table("rotas_confirmadas").insert(registros).execute()
+                                        if insert_response.error:
+                                            # Levanta uma exceção para o bloco outer try-except capturar
+                                            raise Exception(insert_response.error.message)
+                                    except Exception as e_insert:
+                                        # Captura o erro específico de duplicidade e dá uma mensagem mais clara
+                                        if "23505" in str(e_insert) and "duplicate key value violates unique constraint" in str(e_insert):
+                                            # Assume que o erro 23505 é para a primeira entrega (ou pega a primeira chave se registros não estiver vazio)
+                                            key_info = registros[0].get('Serie_Numero_CTRC', 'Desconhecida') if registros else 'Desconhecida'
+                                            st.error(f"❌ Erro de duplicidade ao retornar entrega {key_info} para Rotas Confirmadas: Já existe um registro com essa chave. Isso pode indicar uma falha de deleção anterior ou um dado inconsistente. Por favor, verifique o Supabase manualmente.")
+                                        else:
+                                            st.error(f"❌ Erro ao inserir entregas em Rotas Confirmadas: {e_insert}")
+                                        return # Sai da função se a inserção falhar
+
+                                    # >> DELEÇÃO DA CARGA GERADA COM RETRY <<
+                                    chaves_para_deletar = df_remover["Serie_Numero_CTRC"].dropna().astype(str).tolist()
+                                    delete_success = False
+                                    deleted_count = 0 
+                                    for tentativa in range(2):
+                                        try:
+                                            st.info(f"DEBUG: Tentando deletar {len(chaves_para_deletar)} CTRCs da tabela 'cargas_geradas' (tentativa {tentativa+1}).")
+                                            delete_response = supabase.table("cargas_geradas").delete().in_("Serie_Numero_CTRC", chaves_para_deletar).execute()
+
+                                            if delete_response.data: 
+                                                deleted_count = len(delete_response.data)
+                                                st.success(f"DEBUG: Deleção em 'cargas_geradas' na Tentativa {tentativa+1} bem-sucedida! {deleted_count} registros realmente deletados.")
+                                                delete_success = True
+                                                break 
+                                            else:
+                                                if chaves_para_deletar:
+                                                    st.warning(f"DEBUG: Deleção em 'cargas_geradas' na Tentativa {tentativa+1} retornou sem erro, mas 0 registros deletados. Possível problema de RLS ou itens não encontrados. Resposta: {delete_response}")
+                                                    delete_success = True 
+                                                    break
+                                                else:
+                                                    st.info(f"DEBUG: Nenhuma chave para deletar de 'cargas_geradas'. Operação de deleção não necessária.")
+                                                    delete_success = True
+                                                    break
+
+                                        except Exception as e_delete:
+                                            error_message = str(e_delete)
+                                            st.error(f"DEBUG: Exceção inesperada durante deleção de 'cargas_geradas': {e_delete} (Tipo: {type(e_delete)})")
+                                            st.warning(f"Tentativa {tentativa+1}/2: Exceção geral durante remoção de 'cargas_geradas': {e_delete}")
+                                            if tentativa == 0: time.sleep(1) 
+                                    
+                                    if not delete_success:
+                                        st.error(f"❌ As entregas foram inseridas em 'rotas_confirmadas', mas **FALHARAM AO SEREM REMOVIDAS** de 'cargas_geradas' após múltiplas tentativas. "
+                                                 f"**POR FAVOR, VERIFIQUE AS POLÍTICAS RLS NO SUPABASE PARA A TABELA `cargas_geradas` E A CONSISTÊNCIA DOS DADOS MANUALMENTE.**")
+                                    else:
+                                        if deleted_count > 0:
+                                            st.success(f"✅ {deleted_count} entregas removidas de 'Cargas Geradas'.")
+                                        else:
+                                            st.warning(f"ℹ️ Deleção de 'Cargas Geradas' concluída, mas 0 entregas foram removidas. Verifique RLS ou se os itens já haviam sido movidos.")
 
 
-                                    if "Data_Hora_Gerada" in df_remover.columns:
-                                        df_remover["Data_Hora_Gerada"] = df_remover["Data_Hora_Gerada"].apply(
-                                            lambda x: datetime.strptime(x, "%d-%m-%Y %H:%M:%S").isoformat() if x else None
-                                        )
+                                    # Verifica se restam entregas na carga após a remoção
+                                    # Apenas tenta deletar a carga se a deleção das entregas foi bem-sucedida (delete_success)
+                                    if delete_success: 
+                                        dados_restantes = supabase.table("cargas_geradas").select("numero_carga").eq("numero_carga", carga).execute().data
+                                        if not dados_restantes:
+                                            st.info(f"DEBUG: Não há mais entregas na carga {carga}. Removendo a entrada da carga.")
+                                            supabase.table("cargas_geradas").delete().eq("numero_carga", carga).execute()
+                                        else:
+                                            st.info(f"DEBUG: Ainda restam {len(dados_restantes)} entregas na carga {carga}. Não removendo a entrada da carga.")
 
-                                    df_remover = df_remover.replace([np.nan, pd.NaT, "", np.inf, -np.inf], None)
-                                    registros = df_remover.to_dict(orient="records")
 
-                                    supabase.table("rotas_confirmadas").insert(registros).execute()
-
-                                    chaves = df_remover["Serie_Numero_CTRC"].dropna().astype(str).tolist()
-                                    supabase.table("cargas_geradas").delete().in_("Serie_Numero_CTRC", chaves).execute()
-
-                                    dados_restantes = supabase.table("cargas_geradas").select("numero_carga").eq("numero_carga", carga).execute().data
-                                    if not dados_restantes:
-                                        supabase.table("cargas_geradas").delete().eq("numero_carga", carga).execute()
-
+                                    # ... (o restante do código de atualização de session_state e rerun) ...
                                     st.session_state.pop("df_cargas_cache", None)
                                     grid_key_id = f"grid_carga_gerada_{carga}"
                                     st.session_state.pop(grid_key_id, None)
@@ -3211,21 +3268,20 @@ def pagina_cargas_geradas():
                                     st.session_state["reload_rotas_confirmadas"] = True 
 
                                     # --- ADIÇÃO CRÍTICA PARA INVALIDAR A KEY DO AGGRID DAS ROTAS AFETADAS ---
-                                    # Obter as rotas únicas das entregas que foram removidas
                                     rotas_afetadas = df_remover["Rota"].dropna().unique()
                                     for rota_afetada in rotas_afetadas:
-                                        # Construir a chave do grid da rota afetada
                                         grid_key_rotas_confirmadas = f"grid_rotas_confirmadas_{rota_afetada}"
-                                        # Remover a chave do estado da sessão para forçar a recriação do grid
                                         if grid_key_rotas_confirmadas in st.session_state:
                                             st.session_state.pop(grid_key_rotas_confirmadas, None)
 
-                                    st.success(f"✅ {len(chaves)} entrega(s) removida(s) da carga {carga} e retornada(s) para Rotas Confirmadas.")
+                                    st.success(f"✅ {len(chaves_para_deletar)} entrega(s) removida(s) da carga {carga} e retornada(s) para Rotas Confirmadas.")
                                     
                                     st.rerun()
 
                             except Exception as e:
-                                st.error(f"Erro ao retirar entregas da carga: {e}")
+                                # Este except captura erros mais genéricos que não foram tratados nos blocos internos
+                                st.error(f"❌ Erro geral inesperado ao retirar entregas da carga: {e}")
+                                st.warning("A operação pode ter sido interrompida. Por favor, verifique a situação das entregas nas tabelas 'Rotas Confirmadas' e 'Cargas Geradas'.")
 
                     with col_aprov:
                         valor_contratacao_key = f"valor_contratacao_{carga}"
@@ -3235,14 +3291,14 @@ def pagina_cargas_geradas():
                         st.subheader(f"Valor da Contratação da Carga {carga}")
                         
                         if valor_sugerido_contratacao > 0:
-                            st.info(f"**Sugestão de Valor:** Para atingir a meta da região '{dominant_region}' ({MAX_COST_PER_REGION.get(dominant_region, 0)*100:.0f}%), o valor ideal seria de **R$ {formatar_brasileiro(valor_sugerido_contratacao)}**")
+                            st.info(f"**Sugestão de Valor:** Para atingir a meta da região '{dominant_region}' ({MAX_COST_PER_REGION.get(dominant_region, 0)*100:.0f}%), o valor ideal seria de **R\$ {formatar_brasileiro(valor_sugerido_contratacao)}**")
                         elif total_frete_carga > 0:
                             st.warning(f"Não foi possível calcular uma sugestão de valor de contratação para a região '{dominant_region}'.")
                         else:
                             st.info("Não foi possível calcular uma sugestão de valor de contratação (frete total zero).")
 
                         valor_contratacao = st.number_input(
-                            "Valor da Contratação da Carga (R$)",
+                            "Valor da Contratação da Carga (R\$)",
                             min_value=0.0,
                             value=valor_sugerido_contratacao, # Pré-preenche com a sugestão
                             step=0.01,
@@ -3264,12 +3320,34 @@ def pagina_cargas_geradas():
                                         df_aprovar_custos["numero_carga"] = carga
                                         df_aprovar_custos["valor_contratacao"] = valor_contratacao # Garante que o valor do input é salvo
 
-                                        if "Data_Hora_Gerada" in df_aprovar_custos.columns:
-                                            df_aprovar_custos["Data_Hora_Gerada"] = df_aprovar_custos["Data_Hora_Gerada"].apply(
-                                                lambda x: datetime.strptime(x, "%d-%m-%Y %H:%M:%S").isoformat() if x else None
-                                            )
+                                        # Aplicando o bloco robusto de tratamento de datas para envio ao Supabase
+                                        for col_name in GLOBAL_DATE_DISPLAY_COLUMNS:
+                                            if col_name in df_aprovar_custos.columns:
+                                                temp_str_series = df_aprovar_custos[col_name].astype(str).str.strip()
+                                                is_empty_or_invalid_str = temp_str_series.isin(['', 'nat', 'nan'])
+                                                df_aprovar_custos.loc[is_empty_or_invalid_str, col_name] = None
+                                                to_parse_indices = df_aprovar_custos.loc[~is_empty_or_invalid_str, col_name].index
+                                                
+                                                if not to_parse_indices.empty:
+                                                    current_col_values_to_parse = df_aprovar_custos.loc[to_parse_indices, col_name]
+                                                    input_format_str = DATE_ONLY_DISPLAY_FORMAT_STRING if col_name in DATE_ONLY_REPARSE_COLUMNS else DATE_DISPLAY_FORMAT_STRING
+                                                    parsed_dates = pd.to_datetime(
+                                                        current_col_values_to_parse,
+                                                        format=input_format_str,
+                                                        errors='coerce' 
+                                                    )
+                                                    localized_utc_dates = parsed_dates.apply(
+                                                        lambda x: x.tz_localize(FUSO_BRASIL, ambiguous='NaT', nonexistent='NaT').tz_convert('UTC')
+                                                        if pd.notna(x) else pd.NaT
+                                                    )
+                                                    df_aprovar_custos.loc[to_parse_indices, col_name] = localized_utc_dates.apply(
+                                                        lambda x: x.isoformat(timespec='seconds').replace('+00:00', 'Z') 
+                                                        if pd.notna(x) else None
+                                                    )
 
-                                        df_aprovar_custos = df_aprovar_custos.replace([np.nan, pd.NaT, "", np.inf, -np.inf], None)
+                                        # Garante que qualquer outro NaN, Infinito ou string vazia seja None.
+                                        df_aprovar_custos = df_aprovar_custos.replace([np.nan, pd.NaT, np.inf, -np.inf, ""], None)
+
                                         registros_para_custos = df_aprovar_custos.to_dict(orient="records")
 
                                         if registros_para_custos:
@@ -3284,17 +3362,17 @@ def pagina_cargas_geradas():
 
                                             st.session_state.pop(grid_key_id, None)
 
-                                            st.success(f"✅ {len(registros_para_custos)} entregas da carga {carga} enviadas para Aprovação de Custos com valor R$ {valor_contratacao:.2f}.")
+                                            st.success(f"✅ {len(registros_para_custos)} entregas da carga {carga} enviadas para Aprovação de Custos com valor R\$ {valor_contratacao:.2f}.")
                                             
                                             st.rerun()
                                         else:
                                             st.warning("Nenhuma entrega válida selecionada para enviar para aprovação de custos.")
                                 except Exception as e:
                                     st.error(f"❌ Erro ao enviar entregas para aprovação de custos: {e}")
-
     except Exception as e:
-        st.error(f"❌ Erro ao enviar entregas para aprovação de custos: {e}")
-
+        # Este except captura erros mais genéricos que não foram tratados nos blocos internos
+        st.error(f"❌ Erro geral inesperado ao retirar entregas da carga: {e}")
+        st.warning("A operação pode ter sido interrompida. Por favor, verifique a situação das entregas nas tabelas 'Rotas Confirmadas' e 'Cargas Geradas'.")
 # ==============================================================================
 # FUNÇÃO: pagina_aprovacao_custos() - ATUALIZADA
 # ==============================================================================
