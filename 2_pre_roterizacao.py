@@ -2380,20 +2380,22 @@ def pagina_rotas_confirmadas():
         st.session_state["nova_carga_em_criacao"] = False
         st.session_state["numero_nova_carga"] = ""
 
+    # Se NÃO está em criação de carga, mostra o botão "Criar Nova Carga Avulsa"
     if not st.session_state["nova_carga_em_criacao"]:
         col1, col2 = st.columns([1, 1])
         with col1:
             if st.button("🆕 Criar Nova Carga Avulsa"):
                 try:
-                    numero_carga = gerar_proximo_numero_carga(supabase)
-                    if numero_carga:
+                    numero_carga_gerado = gerar_proximo_numero_carga(supabase)
+                    if numero_carga_gerado:
                         st.session_state["nova_carga_em_criacao"] = True
-                        st.session_state["numero_nova_carga"] = numero_carga
-                        st.rerun()
+                        st.session_state["numero_nova_carga"] = numero_carga_gerado
+                        st.rerun() # Força rerun para exibir a nova interface de adição
                     else:
                         st.error("Falha ao gerar um número de carga único. Por favor, tente novamente.")
                 except Exception as e:
                     st.error(f"Erro ao criar nova carga: {e}")
+    # Se JÁ está em criação de carga, mostra a interface para adicionar chaves CT-e
     else:
         st.success(f"Nova Carga Criada: {st.session_state['numero_nova_carga']}")
         st.markdown("### Inserir Entregas na Carga")
@@ -2411,16 +2413,182 @@ def pagina_rotas_confirmadas():
             st.rerun()
 
         if adicionar:
-            chaves_ct_e_para_adicionar = [re.sub(r"\s+", "", c) for c in chaves_input.splitlines() if c.strip()]
-            if not chaves_ct_e_para_adicionar:
-                st.warning("Nenhuma Chave CT-e válida informada.")
-            else:
-                try:
-                    # Chamar a sua função existente para adicionar entregas à carga
-                    adicionar_entregas_a_carga(chaves_ct_e_para_adicionar, st.session_state["numero_nova_carga"])
-                except Exception as e:
-                    st.error(f"Erro ao adicionar entregas manualmente: {e}")
+            try:
+                # Limpa e normaliza as chaves do input do usuário
+                chaves_ct_e_para_adicionar = [c.replace('\xa0', '').replace(' ', '').strip() for c in chaves_input.splitlines() if c.strip()]
+                
+                if not chaves_ct_e_para_adicionar:
+                    st.warning("Nenhuma Chave CT-e válida informada.")
+                    # Não há return aqui para permitir que o fluxo continue, mas a lógica de inserção não será executada.
+                else:
+                    st.info(f"DEBUG: Buscando por Chaves CT-e: {chaves_ct_e_para_adicionar}")
+
+                    # --- INÍCIO: Lógica da antiga função adicionar_entregas_a_carga inlined ---
+                    numero_carga = st.session_state["numero_nova_carga"]
+
+                    entregas_coletadas = []
+                    found_ctrc_in_pre_roterizacao = set()
+                    found_ctrc_in_rotas_confirmadas = set()
+
+                    # Prepara as chaves para buscar por versões com/sem espaço (solução temporária para dados sujos)
+                    chaves_cte_para_busca = []
+                    for chave in chaves_ct_e_para_adicionar:
+                        chaves_cte_para_busca.append(chave) # Versão limpa
+                        chaves_cte_para_busca.append(chave + " ") # Versão com espaço no final
+                    chaves_cte_para_busca = list(set(chaves_cte_para_busca))
+
+                    # 1. Busca em pre_roterizacao usando "Chave CT-e"
+                    try:
+                        response_pre = supabase.table("pre_roterizacao").select("*").in_("Chave CT-e", chaves_cte_para_busca).execute()
+                        if response_pre.data:
+                            df_pre = pd.DataFrame(response_pre.data)
+                            df_pre["origem_tabela"] = "pre_roterizacao"
+                            entregas_coletadas.extend(df_pre.to_dict(orient='records'))
+                            found_ctrc_in_pre_roterizacao.update(df_pre["Serie_Numero_CTRC"].tolist())
+                            st.info(f"DEBUG: Encontradas {len(df_pre)} entregas em 'pre_roterizacao'.")
+                        elif response_pre.error:
+                            st.error(f"Erro ao consultar 'pre_roterizacao': {response_pre.error.message}")
+                    except Exception as e:
+                        st.error(f"Erro inesperado ao consultar 'pre_roterizacao': {e}")
+
+                    # 2. Busca em rotas_confirmadas (apenas as Chave CT-e que NÃO foram encontradas em pre_roterizacao)
+                    chaves_cte_ja_coletadas = {e.get("Chave CT-e") for e in entregas_coletadas if e.get("Chave CT-e") is not None}
+                    chaves_cte_restantes_originais = [c for c in chaves_ct_e_para_adicionar if c not in chaves_cte_ja_coletadas]
+                    
+                    chaves_cte_para_busca_restantes = []
+                    for chave in chaves_cte_restantes_originais:
+                        chaves_cte_para_busca_restantes.append(chave)
+                        chaves_cte_para_busca_restantes.append(chave + " ")
+                    chaves_cte_para_busca_restantes = list(set(chaves_cte_para_busca_restantes))
+
+                    if chaves_cte_para_busca_restantes:
+                        try:
+                            response_conf = supabase.table("rotas_confirmadas").select("*").in_("Chave CT-e", chaves_cte_para_busca_restantes).execute()
+                            if response_conf.data:
+                                df_conf = pd.DataFrame(response_conf.data)
+                                df_conf["origem_tabela"] = "rotas_confirmadas"
+                                entregas_coletadas.extend(df_conf.to_dict(orient='records'))
+                                found_ctrc_in_rotas_confirmadas.update(df_conf["Serie_Numero_CTRC"].tolist())
+                                st.info(f"DEBUG: Encontradas {len(df_conf)} entregas em 'rotas_confirmadas'.")
+                            elif response_conf.error:
+                                st.error(f"Erro ao consultar 'rotas_confirmadas': {response_conf.error.message}")
+                        except Exception as e:
+                            st.error(f"Erro inesperado ao consultar 'rotas_confirmadas': {e}")
+
+                    if not entregas_coletadas:
+                        st.warning("⚠️ Nenhuma entrega encontrada para as Chaves CT-e informadas em 'Pré-Roterização' ou 'Rotas Confirmadas'.")
+                        # Se não encontrou entregas, sai do try e não tenta inserir/deletar
+                        # O erro generalizado do try/except externo pegaria isso, mas um retorno aqui é mais limpo.
+                        return 
+
+
+                    # Preparar dados para inserção em `cargas_geradas`
+                    df_para_inserir = pd.DataFrame(entregas_coletadas)
+                    df_para_inserir["numero_carga"] = numero_carga
+                    df_para_inserir["Data_Hora_Gerada"] = data_hora_brasil_iso()
+
+                    # Tratamento robusto de datas para Supabase (assumindo GLOBAL_DATE_DISPLAY_COLUMNS etc. estão definidos)
+                    for col_name in GLOBAL_DATE_DISPLAY_COLUMNS:
+                        if col_name in df_para_inserir.columns:
+                            temp_str_series = df_para_inserir[col_name].astype(str).str.strip()
+                            is_empty_or_invalid_str = temp_str_series.isin(['', 'nat', 'nan'])
+                            df_para_inserir.loc[is_empty_or_invalid_str, col_name] = None
+                            to_parse_indices = df_para_inserir.loc[~is_empty_or_invalid_str, col_name].index
+                            
+                            if not to_parse_indices.empty:
+                                current_col_values_to_parse = df_para_inserir.loc[to_parse_indices, col_name]
+                                input_format_str = DATE_ONLY_DISPLAY_FORMAT_STRING if col_name in DATE_ONLY_REPARSE_COLUMNS else DATE_DISPLAY_FORMAT_STRING
+                                parsed_dates = pd.to_datetime(
+                                    current_col_values_to_parse,
+                                    format=input_format_str,
+                                    errors='coerce' 
+                                )
+                                localized_utc_dates = parsed_dates.apply(
+                                    lambda x: x.tz_localize(FUSO_BRASIL, ambiguous='NaT', nonexistent='NaT').tz_convert('UTC')
+                                    if pd.notna(x) else pd.NaT
+                                )
+                                df_para_inserir.loc[to_parse_indices, col_name] = localized_utc_dates.apply(
+                                    lambda x: x.isoformat(timespec='seconds').replace('+00:00', 'Z') 
+                                    if pd.notna(x) else None
+                                )
+                    
+                    df_para_inserir = df_para_inserir.replace([np.nan, pd.NaT, np.inf, -np.inf, ""], None)
+                    dados_para_insercao = df_para_inserir.to_dict(orient='records')
+
+                    # Insere entregas na tabela `cargas_geradas`
+                    insert_success = False
+                    inserted_ctrcs = []
+                    for tentativa in range(2):
+                        try:
+                            insert_response = supabase.table("cargas_geradas").insert(dados_para_insercao).execute()
+                            if insert_response.data:
+                                inserted_ctrcs = [r.get("Serie_Numero_CTRC") for r in insert_response.data if r.get("Serie_Numero_CTRC")]
+                                insert_success = True
+                                st.success(f"✅ {len(insert_response.data)} entrega(s) adicionada(s) à Carga {numero_carga}.")
+                                break
+                            elif insert_response.error:
+                                st.warning(f"Tentativa {tentativa+1}/2: Erro ao inserir na 'cargas_geradas': {insert_response.error.message}")
+                                if tentativa == 0: time.sleep(1)
+                            else:
+                                st.warning(f"Tentativa {tentativa+1}/2: Inserção em 'cargas_geradas' não retornou erro, mas sem dados afetados. Resposta: {insert_response}")
+                                if tentativa == 0: time.sleep(1)
+                        except Exception as e_insert:
+                            st.warning(f"Tentativa {tentativa+1}/2: Exceção durante inserção em 'cargas_geradas': {e_insert}")
+                            if tentativa == 0: time.sleep(1)
+
+                    if not insert_success:
+                        st.error(f"❌ Falha crítica ao adicionar entregas à Carga {numero_carga} após múltiplas tentativas. Nenhuma entrega foi movida.")
+                        return 
+
+                    # Remove entregas das tabelas de origem SOMENTE SE a inserção foi bem-sucedida
+                    if inserted_ctrcs:
+                        ctrcs_to_delete_from_pre = list(set(inserted_ctrcs).intersection(found_ctrc_in_pre_roterizacao))
+                        if ctrcs_to_delete_from_pre:
+                            try:
+                                delete_response_pre = supabase.table("pre_roterizacao").delete().in_("Serie_Numero_CTRC", ctrcs_to_delete_from_pre).execute()
+                                if delete_response_pre.error:
+                                    st.warning(f"Erro ao deletar de 'pre_roterizacao': {delete_response_pre.error.message}")
+                                else:
+                                    st.info(f"Removidas {len(delete_response_pre.data)} entregas de 'pre_roterizacao'.")
+                            except Exception as e:
+                                st.warning(f"Exceção ao deletar de 'pre_roterizacao': {e}")
+
+                        ctrcs_to_delete_from_conf = list(set(inserted_ctrcs).intersection(found_ctrc_in_rotas_confirmadas))
+                        if ctrcs_to_delete_from_conf:
+                            try:
+                                delete_response_conf = supabase.table("rotas_confirmadas").delete().in_("Serie_Numero_CTRC", ctrcs_to_delete_from_conf).execute()
+                                if delete_response_conf.error:
+                                    st.warning(f"Erro ao deletar de 'rotas_confirmadas': {delete_response_conf.error.message}")
+                                else:
+                                    st.info(f"Removidas {len(delete_response_conf.data)} entregas de 'rotas_confirmadas'.")
+                            except Exception as e:
+                                st.warning(f"Exceção ao deletar de 'rotas_confirmadas': {e}")
+                    else:
+                        st.warning("Nenhuma Chave CT-e válida para deletar da origem (não encontradas ou não inseridas na carga).")
+
+                    # Invalida caches para atualizar a UI
+                    st.session_state["reload_rotas_confirmadas"] = True
+                    st.session_state["reload_pre_roterizacao"] = True
+                    st.session_state["reload_cargas_geradas"] = True
+                    st.session_state.pop("df_pre_roterizacao_cache", None)
+                    st.session_state.pop("df_rotas_confirmadas_cache", None)
+                    st.session_state.pop("df_cargas_cache", None)
+
+                    # --- FIM: Lógica da antiga função adicionar_entregas_a_carga inlined ---
+
+                    # Força o rerun apenas uma vez no final, se tudo der certo
+                    st.session_state["nova_carga_em_criacao"] = False # Reseta o estado para esconder a interface de adição
+                    st.session_state["numero_nova_carga"] = "" # Limpa o número da carga avulsa
+                    st.rerun()
+
+            except Exception as e: # Este é o 'except' para o bloco 'try' mais externo da adição manual
+                st.error(f"Erro geral ao adicionar entregas manualmente: {e}")
     # --- FIM: BLOCO DE CRIAÇÃO DE CARGA AVULSA ---
+
+
+
+
+
 
     # --- INÍCIO: CARREGAMENTO DOS DADOS DE ROTAS CONFIRMADAS E EXIBIÇÃO ---
     try:
