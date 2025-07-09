@@ -3466,7 +3466,7 @@ def pagina_cargas_geradas():
                             st.info("Não foi possível calcular uma sugestão de valor de contratação (frete total zero).")
 
                         valor_contratacao = st.number_input(
-                            "Valor da Contratação da Carga (R\$)",
+                            "Valor da Contratação da Carga (R$)",
                             min_value=0.0,
                             value=valor_sugerido_contratacao, # Pré-preenche com a sugestão
                             step=0.01,
@@ -3581,7 +3581,6 @@ def pagina_aprovacao_custos():
 
         df.columns = df.columns.str.strip()
 
-
         if 'numero_carga' in df.columns:
             df['numero_carga'] = df['numero_carga'].astype(str)
 
@@ -3596,7 +3595,6 @@ def pagina_aprovacao_custos():
         # Garante que 'Regiao' seja string e trata nulos para o cálculo
         if 'Regiao' in df.columns:
             df['Regiao'] = df['Regiao'].astype(str).str.strip().str.upper().replace('NAN', 'NÃO DEFINIDA')
-
 
         col1, col2, _ = st.columns([1, 1, 8])
         with col1:
@@ -3615,17 +3613,19 @@ def pagina_aprovacao_custos():
         cargas_unicas = sorted(df["numero_carga"].dropna().unique())
 
         for carga in cargas_unicas:
-        
-            st.write(f"DEBUG: Tentando renderizar a carga: {carga}")
             df_carga = df[df["numero_carga"] == carga].copy()
             if df_carga.empty:
-                st.write(f"DEBUG: df_carga vazia para {carga}. Pulando.")
                 continue
 
             valor_contratacao_carga_existente = df_carga["valor_contratacao"].iloc[0] if "valor_contratacao" in df_carga.columns and not df_carga["valor_contratacao"].isnull().all() else 0.0
             
-            # --- Cálculos de Rentabilidade e Custo por Região (necessários para a sugestão) ---
+            # --- Cálculos de Rentabilidade e Custo por Região ---
             total_frete_carga = df_carga["Valor do Frete"].sum()
+            
+            # DEBUG: Adicionar logs para verificar os valores
+            st.write(f"🔍 **DEBUG - Carga {carga}:**")
+            st.write(f"- Total Frete: R\$ {total_frete_carga:.2f}")
+            st.write(f"- Valor Contratação: R\$ {valor_contratacao_carga_existente:.2f}")
             
             rentabilidade_percentual = 0.0
             situacao_custo_regional = "N/A"
@@ -3644,10 +3644,22 @@ def pagina_aprovacao_custos():
                     elif not df_carga['Regiao'].empty: # Se todas forem 'NÃO DEFINIDA', pega a primeira
                         dominant_region = df_carga['Regiao'].iloc[0]
 
-                max_cost_allowed = MAX_COST_PER_REGION.get(dominant_region, None) # Pega o limite para a região dominante
+                # DEBUG: Verificar região
+                st.write(f"- Região Dominante: {dominant_region}")
+                
+                max_cost_allowed = MAX_COST_PER_REGION.get(dominant_region, None)
+                
+                # DEBUG: Verificar limite
+                st.write(f"- Limite da Região: {max_cost_allowed}")
 
                 if max_cost_allowed is not None:
                     custo_receita_ratio = (valor_contratacao_carga_existente / total_frete_carga)
+                    
+                    # DEBUG: Verificar cálculo
+                    st.write(f"- Ratio Calculado: {custo_receita_ratio:.4f} ({custo_receita_ratio*100:.2f}%)")
+                    st.write(f"- Limite Permitido: {max_cost_allowed:.4f} ({max_cost_allowed*100:.2f}%)")
+                    st.write(f"- Comparação: {custo_receita_ratio:.4f} <= {max_cost_allowed:.4f} = {custo_receita_ratio <= max_cost_allowed}")
+                    
                     if custo_receita_ratio <= max_cost_allowed:
                         situacao_custo_regional = f"Dentro do Limite ({max_cost_allowed*100:.0f}%)"
                         cor_situacao = "#28a745" # Verde
@@ -3657,15 +3669,19 @@ def pagina_aprovacao_custos():
                 else:
                     situacao_custo_regional = f"Região '{dominant_region}' sem limite definido"
                     cor_situacao = "orange"
-            else: # total_frete_carga is 0 or less
+            else:
                 rentabilidade_percentual = 0.0
                 if valor_contratacao_carga_existente > 0:
                     situacao_custo_regional = "Frete total zero, Contratação > 0"
-                    cor_situacao = "#dc3545" # Vermelho
+                    cor_situacao = "#dc3545"
                 else:
                     situacao_custo_regional = "Frete total zero, Contratação zero"
                     cor_situacao = "gray"
 
+            # DEBUG: Resultado final
+            st.write(f"- **Situação Final:** {situacao_custo_regional}")
+            st.write(f"- **Cor:** {cor_situacao}")
+            st.write("---")
 
             st.markdown(f"""
             <div style="margin-top:20px;padding:10px;background:#e8f0fe;border-left:4px solid #f9ab00;border-radius:6px;display:inline-block;max-width:100%;">
@@ -3673,24 +3689,6 @@ def pagina_aprovacao_custos():
             </div>
             """, unsafe_allow_html=True)
 
-            col1_badges, col2_placeholder = st.columns([5, 1])
-            with col1_badges:
-                st.markdown(
-                    f"""
-                    <div style='display: flex; flex-wrap: wrap; gap: 8px;'>
-                        {badge(f'{len(df_carga)} entregas')}
-                        {badge(f'{formatar_brasileiro(df_carga["Peso Calculado em Kg"].sum())} kg calc')}
-                        {badge(f'{formatar_brasileiro(df_carga["Peso Real em Kg"].sum())} kg real')}
-                        {badge(f'Valor frete: R$ {formatar_brasileiro(total_frete_carga)}')}
-                        {badge(f'{formatar_brasileiro(df_carga["Cubagem em m³"].sum())} m³')}
-                        {badge(f'{int(df_carga["Quantidade de Volumes"].sum())} volumes')}
-                        {badge(f'Valor Contratação: R$ {formatar_brasileiro(valor_contratacao_carga_existente)}')}
-                        {badge(f'Rentabilidade: {rentabilidade_percentual:.2f}%')}
-                        <span style='background:{cor_situacao};color:white;border-radius:12px;padding:6px 12px;margin:4px;display:inline-block;'>Situação Custo: {situacao_custo_regional}</span>
-                    </div>
-                    """,
-                    unsafe_allow_html=True
-                )
                 
             with st.expander("🔽 Ver entregas da carga para Aprovação de Custos", expanded=False):
                 checkbox_key = f"marcar_todas_aprov_custos_{carga}"
