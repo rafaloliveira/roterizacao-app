@@ -3130,8 +3130,60 @@ def pagina_cargas_geradas():
                                 with st.spinner("🔄 Retirando entregas da carga..."):
                                     df_remover = pd.DataFrame(selecionadas)
                                     df_remover = df_remover.drop(columns=["_selectedRowNodeInfo"], errors="ignore")
-                                    #df_remover["Status"] = "AGENDAR"
+                                    
                                     df_remover = df_remover.drop(columns=["numero_carga"], errors="ignore")
+
+                                    # >> MUDANÇA PRINCIPAL AQUI: BLOCO ROBUSTO DE TRATAMENTO DE DATAS <<
+                                    # Este bloco converte as strings de data (dd-mm-aaaa, etc.) que vêm do AgGrid
+                                    # de volta para objetos datetime e, em seguida, para o formato ISO (UTC)
+                                    # que o Supabase prefere, garantindo a originalidade do dado.
+                                    for col_name in GLOBAL_DATE_DISPLAY_COLUMNS:
+                                        if col_name in df_remover.columns:
+                                            # Passo 1: Converte para string e remove espaços em branco
+                                            temp_str_series = df_remover[col_name].astype(str).str.strip()
+
+                                            # Passo 2: Identifica valores "vazios" ou "não é uma data" na forma de string
+                                            is_empty_or_invalid_str = temp_str_series.isin(['', 'nat', 'nan'])
+
+                                            # Passo 3: Define explicitamente como None para esses casos
+                                            df_remover.loc[is_empty_or_invalid_str, col_name] = None
+
+                                            # Passo 4: Processa apenas os valores que não são vazios/inválidos
+                                            to_parse_indices = df_remover.loc[~is_empty_or_invalid_str, col_name].index
+                                            
+                                            if not to_parse_indices.empty:
+                                                current_col_values_to_parse = df_remover.loc[to_parse_indices, col_name]
+                                                # Determina o formato de entrada correto para pd.to_datetime (data ou data+hora)
+                                                input_format_str = DATE_ONLY_DISPLAY_FORMAT_STRING if col_name in DATE_ONLY_REPARSE_COLUMNS else DATE_DISPLAY_FORMAT_STRING
+                                                
+                                                # Tenta parsear a data usando o formato especificado, 'coerce' para erros
+                                                parsed_dates = pd.to_datetime(
+                                                    current_col_values_to_parse,
+                                                    format=input_format_str, # Formato de entrada DD-MM-AAAA ou DD-MM-AAAA HH:MM:SS
+                                                    errors='coerce' 
+                                                )
+
+                                                # Localiza para o fuso horário do Brasil e converte para UTC
+                                                localized_utc_dates = parsed_dates.apply(
+                                                    lambda x: x.tz_localize(FUSO_BRASIL, ambiguous='NaT', nonexistent='NaT').tz_convert('UTC')
+                                                    if pd.notna(x) else pd.NaT
+                                                )
+
+                                                # Converte para string ISO 8601 (formato preferido do Supabase) ou None
+                                                df_remover.loc[to_parse_indices, col_name] = localized_utc_dates.apply(
+                                                    lambda x: x.isoformat(timespec='seconds').replace('+00:00', 'Z') 
+                                                    if pd.notna(x) else None
+                                                )
+                                    
+                                    # Garante que qualquer outro NaN, Infinito ou string vazia seja None.
+                                    # Este replace deve vir APÓS o bloco de datas para não sobrescrever o tratamento específico.
+                                    df_remover = df_remover.replace([np.nan, pd.NaT, np.inf, -np.inf, ""], None)
+                                    
+                                    registros = df_remover.to_dict(orient="records")
+
+                                    # Insere de volta em rotas_confirmadas
+                                    supabase.table("rotas_confirmadas").insert(registros).execute()
+
 
                                     if "Data_Hora_Gerada" in df_remover.columns:
                                         df_remover["Data_Hora_Gerada"] = df_remover["Data_Hora_Gerada"].apply(
