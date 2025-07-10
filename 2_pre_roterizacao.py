@@ -3288,7 +3288,7 @@ def pagina_cargas_geradas():
                             try:
                                 with st.spinner("🔄 Retirando entregas da carga..."):
                                     df_remover = pd.DataFrame(selecionadas)
-                                    df_remover = df_remover.drop(columns=["_selectedRowNodeInfo"], errors="ign+ore")
+                                    df_remover = df_remover.drop(columns=["_selectedRowNodeInfo"], errors="ignore")
                                     
                                     df_remover = df_remover.drop(columns=["numero_carga"], errors="ignore")
 
