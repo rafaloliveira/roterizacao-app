@@ -4253,8 +4253,8 @@ def pagina_cargas_aprovadas():
                     date_only_formatter = JsCode("""
                         function(params) {
                             if (params.value === null || typeof params.value === 'undefined' || params.value === '') return '';
-                            const parts = params.value.split(' ')[0].split('-');
-                            return `${parts[2]}-${parts[1]}-${parts[0]}`;
+                            const parts = params.value.split(' ')[0];
+                            return parts;
                         }
                     """)
                
