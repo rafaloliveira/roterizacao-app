@@ -3514,7 +3514,7 @@ def pagina_cargas_geradas():
                                     st.warning("Todos os campos (motorista, placa e valor) devem ser preenchidos corretamente.")
                                 else:
                                     # Atualiza no Supabase
-                                    supabase.table("cargas_geradas_info").upsert({
+                                    supabase.table("cargas_geradas").upsert({
                                         "numero_carga": carga,
                                         "motorista": motorista_caps,
                                         "placa": placa_caps,
