@@ -1674,7 +1674,7 @@ def pagina_confirmar_producao():
             
             if not df_formatado.empty:
                 gb = GridOptionsBuilder.from_dataframe(df_formatado)
-                gb.configure_default_column(minWidth=150)
+                gb.configure_default_column(minWidth=90)
                 gb.configure_selection("multiple", use_checkbox=True)
                 gb.configure_grid_options(paginationPageSize=12)
                 gb.configure_grid_options(alwaysShowHorizontalScroll=True)
