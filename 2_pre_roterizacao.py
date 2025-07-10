@@ -3698,10 +3698,11 @@ def pagina_aprovacao_custos():
                 dados = supabase.table("aprovacao_custos").select("*").execute().data
                 df = pd.DataFrame(dados)
 
+                # Aplicar o formato correto às datas
                 for col in ['Entrega Programada', 'Previsao de Entrega']:
                     if col in df.columns:
-                        df[col] = pd.to_datetime(df[col], errors='coerce')
-                        df[col] = df[col].apply(lambda x: x.strftime('%d-%m-%Y') if pd.notna(x) else '')
+                        df[col] = pd.to_datetime(df[col], errors='coerce', utc=True)
+                        df[col] = df[col].dt.tz_localize(None).dt.strftime('%d-%m-%Y')
 
                 # Garante que 'numero_carga' seja tratado como string no cache
                 if not df.empty and 'numero_carga' in df.columns:
