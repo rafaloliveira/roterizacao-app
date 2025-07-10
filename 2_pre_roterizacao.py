@@ -3216,6 +3216,13 @@ def pagina_cargas_geradas():
             
             if df_carga_raw.empty:
                 continue
+            #✅ Formata datas no padrão dd-mm-aaaa
+            for col in ['Entrega Programada', 'Previsao de Entrega']:
+                if col in df_carga_raw.columns:
+                    df_carga_raw[col] = pd.to_datetime(df_carga_raw[col], errors='coerce')
+                    df_carga_raw[col] = df_carga_raw[col].apply(lambda x: x.strftime('%d-%m-%Y') if pd.notna(x) else '')
+
+
 
             # --- CÁLCULOS PARA A SUGESTÃO DE VALOR DE CONTRATAÇÃO ---
             total_frete_carga = df_carga_raw["Valor do Frete"].sum()
