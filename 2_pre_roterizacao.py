@@ -3,7 +3,7 @@
 import streamlit as st
 st.set_page_config(
     page_title="Roteriza",  # Novo título para a aba do navegador
-    page_icon="👑",       # Novo ícone para a aba. Pode ser um emoji,
+    page_icon="📡",       # Novo ícone para a aba. Pode ser um emoji,
                           # um caminho para um arquivo de imagem, ou uma URL.
     layout="centered",    # (Opcional) Pode ser "centered" ou "wide"
     initial_sidebar_state="auto" # (Opcional) Pode ser "auto", "expanded" ou "collapsed"
