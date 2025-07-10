@@ -3218,18 +3218,19 @@ def pagina_cargas_geradas():
 
             col1, col2 = st.columns([5, 1])
             with col1:
-                st.markdown(
-                    badge(f"{len(df_carga_raw)} entregas") +
-                    badge(f"{formatar_brasileiro(df_carga_raw['Peso Calculado em Kg'].sum())} kg calc") +
-                    badge(f"{formatar_brasileiro(df_carga_raw['Peso Real em Kg'].sum())} kg real") +
-                    badge(f"Valor frete: R$ {formatar_brasileiro(total_frete_carga)}") +
-                    badge(f"{formatar_brasileiro(df_carga_raw['Cubagem em m³'].sum())} m³") +
-                    badge(f"{int(df_carga_raw['Quantidade de Volumes'].sum())} volumes"),
-                    badge(f"Motorista: {info_motorista}") +
-                    badge(f"Placa: {info_placa}") +
-                    badge(f"Valor da Contratação: R$ {info_valor_contratacao}"),
-                    unsafe_allow_html=True
-                )
+                badges = (
+                badge(f"{len(df_carga_raw)} entregas") +
+                badge(f"{formatar_brasileiro(df_carga_raw['Peso Calculado em Kg'].sum())} kg calc") +
+                badge(f"{formatar_brasileiro(df_carga_raw['Peso Real em Kg'].sum())} kg real") +
+                badge(f"Valor frete: R$ {formatar_brasileiro(total_frete_carga)}") +
+                badge(f"{formatar_brasileiro(df_carga_raw['Cubagem em m³'].sum())} m³") +
+                badge(f"{int(df_carga_raw['Quantidade de Volumes'].sum())} volumes") +
+                badge(f"Motorista: {info_motorista}") +
+                badge(f"Placa: {info_placa}") +
+                badge(f"Valor da Contratação: R$ {info_valor_contratacao}")
+            )
+            st.markdown(badges, unsafe_allow_html=True)
+
 
             with st.expander("🔽 Ver entregas da carga", expanded=False):
                 checkbox_key = f"marcar_todas_carga_gerada_{carga}"
