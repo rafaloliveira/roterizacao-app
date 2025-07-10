@@ -4062,7 +4062,7 @@ def pagina_cargas_aprovadas():
             df['aprovador_custos_login'] = df['aprovador_custos_login'].astype(str).str.strip().replace('nan', 'Desconhecido')
 
 
-        col1, col2 = st.columns([1, 1])
+        col1, col2, _ = st.columns([1, 1, 8])
         with col1:
             st.metric("Total de Cargas Aprovadas", df["numero_carga"].nunique() if "numero_carga" in df.columns else 0)
         with col2:
@@ -4405,7 +4405,7 @@ def pagina_cargas_fechadas():
             df['fechador_carga_login'] = df['fechador_carga_login'].astype(str).str.strip().replace('nan', 'Desconhecido')
 
         # Exibição de métricas gerais antes da filtragem por data
-        col1, col2 = st.columns([1, 1])
+        col1, col2, _ = st.columns([1, 1, 8])
         with col1:
             st.metric("Total de Cargas Fechadas", df["numero_carga"].nunique() if "numero_carga" in df.columns else 0)
         with col2:
