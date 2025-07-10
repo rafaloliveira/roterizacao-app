@@ -3144,7 +3144,15 @@ def pagina_cargas_geradas():
             recarregar = st.session_state.pop("reload_cargas_geradas", False)
             if recarregar or "df_cargas_cache" not in st.session_state:
                 dados = supabase.table("cargas_geradas").select("*").execute().data
-                df = pd.DataFrame(dados)
+                df = pd.DataFrame(dados)  # ou carregado do Supabase
+
+                # Aplicar o formato correto às datas
+                for col in ['Entrega Programada', 'Previsao de Entrega']:
+                    if col in df.columns:
+                        df[col] = pd.to_datetime(df[col], errors='coerce', utc=True)
+                        df[col] = df[col].dt.tz_localize(None).dt.strftime('%d-%m-%Y')
+
+
                 st.session_state["df_cargas_cache"] = df
             else:
                 df = st.session_state["df_cargas_cache"]
@@ -3216,13 +3224,6 @@ def pagina_cargas_geradas():
             
             if df_carga_raw.empty:
                 continue
-
-             # ✅ Formata datas no padrão dd-mm-aaaa com timezone removido
-            for col in ['Entrega Programada', 'Previsao de Entrega']:
-                if col in df_carga_raw.columns:
-                    df_carga_raw[col] = pd.to_datetime(df_carga_raw[col], errors='coerce', utc=True)
-                    df_carga_raw[col] = df_carga_raw[col].dt.tz_localize(None).dt.strftime('%d-%m-%Y')
-        
             # --- CÁLCULOS PARA A SUGESTÃO DE VALOR DE CONTRATAÇÃO ---
             total_frete_carga = df_carga_raw["Valor do Frete"].sum()
 
