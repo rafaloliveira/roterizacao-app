@@ -23,6 +23,7 @@ import random
 import traceback
 from fpdf import FPDF
 import io
+from reportlab.lib.pagesizes import letter, landscape
 
 from io import BytesIO
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
@@ -208,6 +209,9 @@ def login():
                 cookies["username"] = usuario["nome_usuario"]
                 cookies["is_admin"] = str(usuario.get("is_admin", False))
                 cookies["classe"] = usuario.get("classe", "colaborador") # <<< ADIÇÃO AQUI: Armazena a classe no cookie
+
+                # ✅ Define página inicial desejada após login
+                st.session_state.pagina = "Cargas Geradas"  # ⬅️ Altere aqui se quiser outra página como "Dashboard" ou "Pré-Roteirização"
                 
                 # Define o tempo de expiração do cookie (24 horas)
                 expiry = datetime.now(timezone.utc) + timedelta(hours=24)
@@ -1576,6 +1580,7 @@ def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, valor_frete, val
     # Configura o documento PDF com tamanho de página e margens
     doc = SimpleDocTemplate(
         buffer, 
+        pagesize=landscape(letter),
         pagesize=letter, 
         rightMargin=inch/2, leftMargin=inch/2, 
         topMargin=inch/2, bottomMargin=inch/2
@@ -1628,7 +1633,8 @@ def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, valor_frete, val
             df_filtrado[col] = df_filtrado[col].apply(lambda x: formatar_brasileiro(x))
     
     # Garante que as colunas de data sejam strings formatadas
-    for col in ["Entrega Programada"]: 
+       # Garante que as colunas de data sejam strings formatadas
+    for col in ["Entrega Programada"]: # Adicione outras colunas de data relevantes aqui, se houver
         if col in df_filtrado.columns:
             # Converte para datetime (coerce errors para NaT) e depois para string DD-MM-AAAA
             df_filtrado[col] = pd.to_datetime(df_filtrado[col], errors='coerce').dt.strftime('%d-%m-%Y').fillna('')
@@ -4880,10 +4886,15 @@ def pagina_cargas_fechadas():
                 colunas_para_csv = ["Chave CT-e", "Serie_Numero_CTRC"]
                 df_csv = df_carga[[col for col in colunas_para_csv if col in df_carga.columns]].copy()
 
-                # Remove espaços à direita (ex: "12345 " -> "12345")
+                # Remove espaços extras
                 for col in df_csv.columns:
-                    df_csv[col] = df_csv[col].astype(str).str.rstrip()
+                    df_csv[col] = df_csv[col].astype(str).str.strip()
 
+                # Garante que a Chave CT-e tenha os 44 dígitos completos no Excel
+                if "Chave CT-e" in df_csv.columns:
+                    df_csv["Chave CT-e"] = df_csv["Chave CT-e"].apply(lambda x: f"'{x}")
+
+                # Gera CSV em UTF-8 sem BOM
                 csv_content = df_csv.to_csv(index=False, sep=';', encoding='utf-8')
 
                 st.download_button(
@@ -4893,6 +4904,7 @@ def pagina_cargas_fechadas():
                     mime="text/csv",
                     key=f"download_csv_simplificado_{carga}"
                 )
+
 
 
                     
