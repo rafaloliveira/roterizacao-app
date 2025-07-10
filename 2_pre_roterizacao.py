@@ -3278,40 +3278,6 @@ def pagina_cargas_geradas():
 
         # ========= BOTÃO DE GERAÇÃO DE PDF DA CARGA ============        
     
-        def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, valor_frete, valor_contratacao):
-            pdf = FPDF()
-            pdf.add_page()
-            pdf.set_font("Arial", size=12)
-
-            pdf.cell(200, 10, txt=f"Carga Nº {carga}", ln=True, align='L')
-            pdf.cell(200, 10, txt=f"Rota: {rota}", ln=True, align='L')
-            pdf.cell(200, 10, txt=f"Motorista: {motorista}", ln=True, align='L')
-            pdf.cell(200, 10, txt=f"Placa: {placa}", ln=True, align='L')
-            pdf.cell(200, 10, txt=f"Valor Total do Frete: R$ {formatar_brasileiro(valor_frete)}", ln=True, align='L')
-            pdf.cell(200, 10, txt=f"Valor da Contratação: R$ {formatar_brasileiro(valor_contratacao)}", ln=True, align='L')
-            pdf.ln(10)
-
-            pdf.set_font("Arial", "B", size=11)
-            pdf.cell(60, 10, "CTRC", border=1)
-            pdf.cell(30, 10, "Frete (R$)", border=1)
-            pdf.cell(50, 10, "Previsão Entrega", border=1)
-            pdf.cell(50, 10, "NF", border=1)
-            pdf.ln()
-
-            pdf.set_font("Arial", size=10)
-            for _, row in df_entregas.iterrows():
-                pdf.cell(60, 8, str(row.get("Serie_Numero_CTRC", ""))[:30], border=1)
-                pdf.cell(30, 8, formatar_brasileiro(row.get("Valor do Frete", 0.0)), border=1)
-                pdf.cell(50, 8, str(row.get("Previsao de Entrega", ""))[:20], border=1)
-                pdf.cell(50, 8, str(row.get("Numero da Nota Fiscal", "")), border=1)
-                pdf.ln()
-
-            pdf_output = io.BytesIO()
-            pdf.output(pdf_output)
-            pdf_output.seek(0)
-            return pdf_output
-
-        
 #------------------------fim função botão impressão -----------------------------------------------------
 
         with st.expander(f"🔽 Ver entregas da carga {carga}", expanded=False, key=f"expander_carga_{carga}"):
