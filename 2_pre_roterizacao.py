@@ -3556,6 +3556,10 @@ def pagina_cargas_geradas():
                                         df_aprovar_custos = df_aprovar_custos.drop(columns=["_selectedRowNodeInfo"], errors="ignore")
 
                                         df_aprovar_custos["numero_carga"] = carga
+
+                                        motorista = motorista.strip().upper() if isinstance(motorista, str) else ""
+                                        placa = placa.strip().upper() if isinstance(placa, str) else ""
+
                                         df_aprovar_custos["motorista"] = motorista
                                         df_aprovar_custos["placa"] = placa
                                         df_aprovar_custos["valor_contratacao"] = valor_contratacao # Garante que o valor do input é salvo
@@ -3596,6 +3600,11 @@ def pagina_cargas_geradas():
                                             chaves_para_remover = [r.get("Serie_Numero_CTRC") for r in registros_para_custos if r.get("Serie_Numero_CTRC")]
                                             if chaves_para_remover:
                                                 supabase.table("cargas_geradas").delete().in_("Serie_Numero_CTRC", chaves_para_remover).execute()
+                                                supabase.table("cargas_geradas").update({
+                                                "motorista": motorista,
+                                                "placa": placa,
+                                                "valor_contratacao": valor_contratacao
+                                            }).eq("numero_carga", carga).execute()
 
                                             st.session_state["reload_cargas_geradas"] = True
                                             st.session_state["reload_aprovacao_custos"] = True
@@ -3680,7 +3689,8 @@ def pagina_aprovacao_custos():
             "Previsao de Entrega","Status","Entrega Programada", "Cliente Destinatario", 
             "Cidade de Entrega", "Bairro do Destinatario", "Numero da Nota Fiscal","Chave CT-e", 
             "Particularidade", "Codigo da Ultima Ocorrencia", "Peso Real em Kg", 
-            "Peso Calculado em Kg", "Cubagem em m³", "Quantidade de Volumes"
+            "Peso Calculado em Kg", "Cubagem em m³", "Quantidade de Volumes",
+            "motorista", "placa", "valor_contratacao"
         ]
 
         cargas_unicas = sorted(df["numero_carga"].dropna().unique())
