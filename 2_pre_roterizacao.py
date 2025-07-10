@@ -4880,10 +4880,12 @@ def pagina_cargas_fechadas():
                 colunas_para_csv = ["Chave CT-e", "Serie_Numero_CTRC"]
                 df_csv = df_carga[[col for col in colunas_para_csv if col in df_carga.columns]].copy()
 
-                # Gerar CSV
-                csv_content = df_csv.to_csv(index=False, sep=';', encoding='utf-8-sig')
+                # Remove espaços à direita (ex: "12345 " -> "12345")
+                for col in df_csv.columns:
+                    df_csv[col] = df_csv[col].astype(str).str.rstrip()
 
-                # Botão de download sem botão de impressão
+                csv_content = df_csv.to_csv(index=False, sep=';', encoding='utf-8')
+
                 st.download_button(
                     label=f"⬇️ Baixar CSV da Carga {carga}",
                     data=csv_content,
@@ -4891,6 +4893,7 @@ def pagina_cargas_fechadas():
                     mime="text/csv",
                     key=f"download_csv_simplificado_{carga}"
                 )
+
 
                     
 
