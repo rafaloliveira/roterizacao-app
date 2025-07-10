@@ -1580,8 +1580,7 @@ def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, valor_frete, val
     # Configura o documento PDF com tamanho de página e margens
     doc = SimpleDocTemplate(
         buffer, 
-        pagesize=landscape(letter),
-        pagesize=letter, 
+        pagesize=landscape(letter), 
         rightMargin=inch/2, leftMargin=inch/2, 
         topMargin=inch/2, bottomMargin=inch/2
     ) 
