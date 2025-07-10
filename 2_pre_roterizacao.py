@@ -3457,7 +3457,7 @@ def pagina_cargas_geradas():
                         valor_contratacao_key = f"valor_contratacao_{carga}"
                         
                         # --- EXIBIÇÃO DA SUGESTÃO DE VALOR DE CONTRATAÇÃO ---
-                        st.markdown("---<br>", unsafe_allow_html=True) # Separador visual
+                        st.markdown("<br>", unsafe_allow_html=True) # Separador visual
 
                         # --- INPUTS DE MOTORISTA E PLACA --- #
                         input_motorista_key = f"motorista_input_{carga}"
@@ -3487,6 +3487,27 @@ def pagina_cargas_geradas():
                             disabled=not selecionadas
                         )
 
+                        btn_salvar_dados_key = f"btn_salvar_dados_{carga}"
+                        if st.button("💾 Salvar Dados da Carga", key=btn_salvar_dados_key):
+                            try:
+                                with st.spinner("Salvando dados da carga..."):
+                                    supabase.table("cargas_geradas")\
+                                        .update({
+                                            "motorista": motorista,
+                                            "placa": placa,
+                                            "valor_contratacao": valor_contratacao
+                                        })\
+                                        .eq("numero_carga", carga)\
+                                        .execute()
+
+                                    st.success("✅ Dados da carga salvos com sucesso.")
+                                    st.session_state["reload_cargas_geradas"] = True
+                                    st.rerun()
+
+                            except Exception as e:
+                                st.error(f"❌ Erro ao salvar dados da carga: {e}")
+
+
                         btn_aprovar_custos_key = f"btn_aprov_custos_{carga}"
                         if st.button(f"➤ Enviar para Aprovação de Custos", key=btn_aprovar_custos_key, disabled=not selecionadas or valor_contratacao <= 0):
                             if valor_contratacao <= 0:
@@ -3498,6 +3519,8 @@ def pagina_cargas_geradas():
                                         df_aprovar_custos = df_aprovar_custos.drop(columns=["_selectedRowNodeInfo"], errors="ignore")
 
                                         df_aprovar_custos["numero_carga"] = carga
+                                        df_aprovar_custos["motorista"] = motorista
+                                        df_aprovar_custos["placa"] = placa
                                         df_aprovar_custos["valor_contratacao"] = valor_contratacao # Garante que o valor do input é salvo
 
                                         # Aplicando o bloco robusto de tratamento de datas para envio ao Supabase
@@ -3555,6 +3578,7 @@ def pagina_cargas_geradas():
         # Este except captura erros mais genéricos que não foram tratados nos blocos internos
         st.error(f"❌ Erro geral inesperado ao retirar entregas da carga: {e}")
         st.warning("A operação pode ter sido interrompida. Por favor, verifique a situação das entregas nas tabelas 'Rotas Confirmadas' e 'Cargas Geradas'.")
+
 # ==============================================================================
 # FUNÇÃO: pagina_aprovacao_custos() - ATUALIZADA
 # ==============================================================================
