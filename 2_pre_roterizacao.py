@@ -3251,6 +3251,7 @@ def pagina_cargas_geradas():
 
             motorista_info = df_carga_raw["motorista"].dropna().unique()
             placa_info = df_carga_raw["placa"].dropna().unique()
+            rota = df_carga_raw["Rota"].dropna().unique()[0]
             valor_contratacao_info = df_carga_raw["valor_contratacao"].dropna().unique()
 
             info_motorista = motorista_info[0] if len(motorista_info) > 0 else "NÃO INFORMADO"
@@ -3277,7 +3278,27 @@ def pagina_cargas_geradas():
                     """,
                     unsafe_allow_html=True
                 )
-
+            with col2:
+                if st.button("🖨️ PDF", key=f"pdf_{carga}"):
+                    try:
+                        buffer_pdf = gerar_pdf_carga(
+                            df_entregas=df_carga_raw,
+                            carga=carga,
+                            rota=rota,
+                            motorista=motorista,
+                            placa=placa,
+                            valor_frete=total_frete_carga,
+                            valor_contratacao=valor_contratacao
+                        )
+                        st.download_button(
+                            label="📥 Baixar PDF",
+                            data=buffer_pdf,
+                            file_name=f"carga_{carga}.pdf",
+                            mime="application/pdf",
+                            key=f"download_{carga}"
+                        )
+                    except Exception as e:
+                        st.error(f"Erro ao gerar PDF da carga {carga}: {e}")
 
 
             with st.expander("🔽 Ver entregas da carga", expanded=False):
