@@ -1605,8 +1605,8 @@ def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, valor_frete, val
     elements.append(Paragraph(f"<b>Rota:</b> {rota}", styles['CustomNormal']))
     elements.append(Paragraph(f"<b>Motorista:</b> {motorista if motorista and motorista.strip() else '<i>Não Informado</i>'}", styles['CustomNormal']))
     elements.append(Paragraph(f"<b>Placa:</b> {placa if placa and placa.strip() else '<i>Não Informada</i>'}", styles['CustomNormal']))
-    elements.append(Paragraph(f"<b>Valor Total do Frete:</b> R\$ {formatar_brasileiro(valor_frete)}", styles['CustomNormal']))
-    elements.append(Paragraph(f"<b>Valor de Contratação:</b> R\$ {formatar_brasileiro(valor_contratacao)}", styles['CustomNormal']))
+    elements.append(Paragraph(f"<b>Valor Total do Frete:</b> R$ {formatar_brasileiro(valor_frete)}", styles['CustomNormal']))
+    elements.append(Paragraph(f"<b>Valor de Contratação:</b> R$ {formatar_brasileiro(valor_contratacao)}", styles['CustomNormal']))
     elements.append(Spacer(1, 0.3 * inch))
 
     # 3. Tabela de Entregas Desta Carga
