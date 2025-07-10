@@ -3498,33 +3498,35 @@ def pagina_cargas_geradas():
                         )
 
                         btn_salvar_dados_key = f"btn_salvar_dados_{carga}"
-                        if st.button("💾 Salvar Dados da Carga", key=btn_salvar_dados_key):
-                            if not motorista.strip():
-                                st.warning("⚠️ O nome do motorista é obrigatório.")
-                            elif not placa.strip():
-                                st.warning("⚠️ A placa do veículo é obrigatória.")
-                            elif valor_contratacao <= 0:
-                                st.warning("⚠️ O valor da contratação deve ser maior que zero.")
+                        if st.button("💾 Salvar Dados da Carga", key=f"btn_salvar_{carga}"):
+                            if not motorista or not placa or valor_contratacao <= 0:
+                                st.warning("Preencha todos os campos antes de salvar.")
                             else:
                                 try:
-                                    with st.spinner("Salvando dados da carga..."):
-                                        supabase.table("cargas_geradas")\
+                                    with st.spinner("Salvando informações da carga..."):
+                                        motorista_up = motorista.strip().upper()
+                                        placa_up = placa.strip().upper()
+
+                                        supabase.table("cargas_geradas") \
                                             .update({
-                                                "motorista": motorista.strip().upper(),
-                                                "placa": placa.strip().upper(),
+                                                "motorista": motorista_up,
+                                                "placa": placa_up,
                                                 "valor_contratacao": valor_contratacao
-                                            })\
-                                            .eq("numero_carga", carga)\
+                                            }) \
+                                            .eq("numero_carga", carga) \
                                             .execute()
 
-                                        st.success("✅ Dados da carga salvos com sucesso.")
-                                        st.session_state["reload_cargas_geradas"] = True
+                                        # Limpa os campos preenchidos
+                                        st.session_state[input_motorista_key] = ""
+                                        st.session_state[input_placa_key] = ""
+                                        st.session_state[valor_contratacao_key] = 0.0
+
+                                        # Atualiza o cache
+                                        st.session_state.pop("df_cargas_cache", None)
+                                        st.success(f"✅ Informações da carga {carga} salvas com sucesso!")
                                         st.rerun()
-
                                 except Exception as e:
-                                    st.error(f"❌ Erro ao salvar dados da carga: {e}")
-
-
+                                    st.error(f"Erro ao salvar dados: {e}")
 
                         btn_aprovar_custos_key = f"btn_aprov_custos_{carga}"
                         if st.button(f"➤ Enviar para Aprovação de Custos", key=btn_aprovar_custos_key, disabled=not selecionadas or valor_contratacao <= 0):
