@@ -4761,23 +4761,22 @@ def pagina_cargas_fechadas():
 
                 csv_content = df_csv.to_csv(index=False, sep=';', encoding='utf-8-sig')
                 
-                col_csv_button, col_print_button = st.columns(2)
+                # Apenas as colunas solicitadas para o CSV
+                colunas_para_csv = ["Chave CT-e", "Serie_Numero_CTRC"]
+                df_csv = df_carga[[col for col in colunas_para_csv if col in df_carga.columns]].copy()
 
-                with col_csv_button:
-                    st.download_button(
-                        label=f"⬇️ Baixar CSV da Carga {carga}",
-                        data=csv_content,
-                        file_name=f"relatorio_carga_{carga}.csv",
-                        mime="text/csv",
-                        key=f"download_csv_{carga}"
-                    )
-                with col_print_button:
-                    # Este botão não inicia uma impressão direta, mas informa o usuário.
-                    st.button(
-                        label=f"🖨️ Imprimir Visualização da Carga {carga}",
-                        help="Utilize a função de impressão do seu navegador (Ctrl+P ou Cmd+P) para a visualização atual da carga.",
-                        key=f"print_button_{carga}"
-                    )
+                # Gerar CSV
+                csv_content = df_csv.to_csv(index=False, sep=';', encoding='utf-8-sig')
+
+                # Botão de download sem botão de impressão
+                st.download_button(
+                    label=f"⬇️ Baixar CSV da Carga {carga}",
+                    data=csv_content,
+                    file_name=f"carga_{carga}_chaves.csv",
+                    mime="text/csv",
+                    key=f"download_csv_simplificado_{carga}"
+                )
+
                     
 
                 st.markdown("---") # Separador final para a seção de botões de cada carga
