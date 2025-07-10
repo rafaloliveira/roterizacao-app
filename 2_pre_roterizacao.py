@@ -4328,7 +4328,7 @@ def pagina_cargas_aprovadas():
                         gridOptions=grid_options,
                         update_mode=GridUpdateMode.SELECTION_CHANGED,
                         selected_rows=df_formatado.to_dict("records"),
-                        fit_columns_on_grid_load=False,
+                        fit_columns_on_grid_load=True,
                         width="100%",
                         height=400,
                         allow_unsafe_jscode=True,
@@ -4704,11 +4704,10 @@ def pagina_cargas_fechadas():
                 # Converte colunas de data para um formato legível em CSV
                 for col_date in ["Previsao de Entrega", "data_fechamento", "data_aprovacao_custos"]:
                     if col_date in df_csv.columns:
-                        # As colunas já são datetime objetos (UTC) devido à conversão inicial.
-                        # Basta aplicar o strftime, cuidando de NaT.
                         df_csv[col_date] = df_csv[col_date].apply(
-                            lambda x: x.strftime("%d-%m-%Y %H:%M:%S") if pd.notna(x) else ""
+                            lambda x: pd.to_datetime(x, errors='coerce').strftime("%d-%m-%Y %H:%M:%S") if pd.notna(x) else ""
                         )
+
 
                 csv_content = df_csv.to_csv(index=False, sep=';', encoding='utf-8-sig')
                 
