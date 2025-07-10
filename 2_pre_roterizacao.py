@@ -3700,8 +3700,8 @@ def pagina_aprovacao_custos():
 
                 for col in ['Entrega Programada', 'Previsao de Entrega']:
                     if col in df.columns:
-                        df[col] = pd.to_datetime(df[col], errors='coerce', utc=True)
-                        df[col] = df[col].dt.tz_localize(None).dt.strftime('%d-%m-%Y')
+                        df[col] = pd.to_datetime(df[col], errors='coerce')
+                        df[col] = df[col].apply(lambda x: x.strftime('%d-%m-%Y') if pd.notna(x) else '')
 
                 # Garante que 'numero_carga' seja tratado como string no cache
                 if not df.empty and 'numero_carga' in df.columns:
