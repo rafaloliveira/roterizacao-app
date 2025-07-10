@@ -2765,7 +2765,7 @@ def pagina_rotas_confirmadas():
             # 🔸 Botão para criar nova carga automaticamente
             if st.button(f"➕ Criar Nova Carga com Entregas Selecionadas", key=f"btn_criar_carga_{rota}"):
                 if not selecionadas:
-                    st.warning("Selecione ao menos uma entregana tabela.")
+                    st.warning("Selecione ao menos uma entrega na tabela.")
                 else:
                     try:
                         # 1. Prepara os dados para inserção (a partir das linhas selecionadas do AgGrid)
@@ -3025,7 +3025,7 @@ def pagina_rotas_confirmadas():
                     if carga_escolhida == "Selecionar Carga":
                         st.warning("Selecione uma carga válida.")
                     elif not selecionadas:
-                        st.warning("Selecione ao menos uma entrega na tabela.")
+                        st.warning("Selecione ao menos uma entrega.")
                     else:
                         try:
                             #st.info(f"DEBUG: Tentando adicionar à carga existente {carga_escolhida}.") # DEBUG
@@ -3458,6 +3458,16 @@ def pagina_cargas_geradas():
                         
                         # --- EXIBIÇÃO DA SUGESTÃO DE VALOR DE CONTRATAÇÃO ---
                         st.markdown("---<br>", unsafe_allow_html=True) # Separador visual
+
+                        # --- INPUTS DE MOTORISTA E PLACA --- #
+                        input_motorista_key = f"motorista_input_{carga}"
+                        input_placa_key = f"placa_input_{carga}"
+
+                        col_mot, col_placa = st.columns([2, 1])
+                        with col_mot:
+                            motorista = st.text_input("Nome do Motorista", key=input_motorista_key)
+                        with col_placa:
+                            placa = st.text_input("Placa do Veículo", key=input_placa_key)
                         st.subheader(f"Valor da Contratação da Carga {carga}")
                         
                         if valor_sugerido_contratacao > 0:
@@ -4090,16 +4100,9 @@ def pagina_cargas_aprovadas():
                 
                 # --- CAMPOS PARA MOTORISTA E PLACA PARA EDIÇÃO E BOTÃO ÚNICO DE SALVAR E FECHAR ---
                 st.markdown("---")
-                st.subheader(f"Informações do Motorista e Veículo da Carga {carga}")
-                
-                # --- APLICA CAPS LOCK AUTOMÁTICO E GARANTE VALOR INICIAL ---
-                motorista_edit = st.text_input("Nome do Motorista:", value=motorista_carga if motorista_carga != 'Não Informado' else '', key=f"motorista_edit_{carga}").upper()
-                placa_edit = st.text_input("Placa do Veículo (ex: ABC-1234):", value=placa_carga if placa_carga != 'Não Informada' else '', key=f"placa_edit_{carga}").upper()
-                
                 if st.button(
                     f"✅ Salvar e Fechar Carga {carga}",
-                    key=f"salvar_fechar_carga_{carga}",
-                    disabled=not motorista_edit.strip() or not placa_edit.strip() 
+                    key=f"salvar_fechar_carga_{carga}"
                 ):
                     try:
                         # 1. Obter todas as entregas desta carga de 'cargas_aprovadas'
@@ -4114,8 +4117,8 @@ def pagina_cargas_aprovadas():
                         df_to_move = pd.DataFrame(data_to_move)
 
                         # 2. Adicionar/Atualizar 'motorista', 'placa', 'data_fechamento', 'situacao' e 'fechador_carga_login'
-                        df_to_move["motorista"] = motorista_edit # Já está em UPPER()
-                        df_to_move["placa"] = placa_edit # Já está em UPPER()
+                        df_to_move["motorista"] = motorista_carga  # Usa valor já carregado da carga
+                        df_to_move["placa"] = placa_carga # Já está em UPPER()
                         df_to_move["data_fechamento"] = data_hora_brasil_iso() # Data e hora atual do Brasil
                         df_to_move["situacao"] = "Fechada" # Definir a situação
                         df_to_move["fechador_carga_login"] = st.session_state.get("username", "Desconhecido") # Quem fechou
@@ -4277,11 +4280,6 @@ def pagina_cargas_aprovadas():
     except Exception as e:
         st.error("Erro ao carregar cargas aprovadas:")
         st.exception(e)
-
-
-
-
-
 
 
 # ==============================================================================
