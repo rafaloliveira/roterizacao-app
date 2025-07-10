@@ -20,6 +20,7 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 import random
+import traceback
 
 from zoneinfo import ZoneInfo
 from datetime import datetime, timedelta, timezone
@@ -3529,7 +3530,7 @@ def pagina_cargas_geradas():
                                     st.rerun()
 
                             except Exception as e:
-                                st.error(f"❌ Erro ao salvar dados: {e}")
+                                st.error(f"❌ Erro ao salvar dados:\n\n{traceback.format_exc()}")
 
 
                         btn_aprovar_custos_key = f"btn_aprov_custos_{carga}"
