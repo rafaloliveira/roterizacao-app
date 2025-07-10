@@ -3206,9 +3206,14 @@ def pagina_cargas_geradas():
             </div>
             """, unsafe_allow_html=True)
 
-            motorista_resumo = df_carga_raw["motorista"].iloc[0] if "motorista" in df_carga_raw.columns else ""
-            placa_resumo = df_carga_raw["placa"].iloc[0] if "placa" in df_carga_raw.columns else ""
-            valor_contratacao_resumo = df_carga_raw["valor_contratacao"].iloc[0] if "valor_contratacao" in df_carga_raw.columns else 0.0
+            motorista_info = df_carga_raw["motorista"].dropna().unique()
+            placa_info = df_carga_raw["placa"].dropna().unique()
+            valor_contratacao_info = df_carga_raw["valor_contratacao"].dropna().unique()
+
+            info_motorista = motorista_info[0] if len(motorista_info) > 0 else "NÃO INFORMADO"
+            info_placa = placa_info[0] if len(placa_info) > 0 else "NÃO INFORMADA"
+            info_valor_contratacao = formatar_brasileiro(valor_contratacao_info[0]) if len(valor_contratacao_info) > 0 else "0,00"
+
 
 
             col1, col2 = st.columns([5, 1])
@@ -3220,6 +3225,9 @@ def pagina_cargas_geradas():
                     badge(f"Valor frete: R$ {formatar_brasileiro(total_frete_carga)}") +
                     badge(f"{formatar_brasileiro(df_carga_raw['Cubagem em m³'].sum())} m³") +
                     badge(f"{int(df_carga_raw['Quantidade de Volumes'].sum())} volumes"),
+                    badge(f"Motorista: {info_motorista}") +
+                    badge(f"Placa: {info_placa}") +
+                    badge(f"Valor da Contratação: R$ {info_valor_contratacao}"),
                     unsafe_allow_html=True
                 )
 
@@ -3504,33 +3512,31 @@ def pagina_cargas_geradas():
                         )
 
                         salvar_key = f"btn_salvar_info_{carga}"
-                        if st.button("💾 Salvar Informações", key=salvar_key):
+                        if st.button(f"💾 Salvar Informações", key=f"btn_salvar_{carga}", disabled=not (motorista or placa or valor_contratacao)):
                             try:
-                                motorista_caps = st.session_state.get(input_motorista_key, "").strip().upper()
-                                placa_caps = st.session_state.get(input_placa_key, "").strip().upper()
-                                valor = st.session_state.get(valor_contratacao_key, 0.0)
+                                with st.spinner("Salvando dados da carga..."):
 
-                                if not motorista_caps or not placa_caps or valor <= 0:
-                                    st.warning("Todos os campos (motorista, placa e valor) devem ser preenchidos corretamente.")
-                                else:
-                                    # Atualiza no Supabase
                                     supabase.table("cargas_geradas").update({
                                         "motorista": motorista.upper().strip(),
                                         "placa": placa.upper().strip(),
                                         "valor_contratacao": valor_contratacao
                                     }).eq("numero_carga", carga).execute()
 
-
-                                    # Limpa os campos utilizando um redirecionador de estado
+                                    # ✅ Limpa os inputs da session_state
                                     st.session_state.pop(input_motorista_key, None)
                                     st.session_state.pop(input_placa_key, None)
                                     st.session_state.pop(valor_contratacao_key, None)
 
-                                    st.success("✅ Informações salvas com sucesso.")
+                                    # ✅ Limpa cache e força recarregamento dos dados e do grid
+                                    st.session_state.pop("df_cargas_cache", None)
+                                    st.session_state["reload_cargas_geradas"] = True
+
+                                    st.success("✅ Informações da carga salvas com sucesso.")
                                     st.rerun()
 
                             except Exception as e:
-                                st.error(f"❌ Erro ao salvar dados:\n\n{traceback.format_exc()}")
+                                st.error(f"❌ Erro ao salvar dados: {e}")
+
 
 
                         btn_aprovar_custos_key = f"btn_aprov_custos_{carga}"
