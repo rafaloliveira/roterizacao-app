@@ -3275,7 +3275,7 @@ def pagina_cargas_geradas():
         
 #------------------------fim função botão impressão -----------------------------------------------------
 
-        with st.expander("🔽 Ver entregas da carga", expanded=False):
+        with st.expander(f"🔽 Ver entregas da carga {carga}", expanded=False, key=f"expander_carga_{carga}"):
 
                 # === BOTÃO PARA GERAR E BAIXAR PDF ===
             with st.container():
