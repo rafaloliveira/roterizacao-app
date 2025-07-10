@@ -3893,7 +3893,7 @@ def pagina_aprovacao_custos():
                             df_rejeitar = df_rejeitar.drop(columns=["_selectedRowNodeInfo"], errors="ignore")
                             df_rejeitar = df_rejeitar.drop(columns=["valor_contratacao"], errors="ignore") # valor_contratacao é removido ao rejeitar
                             
-                            df_rejeitar["Status"] = "AGENDAR" 
+                            #df_rejeitar["Status"] = "AGENDAR" 
                             df_rejeitar["numero_carga"] = carga
                             
                             date_cols_to_process = [
