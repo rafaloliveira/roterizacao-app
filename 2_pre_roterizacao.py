@@ -1597,9 +1597,9 @@ def pagina_confirmar_producao():
 
     # Definir as colunas que devem ser exibidas no grid
     colunas_exibir = [
-        "Serie_Numero_CTRC", "Rota", "Regiao", "Valor do Frete", "Cliente Pagador", "Chave CT-e",
-        "Cliente Destinatario", "Cidade de Entrega", "Bairro do Destinatario", 
-        "Previsao de Entrega", "Numero da Nota Fiscal", "Status", "Entrega Programada",
+        "Serie_Numero_CTRC", "Rota", "Regiao", "Valor do Frete", "Cliente Pagador",
+        "Previsao de Entrega","Status","Entrega Programada", "Cliente Destinatario", 
+        "Cidade de Entrega", "Bairro do Destinatario", "Numero da Nota Fiscal","Chave CT-e", 
         "Particularidade", "Codigo da Ultima Ocorrencia", "Peso Real em Kg", 
         "Peso Calculado em Kg", "Cubagem em m³", "Quantidade de Volumes"
     ]
@@ -1869,10 +1869,11 @@ def pagina_aprovacao_diretoria():
         return f"<span style='background:#eef2f7;border-radius:12px;padding:6px 12px;margin:4px;color:inherit;display:inline-block;'>{label}</span>"
 
     colunas_exibir = [
-        "Serie_Numero_CTRC", "Rota", "Regiao", "Valor do Frete", "Cliente Pagador", "Chave CT-e",
-        "Cliente Destinatario", "Cidade de Entrega", "Bairro do Destinatario", "Previsao de Entrega",
-        "Numero da Nota Fiscal", "Status", "Entrega Programada", "Particularidade", "Codigo da Ultima Ocorrencia",
-        "Peso Real em Kg", "Peso Calculado em Kg", "Cubagem em m³", "Quantidade de Volumes"
+        "Serie_Numero_CTRC", "Rota", "Regiao", "Valor do Frete", "Cliente Pagador",
+        "Previsao de Entrega","Status","Entrega Programada", "Cliente Destinatario", 
+        "Cidade de Entrega", "Bairro do Destinatario", "Numero da Nota Fiscal","Chave CT-e", 
+        "Particularidade", "Codigo da Ultima Ocorrencia", "Peso Real em Kg", 
+        "Peso Calculado em Kg", "Cubagem em m³", "Quantidade de Volumes"
     ]
 
     linha_destacar = JsCode("""
@@ -2186,10 +2187,11 @@ def pagina_pre_roterizacao():
         return f"<span style='background:#eef2f7;border-radius:12px;padding:6px 12px;margin:4px;color:inherit;display:inline-block;'>{label}</span>"
 
     colunas_exibir = [
-        "Serie_Numero_CTRC", "Rota", "Regiao", "Valor do Frete", "Cliente Pagador", "Chave CT-e", "Cliente Destinatario",
-        "Cidade de Entrega", "Bairro do Destinatario", "Previsao de Entrega", "Numero da Nota Fiscal",
-        "Status", "Entrega Programada", "Particularidade", "Codigo da Ultima Ocorrencia",
-        "Peso Real em Kg", "Peso Calculado em Kg", "Cubagem em m³", "Quantidade de Volumes"
+        "Serie_Numero_CTRC", "Rota", "Regiao", "Valor do Frete", "Cliente Pagador",
+        "Previsao de Entrega","Status","Entrega Programada", "Cliente Destinatario", 
+        "Cidade de Entrega", "Bairro do Destinatario", "Numero da Nota Fiscal","Chave CT-e", 
+        "Particularidade", "Codigo da Ultima Ocorrencia", "Peso Real em Kg", 
+        "Peso Calculado em Kg", "Cubagem em m³", "Quantidade de Volumes"
     ]
 
     linha_destacar = JsCode("""
@@ -2621,11 +2623,11 @@ def pagina_rotas_confirmadas():
         return f"<span style='background:#eef2f7;border-radius:12px;padding:6px 12px;margin:4px;color:inherit;display:inline-block;'>{label}</span>"
 
     colunas_exibir = [
-        "Serie_Numero_CTRC", "Rota", "Regiao", "Valor do Frete", "Cliente Pagador", "Chave CT-e", "Cliente Destinatario",
-        "Cidade de Entrega", "Bairro do Destinatario", "Previsao de Entrega",
-        "Numero da Nota Fiscal", "Status", "Entrega Programada", "Particularidade",
-        "Codigo da Ultima Ocorrencia", "Peso Real em Kg", "Peso Calculado em Kg",
-        "Cubagem em m³", "Quantidade de Volumes"
+        "Serie_Numero_CTRC", "Rota", "Regiao", "Valor do Frete", "Cliente Pagador",
+        "Previsao de Entrega","Status","Entrega Programada", "Cliente Destinatario", 
+        "Cidade de Entrega", "Bairro do Destinatario", "Numero da Nota Fiscal","Chave CT-e", 
+        "Particularidade", "Codigo da Ultima Ocorrencia", "Peso Real em Kg", 
+        "Peso Calculado em Kg", "Cubagem em m³", "Quantidade de Volumes"
     ]
 
     linha_destacar = JsCode("""
@@ -3152,11 +3154,11 @@ def pagina_cargas_geradas():
             return f"<span style='background:#eef2f7;border-radius:12px;padding:6px 12px;margin:4px;color:inherit;display:inline-block;'>{label}</span>"
         
         colunas_exibir = [
-            "Serie_Numero_CTRC", "Rota", "Regiao", "Valor do Frete", "Cliente Pagador", "Chave CT-e", "Cliente Destinatario",
-            "Cidade de Entrega", "Bairro do Destinatario", "Previsao de Entrega",
-            "Numero da Nota Fiscal", "Status", "Entrega Programada", "Particularidade",
-            "Codigo da Ultima Ocorrencia", "Peso Real em Kg", "Peso Calculado em Kg",
-            "Cubagem em m³", "Quantidade de Volumes"
+            "Serie_Numero_CTRC", "Rota", "Regiao", "Valor do Frete", "Cliente Pagador",
+            "Previsao de Entrega","Status","Entrega Programada", "Cliente Destinatario", 
+            "Cidade de Entrega", "Bairro do Destinatario", "Numero da Nota Fiscal","Chave CT-e", 
+            "Particularidade", "Codigo da Ultima Ocorrencia", "Peso Real em Kg", 
+            "Peso Calculado em Kg", "Cubagem em m³", "Quantidade de Volumes"
         ]
 
         cargas_unicas = sorted(df["numero_carga"].dropna().unique())
@@ -3603,11 +3605,11 @@ def pagina_aprovacao_custos():
             st.metric("Total de Entregas Pendentes", len(df))
 
         colunas_exibir = [
-            "Serie_Numero_CTRC", "Rota", "Regiao", "Valor do Frete", "Cliente Pagador", "Chave CT-e", "Cliente Destinatario",
-            "Cidade de Entrega", "Bairro do Destinatario", "Previsao de Entrega",
-            "Numero da Nota Fiscal", "Status", "Entrega Programada", "Particularidade",
-            "Codigo da Ultima Ocorrencia", "Peso Real em Kg", "Peso Calculado em Kg",
-            "Cubagem em m³", "Quantidade de Volumes", "valor_contratacao", "numero_carga"
+            "Serie_Numero_CTRC", "Rota", "Regiao", "Valor do Frete", "Cliente Pagador",
+            "Previsao de Entrega","Status","Entrega Programada", "Cliente Destinatario", 
+            "Cidade de Entrega", "Bairro do Destinatario", "Numero da Nota Fiscal","Chave CT-e", 
+            "Particularidade", "Codigo da Ultima Ocorrencia", "Peso Real em Kg", 
+            "Peso Calculado em Kg", "Cubagem em m³", "Quantidade de Volumes"
         ]
 
         cargas_unicas = sorted(df["numero_carga"].dropna().unique())
