@@ -3283,34 +3283,7 @@ def pagina_cargas_geradas():
         with st.expander(f"🔽 Ver entregas da carga {carga}", expanded=False, key=f"expander_carga_{carga}"):
 
                 # === BOTÃO PARA GERAR E BAIXAR PDF ===
-            with st.container():
-                col_pdf_btn, col_download_btn = st.columns([1, 2])
-                if col_pdf_btn.button(f"🖨️ Imprimir PDF da Carga {carga}", key=f"btn_pdf_{carga}"):
-                    df_entregas_pdf = df_carga_raw[
-                        ["Serie_Numero_CTRC", "Valor do Frete", "Previsao de Entrega", "Numero da Nota Fiscal"]
-                    ].copy()
-
-                    rota_info = df_carga_raw["Rota"].dropna().astype(str).unique()
-                    info_rota = rota_info[0] if len(rota_info) > 0 else "NÃO INFORMADA"
-
-                    pdf_file = gerar_pdf_carga(
-                        df_entregas_pdf,
-                        carga=carga,
-                        rota=info_rota,
-                        motorista=info_motorista,
-                        placa=info_placa,
-                        valor_frete=total_frete_carga,
-                        valor_contratacao=float(info_valor_contratacao.replace(".", "").replace(",", ".")) if info_valor_contratacao else 0.0
-                    )
-
-                    col_download_btn.download_button(
-                        label="📄 Baixar PDF",
-                        data=pdf_file,
-                        file_name=f"carga_{carga}.pdf",
-                        mime="application/pdf",
-                        key=f"download_pdf_{carga}"
-                    )
-
+            
                 checkbox_key = f"marcar_todas_carga_gerada_{carga}"
                 if checkbox_key not in st.session_state:
                     st.session_state[checkbox_key] = False
