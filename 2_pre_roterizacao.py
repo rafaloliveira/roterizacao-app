@@ -51,7 +51,7 @@ from st_aggrid.shared import JsCode
 
 
 
-def aplicar_zoom_personalizado(percent=85):
+def aplicar_zoom_personalizado(percent=50):
     escala = percent / 100
     largura = 100 / escala  # Ex: para 85%, usamos 117% de largura
 
