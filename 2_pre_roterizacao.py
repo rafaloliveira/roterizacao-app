@@ -24,6 +24,13 @@ import traceback
 from fpdf import FPDF
 import io
 
+from io import BytesIO
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.pagesizes import letter
+from reportlab.lib.units import inch
+from reportlab.lib import colors
+
 from zoneinfo import ZoneInfo
 from datetime import datetime, timedelta, timezone
 from datetime import datetime, date
@@ -1548,37 +1555,128 @@ DATE_ONLY_REPARSE_COLUMNS = ['Previsao de Entrega', 'Entrega Programada']
 
 #FUNÇÃO GERAR PDF 
 def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, valor_frete, valor_contratacao):
-            pdf = FPDF()
-            pdf.add_page()
-            pdf.set_font("Arial", size=12)
+    """
+    Gera um PDF detalhado de uma carga específica, incluindo informações gerais
+    e uma tabela com as entregas associadas.
 
-            pdf.cell(200, 10, txt=f"Carga Nº {carga}", ln=True, align='L')
-            pdf.cell(200, 10, txt=f"Rota: {rota}", ln=True, align='L')
-            pdf.cell(200, 10, txt=f"Motorista: {motorista}", ln=True, align='L')
-            pdf.cell(200, 10, txt=f"Placa: {placa}", ln=True, align='L')
-            pdf.cell(200, 10, txt=f"Valor Total do Frete: R$ {formatar_brasileiro(valor_frete)}", ln=True, align='L')
-            pdf.cell(200, 10, txt=f"Valor da Contratação: R$ {formatar_brasileiro(valor_contratacao)}", ln=True, align='L')
-            pdf.ln(10)
+    Args:
+        df_entregas (pd.DataFrame): DataFrame contendo os detalhes das entregas para esta carga.
+        carga (str): Número identificador da carga.
+        rota (str): Rota da carga.
+        motorista (str): Nome do motorista.
+        placa (str): Placa do veículo.
+        valor_frete (float): Valor total do frete da carga.
+        valor_contratacao (float): Valor de contratação para a carga.
 
-            pdf.set_font("Arial", "B", size=11)
-            pdf.cell(60, 10, "CTRC", border=1)
-            pdf.cell(30, 10, "Frete (R$)", border=1)
-            pdf.cell(50, 10, "Previsão Entrega", border=1)
-            pdf.cell(50, 10, "NF", border=1)
-            pdf.ln()
+    Returns:
+        bytes: O conteúdo do PDF em formato de bytes.
+    """
+    buffer = BytesIO() # Cria um buffer em memória para o PDF
+    
+    # Configura o documento PDF com tamanho de página e margens
+    doc = SimpleDocTemplate(
+        buffer, 
+        pagesize=letter, 
+        rightMargin=inch/2, leftMargin=inch/2, 
+        topMargin=inch/2, bottomMargin=inch/2
+    ) 
+    
+    styles = getSampleStyleSheet() # Obtém os estilos padrão do ReportLab
+    
+    # Estilos personalizados para os títulos e corpo do texto
+    h1 = styles['h1']
+    h2 = styles['h2']
+    # Estilo com espaçamento para melhor legibilidade
+    styles.add(ParagraphStyle(name='CustomNormal',
+                              parent=styles['Normal'],
+                              spaceBefore=6,
+                              spaceAfter=6,
+                              leading=14)) # Espaçamento entre linhas
+    
+    elements = [] # Lista para armazenar os elementos que comporão o PDF
 
-            pdf.set_font("Arial", size=10)
-            for _, row in df_entregas.iterrows():
-                pdf.cell(60, 8, str(row.get("Serie_Numero_CTRC", ""))[:30], border=1)
-                pdf.cell(30, 8, formatar_brasileiro(row.get("Valor do Frete", 0.0)), border=1)
-                pdf.cell(50, 8, str(row.get("Previsao de Entrega", ""))[:20], border=1)
-                pdf.cell(50, 8, str(row.get("Numero da Nota Fiscal", "")), border=1)
-                pdf.ln()
+    # --- Conteúdo do PDF ---
 
-            pdf_output = io.BytesIO()
-            pdf.output(pdf_output)
-            pdf_output.seek(0)
-            return pdf_output
+    # 1. Título Principal da Carga
+    elements.append(Paragraph(f"Detalhes da Carga: <font color='#1A73E8'><b>{carga}</b></font>", h1))
+    elements.append(Spacer(1, 0.2 * inch)) # Espaçamento
+
+    # 2. Informações Gerais da Carga
+    elements.append(Paragraph(f"<b>Rota:</b> {rota}", styles['CustomNormal']))
+    elements.append(Paragraph(f"<b>Motorista:</b> {motorista if motorista and motorista.strip() else '<i>Não Informado</i>'}", styles['CustomNormal']))
+    elements.append(Paragraph(f"<b>Placa:</b> {placa if placa and placa.strip() else '<i>Não Informada</i>'}", styles['CustomNormal']))
+    elements.append(Paragraph(f"<b>Valor Total do Frete:</b> R\$ {formatar_brasileiro(valor_frete)}", styles['CustomNormal']))
+    elements.append(Paragraph(f"<b>Valor de Contratação:</b> R\$ {formatar_brasileiro(valor_contratacao)}", styles['CustomNormal']))
+    elements.append(Spacer(1, 0.3 * inch))
+
+    # 3. Tabela de Entregas Desta Carga
+    elements.append(Paragraph("<b>Entregas Associadas:</b>", h2))
+    elements.append(Spacer(1, 0.1 * inch))
+
+    # Define as colunas que você quer exibir na tabela do PDF
+    cols_para_tabela_pdf = [
+        "Serie_Numero_CTRC", "Cliente Destinatario", "Cidade de Entrega",
+        "Status", "Valor do Frete", "Peso Real em Kg", "Entrega Programada"
+    ]
+    
+    # Prepara o DataFrame para exibição na tabela do PDF
+    df_filtrado = df_entregas[[col for col in cols_para_tabela_pdf if col in df_entregas.columns]].copy()
+
+    # Formata colunas numéricas e de data para exibição no PDF
+    for col in ["Valor do Frete", "Peso Real em Kg"]:
+        if col in df_filtrado.columns:
+            df_filtrado[col] = df_filtrado[col].apply(lambda x: formatar_brasileiro(x))
+    
+    # Garante que as colunas de data sejam strings formatadas
+    for col in ["Entrega Programada"]: 
+        if col in df_filtrado.columns:
+            # Converte para datetime (coerce errors para NaT) e depois para string DD-MM-AAAA
+            df_filtrado[col] = pd.to_datetime(df_filtrado[col], errors='coerce').dt.strftime('%d-%m-%Y').fillna('')
+
+    # Converte o DataFrame para o formato de lista de listas que o ReportLab espera para tabelas
+    # O cabeçalho é a primeira sub-lista
+    dados_tabela = [df_filtrado.columns.tolist()] + df_filtrado.values.tolist()
+
+    if not dados_tabela or len(dados_tabela) == 1: # Se a tabela estiver vazia (apenas cabeçalho ou nada)
+        elements.append(Paragraph("<i>Nenhuma entrega detalhada disponível para esta carga.</i>", styles['CustomNormal']))
+    else:
+        # Define a tabela e seus estilos
+        # colWidths ajusta a largura de cada coluna na tabela (em polegadas neste exemplo)
+        # Ajuste essas larguras conforme a necessidade para evitar que o texto ultrapasse
+        table = Table(dados_tabela, colWidths=[
+            1.1*inch, # Serie_Numero_CTRC
+            1.8*inch, # Cliente Destinatario
+            1.2*inch, # Cidade de Entrega
+            0.8*inch, # Status
+            0.8*inch, # Valor do Frete
+            0.9*inch, # Peso Real em Kg
+            1.0*inch  # Entrega Programada
+        ])
+        table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#EFEFEF')), # Cor de fundo do cabeçalho
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.black), # Cor do texto do cabeçalho
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'), # Alinhamento do texto padrão
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'), # Fonte do cabeçalho
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 12), # Espaçamento inferior do cabeçalho
+            ('BACKGROUND', (0, 1), (-1, -1), colors.white), # Cor de fundo das células de dados
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey), # Borda da grade
+            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'), # Alinhamento vertical
+            ('FONTSIZE', (0,0), (-1,-1), 8), # Tamanho da fonte para o conteúdo da tabela
+            ('LEFTPADDING', (0,0), (-1,-1), 4), # Preenchimento à esquerda para o texto
+            ('RIGHTPADDING', (0,0), (-1,-1), 4), # Preenchimento à direita para o texto
+            ('ALIGN', (3,0),(3,-1), 'CENTER'), # Alinha a coluna 'Status' ao centro
+            ('ALIGN', (4,0),(6,-1), 'RIGHT'), # Alinha colunas numéricas/data à direita
+        ]))
+        elements.append(table)
+
+    # Constrói o PDF com todos os elementos definidos
+    doc.build(elements)
+    buffer.seek(0) # Move o "ponteiro" do buffer para o início
+    return buffer.getvalue() # Retorna o conteúdo do PDF como bytes
+
+# ==============================================================================
+# FIM DAS NOVAS FUNÇÕES PARA GERAÇÃO DE PDF
+# ==============================================================================
 
 ##########################################
 
@@ -3251,7 +3349,7 @@ def pagina_cargas_geradas():
 
             motorista_info = df_carga_raw["motorista"].dropna().unique()
             placa_info = df_carga_raw["placa"].dropna().unique()
-            rota = df_carga_raw["Rota"].dropna().unique()[0]
+            rota = df_carga_raw["Rota"].dropna().unique()[0] if "Rota" in df_carga_raw.columns and not df_carga_raw["Rota"].empty else "Não Informada"
             valor_contratacao_info = df_carga_raw["valor_contratacao"].dropna().unique()
 
             info_motorista = motorista_info[0] if len(motorista_info) > 0 else "NÃO INFORMADO"
@@ -3278,27 +3376,44 @@ def pagina_cargas_geradas():
                     """,
                     unsafe_allow_html=True
                 )
+
+
             with col2:
                 if st.button("🖨️ PDF", key=f"pdf_{carga}"):
                     try:
-                        buffer_pdf = gerar_pdf_carga(
-                            df_entregas=df_carga_raw,
-                            carga=carga,
-                            rota=rota,
-                            motorista=motorista,
-                            placa=placa,
-                            valor_frete=total_frete_carga,
-                            valor_contratacao=valor_contratacao
-                        )
+                        with st.spinner(f"Gerando PDF para a carga {carga}... Por favor, aguarde..."):
+                            
+                            pdf_motorista = info_motorista if info_motorista != "NÃO INFORMADO" else ""
+                            pdf_placa = info_placa if info_placa != "NÃO INFORMADA" else ""
+                            pdf_valor_contratacao = valor_contratacao_info[0] if len(valor_contratacao_info) > 0 else 0.0
+
+                            buffer_pdf = gerar_pdf_carga(
+                                df_entregas=df_carga_raw,
+                                carga=carga,
+                                rota=rota,
+                                motorista=pdf_motorista, 
+                                placa=pdf_placa,         
+                                valor_frete=total_frete_carga,
+                                valor_contratacao=pdf_valor_contratacao
+                            )
+
+                        st.success(f"✅ PDF da carga {carga} gerado com sucesso!")
+                        # Este botão de download aparecerá SOMENTE após o PDF ser gerado
                         st.download_button(
-                            label="📥 Baixar PDF",
-                            data=buffer_pdf,
-                            file_name=f"carga_{carga}.pdf",
-                            mime="application/pdf",
-                            key=f"download_{carga}"
+                            label="📥 Baixar PDF da Carga", # Rótulo mais descritivo
+                            data=buffer_pdf, # Os bytes do PDF gerado
+                            file_name=f"carga_{carga}.pdf", # Nome do arquivo para download
+                            mime="application/pdf", # Tipo MIME do arquivo (indica que é um PDF)
+                            key=f"download_pdf_final_{carga}" # Chave única para este botão
                         )
                     except Exception as e:
-                        st.error(f"Erro ao gerar PDF da carga {carga}: {e}")
+                        # Em caso de erro na geração, exibe uma mensagem clara
+                        st.error(f"❌ Erro ao gerar o PDF da carga {carga}: {e}. "
+                                "Por favor, verifique a implementação da função 'gerar_pdf_carga' e os dados da carga.")
+                        
+            # ==============================================================================
+            # FIM DO BLOCO DO BOTÃO DE PDF MODIFICADO
+            # ==============================================================================
 
 
             with st.expander("🔽 Ver entregas da carga", expanded=False):
