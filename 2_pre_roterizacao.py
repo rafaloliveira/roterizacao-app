@@ -1532,7 +1532,7 @@ def apply_brazilian_date_format_for_display(df_to_format):
     for col in GLOBAL_DATE_DISPLAY_COLUMNS:
         if col in df_to_format.columns:
             if not pd.api.types.is_datetime64_any_dtype(df_to_format[col]):
-                df_to_format[col] = pd.to_datetime(df_to_format[col], errors='coerce')
+                df_to_format[col] = pd.to_datetime(df_to_format[col], errors='coerce', dayfirst=True)
             df_to_format[col] = df_to_format[col].apply(
                 lambda x: x.strftime(DATE_DISPLAY_FORMAT_STRING)
                 if pd.notna(x) and isinstance(x, (Timestamp, datetime))
@@ -3700,7 +3700,8 @@ def pagina_aprovacao_custos():
 
                 for col in ['Entrega Programada', 'Previsao de Entrega']:
                     if col in df.columns:
-                        df[col] = pd.to_datetime(df[col], errors='coerce')
+                        # >>> MODIFICAÇÃO AQUI: Adicione dayfirst=True <<<
+                        df[col] = pd.to_datetime(df[col], errors='coerce', dayfirst=True)
                         df[col] = df[col].apply(lambda x: x.strftime('%d-%m-%Y') if pd.notna(x) else '')
 
                 # Garante que 'numero_carga' seja tratado como string no cache
@@ -3867,7 +3868,6 @@ def pagina_aprovacao_custos():
                         }
                     """)
 
-                    # NOVO: Formatter para exibir APENAS a parte da data (dd-mm-aaaa)
                     date_only_formatter = JsCode("""
                         function(params) {
                             if (params.value === null || typeof params.value === 'undefined' || params.value === '') return '';
