@@ -4037,6 +4037,7 @@ def pagina_cargas_aprovadas():
             recarregar = st.session_state.pop("reload_cargas_aprovadas", False)
             if recarregar or "df_cargas_aprovadas_cache" not in st.session_state:
                 dados = supabase.table("cargas_aprovadas").select("*").execute().data
+
                 df = pd.DataFrame(dados)
 
                 for col in ['Entrega Programada', 'Previsao de Entrega']:
@@ -4243,15 +4244,6 @@ def pagina_cargas_aprovadas():
 
 
             with st.expander("🔽 Ver entregas da carga aprovada", expanded=False):
-                # Sempre seleciona todas as entregas disponíveis para a carga
-                selecionadas = df_formatado[df_formatado["Serie_Numero_CTRC"].notna()].copy().to_dict(orient="records")
-
-                #checkbox_key = f"marcar_todas_cargas_aprovadas_{carga}"
-                #if checkbox_key not in st.session_state:
-                    #st.session_state[checkbox_key] = False
-                #marcar_todas = st.checkbox("Marcar todas", key=checkbox_key)
-
-
                 with st.spinner("🔄 Formatando entregas da carga aprovada..."):
                     # Define formatter for numeric values
                     formatter = JsCode("""
@@ -4276,6 +4268,7 @@ def pagina_cargas_aprovadas():
                     df_formatado = df_carga[[col for col in colunas_exibir if col in df_carga.columns]].copy()
                     df_formatado = apply_brazilian_date_format_for_display(df_formatado) # Aplica o formato completo (dd-mm-aaaa HH:MM:SS)
                     df_formatado = df_formatado.replace([np.nan, None], "")
+                    selecionadas = df_formatado[df_formatado["Serie_Numero_CTRC"].notna()].copy().to_dict(orient="records")
 
                     gb = GridOptionsBuilder.from_dataframe(df_formatado)
                     gb.configure_default_column(minWidth=150)
