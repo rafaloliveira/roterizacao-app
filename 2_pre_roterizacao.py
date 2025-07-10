@@ -3514,12 +3514,12 @@ def pagina_cargas_geradas():
                                     st.warning("Todos os campos (motorista, placa e valor) devem ser preenchidos corretamente.")
                                 else:
                                     # Atualiza no Supabase
-                                    supabase.table("cargas_geradas").upsert({
-                                        "numero_carga": carga,
-                                        "motorista": motorista_caps,
-                                        "placa": placa_caps,
-                                        "valor_contratacao": valor
-                                    }, on_conflict=["numero_carga"]).execute()
+                                    supabase.table("cargas_geradas").update({
+                                        "motorista": motorista.upper().strip(),
+                                        "placa": placa.upper().strip(),
+                                        "valor_contratacao": valor_contratacao
+                                    }).eq("numero_carga", carga).execute()
+
 
                                     # Limpa os campos utilizando um redirecionador de estado
                                     st.session_state.pop(input_motorista_key, None)
