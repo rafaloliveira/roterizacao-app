@@ -3653,12 +3653,11 @@ def pagina_aprovacao_custos():
                 dados = supabase.table("aprovacao_custos").select("*").execute().data
                 df = pd.DataFrame(dados)
 
-                formatar_data_hora_br  # se ainda não estiver importado
-
                 for col in ['Entrega Programada', 'Previsao de Entrega']:
                     if col in df.columns:
                         df[col] = pd.to_datetime(df[col], errors='coerce')
                         df[col] = df[col].apply(lambda x: x.strftime('%d-%m-%Y') if pd.notna(x) else '')
+
                 # Garante que 'numero_carga' seja tratado como string no cache
                 if not df.empty and 'numero_carga' in df.columns:
                     df['numero_carga'] = df['numero_carga'].astype(str)
@@ -4039,11 +4038,11 @@ def pagina_cargas_aprovadas():
             if recarregar or "df_cargas_aprovadas_cache" not in st.session_state:
                 dados = supabase.table("cargas_aprovadas").select("*").execute().data
                 df = pd.DataFrame(dados)
-            for col in ['Entrega Programada', 'Previsao de Entrega']:
-                if col in df.columns:
-                    df[col] = pd.to_datetime(df[col], errors='coerce')
-                    df[col] = df[col].apply(lambda x: x.strftime('%d-%m-%Y') if pd.notna(x) else '')
 
+                for col in ['Entrega Programada', 'Previsao de Entrega']:
+                    if col in df.columns:
+                        df[col] = pd.to_datetime(df[col], errors='coerce')
+                        df[col] = df[col].apply(lambda x: x.strftime('%d-%m-%Y') if pd.notna(x) else '')
 
                 st.session_state["df_cargas_aprovadas_cache"] = df
             else:
@@ -4377,20 +4376,21 @@ def pagina_cargas_fechadas():
                 dados = supabase.table("cargas_fechadas").select("*").execute().data
                 df = pd.DataFrame(dados)
 
-                # --- Convert all relevant date columns to UTC datetime objects immediately ---
-                # Isso garante que as colunas de data sejam do tipo datetime antes de qualquer outra operação
+                # --- Converte colunas relevantes para datetime UTC ---
                 for col_name in GLOBAL_DATE_DISPLAY_COLUMNS:
                     if col_name in df.columns:
                         df[col_name] = pd.to_datetime(df[col_name], errors='coerce', utc=True)
-                        for col in ['Entrega Programada', 'Previsao de Entrega']:
-                            if col in df.columns:
-                                df[col] = df[col].dt.tz_localize(None).dt.strftime('%d-%m-%Y')
 
-                # --- End of date conversion ---
+                # --- Formata Entrega Programada e Previsao de Entrega para dd-mm-aaaa ---
+                for col in ['Entrega Programada', 'Previsao de Entrega']:
+                    if col in df.columns:
+                        df[col] = df[col].dt.tz_localize(None).dt.strftime('%d-%m-%Y')
 
+                # --- End ---
                 st.session_state["df_cargas_fechadas_cache"] = df
             else:
                 df = st.session_state["df_cargas_fechadas_cache"]
+
 
         if df.empty:
             st.info("Nenhuma carga foi fechada ainda.")
