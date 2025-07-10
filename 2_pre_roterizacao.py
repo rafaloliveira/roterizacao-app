@@ -1649,28 +1649,28 @@ def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, valor_frete, val
         # colWidths ajusta a largura de cada coluna na tabela (em polegadas neste exemplo)
         # Ajuste essas larguras conforme a necessidade para evitar que o texto ultrapasse
         table = Table(dados_tabela, colWidths=[
-            1.1*inch, # Serie_Numero_CTRC
-            1.8*inch, # Cliente Destinatario
-            1.2*inch, # Cidade de Entrega
-            0.8*inch, # Status
-            0.8*inch, # Valor do Frete
-            0.9*inch, # Peso Real em Kg
-            1.0*inch  # Entrega Programada
-        ])
+        1.4*inch,  # Serie_Numero_CTRC
+        2.2*inch,  # Cliente Destinatario
+        1.5*inch,  # Cidade de Entrega
+        1.0*inch,  # Status
+        1.0*inch,  # Valor do Frete
+        1.1*inch,  # Peso Real em Kg
+        1.2*inch   # Entrega Programada
+    ], hAlign="LEFT")
         table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#EFEFEF')), # Cor de fundo do cabeçalho
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.black), # Cor do texto do cabeçalho
-            ('ALIGN', (0, 0), (-1, -1), 'LEFT'), # Alinhamento do texto padrão
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'), # Fonte do cabeçalho
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 12), # Espaçamento inferior do cabeçalho
-            ('BACKGROUND', (0, 1), (-1, -1), colors.white), # Cor de fundo das células de dados
-            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey), # Borda da grade
-            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'), # Alinhamento vertical
-            ('FONTSIZE', (0,0), (-1,-1), 8), # Tamanho da fonte para o conteúdo da tabela
-            ('LEFTPADDING', (0,0), (-1,-1), 4), # Preenchimento à esquerda para o texto
-            ('RIGHTPADDING', (0,0), (-1,-1), 4), # Preenchimento à direita para o texto
-            ('ALIGN', (3,0),(3,-1), 'CENTER'), # Alinha a coluna 'Status' ao centro
-            ('ALIGN', (4,0),(6,-1), 'RIGHT'), # Alinha colunas numéricas/data à direita
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#EFEFEF')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.white),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('FONTSIZE', (0, 0), (-1, -1), 8),
+            ('LEFTPADDING', (0, 0), (-1, -1), 4),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 4),
+            ('ALIGN', (3, 0), (3, -1), 'CENTER'),
+            ('ALIGN', (4, 0), (6, -1), 'RIGHT'),
         ]))
         elements.append(table)
 
