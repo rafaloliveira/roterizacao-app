@@ -3129,11 +3129,6 @@ def pagina_rotas_confirmadas():
 # PÁGINA CARGAS GERADAS
 
 ##########################################
-# PÁGINA CARGAS GERADAS
-
-# PÁGINA CARGAS GERADAS 2
-
-##########################################
 def pagina_cargas_geradas():
     st.markdown("## Cargas Geradas")
 
@@ -3276,14 +3271,9 @@ def pagina_cargas_geradas():
                     unsafe_allow_html=True
                 )
 
-        # ========= BOTÃO DE GERAÇÃO DE PDF DA CARGA ============        
-    
-#------------------------fim função botão impressão -----------------------------------------------------
 
-        with st.expander(f"🔽 Ver entregas da carga {carga}", expanded=False, key=f"expander_carga_{carga}"):
 
-                # === BOTÃO PARA GERAR E BAIXAR PDF ===
-            
+            with st.expander("🔽 Ver entregas da carga", expanded=False):
                 checkbox_key = f"marcar_todas_carga_gerada_{carga}"
                 if checkbox_key not in st.session_state:
                     st.session_state[checkbox_key] = False
@@ -3672,6 +3662,7 @@ def pagina_cargas_geradas():
         # Este except captura erros mais genéricos que não foram tratados nos blocos internos
         st.error(f"❌ Erro geral inesperado ao retirar entregas da carga: {e}")
         st.warning("A operação pode ter sido interrompida. Por favor, verifique a situação das entregas nas tabelas 'Rotas Confirmadas' e 'Cargas Geradas'.")
+
 
 
 # ==============================================================================
