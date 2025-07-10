@@ -2765,7 +2765,7 @@ def pagina_rotas_confirmadas():
             # 🔸 Botão para criar nova carga automaticamente
             if st.button(f"➕ Criar Nova Carga com Entregas Selecionadas", key=f"btn_criar_carga_{rota}"):
                 if not selecionadas:
-                    st.warning("Selecione ao menos uma entrega.")
+                    st.warning("Selecione ao menos uma entregana tabela.")
                 else:
                     try:
                         # 1. Prepara os dados para inserção (a partir das linhas selecionadas do AgGrid)
@@ -3025,7 +3025,7 @@ def pagina_rotas_confirmadas():
                     if carga_escolhida == "Selecionar Carga":
                         st.warning("Selecione uma carga válida.")
                     elif not selecionadas:
-                        st.warning("Selecione ao menos uma entrega.")
+                        st.warning("Selecione ao menos uma entrega na tabela.")
                     else:
                         try:
                             #st.info(f"DEBUG: Tentando adicionar à carga existente {carga_escolhida}.") # DEBUG
