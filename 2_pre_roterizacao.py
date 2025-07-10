@@ -3216,14 +3216,13 @@ def pagina_cargas_geradas():
             
             if df_carga_raw.empty:
                 continue
-            #✅ Formata datas no padrão dd-mm-aaaa
+
+             # ✅ Formata datas no padrão dd-mm-aaaa com timezone removido
             for col in ['Entrega Programada', 'Previsao de Entrega']:
                 if col in df_carga_raw.columns:
-                    df_carga_raw[col] = pd.to_datetime(df_carga_raw[col], errors='coerce')
-                    df_carga_raw[col] = df_carga_raw[col].apply(lambda x: x.strftime('%d-%m-%Y') if pd.notna(x) else '')
-
-
-
+                    df_carga_raw[col] = pd.to_datetime(df_carga_raw[col], errors='coerce', utc=True)
+                    df_carga_raw[col] = df_carga_raw[col].dt.tz_localize(None).dt.strftime('%d-%m-%Y')
+        
             # --- CÁLCULOS PARA A SUGESTÃO DE VALOR DE CONTRATAÇÃO ---
             total_frete_carga = df_carga_raw["Valor do Frete"].sum()
 
