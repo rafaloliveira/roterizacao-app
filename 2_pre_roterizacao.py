@@ -4180,7 +4180,7 @@ def pagina_cargas_aprovadas():
                 )
                 
                 # --- CAMPOS PARA MOTORISTA E PLACA PARA EDIÇÃO E BOTÃO ÚNICO DE SALVAR E FECHAR ---
-                st.markdown("---")
+                
             with st.expander("🔽 Ver entregas da carga aprovada", expanded=False):
                 with st.spinner("🔄 Formatando entregas da carga aprovada..."):
                     # Define formatter for numeric values
@@ -4345,7 +4345,8 @@ def pagina_cargas_aprovadas():
                     except Exception as e:
                         st.error(f"Erro ao salvar e fechar carga {carga}: {e}")
 
-                
+                # ✅ Linha separadora entre cargas
+                st.markdown("---")
     except Exception as e:
         st.error("Erro ao carregar cargas aprovadas:")
         st.exception(e)
