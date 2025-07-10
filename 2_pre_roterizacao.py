@@ -3129,7 +3129,16 @@ def pagina_cargas_geradas():
 
             df_display = df_display.replace([np.nan, None], "")
 
-            numeric_cols_for_formatting = ['Peso Real em Kg', 'Peso Calculado em Kg', 'Cubagem em m³', 'Quantidade de Volumes', 'Valor do Frete']
+            if "valor_contratacao" in df_display.columns:
+                df_display["valor_contratacao"] = pd.to_numeric(df_display["valor_contratacao"], errors="coerce").fillna(0.0)
+
+            if "motorista" in df_display.columns:
+                df_display["motorista"] = df_display["motorista"].astype(str).str.strip().str.upper()
+
+            if "placa" in df_display.columns:
+                df_display["placa"] = df_display["placa"].astype(str).str.strip().str.upper()
+
+            numeric_cols_for_formatting = ['Peso Real em Kg', 'Peso Calculado em Kg', 'Cubagem em m³', 'Quantidade de Volumes', 'Valor do Frete','valor_contratacao']
             for col in numeric_cols_for_formatting:
                 if col in df_display.columns:
                     df_display[col] = pd.to_numeric(df_display[col], errors='coerce').fillna(0)
@@ -3157,8 +3166,9 @@ def pagina_cargas_geradas():
             "Serie_Numero_CTRC", "Rota", "Regiao", "Valor do Frete", "Cliente Pagador",
             "Previsao de Entrega","Status","Entrega Programada", "Cliente Destinatario", 
             "Cidade de Entrega", "Bairro do Destinatario", "Numero da Nota Fiscal","Chave CT-e", 
-            "Particularidade", "Codigo da Ultima Ocorrencia", "Peso Real em Kg", 
-            "Peso Calculado em Kg", "Cubagem em m³", "Quantidade de Volumes"
+            "Particularidade", "Codigo da Ultima Ocorrencia", "motorista", "placa", 
+            "valor_contratacao","Peso Real em Kg","Peso Calculado em Kg", "Cubagem em m³", 
+            "Quantidade de Volumes"
         ]
 
         cargas_unicas = sorted(df["numero_carga"].dropna().unique())
