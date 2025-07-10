@@ -4243,10 +4243,13 @@ def pagina_cargas_aprovadas():
 
 
             with st.expander("🔽 Ver entregas da carga aprovada", expanded=False):
-                checkbox_key = f"marcar_todas_cargas_aprovadas_{carga}"
-                if checkbox_key not in st.session_state:
-                    st.session_state[checkbox_key] = False
-                marcar_todas = st.checkbox("Marcar todas", key=checkbox_key)
+                # Sempre seleciona todas as entregas disponíveis para a carga
+                selecionadas = df_formatado[df_formatado["Serie_Numero_CTRC"].notna()].copy().to_dict(orient="records")
+
+                #checkbox_key = f"marcar_todas_cargas_aprovadas_{carga}"
+                #if checkbox_key not in st.session_state:
+                    #st.session_state[checkbox_key] = False
+                #marcar_todas = st.checkbox("Marcar todas", key=checkbox_key)
 
 
                 with st.spinner("🔄 Formatando entregas da carga aprovada..."):
@@ -4331,6 +4334,7 @@ def pagina_cargas_aprovadas():
                         df_formatado,
                         gridOptions=grid_options,
                         update_mode=GridUpdateMode.SELECTION_CHANGED,
+                        selected_rows=df_formatado.to_dict("records"),
                         fit_columns_on_grid_load=False,
                         width="100%",
                         height=400,
@@ -4350,13 +4354,13 @@ def pagina_cargas_aprovadas():
                         }
                     )
 
-                if marcar_todas:
-                    selecionadas = df_formatado[df_formatado["Serie_Numero_CTRC"].notna()].copy().to_dict(orient="records")
-                else:
-                    selecionadas = grid_response.get("selected_rows", [])
+                #if marcar_todas:
+                    #selecionadas = df_formatado[df_formatado["Serie_Numero_CTRC"].notna()].copy().to_dict(orient="records")
+                #else:
+                    #selecionadas = grid_response.get("selected_rows", [])
 
-                if selecionadas:
-                    st.markdown(f"**Entregas selecionadas:** {len(selecionadas)}")
+                #if selecionadas:
+                    #st.markdown(f"**Entregas selecionadas:** {len(selecionadas)}")
     except Exception as e:
         st.error("Erro ao carregar cargas aprovadas:")
         st.exception(e)
