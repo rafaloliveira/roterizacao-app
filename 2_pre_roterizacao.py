@@ -3502,36 +3502,35 @@ def pagina_cargas_geradas():
                             disabled=not selecionadas
                         )
 
-                        btn_salvar_dados_key = f"btn_salvar_dados_{carga}"
-                        if st.button("💾 Salvar Dados da Carga", key=f"btn_salvar_{carga}"):
-                            if not motorista or not placa or valor_contratacao <= 0:
-                                st.warning("Preencha todos os campos antes de salvar.")
-                            else:
-                                try:
-                                    with st.spinner("Salvando informações da carga..."):
-                                        motorista_up = motorista.strip().upper()
-                                        placa_up = placa.strip().upper()
+                        salvar_key = f"btn_salvar_info_{carga}"
+                        if st.button("💾 Salvar Informações", key=salvar_key):
+                            try:
+                                motorista_caps = st.session_state.get(input_motorista_key, "").strip().upper()
+                                placa_caps = st.session_state.get(input_placa_key, "").strip().upper()
+                                valor = st.session_state.get(valor_contratacao_key, 0.0)
 
-                                        supabase.table("cargas_geradas") \
-                                            .update({
-                                                "motorista": motorista_up,
-                                                "placa": placa_up,
-                                                "valor_contratacao": valor_contratacao
-                                            }) \
-                                            .eq("numero_carga", carga) \
-                                            .execute()
+                                if not motorista_caps or not placa_caps or valor <= 0:
+                                    st.warning("Todos os campos (motorista, placa e valor) devem ser preenchidos corretamente.")
+                                else:
+                                    # Atualiza no Supabase
+                                    supabase.table("cargas_geradas_info").upsert({
+                                        "numero_carga": carga,
+                                        "motorista": motorista_caps,
+                                        "placa": placa_caps,
+                                        "valor_contratacao": valor
+                                    }, on_conflict=["numero_carga"]).execute()
 
-                                        # Limpa os campos preenchidos
-                                        st.session_state[input_motorista_key] = ""
-                                        st.session_state[input_placa_key] = ""
-                                        st.session_state[valor_contratacao_key] = 0.0
+                                    # Limpa os campos utilizando um redirecionador de estado
+                                    st.session_state.pop(input_motorista_key, None)
+                                    st.session_state.pop(input_placa_key, None)
+                                    st.session_state.pop(valor_contratacao_key, None)
 
-                                        # Atualiza o cache
-                                        st.session_state.pop("df_cargas_cache", None)
-                                        st.success(f"✅ Informações da carga {carga} salvas com sucesso!")
-                                        st.rerun()
-                                except Exception as e:
-                                    st.error(f"Erro ao salvar dados: {e}")
+                                    st.success("✅ Informações salvas com sucesso.")
+                                    st.rerun()
+
+                            except Exception as e:
+                                st.error(f"❌ Erro ao salvar dados: {e}")
+
 
                         btn_aprovar_custos_key = f"btn_aprov_custos_{carga}"
                         if st.button(f"➤ Enviar para Aprovação de Custos", key=btn_aprovar_custos_key, disabled=not selecionadas or valor_contratacao <= 0):
