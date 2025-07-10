@@ -3205,6 +3205,11 @@ def pagina_cargas_geradas():
             </div>
             """, unsafe_allow_html=True)
 
+            motorista_resumo = df_carga_raw["motorista"].iloc[0] if "motorista" in df_carga_raw.columns else ""
+            placa_resumo = df_carga_raw["placa"].iloc[0] if "placa" in df_carga_raw.columns else ""
+            valor_contratacao_resumo = df_carga_raw["valor_contratacao"].iloc[0] if "valor_contratacao" in df_carga_raw.columns else 0.0
+
+
             col1, col2 = st.columns([5, 1])
             with col1:
                 st.markdown(
