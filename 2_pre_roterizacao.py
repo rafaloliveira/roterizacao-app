@@ -3235,7 +3235,73 @@ def pagina_cargas_geradas():
                     unsafe_allow_html=True
                 )
 
+        # ========= BOTÃO DE GERAÇÃO DE PDF DA CARGA ============        
+        from fpdf import FPDF
+        import io
 
+        def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, valor_frete, valor_contratacao):
+            pdf = FPDF()
+            pdf.add_page()
+            pdf.set_font("Arial", size=12)
+
+            pdf.cell(200, 10, txt=f"Carga Nº {carga}", ln=True, align='L')
+            pdf.cell(200, 10, txt=f"Rota: {rota}", ln=True, align='L')
+            pdf.cell(200, 10, txt=f"Motorista: {motorista}", ln=True, align='L')
+            pdf.cell(200, 10, txt=f"Placa: {placa}", ln=True, align='L')
+            pdf.cell(200, 10, txt=f"Valor Total do Frete: R$ {formatar_brasileiro(valor_frete)}", ln=True, align='L')
+            pdf.cell(200, 10, txt=f"Valor da Contratação: R$ {formatar_brasileiro(valor_contratacao)}", ln=True, align='L')
+            pdf.ln(10)
+
+            pdf.set_font("Arial", "B", size=11)
+            pdf.cell(60, 10, "CTRC", border=1)
+            pdf.cell(30, 10, "Frete (R$)", border=1)
+            pdf.cell(50, 10, "Previsão Entrega", border=1)
+            pdf.cell(50, 10, "NF", border=1)
+            pdf.ln()
+
+            pdf.set_font("Arial", size=10)
+            for _, row in df_entregas.iterrows():
+                pdf.cell(60, 8, str(row.get("Serie_Numero_CTRC", ""))[:30], border=1)
+                pdf.cell(30, 8, formatar_brasileiro(row.get("Valor do Frete", 0.0)), border=1)
+                pdf.cell(50, 8, str(row.get("Previsao de Entrega", ""))[:20], border=1)
+                pdf.cell(50, 8, str(row.get("Numero da Nota Fiscal", "")), border=1)
+                pdf.ln()
+
+            pdf_output = io.BytesIO()
+            pdf.output(pdf_output)
+            pdf_output.seek(0)
+            return pdf_output
+
+        # === BOTÃO PARA GERAR E BAIXAR PDF ===
+        with st.container():
+            col_pdf_btn, col_download_btn = st.columns([1, 2])
+            if col_pdf_btn.button(f"🖨️ Imprimir PDF da Carga {carga}", key=f"btn_pdf_{carga}"):
+                df_entregas_pdf = df_carga_raw[
+                    ["Serie_Numero_CTRC", "Valor do Frete", "Previsao de Entrega", "Numero da Nota Fiscal"]
+                ].copy()
+
+                rota_info = df_carga_raw["Rota"].dropna().astype(str).unique()
+                info_rota = rota_info[0] if len(rota_info) > 0 else "NÃO INFORMADA"
+
+                pdf_file = gerar_pdf_carga(
+                    df_entregas_pdf,
+                    carga=carga,
+                    rota=info_rota,
+                    motorista=info_motorista,
+                    placa=info_placa,
+                    valor_frete=total_frete_carga,
+                    valor_contratacao=float(info_valor_contratacao.replace(".", "").replace(",", ".")) if info_valor_contratacao else 0.0
+                )
+
+                col_download_btn.download_button(
+                    label="📄 Baixar PDF",
+                    data=pdf_file,
+                    file_name=f"carga_{carga}.pdf",
+                    mime="application/pdf",
+                    key=f"download_pdf_{carga}"
+                )
+
+#------------------------fim botão impressão -----------------------------------------------------
 
             with st.expander("🔽 Ver entregas da carga", expanded=False):
                 checkbox_key = f"marcar_todas_carga_gerada_{carga}"
@@ -4350,7 +4416,7 @@ def pagina_cargas_aprovadas():
         st.error("Erro ao carregar cargas aprovadas:")
         st.exception(e)
 
-st.markdown("---")                
+            
 # ==============================================================================
 # Função pagina_cargas_fechadas() - com os ajustes aplicados
 # ==============================================================================
