@@ -4079,17 +4079,16 @@ def pagina_cargas_aprovadas():
     st.markdown("## Cargas Aprovadas")
 
     try:
-        with st.spinner("🔄 Carregando dados para cargas aprovadas..."):
-            recarregar = st.session_state.pop("reload_cargas_aprovadas", False)
-            if recarregar or "df_cargas_aprovadas_cache" not in st.session_state:
-                dados = supabase.table("cargas_aprovadas").select("*").execute().data
-
+        with st.spinner("🔄 Carregando dados para aprovação de custos..."):
+            recarregar = st.session_state.pop("reload_aprovacao_custos", False)
+            if recarregar or "df_aprovacao_custos_cache" not in st.session_state:
+                dados = supabase.table("aprovacao_custos").select("*").execute().data
                 df = pd.DataFrame(dados)
 
                 for col in ['Entrega Programada', 'Previsao de Entrega']:
                     if col in df.columns:
-                        df[col] = pd.to_datetime(df[col], errors='coerce')
-                        df[col] = df[col].apply(lambda x: x.strftime('%d-%m-%Y') if pd.notna(x) else '')
+                        df[col] = pd.to_datetime(df[col], errors='coerce', utc=True)
+                        df[col] = df[col].dt.tz_localize(None).dt.strftime('%d-%m-%Y')
 
                 st.session_state["df_cargas_aprovadas_cache"] = df
             else:
