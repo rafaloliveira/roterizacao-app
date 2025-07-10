@@ -3246,6 +3246,7 @@ def pagina_cargas_geradas():
 
                 with st.spinner("Carregando entregas da carga no grid..."):
                     df_formatado = df_display[df_display["numero_carga"] == carga][[col for col in colunas_exibir if col in df_display.columns]]
+                    df_formatado = apply_brazilian_date_format_for_display(df_formatado)
 
                     gb = GridOptionsBuilder.from_dataframe(df_formatado)
                     gb.configure_default_column(minWidth=150)
@@ -3281,6 +3282,7 @@ def pagina_cargas_geradas():
                     if grid_key_id not in st.session_state:
                         st.session_state[grid_key_id] = str(uuid.uuid4())
                     grid_key = st.session_state[grid_key_id]
+
 
                 grid_response = AgGrid(
                     df_formatado,
