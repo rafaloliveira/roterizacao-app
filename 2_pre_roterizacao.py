@@ -3800,10 +3800,7 @@ def pagina_aprovacao_custos():
                 )
                 
             with st.expander("🔽 Ver entregas da carga para Aprovação de Custos", expanded=False):
-                checkbox_key = f"marcar_todas_aprov_custos_{carga}"
-                if checkbox_key not in st.session_state:
-                    st.session_state[checkbox_key] = False
-                marcar_todas = st.checkbox("Marcar todas", key=checkbox_key)
+                
 
                 with st.spinner("Formatando entregas da carga para aprovação..."):
                     # Define formatter for numeric values
@@ -3897,10 +3894,8 @@ def pagina_aprovacao_custos():
                     }
                 )
 
-                if marcar_todas:
-                    selecionadas = df_formatado[df_formatado["Serie_Numero_CTRC"].notna()].copy().to_dict(orient="records")
-                else:
-                    selecionadas = grid_response.get("selected_rows", [])
+                # Remove a necessidade de checkbox "marcar todas" e considera todas automaticamente selecionadas
+                selecionadas = df_formatado[df_formatado["Serie_Numero_CTRC"].notna()].copy().to_dict(orient="records")
 
                 if selecionadas:
                     st.markdown(f"**📦 Entregas selecionadas:** {len(selecionadas)}")
@@ -3912,7 +3907,7 @@ def pagina_aprovacao_custos():
                 if st.button(
                     f"✅ Aprovar Carga {carga}",
                     key=f"aprovar_carga_{carga}",
-                    disabled=not is_user_aprovador or not selecionadas # Removido 'or valor_contratacao <= 0'
+                    disabled=not is_user_aprovador
                 ):
                     try:
                         with st.spinner("✅ Aprovando entregas e movendo para Cargas Aprovadas..."):
@@ -3956,7 +3951,7 @@ def pagina_aprovacao_custos():
                             st.session_state["reload_aprovacao_custos"] = True
                             st.session_state["reload_cargas_aprovadas"] = True
                             st.session_state.pop(grid_key, None)
-                            st.session_state.pop(checkbox_key, None)
+                            #st.session_state.pop(checkbox_key, None)
 
                             st.rerun()
 
@@ -4008,7 +4003,7 @@ def pagina_aprovacao_custos():
                             
                             st.session_state["reload_aprovacao_custos"] = True
                             st.session_state.pop(grid_key, None)
-                            st.session_state.pop(checkbox_key, None)
+                            #st.session_state.pop(checkbox_key, None)
 
                             grid_key_carga_gerada = f"grid_carga_gerada_{carga}"
                             if grid_key_carga_gerada in st.session_state:
