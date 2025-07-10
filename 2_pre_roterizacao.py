@@ -1,7 +1,7 @@
 #sincronização, Pré Roterização e Rotas Confirmadas funcionando
 
 import streamlit as st
-st.set_page_config(page_title="Roterização", layout="wide")
+st.set_page_config(page_title="Roteriza", layout="wide")
 import pandas as pd
 import numpy as np
 import io
