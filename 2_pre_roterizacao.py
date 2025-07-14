@@ -1623,45 +1623,83 @@ def formatar_brasileiro(valor):
     return formatted_br
 
 
+
+############################## Gerar PDF ########################################################
+
 def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, valor_frete, valor_contratacao):
     buffer = BytesIO()
     
+    # --- NOVO: Configurações da Imagem ---
+    # ATENÇÃO: SUBSTITUA 'caminho/para/sua/imagem.png' PELO CAMINHO REAL DO SEU ARQUIVO DE IMAGEM!
+    # A imagem pode ser JPG, PNG, GIF, etc.
+    image_path = "caminho/para/sua/imagem.png" 
+    # image_path = "assets/logo_transportadora.png" # Exemplo de caminho real
+    
+    # Defina a largura e altura da imagem no PDF (ajuste conforme necessário)
+    img_width = 1.0 * inch  # Ex: 1 polegada de largura
+    img_height = 0.75 * inch # Ex: 0.75 polegadas de altura
+    # Se quiser manter a proporção, você pode definir apenas a largura (ou altura)
+    # e usar preserveAspectRatio=True no drawImage.
+    # --- FIM NOVO: Configurações da Imagem ---
+
+    # --- NOVO: Função para desenhar a imagem em cada página ---
+    def draw_image_on_page(canvas_obj, doc):
+        page_width, page_height = landscape(letter) # Obtém o tamanho da página atual
+        
+        # Calcula a posição da imagem no canto superior direito
+        # (page_width - img_width - padding_direita, page_height - img_height - padding_superior)
+        # Use um pequeno "padding" para não colar na borda
+        padding_right = 0.25 * inch
+        padding_top = 0.25 * inch
+
+        x_pos = page_width - img_width - padding_right
+        y_pos = page_height - img_height - padding_top
+        
+        # Desenha a imagem no canvas
+        # preserveAspectRatio=True é útil para evitar distorções se img_width/img_height não forem proporcionais
+        try:
+            canvas_obj.drawImage(image_path, x_pos, y_pos, width=img_width, height=img_height, preserveAspectRatio=True)
+        except Exception as e:
+            # Em caso de erro (ex: imagem não encontrada), você pode logar ou ignorar
+            print(f"Erro ao desenhar imagem no PDF: {e}")
+            # Ou até mesmo adicionar um texto no lugar da imagem para debug
+            # canvas_obj.drawString(x_pos, y_pos, "IMAGEM NÃO ENCONTRADA")
+    # --- FIM NOVO: Função para desenhar a imagem ---
+
+
     # Configura o documento PDF com tamanho de página e margens
     doc = SimpleDocTemplate(
         buffer, 
         pagesize=landscape(letter), 
         rightMargin=inch/2, leftMargin=inch/2, 
-        topMargin=inch/2, bottomMargin=inch/2
+        topMargin=inch/2, bottomMargin=inch/2,
+        onPage=draw_image_on_page # NOVO: Chama a função para desenhar a imagem em cada página
     ) 
     
-    styles = getSampleStyleSheet() # Obtém os estilos padrão do ReportLab
-    
-    # Estilo personalizado para os títulos e corpo do texto
+    styles = getSampleStyleSheet()
     h1 = styles['h1']
     styles.add(ParagraphStyle(name='CustomNormal', parent=styles['Normal'], spaceBefore=6, spaceAfter=6, leading=14))
     
-    # Estilo customizado para os cabeçalhos da tabela (negrito, centralizado, fonte menor)
     header_paragraph_style = ParagraphStyle(
         name='TableHeader',
         parent=styles['Normal'],
         fontName='Helvetica-Bold',
-        fontSize=8, # Tamanho da fonte para cabeçalhos
-        alignment=1, # TA_CENTER (centralizado)
-        leading=9, # Altura da linha para cabeçalhos com múltiplas linhas
-        spaceAfter=3 # Espaço depois do cabeçalho
+        fontSize=8,
+        alignment=1,
+        leading=9,
+        spaceAfter=3
     )
 
-    # Estilo customizado para o conteúdo das células da tabela (fonte menor, alinhamento padrão)
     cell_paragraph_style = ParagraphStyle(
         name='TableCell',
         parent=styles['Normal'],
         fontName='Helvetica',
-        fontSize=8, # Tamanho da fonte para o conteúdo das células
-        alignment=0, # TA_LEFT (alinha à esquerda por padrão)
-        leading=9 # Altura da linha
+        fontSize=8,
+        alignment=0,
+        leading=9
     )
     
-    elements = [] # Lista para armazenar os elementos que comporão o PDF
+    elements = []
 
     # --- Conteúdo do PDF (informações gerais da carga) ---
     elements.append(Paragraph(f"Detalhes da Carga: <font color='#1A73E8'><b>{carga}</b></font>", h1))
@@ -1675,8 +1713,6 @@ def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, valor_frete, val
     elements.append(Paragraph("<b>Entregas Associadas:</b>", styles['h2']))
     elements.append(Spacer(1, 0.1 * inch))
 
-    # Define as colunas que você quer exibir na tabela do PDF com seus textos de cabeçalho formatados
-    # Mapeamento dos nomes internos das colunas para os nomes de exibição no PDF com quebras de linha
     cols_header_map = {
         "Serie_Numero_CTRC": "Série/Nº<br/>CTRC",
         "Cliente Pagador": "Cliente<br/>Pagador",
@@ -1692,51 +1728,52 @@ def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, valor_frete, val
         "Valor do Frete": "Valor do<br/>Frete"
     }
 
-    # Assegura que a ordem das colunas seja mantida conforme a solicitação
     requested_order_keys = [
         "Serie_Numero_CTRC", "Cliente Pagador", "Cliente Destinatario", "Cidade de Entrega",
         "Bairro do Destinatario", "Previsao de Entrega", "Numero da Nota Fiscal",
         "Entrega Programada", "Peso Calculado em Kg", "Peso Real em Kg", "Cubagem em m³", "Valor do Frete"
     ]
 
-    # Filtra o DataFrame para incluir apenas as colunas relevantes na ordem solicitada
     df_filtrado = df_entregas[[col for col in requested_order_keys if col in df_entregas.columns]].copy()
 
-    # Prepara os cabeçalhos como objetos Paragraph com o estilo customizado
     header_row = []
     for col_name in df_filtrado.columns:
-        display_name = cols_header_map.get(col_name, col_name) # Usa o nome mapeado ou o original
+        display_name = cols_header_map.get(col_name, col_name)
         header_row.append(Paragraph(display_name, header_paragraph_style))
 
-    # Formata colunas numéricas (soma, pesos, cubagem, frete)
     for col in ["Valor do Frete", "Peso Real em Kg", "Peso Calculado em Kg", "Cubagem em m³"]:
         if col in df_filtrado.columns:
-            # Garante que a coluna é numérica antes de somar e formatar
             df_filtrado[col] = pd.to_numeric(df_filtrado[col], errors='coerce').fillna(0)
             df_filtrado[col] = df_filtrado[col].apply(lambda x: formatar_brasileiro(x))
     
-    # Formata colunas de data (Previsão de Entrega, Entrega Programada)
     for col in ["Previsao de Entrega", "Entrega Programada"]:
         if col in df_filtrado.columns:
             df_filtrado[col] = pd.to_datetime(df_filtrado[col], errors='coerce').dt.strftime('%d-%m-%Y').fillna('')
 
-    # Prepara os dados do corpo da tabela, convertendo cada valor de célula em um Paragraph
     table_body_data = []
     for index, row in df_filtrado.iterrows():
         row_data = []
-        for cell_value in row.values:
-            # Converte o valor da célula para string antes de criar o Paragraph
-            row_data.append(Paragraph(str(cell_value), cell_paragraph_style))
+        for col_name in df_filtrado.columns: # Iterar por nome da coluna para alinhar
+            cell_value = row[col_name]
+            # Ajustar alinhamento das células de dados para numéricas/texto
+            alignment = 0 # TA_LEFT (padrão)
+            if col_name in ["Peso Calculado em Kg", "Peso Real em Kg", "Cubagem em m³", "Valor do Frete"]:
+                alignment = 2 # TA_RIGHT
+            
+            # Criar um estilo temporário para a célula, ajustando o alinhamento
+            temp_cell_style = ParagraphStyle(
+                name='TempCell',
+                parent=cell_paragraph_style,
+                alignment=alignment
+            )
+            row_data.append(Paragraph(str(cell_value), temp_cell_style))
         table_body_data.append(row_data)
 
-    # Combina os cabeçalhos e os dados do corpo da tabela
     dados_tabela = [header_row] + table_body_data
 
-    if not dados_tabela or len(dados_tabela) == 1: # Se a tabela estiver vazia
+    if not dados_tabela or len(dados_tabela) == 1:
         elements.append(Paragraph("<i>Nenhuma entrega detalhada disponível para esta carga.</i>", styles['CustomNormal']))
     else:
-        # Define a tabela e suas larguras de coluna (em polegadas)
-        # Larguras ajustadas para caber as 12 colunas em página landscape (total ~9.4 polegadas)
         col_widths = [
             0.8*inch,  # Serie_Numero_CTRC
             1.0*inch,  # Cliente Pagador
@@ -1754,35 +1791,25 @@ def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, valor_frete, val
         
         table = Table(dados_tabela, colWidths=col_widths)
         table.setStyle(TableStyle([
-            # Estilos para a linha do cabeçalho
-            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#EFEFEF')), # Cor de fundo do cabeçalho
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),                 # Cor do texto do cabeçalho
-            ('ALIGN', (0, 0), (-1, 0), 'CENTER'),                         # Cabeçalhos centralizados
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),             # Fonte do cabeçalho
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 6),                      # Padding inferior do cabeçalho
-            ('TOPPADDING', (0, 0), (-1, 0), 6),                          # Padding superior do cabeçalho
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#EFEFEF')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),
+            ('ALIGN', (0, 0), (-1, 0), 'CENTER'), # Cabeçalhos centralizados
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
+            ('TOPPADDING', (0, 0), (-1, 0), 6),
 
-            # Estilos para o corpo da tabela
-            ('BACKGROUND', (0, 1), (-1, -1), colors.white),             # Cor de fundo das linhas de dados
-            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),               # Grade da tabela
-            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),                     # Alinhamento vertical central para todas as células
-            ('LEFTPADDING', (0, 0), (-1, -1), 2),                       # Padding esquerdo (reduzido)
-            ('RIGHTPADDING', (0, 0), (-1, -1), 2),                      # Padding direito (reduzido)
-
-            # Alinhamentos específicos para as colunas de dados
-            ('ALIGN', (0, 1), (0, -1), 'LEFT'),   # Serie_Numero_CTRC: Esquerda
-            ('ALIGN', (1, 1), (2, -1), 'LEFT'),   # Cliente Pagador, Cliente Destinatario: Esquerda
-            ('ALIGN', (3, 1), (5, -1), 'LEFT'),   # Cidade, Bairro, Previsão: Esquerda
-            ('ALIGN', (6, 1), (6, -1), 'LEFT'),   # Nota Fiscal: Esquerda
-            ('ALIGN', (7, 1), (7, -1), 'LEFT'),   # Entrega Programada: Esquerda
-            ('ALIGN', (8, 1), (11, -1), 'RIGHT'), # Pesos, Cubagem, Valor do Frete: Direita
+            ('BACKGROUND', (0, 1), (-1, -1), colors.white),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('LEFTPADDING', (0, 0), (-1, -1), 2),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 2),
+            # Alinhamentos específicos para as colunas de dados são definidos via ParagraphStyle da célula
         ]))
         elements.append(table)
 
-    # Constrói o PDF com todos os elementos definidos
     doc.build(elements)
-    buffer.seek(0) # Move o "ponteiro" do buffer para o início
-    return buffer.getvalue() # Retorna o conteúdo do PDF como bytes
+    buffer.seek(0)
+    return buffer.getvalue()
 
 # ==============================================================================
 # FIM DAS NOVAS FUNÇÕES PARA GERAÇÃO DE PDF
