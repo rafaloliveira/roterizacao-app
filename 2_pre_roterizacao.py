@@ -1632,7 +1632,7 @@ def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, valor_frete, val
     # --- NOVO: Configurações da Imagem ---
     # ATENÇÃO: SUBSTITUA 'caminho/para/sua/imagem.png' PELO CAMINHO REAL DO SEU ARQUIVO DE IMAGEM!
     # A imagem pode ser JPG, PNG, GIF, etc.
-    image_path = "caminho/para/sua/imagem.png" 
+    image_path = "C:\Users\Rafael\Roteriza\Scripts\logo.png" 
     # image_path = "assets/logo_transportadora.png" # Exemplo de caminho real
     
     # Defina a largura e altura da imagem no PDF (ajuste conforme necessário)
