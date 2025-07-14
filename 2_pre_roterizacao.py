@@ -2037,12 +2037,15 @@ def pagina_aprovacao_diretoria():
 
 
     df_exibir = df_aprovacao.copy()
-    col1, col2, _ = st.columns([1, 1, 8])
+    col1, col2, col3, col4, _ = st.columns([1, 1, 1, 1, 6])
     with col1:
         st.metric("Total de Clientes", df_exibir["Cliente Pagador"].nunique())
     with col2:
         st.metric("Total de Entregas", len(df_exibir))
-
+    with col3: # NOVO: Peso Real
+        st.metric("Peso Real (kg)", formatar_brasileiro(df_exibir['Peso Real em Kg'].sum()))
+    with col4: # NOVO: Peso Calculado
+        st.metric("Peso Calculado (kg)", formatar_brasileiro(df_exibir['Peso Calculado em Kg'].sum()))
 
     def badge(label):
         return f"<span style='background:#eef2f7;border-radius:12px;padding:6px 12px;margin:4px;color:inherit;display:inline-block;'>{label}</span>"
@@ -2356,11 +2359,15 @@ def pagina_pre_roterizacao():
             return
 
 
-    col1, col2, _ = st.columns([1, 1, 8])
+    col1, col2, col3, col4, _ = st.columns([1, 1, 1, 1, 6])
     with col1:
         st.metric("Total de Rotas", df["Rota"].nunique() if "Rota" in df.columns else 0)
     with col2:
         st.metric("Total de Entregas", len(df))
+    with col3: # NOVO: Peso Real
+        st.metric("Peso Real (kg)", formatar_brasileiro(df['Peso Real em Kg'].sum()))
+    with col4: # NOVO: Peso Calculado
+        st.metric("Peso Calculado (kg)", formatar_brasileiro(df['Peso Calculado em Kg'].sum()))
 
     def badge(label):
         return f"<span style='background:#eef2f7;border-radius:12px;padding:6px 12px;margin:4px;color:inherit;display:inline-block;'>{label}</span>"
@@ -2791,11 +2798,15 @@ def pagina_rotas_confirmadas():
         return
 
     # --- MÉTRICAS GERAIS ---
-    col1, col2, _ = st.columns([1, 1, 8])
+    col1, col2, col3, col4, _ = st.columns([1, 1, 1, 1, 6])
     with col1:
         st.metric("Total de Rotas", df["Rota"].nunique() if "Rota" in df.columns else 0)
     with col2:
         st.metric("Total de Entregas", len(df))
+    with col3: # NOVO: Peso Real
+        st.metric("Peso Real (kg)", formatar_brasileiro(df['Peso Real em Kg'].sum()))
+    with col4: # NOVO: Peso Calculado
+        st.metric("Peso Calculado (kg)", formatar_brasileiro(df['Peso Calculado em Kg'].sum()))
 
     # --- DEFINIÇÕES DE BADGES E COLUNAS ---
     def badge(label):
@@ -3330,11 +3341,19 @@ def pagina_cargas_geradas():
                 if col in df_display.columns:
                     df_display[col] = pd.to_numeric(df_display[col], errors='coerce').fillna(0)
 
-        col1, col2, _ = st.columns([1, 1, 8])
+
+
+        col1, col2, col3, col4, _ = st.columns([1, 1, 1, 1, 6])
         with col1:
             st.metric("Total de Cargas", df["numero_carga"].nunique() if "numero_carga" in df.columns else 0)
         with col2:
             st.metric("Total de Entregas", len(df))
+        with col3: # NOVO: Peso Real
+            st.metric("Peso Real (kg)", formatar_brasileiro(df['Peso Real em Kg'].sum()))
+        with col4: # NOVO: Peso Calculado
+            st.metric("Peso Calculado (kg)", formatar_brasileiro(df['Peso Calculado em Kg'].sum()))
+
+            
 
         formatter = JsCode("""
             function(params) {
@@ -3912,11 +3931,15 @@ def pagina_aprovacao_custos():
         if 'Regiao' in df.columns:
             df['Regiao'] = df['Regiao'].astype(str).str.strip().str.upper().replace('NAN', 'NÃO DEFINIDA')
 
-        col1, col2, _ = st.columns([1, 1, 8])
+        col1, col2, col3, col4, _ = st.columns([1, 1, 1, 1, 6])
         with col1:
             st.metric("Total de Cargas Pendentes", df["numero_carga"].nunique() if "numero_carga" in df.columns else 0)
         with col2:
             st.metric("Total de Entregas Pendentes", len(df))
+        with col3: # NOVO: Peso Real
+            st.metric("Peso Real (kg)", formatar_brasileiro(df['Peso Real em Kg'].sum()))
+        with col4: # NOVO: Peso Calculado
+            st.metric("Peso Calculado (kg)", formatar_brasileiro(df['Peso Calculado em Kg'].sum()))
 
         colunas_exibir = [
             "Serie_Numero_CTRC", "Rota", "Regiao", "Valor do Frete", "Cliente Pagador",
@@ -4301,11 +4324,15 @@ def pagina_cargas_aprovadas():
             df['aprovador_custos_login'] = df['aprovador_custos_login'].astype(str).str.strip().replace('nan', 'Desconhecido')
 
 
-        col1, col2, _ = st.columns([1, 1, 8])
+        col1, col2, col3, col4, _ = st.columns([1, 1, 1, 1, 6])
         with col1:
             st.metric("Total de Cargas Aprovadas", df["numero_carga"].nunique() if "numero_carga" in df.columns else 0)
         with col2:
             st.metric("Total de Entregas Aprovadas", len(df))
+        with col3: # NOVO: Peso Real
+            st.metric("Peso Real (kg)", formatar_brasileiro(df['Peso Real em Kg'].sum()))
+        with col4: # NOVO: Peso Calculado
+            st.metric("Peso Calculado (kg)", formatar_brasileiro(df['Peso Calculado em Kg'].sum()))
 
         # --- Definição dos Custos Máximos por Região ---
         MAX_COST_PER_REGION = {
