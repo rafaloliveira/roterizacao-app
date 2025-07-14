@@ -3996,7 +3996,7 @@ def pagina_aprovacao_custos():
     if not is_user_aprovador:
         st.warning("⛔ Apenas usuários com classe 'aprovador' podem realizar ações de aprovação de custos.")
 
-    df = pd.DataFrame() 
+    
 
     try:
         with st.spinner("🔄 Carregando dados para aprovação de custos..."):
