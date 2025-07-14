@@ -745,7 +745,8 @@ def carregar_base_supabase():
         d_mais_1 = hoje + pd.Timedelta(days=1)
 
         obrigatorias = base[
-            (pd.to_datetime(base['Previsao de Entrega'], errors='coerce') < d_mais_1)
+            # CORREÇÃO AQUI: Adicionar dayfirst=True
+            (pd.to_datetime(base['Previsao de Entrega'], errors='coerce', dayfirst=True) < d_mais_1)
             |
             (base['Valor do Frete'] >= 300)
             |
@@ -1579,7 +1580,8 @@ def apply_brazilian_date_format_for_display(df_to_format):
     for col in GLOBAL_DATE_DISPLAY_COLUMNS:
         if col in df_to_format.columns:
             if not pd.api.types.is_datetime64_any_dtype(df_to_format[col]):
-                df_to_format[col] = pd.to_datetime(df_to_format[col], errors='coerce')
+                 # CORREÇÃO AQUI: Adicionar dayfirst=True
+                df_to_format[col] = pd.to_datetime(df_to_format[col], errors='coerce', dayfirst=True)
             df_to_format[col] = df_to_format[col].apply(
                 lambda x: x.strftime(DATE_DISPLAY_FORMAT_STRING)
                 if pd.notna(x) and isinstance(x, (Timestamp, datetime))
@@ -3372,7 +3374,8 @@ def pagina_cargas_geradas():
                 # Aplicar o formato correto às datas
                 for col in ['Entrega Programada', 'Previsao de Entrega']:
                     if col in df.columns:
-                        df[col] = pd.to_datetime(df[col], errors='coerce', utc=True)
+                        # CORREÇÃO AQUI: Adicionar format=DATE_DISPLAY_FORMAT_STRING
+                        df[col] = pd.to_datetime(df[col], errors='coerce', utc=True, format=DATE_DISPLAY_FORMAT_STRING)
                         df[col] = df[col].dt.tz_localize(None).dt.strftime('%d-%m-%Y')
 
 
@@ -4361,7 +4364,7 @@ def pagina_cargas_aprovadas():
 
                 for col in ['Entrega Programada', 'Previsao de Entrega']:
                     if col in df.columns:
-                        df[col] = pd.to_datetime(df[col], errors='coerce')
+                        df[col] = pd.to_datetime(df[col], errors='coerce', format=DATE_DISPLAY_FORMAT_STRING)
                         df[col] = df[col].apply(lambda x: x.strftime('%d-%m-%Y') if pd.notna(x) else '')
 
                 st.session_state["df_cargas_aprovadas_cache"] = df
@@ -4691,7 +4694,8 @@ def pagina_cargas_fechadas():
                 # --- Converte colunas relevantes para datetime UTC ---
                 for col_name in GLOBAL_DATE_DISPLAY_COLUMNS:
                     if col_name in df.columns:
-                        df[col_name] = pd.to_datetime(df[col_name], errors='coerce', utc=True)
+                        # CORREÇÃO AQUI: Adicionar format=DATE_DISPLAY_FORMAT_STRING
+                        df[col_name] = pd.to_datetime(df[col_name], errors='coerce', utc=True, format=DATE_DISPLAY_FORMAT_STRING)
 
                 # --- Formata Entrega Programada e Previsao de Entrega para dd-mm-aaaa ---
                 for col in ['Entrega Programada', 'Previsao de Entrega']:
