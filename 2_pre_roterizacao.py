@@ -1594,24 +1594,35 @@ def apply_brazilian_date_format_for_display(df_to_format):
 DATE_ONLY_REPARSE_COLUMNS = ['Previsao de Entrega', 'Entrega Programada']
 
 #FUNÇÃO GERAR PDF 
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.pagesizes import letter, landscape
+from reportlab.lib.units import inch
+from reportlab.lib import colors
+from io import BytesIO
+import pandas as pd
+from datetime import datetime, date
+import numpy as np
+from pandas import Timestamp # Importação mantida para compatibilidade de tipos
+
+# Supondo que FUSO_BRASIL e formatar_brasileiro já estão definidos no seu código
+# Exemplo (se não estiverem definidos, mantenha os seus):
+from zoneinfo import ZoneInfo
+FUSO_BRASIL = ZoneInfo("America/Sao_Paulo")
+def formatar_brasileiro(valor):
+    if valor is None or (isinstance(valor, (float, np.float64)) and np.isnan(valor)):
+        return "0,00"
+    if not isinstance(valor, (int, float, np.float64)):
+        valor = pd.to_numeric(valor, errors='coerce')
+        if pd.isna(valor):
+            return "0,00"
+    formatted_us = "{:,.2f}".format(valor)
+    formatted_br = formatted_us.replace('.', 'TEMP').replace(',', '.').replace('TEMP', ',')
+    return formatted_br
+
+
 def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, valor_frete, valor_contratacao):
-    """
-    Gera um PDF detalhado de uma carga específica, incluindo informações gerais
-    e uma tabela com as entregas associadas.
-
-    Args:
-        df_entregas (pd.DataFrame): DataFrame contendo os detalhes das entregas para esta carga.
-        carga (str): Número identificador da carga.
-        rota (str): Rota da carga.
-        motorista (str): Nome do motorista.
-        placa (str): Placa do veículo.
-        valor_frete (float): Valor total do frete da carga.
-        valor_contratacao (float): Valor de contratação para a carga.
-
-    Returns:
-        bytes: O conteúdo do PDF em formato de bytes.
-    """
-    buffer = BytesIO() # Cria um buffer em memória para o PDF
+    buffer = BytesIO()
     
     # Configura o documento PDF com tamanho de página e margens
     doc = SimpleDocTemplate(
@@ -1623,109 +1634,148 @@ def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, valor_frete, val
     
     styles = getSampleStyleSheet() # Obtém os estilos padrão do ReportLab
     
-    # Estilos personalizados para os títulos e corpo do texto
+    # Estilo personalizado para os títulos e corpo do texto
     h1 = styles['h1']
-    h2 = styles['h2']
-    # Estilo com espaçamento para melhor legibilidade
-    styles.add(ParagraphStyle(name='CustomNormal',
-                              parent=styles['Normal'],
-                              spaceBefore=6,
-                              spaceAfter=6,
-                              leading=14)) # Espaçamento entre linhas
+    styles.add(ParagraphStyle(name='CustomNormal', parent=styles['Normal'], spaceBefore=6, spaceAfter=6, leading=14))
+    
+    # Estilo customizado para os cabeçalhos da tabela (negrito, centralizado, fonte menor)
+    header_paragraph_style = ParagraphStyle(
+        name='TableHeader',
+        parent=styles['Normal'],
+        fontName='Helvetica-Bold',
+        fontSize=8, # Tamanho da fonte para cabeçalhos
+        alignment=1, # TA_CENTER (centralizado)
+        leading=9, # Altura da linha para cabeçalhos com múltiplas linhas
+        spaceAfter=3 # Espaço depois do cabeçalho
+    )
+
+    # Estilo customizado para o conteúdo das células da tabela (fonte menor, alinhamento padrão)
+    cell_paragraph_style = ParagraphStyle(
+        name='TableCell',
+        parent=styles['Normal'],
+        fontName='Helvetica',
+        fontSize=8, # Tamanho da fonte para o conteúdo das células
+        alignment=0, # TA_LEFT (alinha à esquerda por padrão)
+        leading=9 # Altura da linha
+    )
     
     elements = [] # Lista para armazenar os elementos que comporão o PDF
 
-    # --- Conteúdo do PDF ---
-
-    # 1. Título Principal da Carga
+    # --- Conteúdo do PDF (informações gerais da carga) ---
     elements.append(Paragraph(f"Detalhes da Carga: <font color='#1A73E8'><b>{carga}</b></font>", h1))
-    elements.append(Spacer(1, 0.2 * inch)) # Espaçamento
-
-    # 2. Informações Gerais da Carga
+    elements.append(Spacer(1, 0.2 * inch))
     elements.append(Paragraph(f"<b>Rota:</b> {rota}", styles['CustomNormal']))
     elements.append(Paragraph(f"<b>Motorista:</b> {motorista if motorista and motorista.strip() else '<i>Não Informado</i>'}", styles['CustomNormal']))
     elements.append(Paragraph(f"<b>Placa:</b> {placa if placa and placa.strip() else '<i>Não Informada</i>'}", styles['CustomNormal']))
-    elements.append(Paragraph(f"<b>Valor Total do Frete:</b> R$ {formatar_brasileiro(valor_frete)}", styles['CustomNormal']))
-    elements.append(Paragraph(f"<b>Valor de Contratação:</b> R$ {formatar_brasileiro(valor_contratacao)}", styles['CustomNormal']))
+    elements.append(Paragraph(f"<b>Valor Total do Frete:</b> R\$ {formatar_brasileiro(valor_frete)}", styles['CustomNormal']))
+    elements.append(Paragraph(f"<b>Valor de Contratação:</b> R\$ {formatar_brasileiro(valor_contratacao)}", styles['CustomNormal']))
     elements.append(Spacer(1, 0.3 * inch))
-
-    # 3. Tabela de Entregas Desta Carga
-    elements.append(Paragraph("<b>Entregas Associadas:</b>", h2))
+    elements.append(Paragraph("<b>Entregas Associadas:</b>", styles['h2']))
     elements.append(Spacer(1, 0.1 * inch))
 
-    # Define as colunas que você quer exibir na tabela do PDF
-    cols_para_tabela_pdf = [
-    "Serie_Numero_CTRC",
-        "Cliente Pagador",
-        "Cliente Destinatario",
-        "Cidade de Entrega",
-        "Bairro do Destinatario", # Mapeado de "Bairro"
-        "Previsao de Entrega",
-        "Numero da Nota Fiscal",  # Mapeado de "Nota fiscal"
-        "Entrega Programada",
-        "Peso Calculado em Kg",   # Mapeado de "Peso Calculado"
-        "Peso Real em Kg",        # Mapeado de "Peso Real"
-        "Cubagem em m³",          # Mapeado de "Cubagem"
-        "Valor do Frete"
-    ]
-    
-    # Prepara o DataFrame para exibição na tabela do PDF
-    df_filtrado = df_entregas[[col for col in cols_para_tabela_pdf if col in df_entregas.columns]].copy()
+    # Define as colunas que você quer exibir na tabela do PDF com seus textos de cabeçalho formatados
+    # Mapeamento dos nomes internos das colunas para os nomes de exibição no PDF com quebras de linha
+    cols_header_map = {
+        "Serie_Numero_CTRC": "Série/Nº<br/>CTRC",
+        "Cliente Pagador": "Cliente<br/>Pagador",
+        "Cliente Destinatario": "Cliente<br/>Destinatário",
+        "Cidade de Entrega": "Cidade<br/>de Entrega",
+        "Bairro do Destinatario": "Bairro do<br/>Destinatário",
+        "Previsao de Entrega": "Previsão<br/>de Entrega",
+        "Numero da Nota Fiscal": "Nº da<br/>NF",
+        "Entrega Programada": "Entrega<br/>Programada",
+        "Peso Calculado em Kg": "Peso<br/>Calculado<br/>(Kg)",
+        "Peso Real em Kg": "Peso Real<br/>(Kg)",
+        "Cubagem em m³": "Cubagem<br/>(m³)",
+        "Valor do Frete": "Valor do<br/>Frete"
+    }
 
-    # Formata colunas numéricas e de data para exibição no PDF
-    for col in ["Valor do Frete", "Peso Real em Kg"]:
+    # Assegura que a ordem das colunas seja mantida conforme a solicitação
+    requested_order_keys = [
+        "Serie_Numero_CTRC", "Cliente Pagador", "Cliente Destinatario", "Cidade de Entrega",
+        "Bairro do Destinatario", "Previsao de Entrega", "Numero da Nota Fiscal",
+        "Entrega Programada", "Peso Calculado em Kg", "Peso Real em Kg", "Cubagem em m³", "Valor do Frete"
+    ]
+
+    # Filtra o DataFrame para incluir apenas as colunas relevantes na ordem solicitada
+    df_filtrado = df_entregas[[col for col in requested_order_keys if col in df_entregas.columns]].copy()
+
+    # Prepara os cabeçalhos como objetos Paragraph com o estilo customizado
+    header_row = []
+    for col_name in df_filtrado.columns:
+        display_name = cols_header_map.get(col_name, col_name) # Usa o nome mapeado ou o original
+        header_row.append(Paragraph(display_name, header_paragraph_style))
+
+    # Formata colunas numéricas (soma, pesos, cubagem, frete)
+    for col in ["Valor do Frete", "Peso Real em Kg", "Peso Calculado em Kg", "Cubagem em m³"]:
         if col in df_filtrado.columns:
+            # Garante que a coluna é numérica antes de somar e formatar
+            df_filtrado[col] = pd.to_numeric(df_filtrado[col], errors='coerce').fillna(0)
             df_filtrado[col] = df_filtrado[col].apply(lambda x: formatar_brasileiro(x))
     
-    # Garante que as colunas de data sejam strings formatadas
-       # Garante que as colunas de data sejam strings formatadas
-    for col in ["Entrega Programada"]: # Adicione outras colunas de data relevantes aqui, se houver
+    # Formata colunas de data (Previsão de Entrega, Entrega Programada)
+    for col in ["Previsao de Entrega", "Entrega Programada"]:
         if col in df_filtrado.columns:
-            # Converte para datetime (coerce errors para NaT) e depois para string DD-MM-AAAA
             df_filtrado[col] = pd.to_datetime(df_filtrado[col], errors='coerce').dt.strftime('%d-%m-%Y').fillna('')
 
-    # Converte o DataFrame para o formato de lista de listas que o ReportLab espera para tabelas
-    # O cabeçalho é a primeira sub-lista
-    dados_tabela = [df_filtrado.columns.tolist()] + df_filtrado.values.tolist()
+    # Prepara os dados do corpo da tabela, convertendo cada valor de célula em um Paragraph
+    table_body_data = []
+    for index, row in df_filtrado.iterrows():
+        row_data = []
+        for cell_value in row.values:
+            # Converte o valor da célula para string antes de criar o Paragraph
+            row_data.append(Paragraph(str(cell_value), cell_paragraph_style))
+        table_body_data.append(row_data)
 
-    if not dados_tabela or len(dados_tabela) == 1: # Se a tabela estiver vazia (apenas cabeçalho ou nada)
+    # Combina os cabeçalhos e os dados do corpo da tabela
+    dados_tabela = [header_row] + table_body_data
+
+    if not dados_tabela or len(dados_tabela) == 1: # Se a tabela estiver vazia
         elements.append(Paragraph("<i>Nenhuma entrega detalhada disponível para esta carga.</i>", styles['CustomNormal']))
     else:
-        # Define a tabela e seus estilos
-        # colWidths ajusta a largura de cada coluna na tabela (em polegadas neste exemplo)
-        # Ajuste essas larguras conforme a necessidade para evitar que o texto ultrapasse
-        table = Table(dados_tabela, colWidths=[
-        0.8*inch,  # Serie_Numero_CTRC (CTRC)
-        1.5*inch,  # Cliente Pagador
-        1.5*inch,  # Cliente Destinatario
-        1.0*inch,  # Cidade de Entrega
-        1.0*inch,  # Bairro do Destinatario (Bairro)
-        0.8*inch,  # Previsao de Entrega (Previsao Entrega)
-        0.8*inch,  # Numero da Nota Fiscal (Nota fiscal)
-        0.8*inch,  # Entrega Programada
-        0.7*inch,  # Peso Calculado em Kg (Peso Calculado)
-        0.7*inch,  # Peso Real em Kg (Peso Real)
-        0.7*inch,  # Cubagem em m³ (Cubagem)
-        0.7*inch   # Valor do Frete
-    ], hAlign="LEFT")
+        # Define a tabela e suas larguras de coluna (em polegadas)
+        # Larguras ajustadas para caber as 12 colunas em página landscape (total ~9.4 polegadas)
+        col_widths = [
+            0.8*inch,  # Serie_Numero_CTRC
+            1.0*inch,  # Cliente Pagador
+            1.1*inch,  # Cliente Destinatario
+            0.7*inch,  # Cidade de Entrega
+            0.9*inch,  # Bairro do Destinatario
+            0.7*inch,  # Previsao de Entrega
+            0.6*inch,  # Numero da Nota Fiscal
+            0.7*inch,  # Entrega Programada
+            0.8*inch,  # Peso Calculado em Kg
+            0.8*inch,  # Peso Real em Kg
+            0.7*inch,  # Cubagem em m³
+            0.6*inch   # Valor do Frete
+        ]
+        
+        table = Table(dados_tabela, colWidths=col_widths)
         table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#EFEFEF')),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),
-        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-        ('BACKGROUND', (0, 1), (-1, -1), colors.white),
-        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
-        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-        ('FONTSIZE', (0, 0), (-1, -1), 8), # Mantido fonte menor para caber mais colunas
-        ('LEFTPADDING', (0, 0), (-1, -1), 4),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 4),
-        # Ajuste de alinhamento para colunas numéricas (Peso Calculado, Peso Real, Cubagem, Valor do Frete)
-        ('ALIGN', (8, 0), (11, -1), 'RIGHT'), # Colunas 8 a 11 (índice 0-based) alinhadas à direita
-        # Ajuste de alinhamento para datas (Previsao de Entrega, Entrega Programada)
-        ('ALIGN', (5, 0), (7, -1), 'CENTER'), # Colunas 5 a 7 (índice 0-based) alinhadas ao centro
-    ]))
-    elements.append(table)
+            # Estilos para a linha do cabeçalho
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#EFEFEF')), # Cor de fundo do cabeçalho
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),                 # Cor do texto do cabeçalho
+            ('ALIGN', (0, 0), (-1, 0), 'CENTER'),                         # Cabeçalhos centralizados
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),             # Fonte do cabeçalho
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 6),                      # Padding inferior do cabeçalho
+            ('TOPPADDING', (0, 0), (-1, 0), 6),                          # Padding superior do cabeçalho
+
+            # Estilos para o corpo da tabela
+            ('BACKGROUND', (0, 1), (-1, -1), colors.white),             # Cor de fundo das linhas de dados
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),               # Grade da tabela
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),                     # Alinhamento vertical central para todas as células
+            ('LEFTPADDING', (0, 0), (-1, -1), 2),                       # Padding esquerdo (reduzido)
+            ('RIGHTPADDING', (0, 0), (-1, -1), 2),                      # Padding direito (reduzido)
+
+            # Alinhamentos específicos para as colunas de dados
+            ('ALIGN', (0, 1), (0, -1), 'LEFT'),   # Serie_Numero_CTRC: Esquerda
+            ('ALIGN', (1, 1), (2, -1), 'LEFT'),   # Cliente Pagador, Cliente Destinatario: Esquerda
+            ('ALIGN', (3, 1), (5, -1), 'LEFT'),   # Cidade, Bairro, Previsão: Esquerda
+            ('ALIGN', (6, 1), (6, -1), 'LEFT'),   # Nota Fiscal: Esquerda
+            ('ALIGN', (7, 1), (7, -1), 'LEFT'),   # Entrega Programada: Esquerda
+            ('ALIGN', (8, 1), (11, -1), 'RIGHT'), # Pesos, Cubagem, Valor do Frete: Direita
+        ]))
+        elements.append(table)
 
     # Constrói o PDF com todos os elementos definidos
     doc.build(elements)
@@ -1735,6 +1785,9 @@ def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, valor_frete, val
 # ==============================================================================
 # FIM DAS NOVAS FUNÇÕES PARA GERAÇÃO DE PDF
 # ==============================================================================
+
+
+
 
 ##########################################
 
