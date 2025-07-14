@@ -1580,8 +1580,8 @@ def apply_brazilian_date_format_for_display(df_to_format):
     for col in GLOBAL_DATE_DISPLAY_COLUMNS:
         if col in df_to_format.columns:
             if not pd.api.types.is_datetime64_any_dtype(df_to_format[col]):
-                 # CORREÇÃO AQUI: Adicionar dayfirst=True
-                df_to_format[col] = pd.to_datetime(df_to_format[col], errors='coerce', dayfirst=True)
+                 # CORREÇÃO AQUI: REMOVER dayfirst=True
+                df_to_format[col] = pd.to_datetime(df_to_format[col], errors='coerce') # <-- Removido dayfirst=True
             df_to_format[col] = df_to_format[col].apply(
                 lambda x: x.strftime(DATE_DISPLAY_FORMAT_STRING)
                 if pd.notna(x) and isinstance(x, (Timestamp, datetime))
