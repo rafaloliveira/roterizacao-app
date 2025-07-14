@@ -4728,11 +4728,10 @@ def pagina_cargas_fechadas():
                 dados = supabase.table("cargas_fechadas").select("*").execute().data
                 df = pd.DataFrame(dados)
 
-                # --- Converte colunas relevantes para datetime UTC ---
+                # --- Converte colunas relevantes para datetime UTC (sem format forçado) ---
                 for col_name in GLOBAL_DATE_DISPLAY_COLUMNS:
                     if col_name in df.columns:
-                        # CORREÇÃO AQUI: Adicionar format=DATE_DISPLAY_FORMAT_STRING
-                        df[col_name] = pd.to_datetime(df[col_name], errors='coerce', utc=True, format=DATE_DISPLAY_FORMAT_STRING)
+                        df[col_name] = pd.to_datetime(df[col_name], errors='coerce', utc=True)
 
                 # --- Formata Entrega Programada e Previsao de Entrega para dd-mm-aaaa ---
                 for col in ['Entrega Programada', 'Previsao de Entrega']:
@@ -4743,6 +4742,7 @@ def pagina_cargas_fechadas():
                 st.session_state["df_cargas_fechadas_cache"] = df
             else:
                 df = st.session_state["df_cargas_fechadas_cache"]
+
 
 
         if df.empty:
