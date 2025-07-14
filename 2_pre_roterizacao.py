@@ -3,12 +3,11 @@
 import streamlit as st
 st.set_page_config(
     page_title="Roteriza",  # Novo título para a aba do navegador
-    page_icon="📡",       # Novo ícone para a aba. Pode ser um emoji,
+    page_icon="",       # Novo ícone para a aba. Pode ser um emoji,
                           # um caminho para um arquivo de imagem, ou uma URL.
     layout="wide",    # (Opcional) Pode ser "centered" ou "wide"
     initial_sidebar_state="auto" # (Opcional) Pode ser "auto", "expanded" ou "collapsed"
 )
-
 
 import pandas as pd
 import numpy as np
@@ -1897,7 +1896,7 @@ def pagina_confirmar_producao():
 
                 # Botão para confirmar produção
                 if not selecionadas.empty:
-                    if st.button(f" Enviar para Aprovação"):
+                    if st.button(" Enviar para Aprovação", key=f"btn_enviar_aprov_{cliente_pagador}"):
                         try:
                             # Prepara os dados para inserção na tabela de aprovacao_diretoria
                             df_confirmar = selecionadas.drop(columns=["_selectedRowNodeInfo"], errors="ignore").copy()
@@ -2735,12 +2734,6 @@ def pagina_rotas_confirmadas():
                 st.error(f"Erro ao adicionar entregas manualmente: {e}")
 
     # --- FIM: BLOCO DE CRIAÇÃO DE CARGA AVULSA ---
-
-
-
-
-
-
     # --- INÍCIO: CARREGAMENTO DOS DADOS DE ROTAS CONFIRMADAS E EXIBIÇÃO ---
     try:
         with st.spinner("🔄 Carregando dados das entregas..."):
@@ -2930,7 +2923,7 @@ def pagina_rotas_confirmadas():
                             except Exception as e:
                                 # Captura erros de comunicação do Supabase durante a verificação de existência
                                 st.warning(f"Aviso: Não foi possível verificar entregas existentes na tabela 'cargas_geradas' devido a erro de comunicação: {e}")
-                                # Não retornamos aqui, mas a inserção pode falhar se o item já existir e a verificação falhou
+                                # Não retornamos aqui, mas a inserção pode falhar se o item já exis
 
                         if existing_ctrcs_in_target:
                             st.warning(f"As seguintes entregas já existem em 'cargas_geradas' e não serão inseridas novamente: {', '.join(existing_ctrcs_in_target)}")
