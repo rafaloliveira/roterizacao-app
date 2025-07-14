@@ -3983,11 +3983,10 @@ def pagina_cargas_geradas():
 def pagina_aprovacao_custos():
     st.markdown("## Aprovação de Custos")
 
-    # Define os limites de custo por região aqui, pois o cálculo será feito nesta página.
     MAX_COST_PER_REGION = {
-        'INTERIOR 1': 0.35,  # 35%
-        'INTERIOR 2': 0.45,  # 45%
-        'POA CAPITAL': 0.30   # 30%
+        'INTERIOR 1': 0.35,
+        'INTERIOR 2': 0.45,
+        'POA CAPITAL': 0.30
     }
 
     current_user_class = st.session_state.get("classe", "colaborador")
@@ -3996,27 +3995,25 @@ def pagina_aprovacao_custos():
     if not is_user_aprovador:
         st.warning("⛔ Apenas usuários com classe 'aprovador' podem realizar ações de aprovação de custos.")
 
-    
-
     try:
         with st.spinner("🔄 Carregando dados para aprovação de custos..."):
             recarregar = st.session_state.pop("reload_aprovacao_custos", False)
+
             if recarregar or "df_aprovacao_custos_cache" not in st.session_state:
                 dados = supabase.table("aprovacao_custos").select("*").execute().data
-
-
                 df = pd.DataFrame(dados)
 
-                # Após carregar o DataFrame da tabela cargas_geradas
-            for col in ["Previsao de Entrega", "Entrega Programada"]:
-                if col in df.columns: 
-                    df[col] = pd.to_datetime(df[col], errors='coerce')
-                    df[col] = df[col].apply(lambda x: x.strftime('%d-%m-%Y') if pd.notnull(x) else "")
+                if not df.empty:
+                    # ✅ Formatar datas para exibição no grid como dd-mm-aaaa
+                    for col in ["Previsao de Entrega", "Entrega Programada"]:
+                        if col in df.columns:
+                            df[col] = pd.to_datetime(df[col], errors='coerce')
+                            df[col] = df[col].apply(lambda x: x.strftime('%d-%m-%Y') if pd.notnull(x) else "")
 
+                    # ✅ Garante que 'numero_carga' seja string no cache
+                    if 'numero_carga' in df.columns:
+                        df['numero_carga'] = df['numero_carga'].astype(str)
 
-                # Garante que 'numero_carga' seja tratado como string no cache
-                if not df.empty and 'numero_carga' in df.columns:
-                    df['numero_carga'] = df['numero_carga'].astype(str)
                 st.session_state["df_aprovacao_custos_cache"] = df
             else:
                 df = st.session_state["df_aprovacao_custos_cache"]
@@ -4037,8 +4034,7 @@ def pagina_aprovacao_custos():
         for col in numeric_cols_to_convert:
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
-        
-        # Garante que 'Regiao' seja string e trata nulos para o cálculo
+
         if 'Regiao' in df.columns:
             df['Regiao'] = df['Regiao'].astype(str).str.strip().str.upper().replace('NAN', 'NÃO DEFINIDA')
 
@@ -4047,10 +4043,11 @@ def pagina_aprovacao_custos():
             st.metric("Total de Cargas Pendentes", df["numero_carga"].nunique() if "numero_carga" in df.columns else 0)
         with col2:
             st.metric("Total de Entregas Pendentes", len(df))
-        with col3: # NOVO: Peso Real
+        with col3:
             st.metric("Peso Real (kg)", formatar_brasileiro(df['Peso Real em Kg'].sum()))
-        with col4: # NOVO: Peso Calculado
+        with col4:
             st.metric("Peso Calculado (kg)", formatar_brasileiro(df['Peso Calculado em Kg'].sum()))
+
 
         colunas_exibir = [
             "Serie_Numero_CTRC", "Rota", "Regiao", "Valor do Frete", "Cliente Pagador",
