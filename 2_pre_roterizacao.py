@@ -4897,7 +4897,7 @@ def pagina_cargas_fechadas():
                         {badge(f'Motorista: {motorista_carga}')}
                         {badge(f'Placa: {placa_carga}')}
                         {badge(f'Rentabilidade: {rentabilidade_percentual:.2f}%')}
-                        <span style='background:{cor_situacao};color:white;border-radius:12px;padding:6px 12px;margin:4px;display:inline-block;'>Situação Custo: {situacao_custo_regional}</span>
+                        {badge(f'Situação Custo: {situacao_custo_regional}', background_color=cor_situacao, text_color='white')}
                         {badge(f'Aprovado por: {aprovador_custos_login}')}
                         {badge(f'Em: {formatar_data_hora_br(data_aprovacao_custos)}')}
                         {badge(f'Fechado por: {fechador_carga_login}')}
