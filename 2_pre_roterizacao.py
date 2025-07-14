@@ -4400,8 +4400,9 @@ def pagina_cargas_aprovadas():
 
                 for col in ['Entrega Programada', 'Previsao de Entrega']:
                     if col in df.columns:
-                        df[col] = pd.to_datetime(df[col], errors='coerce', format=DATE_DISPLAY_FORMAT_STRING)
+                        df[col] = pd.to_datetime(df[col], errors='coerce')  # Deixe o pandas detectar o formato
                         df[col] = df[col].apply(lambda x: x.strftime('%d-%m-%Y') if pd.notna(x) else '')
+
 
                 st.session_state["df_cargas_aprovadas_cache"] = df
             else:
