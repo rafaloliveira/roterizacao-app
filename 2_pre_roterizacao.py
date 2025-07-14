@@ -867,12 +867,12 @@ function(params) {
     resizeObserver.observe(gridDiv);
 }
 """);
-def badge(label):
+def badge(label, background_color="#eef2f7", text_color="inherit"):
     """
     Retorna uma string HTML formatada como um 'badge' estilizado.
-    Usado para exibir resumos de informações de forma visualmente agrupada.
+    Permite personalizar a cor de fundo e do texto.
     """
-    return f"<span style='background:#eef2f7;border-radius:12px;padding:6px 12px;margin:4px;color:inherit;display:inline-block;'>{label}</span>"
+    return f"<span style='background:{background_color};color:{text_color};border-radius:12px;padding:6px 12px;margin:4px;display:inline-block;'>{label}</span>"
 
 formatter = JsCode("""
     function(params) {
@@ -4150,7 +4150,7 @@ def pagina_aprovacao_custos():
                         {badge(f'{int(df_carga["Quantidade de Volumes"].sum())} volumes')}
                         {badge(f'Valor Contratação: R$ {formatar_brasileiro(valor_contratacao_carga_existente)}')}
                         {badge(f'Rentabilidade: {rentabilidade_percentual:.2f}%')}
-                        <span style='background:{cor_situacao};color:white;border-radius:12px;padding:6px 12px;margin:4px;display:inline-block;'>Situação Custo: {situacao_custo_regional}</span>
+                        {badge(f'Situação Custo: {situacao_custo_regional}', background_color=cor_situacao, text_color='white')}
                     </div>
                     """,
                     unsafe_allow_html=True
