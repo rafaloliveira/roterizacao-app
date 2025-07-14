@@ -674,7 +674,7 @@ def carregar_base_supabase():
     try:
         base = pd.DataFrame(supabase.table("pre_roterizacao").select("*").execute().data)
         if base.empty:
-            st.warning("⚠️ Nenhuma entrega encontrada na tabela pre_roterizacao.")
+            #st.warning("⚠️ Nenhuma entrega encontrada na tabela pre_roterizacao.")
             return pd.DataFrame()
 
         agendadas = pd.DataFrame(supabase.table("Clientes_Entrega_Agendada").select("*").execute().data)
