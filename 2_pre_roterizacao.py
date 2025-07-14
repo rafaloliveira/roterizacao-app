@@ -4007,7 +4007,7 @@ def pagina_aprovacao_custos():
 
                 # Após carregar o DataFrame da tabela cargas_geradas
             for col in ["Previsao de Entrega", "Entrega Programada"]:
-                if col in df.columns:
+                if col in df.columns: 
                     df[col] = pd.to_datetime(df[col], errors='coerce')
                     df[col] = df[col].apply(lambda x: x.strftime('%d-%m-%Y') if pd.notnull(x) else "")
 
