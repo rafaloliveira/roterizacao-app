@@ -563,6 +563,7 @@ def load_and_prepare_data(uploaded_file):
                 df[col] = df[col].apply(lambda x: x.strftime('%Y-%m-%d') if pd.notnull(x) else None)
 
 
+
         df = df.replace({np.nan: None, pd.NaT: None, pd.NA: None})
 
         primary_key = "Serie_Numero_CTRC"
@@ -781,6 +782,12 @@ def carregar_base_supabase():
         df_final = base.copy()
         df_final['Indice'] = df_final.index
         
+        # ✅ Formatar datas para exibição no grid como dd-mm-aaaa
+        for col in ["Previsao de Entrega", "Entrega Programada"]:
+            if col in base.columns:
+                base[col] = pd.to_datetime(base[col], errors='coerce', dayfirst=True)
+                base[col] = base[col].apply(lambda x: x.strftime("%d-%m-%Y") if pd.notnull(x) else "")
+
 
         return df_final
 
