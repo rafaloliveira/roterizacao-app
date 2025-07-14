@@ -1764,12 +1764,15 @@ def pagina_confirmar_producao():
             return
 
     # Exibir métricas gerais
-    col1, col2, _ = st.columns([1, 1, 8])
+        col1, col2, col3, col4, _ = st.columns([1, 1, 1, 1, 6]) 
     with col1:
-        # Agora conta clientes únicos
         st.metric("Total de Clientes", df["Cliente Pagador"].nunique() if "Cliente Pagador" in df.columns else 0)
     with col2:
         st.metric("Total de Entregas", len(df))
+    with col3: # NOVO: Peso Real
+        st.metric("Peso Real (kg)", formatar_brasileiro(df['Peso Real em Kg'].sum()))
+    with col4: # NOVO: Peso Calculado
+        st.metric("Peso Calculado (kg)", formatar_brasileiro(df['Peso Calculado em Kg'].sum()))
 
     # Definir as colunas que devem ser exibidas no grid
     colunas_exibir = [
