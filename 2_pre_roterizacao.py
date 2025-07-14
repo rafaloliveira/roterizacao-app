@@ -1,9 +1,11 @@
+
+
 #sincronização, Pré Roterização e Rotas Confirmadas funcionando
 
 import streamlit as st
 st.set_page_config(
     page_title="Roteriza",  # Novo título para a aba do navegador
-    page_icon="",       # Novo ícone para a aba. Pode ser um emoji,
+    page_icon="📡",       # Novo ícone para a aba. Pode ser um emoji,
                           # um caminho para um arquivo de imagem, ou uma URL.
     layout="wide",    # (Opcional) Pode ser "centered" ou "wide"
     initial_sidebar_state="auto" # (Opcional) Pode ser "auto", "expanded" ou "collapsed"
@@ -894,6 +896,25 @@ formatter = JsCode("""
     }
 """)
 
+
+#--------------------------------------------------------------------------------------------------------------------
+def salvar_hora_sincronizacao():
+    agora = data_hora_brasil_iso()
+    try:
+        supabase.table("metadados").upsert({"chave": "ultima_sincronizacao", "valor": agora}).execute()
+    except Exception as e:
+        st.warning(f"Erro ao salvar hora da sincronização: {e}")
+
+def recuperar_hora_sincronizacao():
+    try:
+        dados = supabase.table("metadados").select("valor").eq("chave", "ultima_sincronizacao").execute()
+        if dados.data:
+            return formatar_data_hora_br(dados.data[0]["valor"])
+        else:
+            return None
+    except Exception as e:
+        st.warning(f"Erro ao recuperar hora da sincronização: {e}")
+        return None
     
 ##############################
 # Página de sincronização
@@ -913,6 +934,13 @@ if 'file_uploader_key' not in st.session_state:
 
 def pagina_sincronizacao():
     st.title("🔄 Sincronização de Dados")
+
+    ultima = recuperar_hora_sincronizacao()
+    if ultima:
+        st.markdown(f"🕒 Última sincronização registrada: **{ultima}**")
+    else:
+        st.markdown("🕒 Última sincronização: **ainda não realizada**")
+
     
     st.markdown("### 1. Carregar Planilha Excel")
         
@@ -1068,6 +1096,7 @@ def pagina_sincronizacao():
             st.session_state.uploaded_sync_file_hash = None
             st.session_state.df_for_sync_cache = None
             st.session_state.file_uploader_key += 1 # Resetar uploader em erro também
+            salvar_hora_sincronizacao()
             st.rerun() # Dispara um rerun para recarregar a página após o erro
 
 #___________________________________________________________________________________
@@ -1896,7 +1925,7 @@ def pagina_confirmar_producao():
 
                 # Botão para confirmar produção
                 if not selecionadas.empty:
-                    if st.button(" Enviar para Aprovação", key=f"btn_enviar_aprov_{cliente_pagador}"):
+                    if st.button(" Enviar para Aprovação", key="enviar_aprovacao"):
                         try:
                             # Prepara os dados para inserção na tabela de aprovacao_diretoria
                             df_confirmar = selecionadas.drop(columns=["_selectedRowNodeInfo"], errors="ignore").copy()
@@ -2734,6 +2763,12 @@ def pagina_rotas_confirmadas():
                 st.error(f"Erro ao adicionar entregas manualmente: {e}")
 
     # --- FIM: BLOCO DE CRIAÇÃO DE CARGA AVULSA ---
+
+
+
+
+
+
     # --- INÍCIO: CARREGAMENTO DOS DADOS DE ROTAS CONFIRMADAS E EXIBIÇÃO ---
     try:
         with st.spinner("🔄 Carregando dados das entregas..."):
@@ -2923,7 +2958,7 @@ def pagina_rotas_confirmadas():
                             except Exception as e:
                                 # Captura erros de comunicação do Supabase durante a verificação de existência
                                 st.warning(f"Aviso: Não foi possível verificar entregas existentes na tabela 'cargas_geradas' devido a erro de comunicação: {e}")
-                                # Não retornamos aqui, mas a inserção pode falhar se o item já exis
+                                # Não retornamos aqui, mas a inserção pode falhar se o item já existir e a verificação falhou
 
                         if existing_ctrcs_in_target:
                             st.warning(f"As seguintes entregas já existem em 'cargas_geradas' e não serão inseridas novamente: {', '.join(existing_ctrcs_in_target)}")
