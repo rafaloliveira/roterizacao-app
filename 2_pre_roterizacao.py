@@ -1655,8 +1655,18 @@ def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, valor_frete, val
 
     # Define as colunas que você quer exibir na tabela do PDF
     cols_para_tabela_pdf = [
-        "Serie_Numero_CTRC", "Cliente Destinatario", "Cidade de Entrega",
-        "Status", "Valor do Frete", "Peso Real em Kg", "Entrega Programada"
+    "Serie_Numero_CTRC",
+        "Cliente Pagador",
+        "Cliente Destinatario",
+        "Cidade de Entrega",
+        "Bairro do Destinatario", # Mapeado de "Bairro"
+        "Previsao de Entrega",
+        "Numero da Nota Fiscal",  # Mapeado de "Nota fiscal"
+        "Entrega Programada",
+        "Peso Calculado em Kg",   # Mapeado de "Peso Calculado"
+        "Peso Real em Kg",        # Mapeado de "Peso Real"
+        "Cubagem em m³",          # Mapeado de "Cubagem"
+        "Valor do Frete"
     ]
     
     # Prepara o DataFrame para exibição na tabela do PDF
@@ -1685,30 +1695,37 @@ def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, valor_frete, val
         # colWidths ajusta a largura de cada coluna na tabela (em polegadas neste exemplo)
         # Ajuste essas larguras conforme a necessidade para evitar que o texto ultrapasse
         table = Table(dados_tabela, colWidths=[
-        1.4*inch,  # Serie_Numero_CTRC
-        2.2*inch,  # Cliente Destinatario
-        1.5*inch,  # Cidade de Entrega
-        1.0*inch,  # Status
-        1.0*inch,  # Valor do Frete
-        1.1*inch,  # Peso Real em Kg
-        1.2*inch   # Entrega Programada
+        0.8*inch,  # Serie_Numero_CTRC (CTRC)
+        1.5*inch,  # Cliente Pagador
+        1.5*inch,  # Cliente Destinatario
+        1.0*inch,  # Cidade de Entrega
+        1.0*inch,  # Bairro do Destinatario (Bairro)
+        0.8*inch,  # Previsao de Entrega (Previsao Entrega)
+        0.8*inch,  # Numero da Nota Fiscal (Nota fiscal)
+        0.8*inch,  # Entrega Programada
+        0.7*inch,  # Peso Calculado em Kg (Peso Calculado)
+        0.7*inch,  # Peso Real em Kg (Peso Real)
+        0.7*inch,  # Cubagem em m³ (Cubagem)
+        0.7*inch   # Valor do Frete
     ], hAlign="LEFT")
         table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#EFEFEF')),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),
-            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-            ('BACKGROUND', (0, 1), (-1, -1), colors.white),
-            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
-            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-            ('FONTSIZE', (0, 0), (-1, -1), 8),
-            ('LEFTPADDING', (0, 0), (-1, -1), 4),
-            ('RIGHTPADDING', (0, 0), (-1, -1), 4),
-            ('ALIGN', (3, 0), (3, -1), 'CENTER'),
-            ('ALIGN', (4, 0), (6, -1), 'RIGHT'),
-        ]))
-        elements.append(table)
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#EFEFEF')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+        ('BACKGROUND', (0, 1), (-1, -1), colors.white),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('FONTSIZE', (0, 0), (-1, -1), 8), # Mantido fonte menor para caber mais colunas
+        ('LEFTPADDING', (0, 0), (-1, -1), 4),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 4),
+        # Ajuste de alinhamento para colunas numéricas (Peso Calculado, Peso Real, Cubagem, Valor do Frete)
+        ('ALIGN', (8, 0), (11, -1), 'RIGHT'), # Colunas 8 a 11 (índice 0-based) alinhadas à direita
+        # Ajuste de alinhamento para datas (Previsao de Entrega, Entrega Programada)
+        ('ALIGN', (5, 0), (7, -1), 'CENTER'), # Colunas 5 a 7 (índice 0-based) alinhadas ao centro
+    ]))
+    elements.append(table)
 
     # Constrói o PDF com todos os elementos definidos
     doc.build(elements)
