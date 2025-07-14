@@ -3406,11 +3406,10 @@ def pagina_cargas_geradas():
                 df = pd.DataFrame(dados)  # ou carregado do Supabase
 
                 # Aplicar o formato correto às datas
-                for col in ['Entrega Programada', 'Previsao de Entrega']:
-                    if col in df.columns:
-                        # CORREÇÃO AQUI: Adicionar format=DATE_DISPLAY_FORMAT_STRING
-                        df[col] = pd.to_datetime(df[col], errors='coerce', utc=True, format=DATE_DISPLAY_FORMAT_STRING)
-                        df[col] = df[col].dt.tz_localize(None).dt.strftime('%d-%m-%Y')
+                for col_name in GLOBAL_DATE_DISPLAY_COLUMNS:
+                    if col_name in df.columns:
+                        df[col_name] = pd.to_datetime(df[col_name], errors='coerce', utc=True)
+                        df[col_name] = df[col_name].dt.tz_localize(None)
 
 
                 st.session_state["df_cargas_cache"] = df
