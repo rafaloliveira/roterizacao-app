@@ -4002,13 +4002,16 @@ def pagina_aprovacao_custos():
             recarregar = st.session_state.pop("reload_aprovacao_custos", False)
             if recarregar or "df_aprovacao_custos_cache" not in st.session_state:
                 dados = supabase.table("aprovacao_custos").select("*").execute().data
+
+
                 df = pd.DataFrame(dados)
 
-                for col in ['Entrega Programada', 'Previsao de Entrega']:
-                    if col in df.columns:
-                        # >>> MODIFICAÇÃO AQUI: Adicione dayfirst=True <<<
-                        df[col] = pd.to_datetime(df[col], errors='coerce', dayfirst=True)
-                        df[col] = df[col].apply(lambda x: x.strftime('%d-%m-%Y') if pd.notna(x) else '')
+                # Após carregar o DataFrame da tabela cargas_geradas
+            for col in ["Previsao de Entrega", "Entrega Programada"]:
+                if col in df.columns:
+                    df[col] = pd.to_datetime(df[col], errors='coerce')
+                    df[col] = df[col].apply(lambda x: x.strftime('%d-%m-%Y') if pd.notnull(x) else "")
+
 
                 # Garante que 'numero_carga' seja tratado como string no cache
                 if not df.empty and 'numero_carga' in df.columns:
