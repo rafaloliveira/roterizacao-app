@@ -4384,6 +4384,7 @@ def pagina_aprovacao_custos():
     except Exception as e:
         st.error("Erro ao carregar aprovação de custos:")
         st.exception(e)
+        return
 # ==============================================================================
 # FUNÇÃO: pagina_cargas_aprovadas() -
 # ==============================================================================
