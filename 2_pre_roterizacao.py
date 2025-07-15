@@ -2793,6 +2793,9 @@ def pagina_pre_roterizacao():
         }
     """)
 
+    if "GrupoDeExibicao" not in df_visivel.columns:
+        df_visivel["GrupoDeExibicao"] = None
+
     df_visivel["Rota_Grupo"] = df_visivel["GrupoDeExibicao"].fillna(df_visivel["Rota"])
 
     for rota_visual in sorted(df_visivel["Rota_Grupo"].dropna().unique()):
