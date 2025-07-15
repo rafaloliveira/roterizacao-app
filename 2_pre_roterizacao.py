@@ -1881,7 +1881,8 @@ def pagina_confirmar_producao():
         st.metric("📏 Peso Calculado (kg)", formatar_brasileiro(df['Peso Calculado em Kg'].sum()))
 
     # 🔹 DADOS CONFIRMADOS NA SESSÃO (à direita)
-    df_confirmadas = pd.DataFrame(st.session_state.get("df_entregas_confirmadas", []))
+    df_confirmadas = pd.DataFrame(supabase.table("aprovacao_diretoria").select("*").execute().data)
+
 
     total_confirmadas = len(df_confirmadas)
     peso_real_conf = df_confirmadas["Peso Real em Kg"].sum() if "Peso Real em Kg" in df_confirmadas else 0
