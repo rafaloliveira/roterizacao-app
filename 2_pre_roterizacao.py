@@ -3017,7 +3017,8 @@ def pagina_cargas_geradas():
                     df_display[col] = pd.to_datetime(df_display[col], errors='coerce')
                     df_display[col] = df_display[col].dt.strftime("%d-%m-%Y")
 
-            df_display = apply_brazilian_date_format_for_display(df_display)
+            df_display = apply_brazilian_date_only_format_for_display(df_display, ["Previsao de Entrega", "Entrega Programada"])
+
 
             df_display = df_display.replace([np.nan, None], "")
 
