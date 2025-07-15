@@ -2561,7 +2561,7 @@ def pagina_pre_roterizacao():
         st.session_state["numero_nova_carga"] = ""
 
     if not st.session_state["nova_carga_em_criacao"]:
-        if st.button("🆕 Criar Nova Carga Avulsa", key="btn_nova_carga_avulsa")
+        if st.button("🆕 Criar Nova Carga Avulsa", key="btn_nova_carga_avulsa"):
             try:
                 numero_carga = gerar_proximo_numero_carga(supabase)
                 if numero_carga:
