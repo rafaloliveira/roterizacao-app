@@ -2585,15 +2585,34 @@ def pagina_pre_roterizacao():
             return
 
 
-    col1, col2, col3, col4, _ = st.columns([1, 1, 1, 1, 6])
-    with col1:
-        st.metric("Total de Rotas", df["Rota"].nunique() if "Rota" in df.columns else 0)
-    with col2:
-        st.metric("Total de Entregas", len(df))
-    with col3: # NOVO: Peso Real
-        st.metric("Peso Real (kg)", formatar_brasileiro(df['Peso Real em Kg'].sum()))
-    with col4: # NOVO: Peso Calculado
-        st.metric("Peso Calculado (kg)", formatar_brasileiro(df['Peso Calculado em Kg'].sum()))
+    # ======= NOVAS MÉTRICAS SEPARADAS: EXISTENTES vs DIRETORIA =======
+    col_esq_1, col_esq_2, col_esq_3, col_esq_4, spacer, col_dir_1, col_dir_2, col_dir_3 = st.columns([1, 1, 1, 1, 0.5, 1, 1, 1])
+
+    # 🔹 Seção à esquerda: TOTAIS GERAIS da tabela `pre_roterizacao`
+    with col_esq_1:
+        st.metric("📦 Total Entregas Pré-Roterização", len(df))
+    with col_esq_2:
+        st.metric("🛣️ Total Rotas Pré-Roterização", df["Rota"].nunique() if "Rota" in df.columns else 0)
+    with col_esq_3:
+        st.metric("⚖️ Peso Real Total", formatar_brasileiro(df["Peso Real em Kg"].sum()))
+    with col_esq_4:
+        st.metric("📏 Peso Calculado Total", formatar_brasileiro(df["Peso Calculado em Kg"].sum()))
+
+    # 🔹 Seção à direita: TOTAIS SOMENTE DO QUE VEIO DA DIRETORIA
+    df_aprovadas_diretoria = st.session_state.get("df_aprovadas_diretoria", pd.DataFrame())
+
+    qtde_aprovadas = len(df_aprovadas_diretoria)
+    rotas_aprovadas = df_aprovadas_diretoria["Rota"].nunique() if "Rota" in df_aprovadas_diretoria else 0
+    peso_real_aprovado = df_aprovadas_diretoria["Peso Real em Kg"].sum() if "Peso Real em Kg" in df_aprovadas_diretoria else 0
+    peso_calc_aprovado = df_aprovadas_diretoria["Peso Calculado em Kg"].sum() if "Peso Calculado em Kg" in df_aprovadas_diretoria else 0
+
+    with col_dir_1:
+        st.metric("✅ Entregas Aprovadas Diretoria", qtde_aprovadas)
+    with col_dir_2:
+        st.metric("✅ Peso Real Aprovados Diretoria", formatar_brasileiro(peso_real_aprovado))
+    with col_dir_3:
+        st.metric("✅ Peso Calculado Aprovados Diretoria", formatar_brasileiro(peso_calc_aprovado))
+
 
     def badge(label):
         return f"<span style='background:#eef2f7;border-radius:12px;padding:6px 12px;margin:4px;color:inherit;display:inline-block;'>{label}</span>"
