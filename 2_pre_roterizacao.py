@@ -2649,7 +2649,7 @@ def pagina_pre_roterizacao():
     """)
 
     for rota in sorted(df_visivel["Rota"].dropna().unique()):
-        df_rota = df[df["Rota"] == rota].copy()
+        df_rota = df_visivel[df_visivel["Rota"] == rota].copy()
         if df_rota.empty:
             continue
 
