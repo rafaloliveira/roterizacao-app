@@ -1344,7 +1344,7 @@ def adicionar_entregas_a_carga(chaves_cte, numero_carga_destino):
                 st.success(f"✅ {len(inserted_ctrcs)} entrega(s) adicionada(s) à Carga {numero_carga}.")
                 break
         except Exception as e:
-            st.warning(f"Tentativa {tentativa+1}/2: Erro ao inserir em 'cargas_geradas': {e}")
+            #st.warning(f"Tentativa {tentativa+1}/2: Erro ao inserir em 'cargas_geradas': {e}")
             if tentativa == 0:
                 time.sleep(1)
 
