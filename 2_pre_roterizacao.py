@@ -4682,7 +4682,7 @@ if st.session_state.get("login", False):
 
         with tab_operacoes:
             sub_tab_confirmar_prod, sub_tab_aprov_dir, sub_tab_pre_rot, \
-            sub_tab_rotas_conf, sub_tab_cargas, sub_tab_aprov_custos, \
+            sub_tab_cargas, sub_tab_aprov_custos, \
             sub_tab_cargas_aprovadas, sub_tab_cargas_fechadas = st.tabs([
                 "Confirmar Produção", "Aprovação Diretoria", "Pré Roterização", 
                 "Cargas Geradas", "Aprovação de Custos", "Cargas Aprovadas",
