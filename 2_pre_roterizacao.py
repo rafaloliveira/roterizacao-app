@@ -2995,25 +2995,6 @@ def pagina_cargas_geradas():
             else:
                 df = st.session_state["df_cargas_cache"]
 
-        # --- REMOÇÃO DO FILTRO DE VEÍCULO GLOBAL ---
-        # As linhas abaixo foram removidas:
-        # if "veiculo" in df.columns:
-        #     df["veiculo"] = df["veiculo"].astype(str).str.strip().str.upper()
-        #     veiculos_disponiveis = sorted(df["veiculo"].dropna().unique())
-        # else:
-        #     veiculos_disponiveis = []
-        # if not veiculos_disponiveis:
-        #     veiculos_disponiveis = ["NÃO INFORMADO"]
-        # veiculo_selecionado = st.selectbox(
-        #     "🔎 Filtrar cargas por veículo:",
-        #     options=["TODOS"] + veiculos_disponiveis,
-        #     index=0,
-        #     key="selectbox_veiculo"
-        # )
-        # if veiculo_selecionado != "TODOS":
-        #     df = df[df["veiculo"] == veiculo_selecionado]
-        # --- FIM DA REMOÇÃO ---
-
         if df.empty:
             st.info("Nenhuma carga foi gerada ainda.")
             return
@@ -3040,18 +3021,12 @@ def pagina_cargas_geradas():
             if "valor_contratacao" in df_display.columns:
                 df_display["valor_contratacao"] = pd.to_numeric(df_display["valor_contratacao"], errors="coerce").fillna(0.0)
 
+            # --- CORREÇÃO AQUI: LISTA FIXA DE VEÍCULOS ---
             # Preparar a lista de opções de veículos para o selectbox
-            vehicle_options_list = [""] # Opção vazia para "não selecionado"
-            if "veiculo" in df.columns:
-                # Limpa a coluna 'veiculo' e adiciona as opções únicas
-                all_vehicle_types = sorted(df["veiculo"].astype(str).str.strip().str.upper().replace('NAN', '').unique().tolist())
-                # Remove a string vazia da lista se já existir para adicioná-la no início
-                if '' in all_vehicle_types:
-                    all_vehicle_types.remove('')
-                vehicle_options_list.extend(all_vehicle_types)
-            else:
-                # Adiciona algumas opções padrão se a coluna 'veiculo' não existir
-                vehicle_options_list.extend(["VUC", "HR", "3/4", "TOCO", "TRUCK", "CARRETA"])
+            # Lista definida pelo usuário, mantendo a consistência de letras maiúsculas
+            static_vehicle_types = ["VAN", "HR", "3/4", "TOCO", "TRUCK"]
+            vehicle_options_list = [""] + static_vehicle_types # Adiciona a opção vazia no início
+            # --- FIM DA CORREÇÃO ---
 
 
             numeric_cols_for_formatting = [
@@ -3109,9 +3084,9 @@ def pagina_cargas_geradas():
             veiculo_info = df_carga_raw["veiculo"].dropna().unique()
             valor_contratacao_info = df_carga_raw["valor_contratacao"].dropna().unique()
 
-            info_motorista = motorista_info[0] if len(motorista_info) > 0 else "NÃO INFORMADO"
-            info_placa = placa_info[0] if len(placa_info) > 0 else "NÃO INFORMADA"
-            info_veiculo = veiculo_info[0] if len(veiculo_info) > 0 else "NÃO INFORMADO"
+            info_motorista = motorista_info[0] if len(motorista_info) > 0 else "-"
+            info_placa = placa_info[0] if len(placa_info) > 0 else "-"
+            info_veiculo = veiculo_info[0] if len(veiculo_info) > 0 else "-"
             info_valor_contratacao = formatar_brasileiro(valor_contratacao_info[0]) if len(valor_contratacao_info) > 0 else "0,00"
 
             # Determinar a Rota dominante (a mais frequente)
@@ -3160,12 +3135,12 @@ def pagina_cargas_geradas():
                         {badge(f'{len(df_carga_raw)} entregas')}
                         {badge(f'{formatar_brasileiro(df_carga_raw["Peso Calculado em Kg"].sum())} kg calc')}
                         {badge(f'{formatar_brasileiro(df_carga_raw["Peso Real em Kg"].sum())} kg real')}
-                        {badge(f'Valor frete: R$ {formatar_brasileiro(total_frete_carga)}')}
+                        {badge(f'Valor frete: R\$ {formatar_brasileiro(total_frete_carga)}')}
                         {badge(f'{formatar_brasileiro(df_carga_raw["Cubagem em m³"].sum())} m³')}
                         {badge(f'{int(df_carga_raw["Quantidade de Volumes"].sum())} volumes')}
                         {badge(f'Motorista: {info_motorista}')}
                         {badge(f'Placa: {info_placa}')}
-                        {badge(f'Valor da Contratação: R$ {info_valor_contratacao}')}
+                        {badge(f'Valor da Contratação: R\$ {info_valor_contratacao}')}
                     </div>
                     """,
                     unsafe_allow_html=True
@@ -3176,8 +3151,8 @@ def pagina_cargas_geradas():
                 if st.button("🖨️ PDF", key=f"pdf_{carga}"):
                     try:
                         with st.spinner(f"Gerando PDF para a carga {carga}... Por favor, aguarde..."):
-                            pdf_motorista = info_motorista if info_motorista != "NÃO INFORMADO" else ""
-                            pdf_placa = info_placa if info_placa != "NÃO INFORMADA" else ""
+                            pdf_motorista = info_motorista if info_motorista != "-" else ""
+                            pdf_placa = info_placa if info_placa != "-" else ""
                             pdf_valor_contratacao = valor_contratacao_info[0] if len(valor_contratacao_info) > 0 else 0.0
 
                             buffer_pdf = gerar_pdf_carga(
@@ -3427,7 +3402,8 @@ def pagina_cargas_geradas():
                         with col_veiculo:
                             # Encontra o índice da opção atual para pré-selecionar o selectbox
                             try:
-                                default_vehicle_index = vehicle_options_list.index(info_veiculo)
+                                # Garante que info_veiculo está em maiúsculas e sem espaços para a comparação
+                                default_vehicle_index = vehicle_options_list.index(info_veiculo.upper().strip())
                             except ValueError:
                                 default_vehicle_index = 0 # Default para a primeira (vazia) se não encontrado
 
@@ -3441,14 +3417,14 @@ def pagina_cargas_geradas():
                         st.subheader(f"Valor da Contratação da Carga {carga}")
 
                         if valor_sugerido_contratacao > 0:
-                            st.info(f"**Sugestão de Valor:** Para atingir a meta da região '{dominant_region}' ({MAX_COST_PER_REGION.get(dominant_region, 0)*100:.0f}%), o valor ideal seria de **R$ {formatar_brasileiro(valor_sugerido_contratacao)}**")
+                            st.info(f"**Sugestão de Valor:** Para atingir a meta da região '{dominant_region}' ({MAX_COST_PER_REGION.get(dominant_region, 0)*100:.0f}%), o valor ideal seria de **R\$ {formatar_brasileiro(valor_sugerido_contratacao)}**")
                         elif total_frete_carga > 0:
                             st.warning(f"Não foi possível calcular uma sugestão de valor de contratação para a Rota {rota_dominante} / Região {dominant_region}.")
                         else:
                             st.info("Não foi possível calcular uma sugestão de valor de contratação (frete total zero).")
 
                         valor_contratacao = st.number_input(
-                            "Valor da Contratação da Carga (R$)",
+                            "Valor da Contratação da Carga (R\$)",
                             min_value=0.0,
                             value=valor_sugerido_contratacao, # Pré-preenche com a sugestão
                             step=0.01,
@@ -3556,7 +3532,7 @@ def pagina_cargas_geradas():
 
                                             st.session_state.pop(grid_key_id, None)
 
-                                            st.success(f"✅ {len(registros_para_custos)} entregas da carga {carga} enviadas para Aprovação de Custos com valor R$ {valor_contratacao:.2f}.")
+                                            st.success(f"✅ {len(registros_para_custos)} entregas da carga {carga} enviadas para Aprovação de Custos com valor R\$ {valor_contratacao:.2f}.")
 
                                             st.rerun()
                                         else:
@@ -3568,6 +3544,7 @@ def pagina_cargas_geradas():
     except Exception as e:
         st.error(f"❌ Erro geral inesperado ao retirar entregas da carga: {e}")
         st.warning("A operação pode ter sido interrompida. Por favor, verifique a situação das entregas nas tabelas 'Rotas Confirmadas' e 'Cargas Geradas'.")
+
 
 
 
