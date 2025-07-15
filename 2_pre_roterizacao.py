@@ -1265,7 +1265,7 @@ def adicionar_entregas_a_carga(chaves_cte, numero_carga_destino):
     # DEBUG: Exibir chaves recebidas
     st.code(f"🔍 {len(chaves_cte)} chaves recebidas:\n" + "\n".join(chaves_cte))
 
-    # DEBUG: Carrega os dados brutos para comparação direta
+    # Carrega os dados brutos
     dados_pre_all = supabase.table("pre_roterizacao").select("*").execute().data or []
     dados_rotas_all = supabase.table("rotas_confirmadas").select("*").execute().data or []
 
@@ -1278,31 +1278,28 @@ def adicionar_entregas_a_carga(chaves_cte, numero_carga_destino):
     st.code(f"🔎 Encontradas em pre_roterizacao: {encontradas_pre}")
     st.code(f"🔎 Encontradas em rotas_confirmadas: {encontradas_rotas}")
 
-    # 1. Busca em pre_roterizacao
-    try:
-        response_pre = supabase.table("pre_roterizacao").select("*").in_("Chave CT-e", chaves_cte).execute()
-        if response_pre.data:
-            df_pre = pd.DataFrame(response_pre.data)
-            df_pre["origem_tabela"] = "pre_roterizacao"
-            entregas_coletadas.extend(df_pre.to_dict(orient='records'))
-            found_ctrc_in_pre_roterizacao.update(df_pre["Serie_Numero_CTRC"].tolist())
-            st.info(f"Encontradas {len(df_pre)} entregas em 'pre_roterizacao'.")
-    except Exception as e:
-        st.error(f"Erro ao consultar 'pre_roterizacao': {e}")
+    # Usa Serie_Numero_CTRC como chave de correspondência
+    dados_pre_dict = {str(d.get("Serie_Numero_CTRC", "")).strip(): d for d in dados_pre_all}
+    dados_rotas_dict = {str(d.get("Serie_Numero_CTRC", "")).strip(): d for d in dados_rotas_all}
 
-    # 2. Busca em rotas_confirmadas
-    chaves_cte_restantes = [c for c in chaves_cte if c not in {e.get("Chave CT-e") for e in entregas_coletadas}]
-    if chaves_cte_restantes:
-        try:
-            response_conf = supabase.table("rotas_confirmadas").select("*").in_("Chave CT-e", chaves_cte_restantes).execute()
-            if response_conf.data:
-                df_conf = pd.DataFrame(response_conf.data)
-                df_conf["origem_tabela"] = "rotas_confirmadas"
-                entregas_coletadas.extend(df_conf.to_dict(orient='records'))
-                found_ctrc_in_rotas_confirmadas.update(df_conf["Serie_Numero_CTRC"].tolist())
-                st.info(f"Encontradas {len(df_conf)} entregas em 'rotas_confirmadas'.")
-        except Exception as e:
-            st.error(f"Erro ao consultar 'rotas_confirmadas': {e}")
+    # Recupera todos os Serie_Numero_CTRC vinculados às chaves informadas
+    serie_ctrcs_pre = [str(d.get("Serie_Numero_CTRC", "")).strip() for d in dados_pre_all if str(d.get("Chave CT-e", "")).strip() in chaves_cte]
+    serie_ctrcs_rotas = [str(d.get("Serie_Numero_CTRC", "")).strip() for d in dados_rotas_all if str(d.get("Chave CT-e", "")).strip() in chaves_cte]
+
+    for ctrc in serie_ctrcs_pre:
+        entrega = dados_pre_dict.get(ctrc)
+        if entrega:
+            entrega["origem_tabela"] = "pre_roterizacao"
+            entregas_coletadas.append(entrega)
+            found_ctrc_in_pre_roterizacao.add(ctrc)
+
+    for ctrc in serie_ctrcs_rotas:
+        if ctrc not in found_ctrc_in_pre_roterizacao:
+            entrega = dados_rotas_dict.get(ctrc)
+            if entrega:
+                entrega["origem_tabela"] = "rotas_confirmadas"
+                entregas_coletadas.append(entrega)
+                found_ctrc_in_rotas_confirmadas.add(ctrc)
 
     if not entregas_coletadas:
         st.warning("⚠️ Nenhuma entrega encontrada nas tabelas para as Chaves CT-e informadas.")
@@ -1378,7 +1375,6 @@ def adicionar_entregas_a_carga(chaves_cte, numero_carga_destino):
     st.session_state.pop("df_cargas_cache", None)
 
     st.rerun()
-
 
 # ------------------------#############-------------------------------------------
 def aplicar_regras_e_preencher_tabelas():
