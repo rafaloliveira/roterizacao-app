@@ -2569,51 +2569,66 @@ def pagina_pre_roterizacao():
                 chaves = [re.sub(r"\s+", "", c) for c in chaves_input.splitlines() if c.strip()]
                 if not chaves:
                     st.warning("Nenhuma Chave CT-e válida informada.")
-                else:
-                    entregas_encontradas = []
-                    dados_pre = supabase.table("pre_roterizacao").select("*").execute().data
-                    dados_cargas = supabase.table("cargas_geradas").select("*").execute().data
+                    return
 
-                    entregas_ja_em_carga = {
-                        str(d.get("Chave CT-e", "")).strip(): d.get("numero_carga")
-                        for d in dados_cargas if d.get("Chave CT-e")
+                dados_pre = supabase.table("pre_roterizacao").select("*").execute().data or []
+                dados_rotas = supabase.table("rotas_confirmadas").select("*").execute().data or []
+                dados_cargas = supabase.table("cargas_geradas").select("*").execute().data or []
+
+                entregas_ja_em_carga = {
+                    str(d.get("Chave CT-e", "")).strip(): d.get("numero_carga")
+                    for d in dados_cargas if d.get("Chave CT-e")
+                }
+
+                entregas_encontradas = []
+                for chave in chaves:
+                    if chave in entregas_ja_em_carga:
+                        st.warning(f"⚠️ A entrega com chave '{chave}' já está na carga {entregas_ja_em_carga[chave]}.")
+                        continue
+
+                    entrega = next((d for d in dados_pre if str(d.get("Chave CT-e", "")).strip() == chave), None)
+                    origem = "pre_roterizacao"
+
+                    if not entrega:
+                        entrega = next((d for d in dados_rotas if str(d.get("Chave CT-e", "")).strip() == chave), None)
+                        origem = "rotas_confirmadas" if entrega else None
+
+                    if not entrega:
+                        st.warning(f"⚠️ Chave {chave} não encontrada ou já foi processada.")
+                        continue
+
+                    entrega.pop("id", None)
+                    entrega["numero_carga"] = st.session_state["numero_nova_carga"]
+                    entrega["Data_Hora_Gerada"] = data_hora_brasil_iso()
+
+                    entrega = {
+                        k: (
+                            v.isoformat() if isinstance(v, (pd.Timestamp, datetime, date)) else
+                            None if (isinstance(v, float) and (np.isnan(v) or np.isinf(v))) or pd.isna(v) else
+                            str(v) if isinstance(v, (dict, list)) else
+                            v
+                        ) for k, v in entrega.items()
                     }
 
-                    for chave in chaves:
-                        if chave in entregas_ja_em_carga:
-                            st.warning(f"⚠️ A entrega com chave '{chave}' já está na carga {entregas_ja_em_carga[chave]}.")
-                            continue
+                    supabase.table("cargas_geradas").insert(entrega).execute()
+                    if origem:
+                        supabase.table(origem).delete().eq("Serie_Numero_CTRC", entrega["Serie_Numero_CTRC"]).execute()
 
-                        entrega = next((d for d in dados_pre if str(d.get("Chave CT-e", "")).strip() == chave), None)
-                        if not entrega:
-                            st.warning(f"⚠️ Chave {chave} não encontrada ou já foi processada.")
-                            continue
+                    entregas_encontradas.append(entrega)
 
-                        entrega.pop("id", None)
-                        entrega["numero_carga"] = st.session_state["numero_nova_carga"]
-                        entrega["Data_Hora_Gerada"] = data_hora_brasil_iso()
+                if entregas_encontradas:
+                    st.success(f"✅ {len(entregas_encontradas)} entrega(s) adicionada(s) à carga {st.session_state['numero_nova_carga']} com sucesso.")
 
-                        entrega = {
-                            k: (v.isoformat() if isinstance(v, (pd.Timestamp, datetime, date)) else v)
-                            for k, v in entrega.items()
-                        }
-
-                        supabase.table("cargas_geradas").insert(entrega).execute()
-                        supabase.table("pre_roterizacao").delete().eq("Serie_Numero_CTRC", entrega["Serie_Numero_CTRC"]).execute()
-
-                        entregas_encontradas.append(entrega)
-
-                    if entregas_encontradas:
-                        st.success(f"✅ {len(entregas_encontradas)} entrega(s) adicionada(s) à carga {st.session_state['numero_nova_carga']} com sucesso.")
-
-                    st.session_state["nova_carga_em_criacao"] = False
-                    st.session_state["numero_nova_carga"] = ""
-                    st.session_state["reload_pre_roterizacao"] = True
-                    st.session_state["reload_cargas_geradas"] = True
-                    st.rerun()
+                st.session_state["nova_carga_em_criacao"] = False
+                st.session_state["numero_nova_carga"] = ""
+                st.session_state["reload_pre_roterizacao"] = True
+                st.session_state["reload_cargas_geradas"] = True
+                st.session_state["reload_rotas_confirmadas"] = True
+                st.rerun()
 
             except Exception as e:
                 st.error(f"Erro ao adicionar entregas: {e}")
+
 
     # --- Bloco de carregamento de dados ---
     with st.spinner("🔄 Carregando dados das entregas..."):
