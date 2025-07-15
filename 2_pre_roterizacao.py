@@ -182,23 +182,31 @@ def controle_selecao(chave_estado, df_todos, grid_key, grid_options):
 
 
 
-def mover_entregas_para_outra_rota(chaves_cte, nova_rota):
-    if not chaves_cte or not nova_rota:
-        st.warning("Selecione entregas e uma nova rota.")
+def mover_entregas_para_outra_rota(ctrcs_selecionados, nova_rota_visual):
+    if not ctrcs_selecionados:
+        st.warning("Selecione ao menos uma entrega para mover.")
+        return
+
+    if not nova_rota_visual or nova_rota_visual == "Selecionar...":
+        st.warning("Selecione uma rota válida.")
         return
 
     try:
-        for chave in chaves_cte:
-            supabase.table("pre_roterizacao").update({"Rota": nova_rota}).eq("Chave CT-e", chave).execute()
+        for ctrc in ctrcs_selecionados:
+            supabase.table("pre_roterizacao") \
+                .update({"GrupoDeExibicao": nova_rota_visual}) \
+                .eq("Serie_Numero_CTRC", ctrc) \
+                .execute()
 
-        st.success(f"✅ {len(chaves_cte)} entrega(s) movida(s) para a rota '{nova_rota}'.")
-
-        # 🔄 Forçar recarregamento e redesenho
+        st.success(f"✅ {len(ctrcs_selecionados)} entrega(s) movida(s visualmente) para o grupo '{nova_rota_visual}'.")
         st.session_state["reload_pre_roterizacao"] = True
         st.rerun()
 
     except Exception as e:
         st.error(f"Erro ao mover entregas: {e}")
+
+
+
 
 
 
@@ -1310,7 +1318,10 @@ def adicionar_entregas_a_carga(chaves_cte, numero_carga_destino):
         ent.pop("origem_tabela", None)
 
     df_para_inserir = pd.DataFrame(entregas_coletadas)
-    df_para_inserir["numero_carga"] = numero_carga
+    if "GrupoDeExibicao" in df_para_inserir.columns:
+        df_para_inserir["GrupoDeExibicao"] = df_para_inserir["GrupoDeExibicao"]
+    else:
+        df_para_inserir["GrupoDeExibicao"] = df_para_inserir["Rota"]
     df_para_inserir["Data_Hora_Gerada"] = data_hora_brasil_iso()
 
     for col_name in GLOBAL_DATE_DISPLAY_COLUMNS:
@@ -2782,8 +2793,11 @@ def pagina_pre_roterizacao():
         }
     """)
 
-    for rota in sorted(df_visivel["Rota"].dropna().unique()):
-        df_rota = df_visivel[df_visivel["Rota"] == rota].copy()
+    df_visivel["Rota_Grupo"] = df_visivel["GrupoDeExibicao"].fillna(df_visivel["Rota"])
+
+    for rota_visual in sorted(df_visivel["Rota_Grupo"].dropna().unique()):
+        df_rota = df_visivel[df_visivel["Rota_Grupo"] == rota_visual].copy()
+        rota = rota_visual  # para exibição e labels
         if df_rota.empty:
             continue
 
@@ -2973,18 +2987,19 @@ def pagina_pre_roterizacao():
                     except Exception as e:
                         st.error(f"Erro ao criar nova carga: {e}")
 
-                # 🔄 Substituto do botão: Mover entregas para outra rota existente na pré-roteirização
-                rotas_disponiveis = sorted(
-                    [r for r in df_visivel["Rota"].dropna().unique().tolist() if r != rota]
-                )
+                # # 🔄 Substituto do botão: Mover entregas para outra rota existente na pré-roteirização
+                rotas_disponiveis = sorted([
+                    r for r in df_visivel["Rota_Grupo"].dropna().unique().tolist()
+                    if r != rota_visual
+                ])
                 if rotas_disponiveis:
                     nova_rota = st.selectbox(
                         "🚚 Mover entregas selecionadas para outra rota:",
                         options=["Selecionar..."] + rotas_disponiveis,
-                        key=f"selectbox_mover_rota_{rota}"
+                        key=f"selectbox_mover_rota_{rota_visual}"
                     )
 
-                    if st.button(f"🔄 Mover entregas para rota '{nova_rota}'", key=f"btn_mover_rota_{rota}"):
+                    if st.button(f"🔄 Mover entregas para rota '{nova_rota}'", key=f"btn_mover_rota_{rota_visual}"):
                         if nova_rota == "Selecionar...":
                             st.warning("Por favor, selecione uma rota válida.")
                         else:
