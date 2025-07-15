@@ -192,22 +192,28 @@ def mover_entregas_para_outra_rota(ctrcs_selecionados, nova_rota_visual):
         return
 
     try:
-        for ctrc in ctrcs_selecionados:
-            supabase.table("pre_roterizacao") \
-                .update({"GrupoDeExibicao": nova_rota_visual}) \
-                .eq("Serie_Numero_CTRC", ctrc) \
-                .execute()
+        # ✅ CORREÇÃO: Atualização em lote usando .in_() para maior eficiência e robustez
+        response = supabase.table("pre_roterizacao") \
+            .update({"GrupoDeExibicao": nova_rota_visual}) \
+            .in_("Serie_Numero_CTRC", ctrcs_selecionados) \
+            .execute()
+        st.write(f"DEBUG - Resposta completa do Supabase: {response}") # <--- ADICIONE ESTA LINHA
+        st.write(f"DEBUG - Dados retornados na resposta: {getattr(response, 'data', 'N/A')}") # <--- ADICIONE ESTA LINHA
+        st.write(f"DEBUG - Erro retornado na resposta: {getattr(response, 'error', 'N/A')}") # <--- ADICIONE ESTA LINHA
 
-        st.success(f"✅ {len(ctrcs_selecionados)} entrega(s) movida(s visualmente) para o grupo '{nova_rota_visual}'.")
+
+        # Opcional: Verifique se a atualização foi bem-sucedida pelo número de registros afetados
+        # (Isso pode variar um pouco dependendo da versão do cliente Supabase e da resposta da API)
+        if hasattr(response, 'data') and response.data:
+            st.success(f"✅ {len(response.data)} entrega(s) movida(s visualmente) para o grupo '{nova_rota_visual}'.")
+        else:
+            st.warning(f"Movimentação solicitada para {len(ctrcs_selecionados)} entregas. Verifique o status no Supabase.")
+
         st.session_state["reload_pre_roterizacao"] = True
         st.rerun()
 
     except Exception as e:
         st.error(f"Erro ao mover entregas: {e}")
-
-
-
-
 
 
 #################################
@@ -3025,6 +3031,8 @@ def pagina_pre_roterizacao():
                             st.warning("Por favor, selecione uma rota válida.")
                         else:
                             try:
+                                st.write(f"DEBUG - CTRCs selecionados para mover: {ctrcs_selecionados}")
+                                st.write(f"DEBUG - Nova rota selecionada: '{nova_rota}'")
                                 mover_entregas_para_outra_rota(ctrcs_selecionados, nova_rota)
                                 
                                 # ✅ Força recarregamento de dados
