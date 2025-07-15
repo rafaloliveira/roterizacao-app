@@ -2565,7 +2565,16 @@ def pagina_pre_roterizacao():
                 st.session_state["df_pre_roterizacao_cache"] = df
                 st.session_state["dados_confirmados_cache"] = dados_confirmados # Cachear também os confirmados
             else:
-                df = st.session_state["df_pre_roterizacao_cache"]
+                df_total = st.session_state["df_pre_roterizacao_cache"]
+                df_aprovadas_diretoria = st.session_state.get("df_aprovadas_diretoria", pd.DataFrame())
+
+                # Garante que as colunas de chave sejam strings para evitar erro no .isin
+                df_aprovadas_diretoria["Serie_Numero_CTRC"] = df_aprovadas_diretoria["Serie_Numero_CTRC"].astype(str)
+                df_total["Serie_Numero_CTRC"] = df_total["Serie_Numero_CTRC"].astype(str)
+
+                # Exclui do df principal o que já está vindo da diretoria
+                df_visivel = df_total[~df_total["Serie_Numero_CTRC"].isin(df_aprovadas_diretoria["Serie_Numero_CTRC"])]
+
                 dados_confirmados = st.session_state["dados_confirmados_cache"]
 
 
@@ -2573,7 +2582,7 @@ def pagina_pre_roterizacao():
             st.error(f"Erro ao consultar as tabelas do Supabase: {e}")
             return
 
-        if df is None or df.empty:
+        if df_visivel is None or df_visivel.empty:
             st.info("Nenhuma entrega disponível.")
             return
 
@@ -2586,32 +2595,30 @@ def pagina_pre_roterizacao():
 
 
     # ======= NOVAS MÉTRICAS SEPARADAS: EXISTENTES vs DIRETORIA =======
-    col_esq_1, col_esq_2, col_esq_3, col_esq_4, spacer, col_dir_1, col_dir_2, col_dir_3 = st.columns([1, 1, 1, 1, 0.5, 1, 1, 1])
+    col_esq_1, col_esq_2, col_esq_3, col_esq_4, spacer, col_dir_1, col_dir_2, col_dir_3 = st.columns([1, 1, 1, 1, 0.3, 1, 1, 1])
 
-    # 🔹 Seção à esquerda: TOTAIS GERAIS da tabela `pre_roterizacao`
+# 🔹 Esquerda: métricas apenas das entregas ainda visíveis para pré-roterização
     with col_esq_1:
-        st.metric("📦 Total Entregas Pré-Roterização", len(df))
+        st.metric("📦 Entregas Pendentes", len(df_visivel))
     with col_esq_2:
-        st.metric("🛣️ Total Rotas Pré-Roterização", df["Rota"].nunique() if "Rota" in df.columns else 0)
+        st.metric("🛣️ Rotas Pendentes", df_visivel["Rota"].nunique() if "Rota" in df_visivel.columns else 0)
     with col_esq_3:
-        st.metric("⚖️ Peso Real Total", formatar_brasileiro(df["Peso Real em Kg"].sum()))
+        st.metric("⚖️ Peso Real Total", formatar_brasileiro(df_visivel["Peso Real em Kg"].sum()))
     with col_esq_4:
-        st.metric("📏 Peso Calculado Total", formatar_brasileiro(df["Peso Calculado em Kg"].sum()))
+        st.metric("📏 Peso Calculado Total", formatar_brasileiro(df_visivel["Peso Calculado em Kg"].sum()))
 
-    # 🔹 Seção à direita: TOTAIS SOMENTE DO QUE VEIO DA DIRETORIA
-    df_aprovadas_diretoria = st.session_state.get("df_aprovadas_diretoria", pd.DataFrame())
-
+    # 🔹 Direita: métricas do que veio da diretoria
     qtde_aprovadas = len(df_aprovadas_diretoria)
-    rotas_aprovadas = df_aprovadas_diretoria["Rota"].nunique() if "Rota" in df_aprovadas_diretoria else 0
     peso_real_aprovado = df_aprovadas_diretoria["Peso Real em Kg"].sum() if "Peso Real em Kg" in df_aprovadas_diretoria else 0
     peso_calc_aprovado = df_aprovadas_diretoria["Peso Calculado em Kg"].sum() if "Peso Calculado em Kg" in df_aprovadas_diretoria else 0
 
     with col_dir_1:
-        st.metric("✅ Entregas Aprovadas Diretoria", qtde_aprovadas)
+        st.metric("✅ Entregas da Diretoria", qtde_aprovadas)
     with col_dir_2:
-        st.metric("✅ Peso Real Aprovados Diretoria", formatar_brasileiro(peso_real_aprovado))
+        st.metric("✅ Peso Real", formatar_brasileiro(peso_real_aprovado))
     with col_dir_3:
-        st.metric("✅ Peso Calculado Aprovados Diretoria", formatar_brasileiro(peso_calc_aprovado))
+        st.metric("✅ Peso Calculado", formatar_brasileiro(peso_calc_aprovado))
+
 
 
     def badge(label):
