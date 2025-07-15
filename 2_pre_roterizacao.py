@@ -1836,25 +1836,29 @@ def pagina_confirmar_producao():
     # Carregando entregas diretamente da tabela 'confirmadas_producao'
     with st.spinner("🔄 Carregando entregas para confirmar produção..."):
         try:
+            # Fonte de dados para esta página é 'confirmadas_producao'
             recarregar = st.session_state.pop("reload_confirmadas_producao", False)
             if recarregar or "df_confirmadas_cache" not in st.session_state:
+                
                 df = pd.DataFrame(supabase.table("confirmadas_producao").select("*").execute().data)
                 st.session_state["df_confirmadas_cache"] = df
             else:
                 df = st.session_state["df_confirmadas_cache"]
-
-            if not df.empty:
+            
+            # Limpar e normalizar dados para evitar KeyErrors e problemas de tipo
+            if not df.empty: # Garante que o DataFrame não está vazio antes de tentar normalizar
                 if 'Rota' in df.columns:
                     df['Rota'] = df['Rota'].fillna('').astype(str)
                 if 'Status' in df.columns:
                     df['Status'] = df['Status'].fillna('').astype(str)
                 if 'Entrega Programada' in df.columns:
-                    df['Entrega Programada'] = pd.to_datetime(df['Entrega Programada'], errors='coerce')
+                    # Garante que seja datetime para que o JsCode possa lidar com NaT corretamente
+                    df['Entrega Programada'] = pd.to_datetime(df['Entrega Programada'], errors='coerce') 
                 if 'Particularidade' in df.columns:
                     df['Particularidade'] = df['Particularidade'].fillna('').astype(str)
                 if 'Serie_Numero_CTRC' in df.columns:
                     df['Serie_Numero_CTRC'] = df['Serie_Numero_CTRC'].astype(str)
-                if 'Cliente Pagador' in df.columns:
+                if 'Cliente Pagador' in df.columns: # Novo: Garantir Cliente Pagador como string
                     df['Cliente Pagador'] = df['Cliente Pagador'].fillna('').astype(str)
 
         except Exception as e:
@@ -1865,55 +1869,50 @@ def pagina_confirmar_producao():
             st.info("Nenhuma entrega disponível para confirmar produção.")
             return
 
-    # ========= MÉTRICAS DE TOPO ==========
-    col_tot_cli, col_tot_ent, col_peso_real, col_peso_calc, _, col_conf_ent, col_conf_peso = st.columns([1, 1, 1, 1, 0.5, 1, 1])
-    
-    with col_tot_cli:
-        st.metric("Total de Clientes", df["Cliente Pagador"].nunique() if "Cliente Pagador" in df.columns else 0)
-    with col_tot_ent:
-        st.metric("Total de Entregas", len(df))
-    with col_peso_real:
-        st.metric("Peso Real (kg)", formatar_brasileiro(df['Peso Real em Kg'].sum()))
-    with col_peso_calc:
-        st.metric("Peso Calculado (kg)", formatar_brasileiro(df['Peso Calculado em Kg'].sum()))
+    # ========= MÉTRICAS SUPERIORES: já confirmadas =========
+    df_confirmadas = pd.DataFrame(st.session_state.get("df_entregas_confirmadas", []))
 
-    # ➤ Confirmadas na sessão atual (dinâmico — selecionadas pelo operador)
-    df_selecionadas = st.session_state.get("df_entregas_confirmadas", pd.DataFrame())
-    if not df_selecionadas.empty and "Peso Real em Kg" in df_selecionadas.columns:
-        peso_conf = df_selecionadas['Peso Real em Kg'].sum()
-    else:
-        peso_conf = 0
+    total_confirmadas = len(df_confirmadas)
+    peso_real_confirmado = df_confirmadas["Peso Real em Kg"].sum() if "Peso Real em Kg" in df_confirmadas else 0
+    peso_calc_confirmado = df_confirmadas["Peso Calculado em Kg"].sum() if "Peso Calculado em Kg" in df_confirmadas else 0
 
-    with col_conf_ent:
-        st.metric("Confirmadas", len(df_selecionadas))
-    with col_conf_peso:
-        st.metric("Peso Confirmado (kg)", formatar_brasileiro(peso_conf))
+    col_conf_1, col_conf_2, col_conf_3, col_conf_4, _ = st.columns([1.2, 1.2, 1.2, 1.2, 5])
 
-    # ========= GRID ==========
+    with col_conf_1:
+        st.metric("✅ Entregas Confirmadas", total_confirmadas)
+    with col_conf_2:
+        st.metric("✅ Peso Real (kg)", formatar_brasileiro(peso_real_confirmado))
+    with col_conf_3:
+        st.metric("✅ Peso Calculado (kg)", formatar_brasileiro(peso_calc_confirmado))
+    with col_conf_4:
+        st.metric("📦 Total Entregas", len(df))
+
+    # Definir as colunas que devem ser exibidas no grid
     colunas_exibir = [
         "Serie_Numero_CTRC", "Rota", "Regiao", "Valor do Frete", "Cliente Pagador",
-        "Previsao de Entrega", "Status", "Entrega Programada", "Cliente Destinatario",
-        "Cidade de Entrega", "Bairro do Destinatario", "Numero da Nota Fiscal", "Chave CT-e",
-        "Particularidade", "Codigo da Ultima Ocorrencia", "Peso Real em Kg",
+        "Previsao de Entrega","Status","Entrega Programada", "Cliente Destinatario", 
+        "Cidade de Entrega", "Bairro do Destinatario", "Numero da Nota Fiscal","Chave CT-e", 
+        "Particularidade", "Codigo da Ultima Ocorrencia", "Peso Real em Kg", 
         "Peso Calculado em Kg", "Cubagem em m³", "Quantidade de Volumes"
     ]
 
+    # Configuração de estilo condicional do grid (JsCode) - Permanece a mesma, pois é por linha
     linha_destacar = JsCode("""
         function(params) {
             const status = params.data['Status'];
             const entrega = params.data['Entrega Programada'];
             const particularidade = params.data['Particularidade'];
+            // Verifica se a entrega está vazia ou contém apenas espaços (para compatibilidade com strings vazias)
             const isEntregaEmpty = !entrega || (typeof entrega === 'string' && entrega.trim() === '');
             if (status === 'AGENDAR' && isEntregaEmpty) {
-                return { 'background-color': '#ffe0b2', 'color': '#333' };
+                return { 'background-color': '#ffe0b2', 'color': '#333' }; // Amarelo claro para "AGENDAR" sem data
             }
             if (particularidade && typeof particularidade === 'string' && particularidade.trim() !== "") {
-                return { 'background-color': '#fff59d', 'color': '#333' };
+                return { 'background-color': '#fff59d', 'color': '#333' }; // Amarelo um pouco mais escuro para "Particularidade"
             }
             return null;
         }
     """)
-
 
     # Iterar sobre os clientes pagadores únicos para exibir os grids
     # Usamos 'Cliente Pagador' agora
@@ -4746,11 +4745,11 @@ def pagina_cargas_fechadas():
                     if col in df.columns:
                         df[col] = df[col].dt.tz_localize(None).dt.strftime('%d-%m-%Y')
 
+
                 # --- End ---
                 st.session_state["df_cargas_fechadas_cache"] = df
             else:
                 df = st.session_state["df_cargas_fechadas_cache"]
-
 
 
         if df.empty:
