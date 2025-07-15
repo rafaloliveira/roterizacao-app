@@ -2173,15 +2173,34 @@ def pagina_aprovacao_diretoria():
 
 
     df_exibir = df_aprovacao.copy()
-    col1, col2, col3, col4, _ = st.columns([1, 1, 1, 1, 6])
+    # ======= BLOCO DE MÉTRICAS: TOTAL + APROVADAS (lado a lado) =======
+    col1, col2, col3, col4, spacer, col5, col6, col7 = st.columns([1, 1, 1, 1, 0.3, 1, 1, 1])
+
     with col1:
-        st.metric("Total de Clientes", df_exibir["Cliente Pagador"].nunique())
+        st.metric("👥 Total de Clientes", df_exibir["Cliente Pagador"].nunique())
+
     with col2:
-        st.metric("Total de Entregas", len(df_exibir))
-    with col3: # NOVO: Peso Real
-        st.metric("Peso Real (kg)", formatar_brasileiro(df_exibir['Peso Real em Kg'].sum()))
-    with col4: # NOVO: Peso Calculado
-        st.metric("Peso Calculado (kg)", formatar_brasileiro(df_exibir['Peso Calculado em Kg'].sum()))
+        st.metric("📦 Total de Entregas", len(df_exibir))
+
+    with col3:
+        st.metric("⚖️ Peso Real (kg)", formatar_brasileiro(df_exibir["Peso Real em Kg"].sum()))
+
+    with col4:
+        st.metric("📏 Peso Calculado (kg)", formatar_brasileiro(df_exibir["Peso Calculado em Kg"].sum()))
+
+    # === MÉTRICAS DINÂMICAS (Entregas selecionadas para aprovação) ===
+    df_selecionadas_globais = st.session_state.get("df_aprovadas_diretoria", pd.DataFrame())
+    qtd_aprovadas = len(df_selecionadas_globais)
+    peso_real_aprovado = df_selecionadas_globais["Peso Real em Kg"].sum() if "Peso Real em Kg" in df_selecionadas_globais else 0
+    peso_calc_aprovado = df_selecionadas_globais["Peso Calculado em Kg"].sum() if "Peso Calculado em Kg" in df_selecionadas_globais else 0
+
+    with col5:
+        st.metric("✅ Entregas Aprovadas", qtd_aprovadas)
+    with col6:
+        st.metric("✅ Peso Real Aprovado", formatar_brasileiro(peso_real_aprovado))
+    with col7:
+        st.metric("✅ Peso Calc. Aprovado", formatar_brasileiro(peso_calc_aprovado))
+
 
     def badge(label):
         return f"<span style='background:#eef2f7;border-radius:12px;padding:6px 12px;margin:4px;color:inherit;display:inline-block;'>{label}</span>"
@@ -2309,7 +2328,17 @@ def pagina_aprovacao_diretoria():
                 else:
                     selecionadas = pd.DataFrame(grid_response.get("selected_rows", []))
 
-                st.markdown(f"**📦 Entregas selecionadas:** {len(selecionadas)}")
+                qtd_sel = len(selecionadas)
+                peso_real_sel = selecionadas["Peso Real em Kg"].sum() if "Peso Real em Kg" in selecionadas else 0
+                peso_calc_sel = selecionadas["Peso Calculado em Kg"].sum() if "Peso Calculado em Kg" in selecionadas else 0
+
+                st.markdown(
+                    f"<span style='font-weight:bold;'>📦 Entregas selecionadas:</span> {qtd_sel} &nbsp;&nbsp; | &nbsp;&nbsp; "
+                    f"<span style='font-weight:bold;'>⚖️ Peso Real:</span> {formatar_brasileiro(peso_real_sel)} kg &nbsp;&nbsp; | &nbsp;&nbsp; "
+                    f"<span style='font-weight:bold;'>📏 Peso Calculado:</span> {formatar_brasileiro(peso_calc_sel)} kg",
+                    unsafe_allow_html=True
+                )
+
 
                 if not selecionadas.empty:
                     col_aprovar, col_rejeitar = st.columns(2) # Adiciona duas colunas para os botões
@@ -2354,6 +2383,13 @@ def pagina_aprovacao_diretoria():
 
                                     if registros_para_pre_roterizacao:
                                         supabase.table("pre_roterizacao").insert(registros_para_pre_roterizacao).execute()
+                                        # 🔄 Acumula aprovadas na sessão
+                                        df_aprovadas_sessao = pd.DataFrame(registros_para_pre_roterizacao)
+                                        if "df_aprovadas_diretoria" in st.session_state:
+                                            st.session_state["df_aprovadas_diretoria"] = pd.concat([st.session_state["df_aprovadas_diretoria"], df_aprovadas_sessao], ignore_index=True)
+                                        else:
+                                            st.session_state["df_aprovadas_diretoria"] = df_aprovadas_sessao
+
 
                                     chaves_aprovadas = [r.get("Serie_Numero_CTRC") for r in registros_para_pre_roterizacao if r.get("Serie_Numero_CTRC")]
                                     if chaves_aprovadas:
