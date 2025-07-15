@@ -2998,6 +2998,30 @@ def pagina_cargas_geradas():
             else:
                 df = st.session_state["df_cargas_cache"]
 
+                # --- VEÍCULOS DISPONÍVEIS ---
+            if "veiculo" in df.columns:
+                df["veiculo"] = df["veiculo"].astype(str).str.strip().str.upper()
+                veiculos_disponiveis = sorted(df["veiculo"].dropna().unique())
+            else:
+                veiculos_disponiveis = []
+
+            # Se não houver veículos cadastrados, adiciona uma opção padrão
+            if not veiculos_disponiveis:
+                veiculos_disponiveis = ["NÃO INFORMADO"]
+
+            # Selectbox para o usuário escolher o veículo
+            veiculo_selecionado = st.selectbox(
+                "🔎 Filtrar cargas por veículo:",
+                options=["TODOS"] + veiculos_disponiveis,
+                index=0,
+                key="selectbox_veiculo"
+            )
+
+            # Aplica o filtro, se necessário
+            if veiculo_selecionado != "TODOS":
+                df = df[df["veiculo"] == veiculo_selecionado]
+
+
         if df.empty:
             st.info("Nenhuma carga foi gerada ainda.")
             return
@@ -3111,9 +3135,13 @@ def pagina_cargas_geradas():
 
             st.markdown(f"""
             <div style="margin-top:20px;padding:10px;background:#e8f0fe;border-left:4px solid #34a853;border-radius:6px;display:inline-block;max-width:100%;">
-                <strong>Carga:</strong> {carga} &nbsp; | &nbsp; <strong>Rota:</strong> {rota_dominante}
+                <strong>Carga:</strong> {carga} &nbsp; | &nbsp; 
+                <strong>Rota:</strong> {rota_dominante} &nbsp; | &nbsp;
+                <strong>Placa:</strong> {info_placa} &nbsp; | &nbsp;
+                <strong>Veículo:</strong> {info_veiculo}
             </div>
             """, unsafe_allow_html=True)
+
 
 
             motorista_info = df_carga_raw["motorista"].dropna().unique()
@@ -3127,7 +3155,12 @@ def pagina_cargas_geradas():
 
             info_motorista = motorista_info[0] if len(motorista_info) > 0 else "NÃO INFORMADO"
             info_placa = placa_info[0] if len(placa_info) > 0 else "NÃO INFORMADA"
+
+            veiculo_info = df_carga_raw["veiculo"].dropna().unique()
+            info_veiculo = veiculo_info[0] if len(veiculo_info) > 0 else "NÃO INFORMADO"
+
             info_valor_contratacao = formatar_brasileiro(valor_contratacao_info[0]) if len(valor_contratacao_info) > 0 else "0,00"
+
 
 
 
