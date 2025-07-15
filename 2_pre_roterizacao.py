@@ -2557,7 +2557,7 @@ def pagina_pre_roterizacao():
     with st.spinner("🔄 Carregando dados das entregas..."):
         try:
             df_visivel = None
-            df_aprovadas_diretoria = pd.DataFrame()  # ✅ Inicializa vazio
+            df_aprovadas_diretoria = pd.DataFrame()
             dados_confirmados = pd.DataFrame()
 
             recarregar = st.session_state.pop("reload_pre_roterizacao", False)
@@ -2572,11 +2572,20 @@ def pagina_pre_roterizacao():
                 df_total = st.session_state["df_pre_roterizacao_cache"]
                 df_aprovadas_diretoria = st.session_state.get("df_aprovadas_diretoria", pd.DataFrame())
 
-                df_aprovadas_diretoria["Serie_Numero_CTRC"] = df_aprovadas_diretoria["Serie_Numero_CTRC"].astype(str)
-                df_total["Serie_Numero_CTRC"] = df_total["Serie_Numero_CTRC"].astype(str)
+                # Só realiza o filtro se ambas as tabelas tiverem a coluna
+                if "Serie_Numero_CTRC" in df_aprovadas_diretoria.columns and "Serie_Numero_CTRC" in df_total.columns:
+                    df_aprovadas_diretoria["Serie_Numero_CTRC"] = df_aprovadas_diretoria["Serie_Numero_CTRC"].astype(str)
+                    df_total["Serie_Numero_CTRC"] = df_total["Serie_Numero_CTRC"].astype(str)
+                    df_visivel = df_total[~df_total["Serie_Numero_CTRC"].isin(df_aprovadas_diretoria["Serie_Numero_CTRC"])]
+                else:
+                    df_visivel = df_total.copy()
 
-                df_visivel = df_total[~df_total["Serie_Numero_CTRC"].isin(df_aprovadas_diretoria["Serie_Numero_CTRC"])]
-                dados_confirmados = st.session_state["dados_confirmados_cache"]
+                dados_confirmados = st.session_state.get("dados_confirmados_cache", pd.DataFrame())
+
+        except Exception as e:
+            st.error(f"Erro ao consultar as tabelas do Supabase: {e}")
+            return
+
 
 
 
