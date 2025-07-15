@@ -3115,7 +3115,11 @@ def pagina_cargas_geradas():
 
             motorista_info = df_carga_raw["motorista"].dropna().unique()
             placa_info = df_carga_raw["placa"].dropna().unique()
-            rota = df_carga_raw["Rota"].dropna().unique()[0] if "Rota" in df_carga_raw.columns and not df_carga_raw["Rota"].empty else "Não Informada"
+            rota = "Não Informada"
+            if "Rota" in df_carga_raw.columns:
+                rotas_validas = df_carga_raw["Rota"].dropna().unique()
+                if len(rotas_validas) > 0:
+                    rota = rotas_validas[0]
             valor_contratacao_info = df_carga_raw["valor_contratacao"].dropna().unique()
 
             info_motorista = motorista_info[0] if len(motorista_info) > 0 else "NÃO INFORMADO"
