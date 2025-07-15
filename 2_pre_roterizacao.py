@@ -1585,7 +1585,7 @@ def apply_brazilian_date_only_format_for_display(df_to_format, date_cols):
     for col in date_cols:
         if col in df_to_format.columns:
             if not pd.api.types.is_datetime64_any_dtype(df_to_format[col]):
-                df_to_format[col] = pd.to_datetime(df_to_format[col], errors='coerce')
+                df_to_format[col] = pd.to_datetime(df_to_format[col], errors='coerce', dayfirst=True)
             df_to_format[col] = df_to_format[col].apply(
                 lambda x: x.strftime(DATE_ONLY_DISPLAY_FORMAT_STRING)
                 if pd.notna(x) and isinstance(x, (Timestamp, datetime))
@@ -2654,21 +2654,39 @@ def pagina_pre_roterizacao():
                                 entrega[col] = None
 
                     # ✅ Sanitização dos demais campos (sem sobrescrever datas já tratadas)
-                    entrega = {
-                        k: (
-                            None if (isinstance(v, float) and (np.isnan(v) or np.isinf(v))) or pd.isna(v) else
-                            str(v) if isinstance(v, (dict, list)) else
-                            v
-                        ) if k not in colunas_data else v  # preserva as datas convertidas
-                        for k, v in entrega.items()
-                    }
+                    for k, v in entrega.items():
+                        if k in colunas_data:
+                            continue  # já tratado acima
 
-                    # Inserção
-                    supabase.table("cargas_geradas").insert(entrega).execute()
+                        if isinstance(v, (dict, list)):
+                            entrega[k] = str(v)  # converte para string JSON-safe
+                        elif isinstance(v, (float, int)) and (pd.isna(v) or np.isinf(v)):
+                            entrega[k] = None
+                        elif isinstance(v, pd._libs.tslibs.nattype.NaTType) or pd.isna(v):
+                            entrega[k] = None
+                        else:
+                            entrega[k] = v
+
+                    # 💡 Validação opcional de campos obrigatórios
+                    # campos_obrigatorios = ["Chave CT-e", "Serie_Numero_CTRC", "numero_carga"]
+                    # faltando = [campo for campo in campos_obrigatorios if not entrega.get(campo)]
+                    # if faltando:
+                    #     st.warning(f"⚠️ Entrega ignorada. Campos obrigatórios ausentes: {', '.join(faltando)}")
+                    #     continue
+
+                    # Inserção com captura de erro individual
+                    try:
+                        supabase.table("cargas_geradas").insert(entrega).execute()
+                    except Exception as e:
+                        st.error(f"❌ Falha ao inserir entrega com chave {entrega.get('Chave CT-e', 'N/A')}: {e}")
+                        continue
+
+                    # Deleção da origem
                     if origem:
                         supabase.table(origem).delete().eq("Serie_Numero_CTRC", entrega["Serie_Numero_CTRC"]).execute()
 
                     entregas_encontradas.append(entrega)
+
 
                 if entregas_encontradas:
                     st.success(f"✅ {len(entregas_encontradas)} entrega(s) adicionada(s) à carga {st.session_state['numero_nova_carga']} com sucesso.")
@@ -3006,7 +3024,33 @@ def pagina_pre_roterizacao():
                         if nova_rota == "Selecionar...":
                             st.warning("Por favor, selecione uma rota válida.")
                         else:
-                            mover_entregas_para_outra_rota(chaves_cte, nova_rota)
+                            try:
+                                mover_entregas_para_outra_rota(chaves_cte, nova_rota)
+
+                                # ✅ Força recarregamento de dados
+                                st.session_state["reload_pre_roterizacao"] = True
+
+                                # ✅ Limpa as chaves dos grids para forçar redesenho
+                                for key in list(st.session_state.keys()):
+                                    if key.startswith("grid_pre_rota_"):
+                                        st.session_state.pop(key, None)
+
+                                # ✅ Atualiza a tela com dados novos
+                                st.rerun()
+
+                            except Exception as e:
+                                st.error(f"Erro ao mover entregas: {e}")
+
+                            st.session_state["reload_pre_roterizacao"] = True
+
+                            # ✅ Limpa os estados de seleção dos grids (chaves começam com 'grid_pre_rota_')
+                            for key in list(st.session_state.keys()):
+                                if key.startswith("grid_pre_rota_"):
+                                    st.session_state.pop(key, None)
+
+                            # ✅ Força recarregamento da página com novos dados
+                            st.rerun()
+
                 else:
                     st.info("Nenhuma outra rota disponível para movimentação.")
 
@@ -4672,7 +4716,9 @@ def pagina_cargas_fechadas():
                 for col_date in ["Previsao de Entrega", "data_fechamento", "data_aprovacao_custos"]:
                     if col_date in df_csv.columns:
                         df_csv[col_date] = df_csv[col_date].apply(
-                            lambda x: pd.to_datetime(x, errors='coerce').strftime("%d-%m-%Y %H:%M:%S") if pd.notna(x) else ""
+                            # Usamos format='%d-%m-%Y' para strings conhecidas neste formato.
+                            # Se x não for string, pd.to_datetime o trata como um objeto datetime.
+                            lambda x: pd.to_datetime(x, format="%d-%m-%Y", errors='coerce').strftime("%d-%m-%Y %H:%M:%S") if isinstance(x, str) else (x.strftime("%d-%m-%Y %H:%M:%S") if pd.notna(x) else "")
                         )
 
 
