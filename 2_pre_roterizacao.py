@@ -2556,53 +2556,41 @@ def pagina_pre_roterizacao():
 
     with st.spinner("🔄 Carregando dados das entregas..."):
         try:
-            df = carregar_base_supabase()
-            dados_confirmados_raw = supabase.table("rotas_confirmadas").select("Serie_Numero_CTRC").execute().data
-            dados_confirmados = pd.DataFrame(dados_confirmados_raw)
-            df_visivel = df.copy()
+            # 🔹 SEMPRE define as variáveis
+            df_aprovadas_diretoria = st.session_state.get("df_aprovadas_diretoria", pd.DataFrame())
+            dados_confirmados = pd.DataFrame()
+
             recarregar = st.session_state.pop("reload_pre_roterizacao", False)
+            df_total = carregar_base_supabase()
+
             if recarregar or "df_pre_roterizacao_cache" not in st.session_state:
-                df = carregar_base_supabase()
                 dados_confirmados_raw = supabase.table("rotas_confirmadas").select("Serie_Numero_CTRC").execute().data
                 dados_confirmados = pd.DataFrame(dados_confirmados_raw)
-                st.session_state["df_pre_roterizacao_cache"] = df
+                st.session_state["df_pre_roterizacao_cache"] = df_total
                 st.session_state["dados_confirmados_cache"] = dados_confirmados
-                df_visivel = df.copy()
             else:
-                df_total = carregar_base_supabase()
-                df_aprovadas_diretoria = st.session_state.get("df_aprovadas_diretoria", pd.DataFrame())
-
-                # Só realiza o filtro se ambas as tabelas tiverem a coluna
-                if "Serie_Numero_CTRC" in df_aprovadas_diretoria.columns and "Serie_Numero_CTRC" in df_total.columns:
-                    df_aprovadas_diretoria["Serie_Numero_CTRC"] = df_aprovadas_diretoria["Serie_Numero_CTRC"].astype(str)
-                    df_total["Serie_Numero_CTRC"] = df_total["Serie_Numero_CTRC"].astype(str)
-                    df_visivel = df_total[~df_total["Serie_Numero_CTRC"].isin(df_aprovadas_diretoria["Serie_Numero_CTRC"])]
-                else:
-                    df_visivel = df_total.copy()
-
                 dados_confirmados = st.session_state.get("dados_confirmados_cache", pd.DataFrame())
 
+            # 🔹 Aplica filtro das entregas vindas da diretoria (caso existam)
+            if "Serie_Numero_CTRC" in df_aprovadas_diretoria.columns and "Serie_Numero_CTRC" in df_total.columns:
+                df_aprovadas_diretoria["Serie_Numero_CTRC"] = df_aprovadas_diretoria["Serie_Numero_CTRC"].astype(str)
+                df_total["Serie_Numero_CTRC"] = df_total["Serie_Numero_CTRC"].astype(str)
+                df_visivel = df_total[~df_total["Serie_Numero_CTRC"].isin(df_aprovadas_diretoria["Serie_Numero_CTRC"])]
+            else:
+                df_visivel = df_total.copy()
+
         except Exception as e:
             st.error(f"Erro ao consultar as tabelas do Supabase: {e}")
             return
 
-
-
-
-
-        except Exception as e:
-            st.error(f"Erro ao consultar as tabelas do Supabase: {e}")
-            return
-
-        if df_visivel is None or df_visivel.empty:
+        if df_visivel.empty:
             st.info("Nenhuma entrega disponível.")
             return
 
-        if not dados_confirmados.empty:
+        if not dados_confirmados.empty and "Serie_Numero_CTRC" in dados_confirmados.columns:
             df_visivel = df_visivel[~df_visivel["Serie_Numero_CTRC"].isin(dados_confirmados["Serie_Numero_CTRC"].astype(str))]
 
-            
-        if df_visivel.empty: # Verifica novamente se o DF ficou vazio após o filtro
+        if df_visivel.empty:
             st.info("Nenhuma entrega disponível para pré-roterização após filtragem.")
             return
 
