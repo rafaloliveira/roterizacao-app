@@ -3011,6 +3011,12 @@ def pagina_cargas_geradas():
 
             df_display = df.copy()
 
+            # ✅ Corrige datas específicas ANTES da função geral
+            for col in ["Previsao de Entrega", "Entrega Programada"]:
+                if col in df_display.columns:
+                    df_display[col] = pd.to_datetime(df_display[col], errors='coerce')
+                    df_display[col] = df_display[col].dt.strftime("%d-%m-%Y")
+
             df_display = apply_brazilian_date_format_for_display(df_display)
 
             df_display = df_display.replace([np.nan, None], "")
@@ -3024,7 +3030,10 @@ def pagina_cargas_geradas():
             if "placa" in df_display.columns:
                 df_display["placa"] = df_display["placa"].astype(str).str.strip().str.upper()
 
-            numeric_cols_for_formatting = ['Peso Real em Kg', 'Peso Calculado em Kg', 'Cubagem em m³', 'Quantidade de Volumes', 'Valor do Frete','valor_contratacao']
+            numeric_cols_for_formatting = [
+                'Peso Real em Kg', 'Peso Calculado em Kg', 'Cubagem em m³',
+                'Quantidade de Volumes', 'Valor do Frete', 'valor_contratacao'
+            ]
             for col in numeric_cols_for_formatting:
                 if col in df_display.columns:
                     df_display[col] = pd.to_numeric(df_display[col], errors='coerce').fillna(0)
