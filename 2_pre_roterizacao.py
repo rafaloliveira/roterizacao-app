@@ -2776,7 +2776,7 @@ def pagina_pre_roterizacao():
             unsafe_allow_html=True
         )
 
-         # === NOVO: Cálculo do valor ideal de contratação ===
+        # === NOVO: Cálculo do valor ideal de contratação ===
         percentuais_ideais = {
             "INTERIOR 1": 0.35,
             "INTERIOR 2": 0.45,
@@ -2787,14 +2787,23 @@ def pagina_pre_roterizacao():
         percentual_usado = percentuais_ideais.get(regiao_chave, None)
 
         if percentual_usado is not None:
-            valor_mercadoria_total = df_rota.get("Valor da Mercadoria", pd.Series(dtype=float)).sum()
+            # Corrige tipo da coluna antes de somar
+            df_rota["Valor da Mercadoria"] = pd.to_numeric(df_rota["Valor da Mercadoria"], errors="coerce")
+            valor_mercadoria_total = df_rota["Valor da Mercadoria"].sum()
             valor_ideal = valor_mercadoria_total * percentual_usado
+
             st.markdown(
-                f"<div style='padding: 8px 12px; margin-top: 6px; background-color:#eaf4ea; border-left: 4px solid #4caf50; border-radius: 4px;'>"
-                f"💡 <strong>Valor Ideal de Contratação</strong> para região <b>{regiao_chave}</b>: <b>R$ {formatar_brasileiro(valor_ideal)}</b>"
-                f"</div>",
+                f"""
+                <div style='padding: 8px 12px; margin-top: 6px; background-color:#eaf4ea;
+                            border-left: 4px solid #4caf50; border-radius: 4px;'>
+                    💡 <strong>Valor Ideal de Contratação</strong> para região <b>{regiao_chave}</b>
+                    ({int(percentual_usado * 100)}%): <b>R$ {formatar_brasileiro(valor_ideal)}</b>
+                </div>
+                """,
                 unsafe_allow_html=True
             )
+        else:
+            st.warning("Região sem percentual definido para cálculo do valor ideal.")
 
         with st.expander("🔽 Selecionar entregas", expanded=False):
             # NOVO: Checkbox "Marcar todas" dentro do expander
@@ -2811,14 +2820,14 @@ def pagina_pre_roterizacao():
             gb.configure_grid_options(paginationPageSize=12)
             gb.configure_grid_options(alwaysShowHorizontalScroll=True)
             gb.configure_grid_options(rowStyle={'font-size': '11px'})
-            gb.configure_grid_options(onGridReady=GRID_RESIZE_JS_CODE) # <<< ADICIONADO AQUI
+            gb.configure_grid_options(onGridReady=GRID_RESIZE_JS_CODE)
             grid_options = gb.build()
             grid_options["getRowStyle"] = linha_destacar
 
             grid_key = f"grid_pre_rota_{rota}"
-            # Mantém a key constante a menos que os dados subjacentes mudem, não forcando novo UUID
             if grid_key not in st.session_state:
                 st.session_state[grid_key] = str(uuid.uuid4())
+
 
 
             grid_response = AgGrid(
