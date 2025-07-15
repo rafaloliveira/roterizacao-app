@@ -2805,20 +2805,31 @@ def pagina_pre_roterizacao():
 
     for rota_visual in sorted(df_visivel["Rota_Grupo"].dropna().unique()):
         df_rota = df_visivel[df_visivel["Rota_Grupo"] == rota_visual].copy()
-        rota = rota_visual  # para exibição e labels
+        
         if df_rota.empty:
             continue
 
-        # Selecione as Regiões associadas à Rota
-        regioes = df_rota["Regiao"].dropna().unique()  # Obtém as regiões não-nulas e únicas
+        # --- CORREÇÃO AQUI: Calcular a rota predominante ---
+        # A rota predominante é a 'Rota' original que mais aparece no grupo atual (df_rota)
+        rota_predominante = "NÃO DEFINIDA" # Valor padrão
+        if 'Rota' in df_rota.columns and not df_rota['Rota'].empty:
+            rotas_validas = df_rota['Rota'].dropna()
+            if not rotas_validas.empty:
+                rota_predominante = rotas_validas.value_counts().idxmax()
+            else:
+                # Se não há rotas válidas, mas há um GrupoDeExibicao, pode ser usado
+                if rota_visual and rota_visual != rota_predominante: # Evita duplicar "NÃO DEFINIDA"
+                    rota_predominante = rota_visual
+        # --- FIM DA CORREÇÃO ---
 
-        # Se houver mais de uma região, concatene-as separando por uma barra
+        # Selecione as Regiões associadas à Rota
+        regioes = df_rota["Regiao"].dropna().unique()
         regiao_display = " / ".join(regioes) if len(regioes) > 1 else regioes[0] if regioes else "–"
 
-        # Exibe Rota e Região(s)
+        # Exibe Rota e Região(s) - Use a 'rota_predominante'
         st.markdown(f"""
         <div style="margin-top:20px;padding:10px;background:#e8f0fe;border-left:4px solid #4285f4;border-radius:6px;display:inline-block;max-width:100%;">
-            <strong>Rota:</strong> {rota} &nbsp; | &nbsp; <strong>Região:</strong> {regiao_display}
+            <strong>Rota Predominante:</strong> {rota_predominante} &nbsp; | &nbsp; <strong>Região:</strong> {regiao_display}
         </div>
         """, unsafe_allow_html=True)
 
@@ -2859,14 +2870,14 @@ def pagina_pre_roterizacao():
                 unsafe_allow_html=True
             )
         elif percentual_usado is not None:
-            st.warning(f"A coluna 'Valor do Frete' não está disponível para a Rota {rota}.")
+            st.warning(f"A coluna 'Valor do Frete' não está disponível para a Rota {rota_predominante}.")
         else:
             st.warning(f"A região '{regiao_chave}' não possui percentual definido.")
 
 
         with st.expander("🔽 Selecionar entregas", expanded=False):
             # NOVO: Checkbox "Marcar todas" dentro do expander
-            checkbox_key = f"marcar_todas_pre_rota_{rota}"
+            checkbox_key = f"marcar_todas_pre_rota_{rota_visual}"
             if checkbox_key not in st.session_state:
                 st.session_state[checkbox_key] = False
             marcar_todas = st.checkbox("Marcar todas", key=checkbox_key)
@@ -2883,7 +2894,7 @@ def pagina_pre_roterizacao():
             grid_options = gb.build()
             grid_options["getRowStyle"] = linha_destacar
 
-            grid_key = f"grid_pre_rota_{rota}"
+            grid_key = f"grid_pre_rota_{rota_visual}" 
             # Mantém a key constante a menos que os dados subjacentes mudem, não forcando novo UUID
             if grid_key not in st.session_state:
                 st.session_state[grid_key] = str(uuid.uuid4())
@@ -2987,7 +2998,7 @@ def pagina_pre_roterizacao():
                         ).dt.strftime("%Y-%m-%d %H:%M:%S")
 
                 # ➕ Botão: Criar nova carga com entregas selecionadas
-                if st.button(f"➕ Criar Nova Carga com entregas da Rota {rota}", key=f"btn_nova_carga_rota_{rota}"):
+                if st.button(f"➕ Criar Nova Carga com entregas da Rota {rota_predominante}", key=f"btn_nova_carga_rota_{rota_visual}"): 
                     try:
                         numero_carga = gerar_proximo_numero_carga(supabase)
                         if numero_carga:
@@ -3014,7 +3025,6 @@ def pagina_pre_roterizacao():
                             st.warning("Por favor, selecione uma rota válida.")
                         else:
                             try:
-                                mover_entregas_para_outra_rota(chaves_cte, nova_rota)
                                 mover_entregas_para_outra_rota(ctrcs_selecionados, nova_rota)
                                 
                                 # ✅ Força recarregamento de dados
