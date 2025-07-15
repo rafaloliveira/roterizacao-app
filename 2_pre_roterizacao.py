@@ -2616,15 +2616,35 @@ def pagina_pre_roterizacao():
                     entrega["numero_carga"] = st.session_state["numero_nova_carga"]
                     entrega["Data_Hora_Gerada"] = data_hora_brasil_iso()
 
+                    # ✅ Tratamento de datas
+                    colunas_data = [
+                        "Previsao de Entrega", "Entrega Programada", "Data de Emissao", "Data de Autorizacao",
+                        "Data da Entrega Realizada", "Data do Cancelamento", "Data do Escaneamento",
+                        "Data da Ultima Ocorrencia", "Data de inclusao da Ultima Ocorrencia"
+                    ]
+
+                    for col in colunas_data:
+                        if col in entrega:
+                            try:
+                                entrega[col] = pd.to_datetime(entrega[col], dayfirst=True, errors='coerce')
+                                if pd.notnull(entrega[col]):
+                                    entrega[col] = entrega[col].isoformat()
+                                else:
+                                    entrega[col] = None
+                            except Exception:
+                                entrega[col] = None
+
+                    # ✅ Sanitização dos demais campos (sem sobrescrever datas já tratadas)
                     entrega = {
                         k: (
-                            v.isoformat() if isinstance(v, (pd.Timestamp, datetime, date)) else
                             None if (isinstance(v, float) and (np.isnan(v) or np.isinf(v))) or pd.isna(v) else
                             str(v) if isinstance(v, (dict, list)) else
                             v
-                        ) for k, v in entrega.items()
+                        ) if k not in colunas_data else v  # preserva as datas convertidas
+                        for k, v in entrega.items()
                     }
 
+                    # Inserção
                     supabase.table("cargas_geradas").insert(entrega).execute()
                     if origem:
                         supabase.table(origem).delete().eq("Serie_Numero_CTRC", entrega["Serie_Numero_CTRC"]).execute()
@@ -2643,6 +2663,7 @@ def pagina_pre_roterizacao():
 
             except Exception as e:
                 st.error(f"Erro ao adicionar entregas: {e}")
+
 
 
     # --- Bloco de carregamento de dados ---
