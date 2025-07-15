@@ -804,10 +804,10 @@ def carregar_base_supabase():
         df_final['Indice'] = df_final.index
         
         # ✅ Formatar datas para exibição no grid como dd-mm-aaaa
-        for col in ["Previsao de Entrega", "Entrega Programada"]:
-            if col in base.columns:
-                base[col] = pd.to_datetime(base[col], errors='coerce', dayfirst=True)
-                base[col] = base[col].apply(lambda x: x.strftime("%d-%m-%Y") if pd.notnull(x) else "")
+        #for col in ["Previsao de Entrega", "Entrega Programada"]:
+        #    if col in base.columns:
+        #        base[col] = pd.to_datetime(base[col], errors='coerce', dayfirst=True)
+        #        base[col] = base[col].apply(lambda x: x.strftime("%d-%m-%Y") if pd.notnull(x) else "")
 
 
         return df_final
@@ -3010,14 +3010,11 @@ def pagina_cargas_geradas():
             # ✅ FORMATAÇÃO DAS DATAS COMO NA PÁGINA DA DIRETORIA
             for col_name in ["Previsao de Entrega", "Entrega Programada"]:
                 if col_name in df_display.columns:
-                    df_display[col_name] = pd.to_datetime(df_display[col_name], errors="coerce")
-                    df_display[col_name] = df_display[col_name].dt.strftime("%d-%m-%Y")
-
-            # Remova a linha abaixo pois ela era a redundante que causava o problema de datas
-            # df_display = apply_brazilian_date_format_for_display(df_display) # <-- REMOVER SE JÁ FEZ A CORREÇÃO ANTERIOR
-
+                    df_display[col_name] = df_display[col_name].apply(
+                        lambda x: x.strftime("%d-%m-%Y") if pd.notna(x) else ""
+                    )
             df_display = df_display.replace([np.nan, None], "")
-
+            
             if "valor_contratacao" in df_display.columns:
                 df_display["valor_contratacao"] = pd.to_numeric(df_display["valor_contratacao"], errors="coerce").fillna(0.0)
 
@@ -3544,10 +3541,6 @@ def pagina_cargas_geradas():
     except Exception as e:
         st.error(f"❌ Erro geral inesperado ao retirar entregas da carga: {e}")
         st.warning("A operação pode ter sido interrompida. Por favor, verifique a situação das entregas nas tabelas 'Rotas Confirmadas' e 'Cargas Geradas'.")
-
-
-
-
 
 # ==============================================================================
 # FUNÇÃO: pagina_aprovacao_custos() - ATUALIZADA
