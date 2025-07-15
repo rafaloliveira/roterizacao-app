@@ -3662,6 +3662,11 @@ def pagina_aprovacao_custos():
             
             # --- Cálculos de Rentabilidade e Custo por Região ---
             total_frete_carga = df_carga["Valor do Frete"].sum()
+
+            motorista_ = df_carga["motorista"].iloc[0] if "motorista" in df_carga.columns and not df_carga["motorista"].isnull().all() else "–"
+            placa_veiculo = df_carga["placa"].iloc[0] if "placa" in df_carga.columns and not df_carga["placa"].isnull().all() else "–"
+            veiculo = df_carga["veiculo"].iloc[0] if "veiculo" in df_carga.columns and not df_carga["veiculo"].isnull().all() else "–"
+
             
             # DEBUG: Adicionar logs para verificar os valores
             #st.write(f"🔍 **DEBUG - Carga {carga}:**")
@@ -3752,6 +3757,9 @@ def pagina_aprovacao_custos():
                         {badge(f'Valor Contratação: R$ {formatar_brasileiro(valor_contratacao_carga_existente)}')}
                         {badge(f'Rentabilidade: {rentabilidade_percentual:.2f}%')}
                         {badge(f'Situação Custo: {situacao_custo_regional}', background_color=cor_situacao, text_color='white')}
+                        {badge(f'Motorista: {motorista_}')}
+                        {badge(f'Placa: {placa_veiculo}')}
+                        {badge(f'Veículo: {veiculo}')}
                     </div>
                     """,
                     unsafe_allow_html=True
