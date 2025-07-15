@@ -2556,8 +2556,9 @@ def pagina_pre_roterizacao():
 
     with st.spinner("🔄 Carregando dados das entregas..."):
         try:
-            df_visivel = None  # ✅ Inicialização preventiva
-            dados_confirmados = pd.DataFrame()  # Para evitar erro de variável indefinida
+            df_visivel = None
+            df_aprovadas_diretoria = pd.DataFrame()  # ✅ Inicializa vazio
+            dados_confirmados = pd.DataFrame()
 
             recarregar = st.session_state.pop("reload_pre_roterizacao", False)
             if recarregar or "df_pre_roterizacao_cache" not in st.session_state:
@@ -2566,8 +2567,6 @@ def pagina_pre_roterizacao():
                 dados_confirmados = pd.DataFrame(dados_confirmados_raw)
                 st.session_state["df_pre_roterizacao_cache"] = df
                 st.session_state["dados_confirmados_cache"] = dados_confirmados
-
-                # ✅ Define df_visivel como uma cópia do df carregado (sem aplicar filtro da diretoria)
                 df_visivel = df.copy()
             else:
                 df_total = st.session_state["df_pre_roterizacao_cache"]
@@ -2578,6 +2577,7 @@ def pagina_pre_roterizacao():
 
                 df_visivel = df_total[~df_total["Serie_Numero_CTRC"].isin(df_aprovadas_diretoria["Serie_Numero_CTRC"])]
                 dados_confirmados = st.session_state["dados_confirmados_cache"]
+
 
 
 
