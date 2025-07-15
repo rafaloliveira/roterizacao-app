@@ -2574,11 +2574,11 @@ def pagina_pre_roterizacao():
         st.success(f"Nova Carga Criada: {st.session_state['numero_nova_carga']}")
         chaves_input = st.text_area("Insira as Chaves CT-e (uma por linha)")
 
-        col1, col2 = st.columns([5, 1])
+        col1, col2 = st.columns([4, 1.2])
         with col1:
             adicionar = st.button("➕ Adicionar Entregas à Carga", key="botao_manual")
         with col2:
-            cancelar = st.button("❌", help="Cancelar Nova Carga")
+            cancelar = st.button("❌ Cancelar", help="Cancelar Nova Carga")
 
         if cancelar:
             st.session_state["nova_carga_em_criacao"] = False
