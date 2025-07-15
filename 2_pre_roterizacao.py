@@ -2647,7 +2647,7 @@ def pagina_pre_roterizacao():
         }
     """)
 
-    for rota in sorted(df["Rota"].dropna().unique()):
+    for rota in sorted(df_visivel["Rota"].dropna().unique()):
         df_rota = df[df["Rota"] == rota].copy()
         if df_rota.empty:
             continue
