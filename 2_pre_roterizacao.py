@@ -2962,6 +2962,8 @@ def pagina_pre_roterizacao():
             if not selecionadas.empty:  # BOTÃO AGORA SÓ APARECE SE TIVER SELEÇÃO
 
                 chaves_cte = selecionadas["Chave CT-e"].dropna().astype(str).str.strip().tolist()
+                ctrcs_selecionados = selecionadas["Serie_Numero_CTRC"].dropna().astype(str).str.strip().tolist()
+
 
                 # 🔁 Tratamento de datas antes de enviar para cargas
                 date_cols_to_process = [
@@ -3013,7 +3015,8 @@ def pagina_pre_roterizacao():
                         else:
                             try:
                                 mover_entregas_para_outra_rota(chaves_cte, nova_rota)
-
+                                mover_entregas_para_outra_rota(ctrcs_selecionados, nova_rota)
+                                
                                 # ✅ Força recarregamento de dados
                                 st.session_state["reload_pre_roterizacao"] = True
 
