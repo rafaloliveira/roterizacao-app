@@ -1323,6 +1323,8 @@ def adicionar_entregas_a_carga(chaves_cte, numero_carga_destino):
     else:
         df_para_inserir["GrupoDeExibicao"] = df_para_inserir["Rota"]
     df_para_inserir["Data_Hora_Gerada"] = data_hora_brasil_iso()
+    df_para_inserir["numero_carga"] = numero_carga  # ✅ Adiciona número da carga para todas as entregas
+
 
     for col_name in GLOBAL_DATE_DISPLAY_COLUMNS:
         if col_name in df_para_inserir.columns:
