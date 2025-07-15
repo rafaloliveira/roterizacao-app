@@ -2615,6 +2615,7 @@ def pagina_pre_roterizacao():
                 }
 
                 entregas_encontradas = []
+
                 for chave in chaves:
                     if chave in entregas_ja_em_carga:
                         st.warning(f"⚠️ A entrega com chave '{chave}' já está na carga {entregas_ja_em_carga[chave]}.")
@@ -2646,20 +2647,15 @@ def pagina_pre_roterizacao():
                         if col in entrega:
                             try:
                                 entrega[col] = pd.to_datetime(entrega[col], errors='coerce')
-                                if pd.notnull(entrega[col]):
-                                    entrega[col] = entrega[col].isoformat()
-                                else:
-                                    entrega[col] = None
+                                entrega[col] = entrega[col].isoformat() if pd.notnull(entrega[col]) else None
                             except Exception:
                                 entrega[col] = None
 
-                    # ✅ Sanitização dos demais campos (sem sobrescrever datas já tratadas)
                     for k, v in entrega.items():
                         if k in colunas_data:
-                            continue  # já tratado acima
-
+                            continue
                         if isinstance(v, (dict, list)):
-                            entrega[k] = str(v)  # converte para string JSON-safe
+                            entrega[k] = str(v)
                         elif isinstance(v, (float, int)) and (pd.isna(v) or np.isinf(v)):
                             entrega[k] = None
                         elif isinstance(v, pd._libs.tslibs.nattype.NaTType) or pd.isna(v):
@@ -2667,29 +2663,17 @@ def pagina_pre_roterizacao():
                         else:
                             entrega[k] = v
 
-                    # 💡 Validação opcional de campos obrigatórios
-                    # campos_obrigatorios = ["Chave CT-e", "Serie_Numero_CTRC", "numero_carga"]
-                    # faltando = [campo for campo in campos_obrigatorios if not entrega.get(campo)]
-                    # if faltando:
-                    #     st.warning(f"⚠️ Entrega ignorada. Campos obrigatórios ausentes: {', '.join(faltando)}")
-                    #     continue
+                    entregas_encontradas.append(entrega)
 
-                    # Inserção com captura de erro individual
-                    try:
-                        supabase.table("cargas_geradas").insert(entrega).execute()
-                    except Exception as e:
-                        st.error(f"❌ Falha ao inserir entrega com chave {entrega.get('Chave CT-e', 'N/A')}: {e}")
-                        continue
-
-                    # Deleção da origem
                     if origem:
                         supabase.table(origem).delete().eq("Serie_Numero_CTRC", entrega["Serie_Numero_CTRC"]).execute()
 
-                    entregas_encontradas.append(entrega)
-
-
                 if entregas_encontradas:
-                    st.success(f"✅ {len(entregas_encontradas)} entrega(s) adicionada(s) à carga {st.session_state['numero_nova_carga']} com sucesso.")
+                    try:
+                        supabase.table("cargas_geradas").insert(entregas_encontradas).execute()
+                        st.success(f"✅ {len(entregas_encontradas)} entrega(s) adicionada(s) à carga {st.session_state['numero_nova_carga']}.")
+                    except Exception as e:
+                        st.error(f"Erro ao salvar entregas na carga: {e}")
 
                 st.session_state["nova_carga_em_criacao"] = False
                 st.session_state["numero_nova_carga"] = ""
@@ -2700,6 +2684,7 @@ def pagina_pre_roterizacao():
 
             except Exception as e:
                 st.error(f"Erro ao adicionar entregas: {e}")
+
 
 
 
@@ -3679,6 +3664,51 @@ def pagina_aprovacao_custos():
             return
 
         df.columns = df.columns.str.strip()
+
+        if is_user_aprovador and not df.empty:
+            if st.button("✅ Aprovar Todas as Entregas da Página"):
+                try:
+                    with st.spinner("🔄 Aprovando todas as entregas..."):
+
+                        df_aprovar = df.drop(columns=["_selectedRowNodeInfo"], errors="ignore").copy()
+                        df_aprovar["aprovador_custos_login"] = st.session_state.get("username", "Desconhecido")
+                        df_aprovar["data_aprovacao_custos"] = data_hora_brasil_iso()
+
+                        # Normaliza datas
+                        date_cols_to_process = [
+                            "Previsao de Entrega", "Entrega Programada", "Data de Emissao",
+                            "Data de Autorizacao", "Data do Cancelamento", "Data do Escaneamento",
+                            "Data da Entrega Realizada", "Data da Ultima Ocorrencia",
+                            "Data de inclusao da Ultima Ocorrencia", "Data_Hora_Gerada",
+                            "data_aprovacao_custos"
+                        ]
+                        for col_name in date_cols_to_process:
+                            if col_name in df_aprovar.columns:
+                                df_aprovar[col_name] = pd.to_datetime(df_aprovar[col_name], errors='coerce')
+                                df_aprovar[col_name] = df_aprovar[col_name].apply(
+                                    lambda x: x.isoformat() if pd.notna(x) else None
+                                )
+
+                        df_aprovar = df_aprovar.replace([np.nan, pd.NaT, "", np.inf, -np.inf], None)
+
+                        registros_para_cargas_aprovadas = df_aprovar.to_dict(orient="records")
+                        registros_para_cargas_aprovadas = [r for r in registros_para_cargas_aprovadas if r.get("Serie_Numero_CTRC")]
+
+                        if registros_para_cargas_aprovadas:
+                            supabase.table("cargas_aprovadas").insert(registros_para_cargas_aprovadas).execute()
+                            chaves = [r["Serie_Numero_CTRC"] for r in registros_para_cargas_aprovadas]
+                            supabase.table("aprovacao_custos").delete().in_("Serie_Numero_CTRC", chaves).execute()
+
+                        st.success(f"✅ {len(registros_para_cargas_aprovadas)} entregas aprovadas com sucesso.")
+                        st.session_state["reload_aprovacao_custos"] = True
+                        st.session_state["reload_cargas_aprovadas"] = True
+                        st.rerun()
+
+                except Exception as e:
+                    st.error(f"❌ Erro ao aprovar entregas: {e}")
+
+
+
 
         if 'numero_carga' in df.columns:
             df['numero_carga'] = df['numero_carga'].astype(str)
