@@ -1319,23 +1319,26 @@ def adicionar_entregas_a_carga(chaves_cte, numero_carga_destino):
             is_empty_or_invalid_str = temp_str_series.isin(['', 'nat', 'nan'])
             df_para_inserir.loc[is_empty_or_invalid_str, col_name] = None
             to_parse_indices = df_para_inserir.loc[~is_empty_or_invalid_str, col_name].index
+
             if not to_parse_indices.empty:
                 parsed_dates = pd.to_datetime(
                     df_para_inserir.loc[to_parse_indices, col_name],
                     dayfirst=True,
                     errors='coerce'
                 )
-                df_para_inserir.loc[to_parse_indices, col_name] = parsed_dates.dt.strftime('%Y-%m-%d')
 
-                localized_utc_dates = parsed_dates.apply(
-                    lambda x: x.tz_localize(FUSO_BRASIL).tz_convert('UTC') if pd.notna(x) else pd.NaT
-                )
-                df_para_inserir.loc[to_parse_indices, col_name] = localized_utc_dates.apply(
-                    lambda x: x.isoformat(timespec='seconds').replace('+00:00', 'Z') if pd.notna(x) else None
-                )
+                def tratar_data_para_utc(dt):
+                    if pd.isna(dt):
+                        return None
+                    if dt.tzinfo is None:
+                        dt = dt.tz_localize(FUSO_BRASIL)
+                    return dt.tz_convert("UTC").isoformat(timespec="seconds").replace("+00:00", "Z")
+
+                df_para_inserir.loc[to_parse_indices, col_name] = parsed_dates.apply(tratar_data_para_utc)
+
 
     df_para_inserir = df_para_inserir.replace([np.nan, pd.NaT, np.inf, -np.inf, ""], None)
-    st.write(df_para_inserir[["Previsao de Entrega", "Entrega Programada"]])
+    st.write("🧪 Preview das datas tratadas:", df_para_inserir[[col for col in ["Previsao de Entrega", "Entrega Programada"] if col in df_para_inserir.columns]])
     dados_para_insercao = df_para_inserir.to_dict(orient='records')
 
     insert_success = False
