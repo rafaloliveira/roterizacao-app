@@ -2862,62 +2862,59 @@ def pagina_pre_roterizacao():
             if not selecionadas.empty: # BOTÃO AGORA SÓ APARECE SE TIVER SELEÇÃO
 
 
-                if st.button(f"🚀 Confirmar entregas da Rota", key=f"btn_pre_rota_{rota}"):
-                    try: # <-- Corrigido: 'try' deve estar na mesma indentação do 'if st.button'
-                        df_confirmar = selecionadas.drop(columns=["_selectedRowNodeInfo"], errors="ignore").copy()
-                        df_confirmar["Rota"] = rota
+                chaves_cte = selecionadas["Chave CT-e"].dropna().astype(str).str.strip().tolist()
 
-                        # --- INÍCIO DA LÓGICA MODIFICADA PARA TRATAMENTO DE DATAS ---
-                        # Lista de todas as colunas que podem conter dados de data/hora
-                        date_cols_to_process = [
-                            "Previsao de Entrega",
-                            "Entrega Programada",
-                            "Data de Emissao",
-                            "Data de Autorizacao",
-                            "Data do Cancelamento",
-                            "Data do Escaneamento",
-                            "Data da Entrega Realizada",
-                            "Data da Ultima Ocorrencia",
-                            "Data de inclusao da Ultima Ocorrencia"
-                            # Adicione aqui qualquer outra coluna de data/hora relevante
-                        ]
+                # 🔁 Tratamento de datas antes de enviar para cargas
+                date_cols_to_process = [
+                    "Previsao de Entrega",
+                    "Entrega Programada",
+                    "Data de Emissao",
+                    "Data de Autorizacao",
+                    "Data do Cancelamento",
+                    "Data do Escaneamento",
+                    "Data da Entrega Realizada",
+                    "Data da Ultima Ocorrencia",
+                    "Data de inclusao da Ultima Ocorrencia"
+                ]
 
-                        for col_name in date_cols_to_process:
-                            if col_name in df_confirmar.columns:
-                                # FIX PRINCIPAL AQUI: Especifique o formato de entrada para pd.to_datetime
-                                df_confirmar[col_name] = pd.to_datetime(
-                                    df_confirmar[col_name],
-                                    format=DATE_DISPLAY_FORMAT_STRING, # <-- Adicione esta linha!
-                                    errors='coerce'
-                                )
-                                df_confirmar[col_name] = df_confirmar[col_name].apply(
-                                    lambda x: x.strftime("%Y-%m-%d %H:%M:%S") if pd.notna(x) else None
-                                )
-                        # --- FIM DA LÓGICA MODIFICADA PARA TRATAMENTO DE DATAS ---
+                for col_name in date_cols_to_process:
+                    if col_name in selecionadas.columns:
+                        selecionadas[col_name] = pd.to_datetime(
+                            selecionadas[col_name],
+                            format=DATE_DISPLAY_FORMAT_STRING,
+                            errors='coerce'
+                        ).dt.strftime("%Y-%m-%d %H:%M:%S")
 
-                        # Agora, trate outros NaN/Inf que não sejam de colunas de data/hora.
-                        # Para colunas de data/hora, o pd.NaT já foi convertido para None acima.
-                        df_confirmar = df_confirmar.replace([np.nan, np.inf, -np.inf], None)
+                # ➕ Botão: Criar nova carga com entregas selecionadas
+                if st.button(f"➕ Criar Nova Carga com entregas da Rota {rota}", key=f"btn_nova_carga_rota_{rota}"):
+                    try:
+                        numero_carga = gerar_proximo_numero_carga(supabase)
+                        if numero_carga:
+                            adicionar_entregas_a_carga(chaves_cte, numero_carga)
+                        else:
+                            st.error("Erro ao gerar número de carga.")
+                    except Exception as e:
+                        st.error(f"Erro ao criar nova carga: {e}")
 
-                        registros = df_confirmar.to_dict(orient="records")
-                        registros = [r for r in registros if r.get("Serie_Numero_CTRC")]
+                # 📥 Botão: Adicionar à carga existente
+                cargas_existentes = supabase.table("cargas_geradas").select("numero_carga").execute().data
+                lista_cargas = sorted({c["numero_carga"] for c in cargas_existentes if c.get("numero_carga")})
 
-                        supabase.table("rotas_confirmadas").insert(registros).execute()
-                        chaves = [r["Serie_Numero_CTRC"] for r in registros]
-                        supabase.table("pre_roterizacao").delete().in_("Serie_Numero_CTRC", chaves).execute() # <-- Esta linha está correta aqui
+                if lista_cargas:
+                    carga_selecionada = st.selectbox(
+                        "📦 Selecionar Carga Existente",
+                        options=["Selecionar..."] + lista_cargas,
+                        key=f"selectbox_carga_rota_{rota}"
+                    )
 
-                        # Limpa o estado da sessão para forçar a recarga dos grids e evitar problemas de cache.
-                        st.session_state["reload_pre_roterizacao"] = True
-                        # AJUSTE AQUI: ADICIONA FLAG PARA RECARREGAR ROTAS CONFIRMADAS
-                        st.session_state["reload_rotas_confirmadas"] = True
-                        st.session_state.pop(grid_key, None)
-                        st.session_state.pop(checkbox_key, None)
+                    if st.button(f"📥 Adicionar entregas à Carga {carga_selecionada}", key=f"btn_add_existente_rota_{rota}"):
+                        if carga_selecionada == "Selecionar...":
+                            st.warning("Por favor, selecione uma carga válida.")
+                        else:
+                            adicionar_entregas_a_carga(chaves_cte, carga_selecionada)
+                else:
+                    st.info("Nenhuma carga existente disponível no momento.")
 
-
-                        st.success(f"✅ {len(chaves)} entregas da Rota {rota} foram confirmadas com sucesso.")
-                        st.rerun()
-                    except Exception as e: # <-- Corrigido: 'except' deve estar na mesma indentação do 'try'
-                        st.error(f"❌ Erro ao confirmar entregas da rota {rota}: {e}")
 
 ##########################################
 
