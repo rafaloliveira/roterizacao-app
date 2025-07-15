@@ -1338,7 +1338,7 @@ def adicionar_entregas_a_carga(chaves_cte, numero_carga_destino):
 
 
     df_para_inserir = df_para_inserir.replace([np.nan, pd.NaT, np.inf, -np.inf, ""], None)
-    st.write("🧪 Preview das datas tratadas:", df_para_inserir[[col for col in ["Previsao de Entrega", "Entrega Programada"] if col in df_para_inserir.columns]])
+    #st.write("🧪 Preview das datas tratadas:", df_para_inserir[[col for col in ["Previsao de Entrega", "Entrega Programada"] if col in df_para_inserir.columns]])
     dados_para_insercao = df_para_inserir.to_dict(orient='records')
 
     insert_success = False
