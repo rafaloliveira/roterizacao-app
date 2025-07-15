@@ -4685,8 +4685,8 @@ if st.session_state.get("login", False):
             sub_tab_rotas_conf, sub_tab_cargas, sub_tab_aprov_custos, \
             sub_tab_cargas_aprovadas, sub_tab_cargas_fechadas = st.tabs([
                 "Confirmar Produção", "Aprovação Diretoria", "Pré Roterização", 
-                "Rotas Confirmadas", "Cargas Geradas", "Aprovação de Custos", 
-                "Cargas Aprovadas", "Cargas Fechadas"
+                "Cargas Geradas", "Aprovação de Custos", "Cargas Aprovadas",
+                "Cargas Fechadas"
 ])
         with sub_tab_confirmar_prod:
             pagina_confirmar_producao()
