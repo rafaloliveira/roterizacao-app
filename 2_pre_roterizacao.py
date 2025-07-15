@@ -2776,6 +2776,26 @@ def pagina_pre_roterizacao():
             unsafe_allow_html=True
         )
 
+         # === NOVO: Cálculo do valor ideal de contratação ===
+        percentuais_ideais = {
+            "INTERIOR 1": 0.35,
+            "INTERIOR 2": 0.45,
+            "POA CAPITAL": 0.30
+        }
+
+        regiao_chave = regioes[0] if len(regioes) > 0 else None
+        percentual_usado = percentuais_ideais.get(regiao_chave, None)
+
+        if percentual_usado is not None:
+            valor_mercadoria_total = df_rota.get("Valor da Mercadoria", pd.Series(dtype=float)).sum()
+            valor_ideal = valor_mercadoria_total * percentual_usado
+            st.markdown(
+                f"<div style='padding: 8px 12px; margin-top: 6px; background-color:#eaf4ea; border-left: 4px solid #4caf50; border-radius: 4px;'>"
+                f"💡 <strong>Valor Ideal de Contratação</strong> para região <b>{regiao_chave}</b>: <b>R$ {formatar_brasileiro(valor_ideal)}</b>"
+                f"</div>",
+                unsafe_allow_html=True
+            )
+
         with st.expander("🔽 Selecionar entregas", expanded=False):
             # NOVO: Checkbox "Marcar todas" dentro do expander
             checkbox_key = f"marcar_todas_pre_rota_{rota}"
