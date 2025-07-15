@@ -2556,26 +2556,29 @@ def pagina_pre_roterizacao():
 
     with st.spinner("🔄 Carregando dados das entregas..."):
         try:
-            # Reutiliza a lógica de cache ou recarrega do Supabase
+            df_visivel = None  # ✅ Inicialização preventiva
+            dados_confirmados = pd.DataFrame()  # Para evitar erro de variável indefinida
+
             recarregar = st.session_state.pop("reload_pre_roterizacao", False)
             if recarregar or "df_pre_roterizacao_cache" not in st.session_state:
                 df = carregar_base_supabase()
                 dados_confirmados_raw = supabase.table("rotas_confirmadas").select("Serie_Numero_CTRC").execute().data
                 dados_confirmados = pd.DataFrame(dados_confirmados_raw)
                 st.session_state["df_pre_roterizacao_cache"] = df
-                st.session_state["dados_confirmados_cache"] = dados_confirmados # Cachear também os confirmados
+                st.session_state["dados_confirmados_cache"] = dados_confirmados
+
+                # ✅ Define df_visivel como uma cópia do df carregado (sem aplicar filtro da diretoria)
+                df_visivel = df.copy()
             else:
                 df_total = st.session_state["df_pre_roterizacao_cache"]
                 df_aprovadas_diretoria = st.session_state.get("df_aprovadas_diretoria", pd.DataFrame())
 
-                # Garante que as colunas de chave sejam strings para evitar erro no .isin
                 df_aprovadas_diretoria["Serie_Numero_CTRC"] = df_aprovadas_diretoria["Serie_Numero_CTRC"].astype(str)
                 df_total["Serie_Numero_CTRC"] = df_total["Serie_Numero_CTRC"].astype(str)
 
-                # Exclui do df principal o que já está vindo da diretoria
                 df_visivel = df_total[~df_total["Serie_Numero_CTRC"].isin(df_aprovadas_diretoria["Serie_Numero_CTRC"])]
-
                 dados_confirmados = st.session_state["dados_confirmados_cache"]
+
 
 
         except Exception as e:
