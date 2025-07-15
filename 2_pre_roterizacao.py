@@ -2776,7 +2776,7 @@ def pagina_pre_roterizacao():
             unsafe_allow_html=True
         )
 
-        # === NOVO: Cálculo do valor ideal de contratação ===
+            # === Cálculo do valor ideal de contratação com base no Valor do Frete ===
         percentuais_ideais = {
             "INTERIOR 1": 0.35,
             "INTERIOR 2": 0.45,
@@ -2786,24 +2786,27 @@ def pagina_pre_roterizacao():
         regiao_chave = regioes[0] if len(regioes) > 0 else None
         percentual_usado = percentuais_ideais.get(regiao_chave, None)
 
-        if percentual_usado is not None:
-            # Corrige tipo da coluna antes de somar
-            df_rota["Valor da Mercadoria"] = pd.to_numeric(df_rota["Valor da Mercadoria"], errors="coerce")
-            valor_mercadoria_total = df_rota["Valor da Mercadoria"].sum()
-            valor_ideal = valor_mercadoria_total * percentual_usado
+        if percentual_usado is not None and "Valor do Frete" in df_rota.columns:
+            # Garantir tipo numérico do frete
+            df_rota["Valor do Frete"] = pd.to_numeric(df_rota["Valor do Frete"], errors="coerce")
+            valor_frete_total = df_rota["Valor do Frete"].sum()
+            valor_ideal = valor_frete_total * percentual_usado
 
             st.markdown(
                 f"""
                 <div style='padding: 8px 12px; margin-top: 6px; background-color:#eaf4ea;
                             border-left: 4px solid #4caf50; border-radius: 4px;'>
                     💡 <strong>Valor Ideal de Contratação</strong> para região <b>{regiao_chave}</b>
-                    ({int(percentual_usado * 100)}%): <b>R$ {formatar_brasileiro(valor_ideal)}</b>
+                    ({int(percentual_usado * 100)}% do frete): <b>R$ {formatar_brasileiro(valor_ideal)}</b>
                 </div>
                 """,
                 unsafe_allow_html=True
             )
+        elif percentual_usado is not None:
+            st.warning(f"A coluna 'Valor do Frete' não está disponível para a Rota {rota}.")
         else:
-            st.warning("Região sem percentual definido para cálculo do valor ideal.")
+            st.warning(f"A região '{regiao_chave}' não possui percentual definido.")
+
 
         with st.expander("🔽 Selecionar entregas", expanded=False):
             # NOVO: Checkbox "Marcar todas" dentro do expander
@@ -2820,14 +2823,14 @@ def pagina_pre_roterizacao():
             gb.configure_grid_options(paginationPageSize=12)
             gb.configure_grid_options(alwaysShowHorizontalScroll=True)
             gb.configure_grid_options(rowStyle={'font-size': '11px'})
-            gb.configure_grid_options(onGridReady=GRID_RESIZE_JS_CODE)
+            gb.configure_grid_options(onGridReady=GRID_RESIZE_JS_CODE) # <<< ADICIONADO AQUI
             grid_options = gb.build()
             grid_options["getRowStyle"] = linha_destacar
 
             grid_key = f"grid_pre_rota_{rota}"
+            # Mantém a key constante a menos que os dados subjacentes mudem, não forcando novo UUID
             if grid_key not in st.session_state:
                 st.session_state[grid_key] = str(uuid.uuid4())
-
 
 
             grid_response = AgGrid(
