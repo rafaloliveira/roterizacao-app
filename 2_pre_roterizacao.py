@@ -2652,7 +2652,12 @@ def pagina_pre_roterizacao():
             dados_confirmados = pd.DataFrame()
 
             recarregar = st.session_state.pop("reload_pre_roterizacao", False)
-            df_total = carregar_base_supabase()
+            if recarregar or "df_pre_roterizacao_cache" not in st.session_state:
+                df_total = carregar_base_supabase()
+                st.session_state["df_pre_roterizacao_cache"] = df_total
+            else:
+                df_total = st.session_state["df_pre_roterizacao_cache"]
+
 
             if recarregar or "df_pre_roterizacao_cache" not in st.session_state:
                 dados_confirmados_raw = supabase.table("rotas_confirmadas").select("Serie_Numero_CTRC").execute().data
