@@ -1248,156 +1248,113 @@ def limpar_tabelas_relacionadas():
 
 
 # ------------------------#############-------------------------------------------
-def adicionar_entregas_a_carga(chaves_cte, numero_carga_destino): # ALTERADO: Adicionado 'numero_carga_destino'
+def adicionar_entregas_a_carga(chaves_cte, numero_carga_destino):
     if not chaves_cte:
         st.warning("⚠️ Nenhuma Chave CT-e foi informada.")
         return
 
-    # ADICIONADO: Verifica se o número da carga de destino foi fornecido
     if not numero_carga_destino:
-        st.error("Erro interno: Número da carga de destino não fornecido para adicionar entregas.")
+        st.error("Erro interno: Número da carga de destino não fornecido.")
         return
 
-    # REMOVIDO: A geração de numero_carga foi movida para os botões que criam a carga.
-    # numero_carga = gerar_proximo_numero_carga(supabase)
-    # if not numero_carga: # Garante que um número de carga único foi gerado
-    #     st.error("Não foi possível gerar um número de carga único. Operação cancelada.")
-    #     return
-
-    # Usamos o nome 'numero_carga' internamente para consistência com o resto da função
     numero_carga = numero_carga_destino
-
     entregas_coletadas = []
-    
-    # Listas para guardar as Serie_Numero_CTRC das entregas encontradas em cada origem
     found_ctrc_in_pre_roterizacao = set()
     found_ctrc_in_rotas_confirmadas = set()
-    
-    # 1. Busca em pre_roterizacao usando "Chave CT-e"
+
+    # 1. Busca em pre_roterizacao
     try:
         response_pre = supabase.table("pre_roterizacao").select("*").in_("Chave CT-e", chaves_cte).execute()
         if response_pre.data:
             df_pre = pd.DataFrame(response_pre.data)
-            df_pre["origem_tabela"] = "pre_roterizacao" # Marca a origem
+            df_pre["origem_tabela"] = "pre_roterizacao"
             entregas_coletadas.extend(df_pre.to_dict(orient='records'))
             found_ctrc_in_pre_roterizacao.update(df_pre["Serie_Numero_CTRC"].tolist())
-            st.info(f"DEBUG: Encontradas {len(df_pre)} entregas em 'pre_roterizacao'.")
-        elif response_pre.error:
-            st.error(f"Erro ao consultar 'pre_roterizacao': {response_pre.error.message}")
+            st.info(f"Encontradas {len(df_pre)} entregas em 'pre_roterizacao'.")
     except Exception as e:
-        st.error(f"Erro inesperado ao consultar 'pre_roterizacao': {e}")
+        st.error(f"Erro ao consultar 'pre_roterizacao': {e}")
 
-    # 2. Busca em rotas_confirmadas (apenas as Chave CT-e que NÃO foram encontradas em pre_roterizacao)
-    # Para evitar pegar a mesma entrega duas vezes se ela existir em ambas as tabelas
+    # 2. Busca em rotas_confirmadas
     chaves_cte_restantes = [c for c in chaves_cte if c not in {e.get("Chave CT-e") for e in entregas_coletadas}]
-    if chaves_cte_restantes: # Verifica se ainda há chaves CT-e para buscar
+    if chaves_cte_restantes:
         try:
             response_conf = supabase.table("rotas_confirmadas").select("*").in_("Chave CT-e", chaves_cte_restantes).execute()
             if response_conf.data:
                 df_conf = pd.DataFrame(response_conf.data)
-                df_conf["origem_tabela"] = "rotas_confirmadas" # Marca a origem
+                df_conf["origem_tabela"] = "rotas_confirmadas"
                 entregas_coletadas.extend(df_conf.to_dict(orient='records'))
                 found_ctrc_in_rotas_confirmadas.update(df_conf["Serie_Numero_CTRC"].tolist())
-                st.info(f"DEBUG: Encontradas {len(df_conf)} entregas em 'rotas_confirmadas'.")
-            elif response_conf.error:
-                st.error(f"Erro ao consultar 'rotas_confirmadas': {response_conf.error.message}")
+                st.info(f"Encontradas {len(df_conf)} entregas em 'rotas_confirmadas'.")
         except Exception as e:
-            st.error(f"Erro inesperado ao consultar 'rotas_confirmadas': {e}")
+            st.error(f"Erro ao consultar 'rotas_confirmadas': {e}")
 
-    # Se nenhuma entrega foi encontrada em ambas as tabelas
     if not entregas_coletadas:
-        st.warning("⚠️ Nenhuma entrega encontrada para as Chaves CT-e informadas em 'Pré-Roterização' ou 'Rotas Confirmadas'.")
+        st.warning("⚠️ Nenhuma entrega encontrada nas tabelas para as Chaves CT-e informadas.")
         return
 
-    # Preparar dados para inserção em `cargas_geradas` (aplicar tratamento de datas)
     df_para_inserir = pd.DataFrame(entregas_coletadas)
-    df_para_inserir["numero_carga"] = numero_carga # USANDO 'numero_carga_destino' AQUI
+    df_para_inserir["numero_carga"] = numero_carga
     df_para_inserir["Data_Hora_Gerada"] = data_hora_brasil_iso()
 
-    # Aplica o bloco robusto de tratamento de datas para envio ao Supabase
     for col_name in GLOBAL_DATE_DISPLAY_COLUMNS:
         if col_name in df_para_inserir.columns:
             temp_str_series = df_para_inserir[col_name].astype(str).str.strip()
             is_empty_or_invalid_str = temp_str_series.isin(['', 'nat', 'nan'])
             df_para_inserir.loc[is_empty_or_invalid_str, col_name] = None
             to_parse_indices = df_para_inserir.loc[~is_empty_or_invalid_str, col_name].index
-            
             if not to_parse_indices.empty:
                 current_col_values_to_parse = df_para_inserir.loc[to_parse_indices, col_name]
                 input_format_str = DATE_ONLY_DISPLAY_FORMAT_STRING if col_name in DATE_ONLY_REPARSE_COLUMNS else DATE_DISPLAY_FORMAT_STRING
-                parsed_dates = pd.to_datetime(
-                    current_col_values_to_parse,
-                    format=input_format_str,
-                    errors='coerce' 
-                )
+                parsed_dates = pd.to_datetime(current_col_values_to_parse, format=input_format_str, errors='coerce')
                 localized_utc_dates = parsed_dates.apply(
-                    lambda x: x.tz_localize(FUSO_BRASIL, ambiguous='NaT', nonexistent='NaT').tz_convert('UTC')
-                    if pd.notna(x) else pd.NaT
+                    lambda x: x.tz_localize(FUSO_BRASIL).tz_convert('UTC') if pd.notna(x) else pd.NaT
                 )
                 df_para_inserir.loc[to_parse_indices, col_name] = localized_utc_dates.apply(
-                    lambda x: x.isoformat(timespec='seconds').replace('+00:00', 'Z') 
-                    if pd.notna(x) else None
+                    lambda x: x.isoformat(timespec='seconds').replace('+00:00', 'Z') if pd.notna(x) else None
                 )
-    
+
     df_para_inserir = df_para_inserir.replace([np.nan, pd.NaT, np.inf, -np.inf, ""], None)
     dados_para_insercao = df_para_inserir.to_dict(orient='records')
 
-
-    # Insere entregas na tabela `cargas_geradas`
     insert_success = False
-    inserted_ctrcs = [] # Para armazenar as Serie_Numero_CTRC que foram de fato inseridas
+    inserted_ctrcs = []
     for tentativa in range(2):
         try:
             insert_response = supabase.table("cargas_geradas").insert(dados_para_insercao).execute()
-            if insert_response.data: # Inserção bem-sucedida
+            if insert_response and insert_response.data:
                 inserted_ctrcs = [r.get("Serie_Numero_CTRC") for r in insert_response.data if r.get("Serie_Numero_CTRC")]
                 insert_success = True
-                st.success(f"✅ {len(insert_response.data)} entrega(s) adicionada(s) à Carga {numero_carga}.")
+                st.success(f"✅ {len(inserted_ctrcs)} entrega(s) adicionada(s) à Carga {numero_carga}.")
                 break
-            elif insert_response.error:
-                st.warning(f"Tentativa {tentativa+1}/2: Erro ao inserir na 'cargas_geradas': {insert_response.error.message}")
-                if tentativa == 0: time.sleep(1)
-            else:
-                st.warning(f"Tentativa {tentativa+1}/2: Inserção em 'cargas_geradas' não retornou erro, mas sem dados afetados. Resposta: {insert_response}")
-                if tentativa == 0: time.sleep(1)
-        except Exception as e_insert:
-            st.warning(f"Tentativa {tentativa+1}/2: Exceção durante inserção em 'cargas_geradas': {e_insert}")
-            if tentativa == 0: time.sleep(1)
+        except Exception as e:
+            st.warning(f"Tentativa {tentativa+1}/2: Erro ao inserir em 'cargas_geradas': {e}")
+            if tentativa == 0:
+                time.sleep(1)
 
     if not insert_success:
-        st.error(f"❌ Falha crítica ao adicionar entregas à Carga {numero_carga} após múltiplas tentativas. Nenhuma entrega foi movida.")
-        return # Sair da função se a inserção falhar
+        st.error(f"❌ Falha ao adicionar entregas à carga {numero_carga}.")
+        return
 
-    # Remove entregas das tabelas de origem SOMENTE SE a inserção foi bem-sucedida
-    # e somente as Serie_Numero_CTRC que foram de fato inseridas (inserted_ctrcs)
+    # Deleção nas origens
     if inserted_ctrcs:
-        # Deleção de pre_roterizacao (apenas as que foram encontradas lá E inseridas)
-        ctrcs_to_delete_from_pre = list(set(inserted_ctrcs).intersection(found_ctrc_in_pre_roterizacao))
-        if ctrcs_to_delete_from_pre:
-            try:
+        try:
+            ctrcs_to_delete_from_pre = list(set(inserted_ctrcs).intersection(found_ctrc_in_pre_roterizacao))
+            if ctrcs_to_delete_from_pre:
                 delete_response_pre = supabase.table("pre_roterizacao").delete().in_("Serie_Numero_CTRC", ctrcs_to_delete_from_pre).execute()
-                if delete_response_pre.error:
-                    st.warning(f"Erro ao deletar de 'pre_roterizacao': {delete_response_pre.error.message}")
-                else:
-                    st.info(f"Removidas {len(delete_response_pre.data)} entregas de 'pre_roterizacao'.")
-            except Exception as e:
-                st.warning(f"Exceção ao deletar de 'pre_roterizacao': {e}")
+                st.info(f"Removidas {len(delete_response_pre.data)} entregas de 'pre_roterizacao'.")
+        except Exception as e:
+            st.warning(f"Erro ao deletar de 'pre_roterizacao': {e}")
 
-        # Deleção de rotas_confirmadas (apenas as que foram encontradas lá E inseridas)
-        ctrcs_to_delete_from_conf = list(set(inserted_ctrcs).intersection(found_ctrc_in_rotas_confirmadas))
-        if ctrcs_to_delete_from_conf:
-            try:
+        try:
+            ctrcs_to_delete_from_conf = list(set(inserted_ctrcs).intersection(found_ctrc_in_rotas_confirmadas))
+            if ctrcs_to_delete_from_conf:
                 delete_response_conf = supabase.table("rotas_confirmadas").delete().in_("Serie_Numero_CTRC", ctrcs_to_delete_from_conf).execute()
-                if delete_response_conf.error:
-                    st.warning(f"Erro ao deletar de 'rotas_confirmadas': {delete_response_conf.error.message}")
-                else:
-                    st.info(f"Removidas {len(delete_response_conf.data)} entregas de 'rotas_confirmadas'.")
-            except Exception as e:
-                st.warning(f"Exceção ao deletar de 'rotas_confirmadas': {e}")
+                st.info(f"Removidas {len(delete_response_conf.data)} entregas de 'rotas_confirmadas'.")
+        except Exception as e:
+            st.warning(f"Erro ao deletar de 'rotas_confirmadas': {e}")
     else:
-        st.warning("Nenhuma Chave CT-e válida para deletar da origem (não encontradas ou não inseridas na carga).")
+        st.warning("Nenhuma entrega foi realmente inserida para deletar das tabelas de origem.")
 
-    # Invalida caches para atualizar a UI
     st.session_state["reload_rotas_confirmadas"] = True
     st.session_state["reload_pre_roterizacao"] = True
     st.session_state["reload_cargas_geradas"] = True
@@ -1405,7 +1362,8 @@ def adicionar_entregas_a_carga(chaves_cte, numero_carga_destino): # ALTERADO: Ad
     st.session_state.pop("df_rotas_confirmadas_cache", None)
     st.session_state.pop("df_cargas_cache", None)
 
-    st.rerun() # Força um rerun para atualizar as páginas
+    st.rerun()
+
 
 # ------------------------#############-------------------------------------------
 def aplicar_regras_e_preencher_tabelas():
