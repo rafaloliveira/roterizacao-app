@@ -1262,6 +1262,22 @@ def adicionar_entregas_a_carga(chaves_cte, numero_carga_destino):
     found_ctrc_in_pre_roterizacao = set()
     found_ctrc_in_rotas_confirmadas = set()
 
+    # DEBUG: Exibir chaves recebidas
+    st.code(f"🔍 {len(chaves_cte)} chaves recebidas:\n" + "\n".join(chaves_cte))
+
+    # DEBUG: Carrega os dados brutos para comparação direta
+    dados_pre_all = supabase.table("pre_roterizacao").select("*").execute().data or []
+    dados_rotas_all = supabase.table("rotas_confirmadas").select("*").execute().data or []
+
+    pre_chaves = [str(d.get("Chave CT-e", "")).strip() for d in dados_pre_all]
+    rotas_chaves = [str(d.get("Chave CT-e", "")).strip() for d in dados_rotas_all]
+
+    encontradas_pre = [c for c in chaves_cte if c in pre_chaves]
+    encontradas_rotas = [c for c in chaves_cte if c in rotas_chaves]
+
+    st.code(f"🔎 Encontradas em pre_roterizacao: {encontradas_pre}")
+    st.code(f"🔎 Encontradas em rotas_confirmadas: {encontradas_rotas}")
+
     # 1. Busca em pre_roterizacao
     try:
         response_pre = supabase.table("pre_roterizacao").select("*").in_("Chave CT-e", chaves_cte).execute()
@@ -1335,7 +1351,6 @@ def adicionar_entregas_a_carga(chaves_cte, numero_carga_destino):
         st.error(f"❌ Falha ao adicionar entregas à carga {numero_carga}.")
         return
 
-    # Deleção nas origens
     if inserted_ctrcs:
         try:
             ctrcs_to_delete_from_pre = list(set(inserted_ctrcs).intersection(found_ctrc_in_pre_roterizacao))
