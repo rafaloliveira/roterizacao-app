@@ -2585,34 +2585,15 @@ def pagina_pre_roterizacao():
             return
 
 
-    # ======= MÉTRICAS: TOTAL + CONFIRMADAS DA DIRETORIA (lado a lado) =======
-    
-    col1, col2, col3, col4, spacer, col5, col6, col7 = st.columns([1, 1, 1, 1, 0.3, 1, 1, 1])
-
+    col1, col2, col3, col4, _ = st.columns([1, 1, 1, 1, 6])
     with col1:
-        st.metric("🛣️ Total de Rotas", df["Rota"].nunique() if "Rota" in df.columns else 0)
+        st.metric("Total de Rotas", df["Rota"].nunique() if "Rota" in df.columns else 0)
     with col2:
-        st.metric("📦 Total de Entregas", len(df))
-    with col3:
-        st.metric("⚖️ Peso Real (kg)", formatar_brasileiro(df["Peso Real em Kg"].sum()))
-    with col4:
-        st.metric("📏 Peso Calculado (kg)", formatar_brasileiro(df["Peso Calculado em Kg"].sum()))
-
-    # 🔹 Métricas das entregas que vieram da Aprovação da Diretoria
-    df_aprovadas_diretoria = st.session_state.get("df_aprovadas_diretoria", pd.DataFrame())
-    qtde_aprovadas = len(df_aprovadas_diretoria)
-    peso_real_aprovado = df_aprovadas_diretoria["Peso Real em Kg"].sum() if "Peso Real em Kg" in df_aprovadas_diretoria else 0
-    peso_calc_aprovado = df_aprovadas_diretoria["Peso Calculado em Kg"].sum() if "Peso Calculado em Kg" in df_aprovadas_diretoria else 0
-
-    with col5:
-        st.metric("✅ Vindas da Diretoria", qtde_aprovadas)
-    with col6:
-        st.metric("✅ Peso Real", formatar_brasileiro(peso_real_aprovado))
-    with col7:
-        st.metric("✅ Peso Calc.", formatar_brasileiro(peso_calc_aprovado))
-
-
-    #======= FIM MÉTRICAS: TOTAL + CONFIRMADAS DA DIRETORIA (lado a lado) =======
+        st.metric("Total de Entregas", len(df))
+    with col3: # NOVO: Peso Real
+        st.metric("Peso Real (kg)", formatar_brasileiro(df['Peso Real em Kg'].sum()))
+    with col4: # NOVO: Peso Calculado
+        st.metric("Peso Calculado (kg)", formatar_brasileiro(df['Peso Calculado em Kg'].sum()))
 
     def badge(label):
         return f"<span style='background:#eef2f7;border-radius:12px;padding:6px 12px;margin:4px;color:inherit;display:inline-block;'>{label}</span>"
