@@ -1263,7 +1263,7 @@ def adicionar_entregas_a_carga(chaves_cte, numero_carga_destino):
     found_ctrc_in_rotas_confirmadas = set()
 
     # DEBUG: Exibir chaves recebidas
-    st.code(f"🔍 {len(chaves_cte)} chaves recebidas:\n" + "\n".join(chaves_cte))
+    #st.code(f"🔍 {len(chaves_cte)} chaves recebidas:\n" + "\n".join(chaves_cte))
 
     # Carrega os dados brutos
     dados_pre_all = supabase.table("pre_roterizacao").select("*").execute().data or []
