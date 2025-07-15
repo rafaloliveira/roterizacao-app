@@ -192,11 +192,14 @@ def mover_entregas_para_outra_rota(chaves_cte, nova_rota):
             supabase.table("pre_roterizacao").update({"Rota": nova_rota}).eq("Chave CT-e", chave).execute()
 
         st.success(f"✅ {len(chaves_cte)} entrega(s) movida(s) para a rota '{nova_rota}'.")
+
+        # 🔄 Forçar recarregamento e redesenho
         st.session_state["reload_pre_roterizacao"] = True
         st.rerun()
 
     except Exception as e:
         st.error(f"Erro ao mover entregas: {e}")
+
 
 
 #################################
