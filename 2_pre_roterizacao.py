@@ -2626,7 +2626,7 @@ def pagina_pre_roterizacao():
                     for col in colunas_data:
                         if col in entrega:
                             try:
-                                entrega[col] = pd.to_datetime(entrega[col], dayfirst=True, errors='coerce')
+                                entrega[col] = pd.to_datetime(entrega[col], errors='coerce')
                                 if pd.notnull(entrega[col]):
                                     entrega[col] = entrega[col].isoformat()
                                 else:
