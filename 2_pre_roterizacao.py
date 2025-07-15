@@ -2587,7 +2587,8 @@ def pagina_pre_roterizacao():
             return
 
         if not dados_confirmados.empty:
-            df = df[~df["Serie_Numero_CTRC"].isin(dados_confirmados["Serie_Numero_CTRC"].astype(str))]
+            df_visivel = df_visivel[~df_visivel["Serie_Numero_CTRC"].isin(dados_confirmados["Serie_Numero_CTRC"].astype(str))]
+
             
         if df_visivel.empty: # Verifica novamente se o DF ficou vazio após o filtro
             st.info("Nenhuma entrega disponível para pré-roterização após filtragem.")
@@ -2648,7 +2649,7 @@ def pagina_pre_roterizacao():
     """)
 
     for rota in sorted(df_visivel["Rota"].dropna().unique()):
-        df_rota = df_visivel[df_visivel["Rota"] == rota].copy()
+        df_rota = df[df["Rota"] == rota].copy()
         if df_rota.empty:
             continue
 
