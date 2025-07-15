@@ -2200,6 +2200,60 @@ def pagina_aprovacao_diretoria():
         st.metric("✅ Peso Real Aprovado", formatar_brasileiro(peso_real_aprovado))
     with col7:
         st.metric("✅ Peso Calc. Aprovado", formatar_brasileiro(peso_calc_aprovado))
+        st.markdown("---")
+        if st.button("✅ Aprovar TODAS as entregas da página", type="primary", use_container_width=True):
+            try:
+                with st.spinner("🔁 Aprovando todas as entregas da página..."):
+                    df_para_aprovar = df_aprovacao.copy()
+
+                    # --- TRATAMENTO DE DATAS PARA SUPABASE ---
+                    for col_name in GLOBAL_DATE_DISPLAY_COLUMNS:
+                        if col_name in df_para_aprovar.columns:
+                            df_para_aprovar[col_name] = pd.to_datetime(
+                                df_para_aprovar[col_name],
+                                format=DATE_DISPLAY_FORMAT_STRING,
+                                errors='coerce'
+                            )
+
+                    for col_name in df_para_aprovar.columns:
+                        if col_name in GLOBAL_DATE_DISPLAY_COLUMNS or \
+                        pd.api.types.is_datetime64_any_dtype(df_para_aprovar[col_name]):
+                            df_para_aprovar[col_name] = df_para_aprovar[col_name].apply(
+                                lambda x: x.strftime("%Y-%m-%d %H:%M:%S") if pd.notna(x) else None
+                            )
+                        elif df_para_aprovar[col_name].dtype == 'object':
+                            df_para_aprovar[col_name] = df_para_aprovar[col_name].apply(
+                                lambda x: x.strftime("%Y-%m-%d %H:%M:%S") if isinstance(x, (pd.Timestamp, datetime)) else x
+                            )
+
+                    df_para_aprovar = df_para_aprovar.replace([np.nan, np.inf, -np.inf, ""], None)
+
+                    registros = df_para_aprovar.to_dict(orient="records")
+                    registros = [r for r in registros if r.get("Serie_Numero_CTRC")]
+
+                    if registros:
+                        supabase.table("pre_roterizacao").insert(registros).execute()
+                        chaves = [r.get("Serie_Numero_CTRC") for r in registros if r.get("Serie_Numero_CTRC")]
+                        supabase.table("aprovacao_diretoria").delete().in_("Serie_Numero_CTRC", chaves).execute()
+
+                        # ✅ Atualiza contador da sessão
+                        df_aprovadas_sessao = pd.DataFrame(registros)
+                        if "df_aprovadas_diretoria" in st.session_state:
+                            st.session_state["df_aprovadas_diretoria"] = pd.concat([
+                                st.session_state["df_aprovadas_diretoria"], df_aprovadas_sessao
+                            ], ignore_index=True)
+                        else:
+                            st.session_state["df_aprovadas_diretoria"] = df_aprovadas_sessao
+
+                        st.session_state["reload_aprovacao_diretoria"] = True
+                        st.session_state["reload_pre_roterizacao"] = True
+                        st.success(f"✅ {len(chaves)} entregas aprovadas em lote.")
+                        st.rerun()
+                    else:
+                        st.info("Nenhuma entrega válida encontrada para aprovar.")
+            except Exception as e:
+                st.error(f"❌ Erro ao aprovar todas as entregas: {e}")
+
 
 
     def badge(label):
