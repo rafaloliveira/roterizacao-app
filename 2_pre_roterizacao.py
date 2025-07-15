@@ -3029,6 +3029,9 @@ def pagina_cargas_geradas():
             if "placa" in df_display.columns:
                 df_display["placa"] = df_display["placa"].astype(str).str.strip().str.upper()
 
+            if "veiculo" in df_display.columns:
+                df_display["veiculo"] = df_display["veiculo"].astype(str).str.strip().str.upper()    
+
             numeric_cols_for_formatting = [
                 'Peso Real em Kg', 'Peso Calculado em Kg', 'Cubagem em m³',
                 'Quantidade de Volumes', 'Valor do Frete', 'valor_contratacao'
