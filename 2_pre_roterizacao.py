@@ -3160,12 +3160,12 @@ def pagina_cargas_geradas():
                         {badge(f'{len(df_carga_raw)} entregas')}
                         {badge(f'{formatar_brasileiro(df_carga_raw["Peso Calculado em Kg"].sum())} kg calc')}
                         {badge(f'{formatar_brasileiro(df_carga_raw["Peso Real em Kg"].sum())} kg real')}
-                        {badge(f'Valor frete: R\$ {formatar_brasileiro(total_frete_carga)}')}
+                        {badge(f'Valor frete: R$ {formatar_brasileiro(total_frete_carga)}')}
                         {badge(f'{formatar_brasileiro(df_carga_raw["Cubagem em m³"].sum())} m³')}
                         {badge(f'{int(df_carga_raw["Quantidade de Volumes"].sum())} volumes')}
                         {badge(f'Motorista: {info_motorista}')}
                         {badge(f'Placa: {info_placa}')}
-                        {badge(f'Valor da Contratação: R\$ {info_valor_contratacao}')}
+                        {badge(f'Valor da Contratação: R$ {info_valor_contratacao}')}
                     </div>
                     """,
                     unsafe_allow_html=True
@@ -3441,14 +3441,14 @@ def pagina_cargas_geradas():
                         st.subheader(f"Valor da Contratação da Carga {carga}")
 
                         if valor_sugerido_contratacao > 0:
-                            st.info(f"**Sugestão de Valor:** Para atingir a meta da região '{dominant_region}' ({MAX_COST_PER_REGION.get(dominant_region, 0)*100:.0f}%), o valor ideal seria de **R\$ {formatar_brasileiro(valor_sugerido_contratacao)}**")
+                            st.info(f"**Sugestão de Valor:** Para atingir a meta da região '{dominant_region}' ({MAX_COST_PER_REGION.get(dominant_region, 0)*100:.0f}%), o valor ideal seria de **R$ {formatar_brasileiro(valor_sugerido_contratacao)}**")
                         elif total_frete_carga > 0:
                             st.warning(f"Não foi possível calcular uma sugestão de valor de contratação para a Rota {rota_dominante} / Região {dominant_region}.")
                         else:
                             st.info("Não foi possível calcular uma sugestão de valor de contratação (frete total zero).")
 
                         valor_contratacao = st.number_input(
-                            "Valor da Contratação da Carga (R\$)",
+                            "Valor da Contratação da Carga (R$)",
                             min_value=0.0,
                             value=valor_sugerido_contratacao, # Pré-preenche com a sugestão
                             step=0.01,
@@ -3556,7 +3556,7 @@ def pagina_cargas_geradas():
 
                                             st.session_state.pop(grid_key_id, None)
 
-                                            st.success(f"✅ {len(registros_para_custos)} entregas da carga {carga} enviadas para Aprovação de Custos com valor R\$ {valor_contratacao:.2f}.")
+                                            st.success(f"✅ {len(registros_para_custos)} entregas da carga {carga} enviadas para Aprovação de Custos com valor R$ {valor_contratacao:.2f}.")
 
                                             st.rerun()
                                         else:
@@ -3666,8 +3666,8 @@ def pagina_aprovacao_custos():
             
             # DEBUG: Adicionar logs para verificar os valores
             #st.write(f"🔍 **DEBUG - Carga {carga}:**")
-            #st.write(f"- Total Frete: R\$ {total_frete_carga:.2f}")
-            #st.write(f"- Valor Contratação: R\$ {valor_contratacao_carga_existente:.2f}")
+            #st.write(f"- Total Frete: R$ {total_frete_carga:.2f}")
+            #st.write(f"- Valor Contratação: R$ {valor_contratacao_carga_existente:.2f}")
             
             rentabilidade_percentual = 0.0
             situacao_custo_regional = "N/A"
