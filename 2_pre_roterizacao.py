@@ -2746,7 +2746,23 @@ def pagina_pre_roterizacao():
             else:
                 selecionadas = pd.DataFrame(grid_response.get("selected_rows", []))
 
-            st.markdown(f"**📦 Entregas selecionadas:** {len(selecionadas)}")
+            # ✅ Cálculos e exibição de métricas
+            qtd_entregas = len(selecionadas)
+            peso_real_total = selecionadas.get("Peso Real em Kg", pd.Series(dtype=float)).sum()
+            peso_calculado_total = selecionadas.get("Peso Calculado em Kg", pd.Series(dtype=float)).sum()
+            valor_frete_total = selecionadas.get("Valor do Frete", pd.Series(dtype=float)).sum()
+
+            st.markdown(
+                f"""
+                <div style='display: flex; gap: 24px; padding: 8px 0; font-size: 0.95rem; font-weight: 600;'>
+                    <span>📦 Entregas selecionadas: {qtd_entregas}</span>
+                    <span>⚖️ Peso Real: {formatar_brasileiro(peso_real_total)} kg</span>
+                    <span>📏 Peso Calculado: {formatar_brasileiro(peso_calculado_total)} kg</span>
+                    <span>💰 Valor do Frete: R$ {formatar_brasileiro(valor_frete_total)}</span>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
 
             if not selecionadas.empty: # BOTÃO AGORA SÓ APARECE SE TIVER SELEÇÃO
 
