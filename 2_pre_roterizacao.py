@@ -2653,9 +2653,10 @@ def pagina_pre_roterizacao():
         if df_rota.empty:
             continue
 
+        regiao = df_rota["Regiao"].iloc[0] if "Regiao" in df_rota.columns and not df_rota["Regiao"].isna().all() else "–"
         st.markdown(f"""
         <div style="margin-top:20px;padding:10px;background:#e8f0fe;border-left:4px solid #4285f4;border-radius:6px;display:inline-block;max-width:100%;">
-            <strong>Rota:</strong> {rota}
+            <strong>Rota:</strong> {rota} &nbsp; | &nbsp; <strong>Região:</strong> {regiao}
         </div>
         """, unsafe_allow_html=True)
 
