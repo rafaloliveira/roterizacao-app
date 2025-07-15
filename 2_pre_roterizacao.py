@@ -3091,11 +3091,19 @@ def pagina_cargas_geradas():
                 valor_sugerido_contratacao = round(valor_sugerido_contratacao, 2)
                 valor_sugerido_contratacao = max(0.0, valor_sugerido_contratacao)
 
+            # Determinar a Rota dominante (a mais frequente)
+            rota_dominante = "NÃO INFORMADA"
+            if "Rota" in df_carga_raw.columns and not df_carga_raw["Rota"].empty:
+                rotas_validas = df_carga_raw["Rota"].dropna()
+                if not rotas_validas.empty:
+                    rota_dominante = rotas_validas.value_counts().idxmax()
+
             st.markdown(f"""
             <div style="margin-top:20px;padding:10px;background:#e8f0fe;border-left:4px solid #34a853;border-radius:6px;display:inline-block;max-width:100%;">
-                <strong>Carga:</strong> {carga}
+                <strong>Carga:</strong> {carga} &nbsp; | &nbsp; <strong>Rota:</strong> {rota_dominante}
             </div>
             """, unsafe_allow_html=True)
+
 
             motorista_info = df_carga_raw["motorista"].dropna().unique()
             placa_info = df_carga_raw["placa"].dropna().unique()
