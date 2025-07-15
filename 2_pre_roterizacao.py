@@ -2551,12 +2551,94 @@ def pagina_aprovacao_diretoria():
 
 # Função PÁGINA PRÉ ROTERIZAÇÃO
 ##########################################
+# Função completa consolidada com carregamento, métricas, grids e ações de carga
 def pagina_pre_roterizacao():
     st.markdown("## Pré-Roteirização")
 
+    # --- Bloco de criação de carga avulsa ---
+    if "nova_carga_em_criacao" not in st.session_state:
+        st.session_state["nova_carga_em_criacao"] = False
+        st.session_state["numero_nova_carga"] = ""
+
+    if not st.session_state["nova_carga_em_criacao"]:
+        if st.button("🆕 Criar Nova Carga Avulsa"):
+            try:
+                numero_carga = gerar_proximo_numero_carga(supabase)
+                if numero_carga:
+                    st.session_state["nova_carga_em_criacao"] = True
+                    st.session_state["numero_nova_carga"] = numero_carga
+                    st.rerun()
+            except Exception as e:
+                st.error(f"Erro ao criar nova carga: {e}")
+    else:
+        st.success(f"Nova Carga Criada: {st.session_state['numero_nova_carga']}")
+        chaves_input = st.text_area("Insira as Chaves CT-e (uma por linha)")
+
+        col1, col2 = st.columns([5, 1])
+        with col1:
+            adicionar = st.button("➕ Adicionar Entregas à Carga", key="botao_manual")
+        with col2:
+            cancelar = st.button("❌", help="Cancelar Nova Carga")
+
+        if cancelar:
+            st.session_state["nova_carga_em_criacao"] = False
+            st.session_state["numero_nova_carga"] = ""
+            st.rerun()
+
+        if adicionar:
+            try:
+                chaves = [re.sub(r"\s+", "", c) for c in chaves_input.splitlines() if c.strip()]
+                if not chaves:
+                    st.warning("Nenhuma Chave CT-e válida informada.")
+                else:
+                    entregas_encontradas = []
+                    dados_pre = supabase.table("pre_roterizacao").select("*").execute().data
+                    dados_cargas = supabase.table("cargas_geradas").select("*").execute().data
+
+                    entregas_ja_em_carga = {
+                        str(d.get("Chave CT-e", "")).strip(): d.get("numero_carga")
+                        for d in dados_cargas if d.get("Chave CT-e")
+                    }
+
+                    for chave in chaves:
+                        if chave in entregas_ja_em_carga:
+                            st.warning(f"⚠️ A entrega com chave '{chave}' já está na carga {entregas_ja_em_carga[chave]}.")
+                            continue
+
+                        entrega = next((d for d in dados_pre if str(d.get("Chave CT-e", "")).strip() == chave), None)
+                        if not entrega:
+                            st.warning(f"⚠️ Chave {chave} não encontrada ou já foi processada.")
+                            continue
+
+                        entrega.pop("id", None)
+                        entrega["numero_carga"] = st.session_state["numero_nova_carga"]
+                        entrega["Data_Hora_Gerada"] = data_hora_brasil_iso()
+
+                        entrega = {
+                            k: (v.isoformat() if isinstance(v, (pd.Timestamp, datetime, date)) else v)
+                            for k, v in entrega.items()
+                        }
+
+                        supabase.table("cargas_geradas").insert(entrega).execute()
+                        supabase.table("pre_roterizacao").delete().eq("Serie_Numero_CTRC", entrega["Serie_Numero_CTRC"]).execute()
+
+                        entregas_encontradas.append(entrega)
+
+                    if entregas_encontradas:
+                        st.success(f"✅ {len(entregas_encontradas)} entrega(s) adicionada(s) à carga {st.session_state['numero_nova_carga']} com sucesso.")
+
+                    st.session_state["nova_carga_em_criacao"] = False
+                    st.session_state["numero_nova_carga"] = ""
+                    st.session_state["reload_pre_roterizacao"] = True
+                    st.session_state["reload_cargas_geradas"] = True
+                    st.rerun()
+
+            except Exception as e:
+                st.error(f"Erro ao adicionar entregas: {e}")
+
+    # --- Bloco de carregamento de dados ---
     with st.spinner("🔄 Carregando dados das entregas..."):
         try:
-            # 🔹 SEMPRE define as variáveis
             df_aprovadas_diretoria = st.session_state.get("df_aprovadas_diretoria", pd.DataFrame())
             dados_confirmados = pd.DataFrame()
 
@@ -2571,7 +2653,6 @@ def pagina_pre_roterizacao():
             else:
                 dados_confirmados = st.session_state.get("dados_confirmados_cache", pd.DataFrame())
 
-            # 🔹 Aplica filtro das entregas vindas da diretoria (caso existam)
             if "Serie_Numero_CTRC" in df_aprovadas_diretoria.columns and "Serie_Numero_CTRC" in df_total.columns:
                 df_aprovadas_diretoria["Serie_Numero_CTRC"] = df_aprovadas_diretoria["Serie_Numero_CTRC"].astype(str)
                 df_total["Serie_Numero_CTRC"] = df_total["Serie_Numero_CTRC"].astype(str)
@@ -2593,6 +2674,13 @@ def pagina_pre_roterizacao():
         if df_visivel.empty:
             st.info("Nenhuma entrega disponível para pré-roterização após filtragem.")
             return
+
+    # TODO: seguir aqui com o bloco de exibição por rota e incluir:
+    # - botão "Criar nova carga com entregas selecionadas"
+    # - botão "Adicionar à carga existente"
+
+    # Se quiser, posso colar também essa parte do bloco por rota, com AgGrid, métricas e botões.
+
 
 
     # ======= NOVAS MÉTRICAS SEPARADAS: EXISTENTES vs DIRETORIA =======
@@ -3047,14 +3135,6 @@ def pagina_rotas_confirmadas():
 
             except Exception as e: # Este é o 'except' para o bloco 'try' mais externo da adição manual
                 st.error(f"Erro ao adicionar entregas manualmente: {e}")
-
-    # --- FIM: BLOCO DE CRIAÇÃO DE CARGA AVULSA ---
-
-
-
-
-
-
     # --- INÍCIO: CARREGAMENTO DOS DADOS DE ROTAS CONFIRMADAS E EXIBIÇÃO ---
     try:
         with st.spinner("🔄 Carregando dados das entregas..."):
