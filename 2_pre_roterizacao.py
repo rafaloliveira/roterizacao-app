@@ -804,13 +804,13 @@ def carregar_base_supabase():
         df_final['Indice'] = df_final.index
         
         # ✅ Formatar datas para exibição no grid como dd-mm-aaaa
-        #for col in ["Previsao de Entrega", "Entrega Programada"]:
-        #    if col in base.columns:
-        #        base[col] = pd.to_datetime(base[col], errors='coerce', dayfirst=True)
-        #        base[col] = base[col].apply(lambda x: x.strftime("%d-%m-%Y") if pd.notnull(x) else "")
+        for col in ["Previsao de Entrega", "Entrega Programada"]:
+            if col in base.columns:
+                base[col] = pd.to_datetime(base[col], errors='coerce')
+                base[col] = base[col].dt.strftime("%d-%m-%Y").fillna("")
 
 
-        return df_final
+        return base
 
     except Exception as e:
         st.error(f"Erro ao consultar as tabelas do Supabase: {e}")
@@ -3014,7 +3014,7 @@ def pagina_cargas_geradas():
                         lambda x: x.strftime("%d-%m-%Y") if pd.notna(x) else ""
                     )
             df_display = df_display.replace([np.nan, None], "")
-            
+
             if "valor_contratacao" in df_display.columns:
                 df_display["valor_contratacao"] = pd.to_numeric(df_display["valor_contratacao"], errors="coerce").fillna(0.0)
 
