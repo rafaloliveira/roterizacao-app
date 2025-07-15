@@ -2589,7 +2589,7 @@ def pagina_pre_roterizacao():
         if not dados_confirmados.empty:
             df = df[~df["Serie_Numero_CTRC"].isin(dados_confirmados["Serie_Numero_CTRC"].astype(str))]
             
-        if df.empty: # Verifica novamente se o DF ficou vazio após o filtro
+        if df_visivel.empty: # Verifica novamente se o DF ficou vazio após o filtro
             st.info("Nenhuma entrega disponível para pré-roterização após filtragem.")
             return
 
