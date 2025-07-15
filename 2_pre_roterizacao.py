@@ -2655,6 +2655,16 @@ def pagina_pre_roterizacao():
             if recarregar or "df_pre_roterizacao_cache" not in st.session_state:
                 df_total = carregar_base_supabase()
                 st.session_state["df_pre_roterizacao_cache"] = df_total
+
+                # VAI AQUI A CORREÇÃO: Forçar a invalidação das chaves dos grids
+                if recarregar: # Este bloco só executa se 'recarregar' for True
+                    # Itera sobre uma cópia das chaves para evitar erros de modificação durante a iteração
+                    for key in list(st.session_state.keys()):
+                        # Verifica se a chave pertence a um dos grids de rota da pré-roteirização
+                        # O prefixo 'grid_pre_rota_' deve corresponder exatamente a como você define as keys dos seus AgGrids
+                        if key.startswith("grid_pre_rota_"):
+                            st.session_state.pop(key, None) # Remove a chave, forçando o redesenho do AgGrid na próxima execução
+
             else:
                 df_total = st.session_state["df_pre_roterizacao_cache"]
 
@@ -2666,6 +2676,7 @@ def pagina_pre_roterizacao():
                 st.session_state["dados_confirmados_cache"] = dados_confirmados
             else:
                 dados_confirmados = st.session_state.get("dados_confirmados_cache", pd.DataFrame())
+
 
             if "Serie_Numero_CTRC" in df_aprovadas_diretoria.columns and "Serie_Numero_CTRC" in df_total.columns:
                 df_aprovadas_diretoria["Serie_Numero_CTRC"] = df_aprovadas_diretoria["Serie_Numero_CTRC"].astype(str)
@@ -2688,12 +2699,6 @@ def pagina_pre_roterizacao():
         if df_visivel.empty:
             st.info("Nenhuma entrega disponível para pré-roterização após filtragem.")
             return
-
-    # TODO: seguir aqui com o bloco de exibição por rota e incluir:
-    # - botão "Criar nova carga com entregas selecionadas"
-    # - botão "Adicionar à carga existente"
-
-    # Se quiser, posso colar também essa parte do bloco por rota, com AgGrid, métricas e botões.
 
     # ======= NOVAS MÉTRICAS SEPARADAS: EXISTENTES vs DIRETORIA =======
     col_esq_1, col_esq_2, col_esq_3, col_esq_4, spacer, col_dir_1, col_dir_2, col_dir_3 = st.columns([1, 1, 1, 1, 0.3, 1, 1, 1])
