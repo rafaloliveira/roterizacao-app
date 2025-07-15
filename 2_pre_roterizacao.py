@@ -2556,10 +2556,10 @@ def pagina_pre_roterizacao():
 
     with st.spinner("🔄 Carregando dados das entregas..."):
         try:
-            df_visivel = None
-            df_aprovadas_diretoria = pd.DataFrame()
-            dados_confirmados = pd.DataFrame()
-
+            df = carregar_base_supabase()
+            dados_confirmados_raw = supabase.table("rotas_confirmadas").select("Serie_Numero_CTRC").execute().data
+            dados_confirmados = pd.DataFrame(dados_confirmados_raw)
+            df_visivel = df.copy()
             recarregar = st.session_state.pop("reload_pre_roterizacao", False)
             if recarregar or "df_pre_roterizacao_cache" not in st.session_state:
                 df = carregar_base_supabase()
@@ -2569,7 +2569,7 @@ def pagina_pre_roterizacao():
                 st.session_state["dados_confirmados_cache"] = dados_confirmados
                 df_visivel = df.copy()
             else:
-                df_total = st.session_state["df_pre_roterizacao_cache"]
+                df_total = carregar_base_supabase()
                 df_aprovadas_diretoria = st.session_state.get("df_aprovadas_diretoria", pd.DataFrame())
 
                 # Só realiza o filtro se ambas as tabelas tiverem a coluna
