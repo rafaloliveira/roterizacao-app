@@ -2047,7 +2047,16 @@ def pagina_confirmar_producao():
                     # Caso contrário, usa a seleção feita diretamente no grid
                     selecionadas = pd.DataFrame(grid_response.get("selected_rows", []))
 
-                st.markdown(f"**📦 Entregas selecionadas:** {len(selecionadas)}")
+                qtd_sel = len(selecionadas)
+                peso_real_sel = selecionadas["Peso Real em Kg"].sum() if "Peso Real em Kg" in selecionadas else 0
+                peso_calc_sel = selecionadas["Peso Calculado em Kg"].sum() if "Peso Calculado em Kg" in selecionadas else 0
+
+                st.markdown(
+                    f"<span style='font-weight:bold;'>📦 Entregas selecionadas:</span> {qtd_sel} &nbsp;&nbsp; | &nbsp;&nbsp; "
+                    f"<span style='font-weight:bold;'>⚖️ Peso Real:</span> {formatar_brasileiro(peso_real_sel)} kg &nbsp;&nbsp; | &nbsp;&nbsp; "
+                    f"<span style='font-weight:bold;'>📏 Peso Calculado:</span> {formatar_brasileiro(peso_calc_sel)} kg",
+                    unsafe_allow_html=True
+                )
 
                 # Botão para confirmar produção
                 if not selecionadas.empty:
@@ -2089,8 +2098,11 @@ def pagina_confirmar_producao():
                             registros = [r for r in registros if r.get("Serie_Numero_CTRC")]
 
                             # Insere na tabela de aprovacao_diretoria
-                            if registros: # Apenas insere se houver registros válidos
+                            if registros:  # Apenas insere se houver registros válidos
                                 supabase.table("aprovacao_diretoria").insert(registros).execute()
+
+                                # ✅ Alimenta o contador da sessão com o que foi confirmado
+                                st.session_state["df_entregas_confirmadas"] = pd.DataFrame(registros)
                             
                             # === CORREÇÃO: Remove as entregas da tabela 'confirmadas_producao' ===
                             chaves = [r["Serie_Numero_CTRC"] for r in registros]
