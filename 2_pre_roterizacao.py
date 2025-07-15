@@ -3195,7 +3195,7 @@ def pagina_cargas_geradas():
 
                 with st.spinner("Carregando entregas da carga no grid..."):
                     df_formatado = df_display[df_display["numero_carga"] == carga][[col for col in colunas_exibir if col in df_display.columns]]
-                    df_formatado = apply_brazilian_date_format_for_display(df_formatado)
+                    #df_formatado = apply_brazilian_date_format_for_display(df_formatado)
 
                     gb = GridOptionsBuilder.from_dataframe(df_formatado)
                     gb.configure_default_column(minWidth=150)
