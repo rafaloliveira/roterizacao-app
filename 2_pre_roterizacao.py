@@ -1272,11 +1272,11 @@ def adicionar_entregas_a_carga(chaves_cte, numero_carga_destino):
     pre_chaves = [str(d.get("Chave CT-e", "")).strip() for d in dados_pre_all]
     rotas_chaves = [str(d.get("Chave CT-e", "")).strip() for d in dados_rotas_all]
 
-    encontradas_pre = [c for c in chaves_cte if c in pre_chaves]
-    encontradas_rotas = [c for c in chaves_cte if c in rotas_chaves]
+    #encontradas_pre = [c for c in chaves_cte if c in pre_chaves]
+    #encontradas_rotas = [c for c in chaves_cte if c in rotas_chaves]
 
-    st.code(f"🔎 Encontradas em pre_roterizacao: {encontradas_pre}")
-    st.code(f"🔎 Encontradas em rotas_confirmadas: {encontradas_rotas}")
+    #st.code(f"🔎 Encontradas em pre_roterizacao: {encontradas_pre}")
+    #st.code(f"🔎 Encontradas em rotas_confirmadas: {encontradas_rotas}")
 
     # Usa Serie_Numero_CTRC como chave de correspondência
     dados_pre_dict = {str(d.get("Serie_Numero_CTRC", "")).strip(): d for d in dados_pre_all}
