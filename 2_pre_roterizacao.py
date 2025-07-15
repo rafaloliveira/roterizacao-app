@@ -1305,6 +1305,10 @@ def adicionar_entregas_a_carga(chaves_cte, numero_carga_destino):
         st.warning("⚠️ Nenhuma entrega encontrada nas tabelas para as Chaves CT-e informadas.")
         return
 
+    # Remove campo temporário não pertencente à tabela cargas_geradas
+    for ent in entregas_coletadas:
+        ent.pop("origem_tabela", None)
+
     df_para_inserir = pd.DataFrame(entregas_coletadas)
     df_para_inserir["numero_carga"] = numero_carga
     df_para_inserir["Data_Hora_Gerada"] = data_hora_brasil_iso()
