@@ -3142,26 +3142,24 @@ def pagina_cargas_geradas():
             </div>
             """, unsafe_allow_html=True)
 
-
-
             motorista_info = df_carga_raw["motorista"].dropna().unique()
             placa_info = df_carga_raw["placa"].dropna().unique()
-            rota = "Não Informada"
-            if "Rota" in df_carga_raw.columns:
-                rotas_validas = df_carga_raw["Rota"].dropna().unique()
-                if len(rotas_validas) > 0:
-                    rota = rotas_validas[0]
+            veiculo_info = df_carga_raw["veiculo"].dropna().unique() # Esta linha estava faltando no trecho original, mas está no seu código completo.
             valor_contratacao_info = df_carga_raw["valor_contratacao"].dropna().unique()
 
             info_motorista = motorista_info[0] if len(motorista_info) > 0 else "NÃO INFORMADO"
             info_placa = placa_info[0] if len(placa_info) > 0 else "NÃO INFORMADA"
-
-            veiculo_info = df_carga_raw["veiculo"].dropna().unique()
             info_veiculo = veiculo_info[0] if len(veiculo_info) > 0 else "NÃO INFORMADO"
-
             info_valor_contratacao = formatar_brasileiro(valor_contratacao_info[0]) if len(valor_contratacao_info) > 0 else "0,00"
 
-
+            st.markdown(f"""
+            <div style="margin-top:20px;padding:10px;background:#e8f0fe;border-left:4px solid #34a853;border-radius:6px;display:inline-block;max-width:100%;">
+                <strong>Carga:</strong> {carga} &nbsp; | &nbsp;
+                <strong>Rota:</strong> {rota_dominante} &nbsp; | &nbsp;
+                <strong>Placa:</strong> {info_placa} &nbsp; | &nbsp;
+                <strong>Veículo:</strong> {info_veiculo}
+            </div>
+            """, unsafe_allow_html=True)
 
 
             col1, col2 = st.columns([5, 1])
@@ -3196,7 +3194,7 @@ def pagina_cargas_geradas():
                             buffer_pdf = gerar_pdf_carga(
                                 df_entregas=df_carga_raw,
                                 carga=carga,
-                                rota=rota,
+                                rota=rota_dominante,
                                 motorista=pdf_motorista, 
                                 placa=pdf_placa,         
                                 valor_frete=total_frete_carga,
