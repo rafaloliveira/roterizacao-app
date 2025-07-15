@@ -3001,7 +3001,6 @@ def pagina_cargas_geradas():
         if df.empty:
             st.info("Nenhuma carga foi gerada ainda.")
             return
-
         with st.spinner(" Processando estatísticas e estrutura da página..."):
             df.columns = df.columns.str.strip()
 
@@ -3011,14 +3010,13 @@ def pagina_cargas_geradas():
 
             df_display = df.copy()
 
-            # ✅ Corrige datas específicas ANTES da função geral
-            for col in ["Previsao de Entrega", "Entrega Programada"]:
-                if col in df_display.columns:
-                    df_display[col] = pd.to_datetime(df_display[col], errors='coerce')
-                    df_display[col] = df_display[col].dt.strftime("%d-%m-%Y")
+            # ✅ FORMATAÇÃO DAS DATAS COMO NA PÁGINA DA DIRETORIA
+            for col_name in ["Previsao de Entrega", "Entrega Programada"]:
+                if col_name in df_display.columns:
+                    df_display[col_name] = pd.to_datetime(df_display[col_name], errors="coerce")
+                    df_display[col_name] = df_display[col_name].dt.strftime("%d-%m-%Y")
 
-            df_display = apply_brazilian_date_only_format_for_display(df_display, ["Previsao de Entrega", "Entrega Programada"])
-
+            df_display = apply_brazilian_date_format_for_display(df_display)
 
             df_display = df_display.replace([np.nan, None], "")
 
