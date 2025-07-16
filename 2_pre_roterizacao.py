@@ -719,7 +719,7 @@ def carregar_base_supabase():
         rotas = pd.DataFrame(supabase.table("Rotas").select("*").execute().data)
         rotas_poa = pd.DataFrame(supabase.table("RotasPortoAlegre").select("*").execute().data)
         confirmadas = pd.DataFrame(supabase.table("confirmadas_producao").select("*").execute().data)
-        
+
         particularidades = pd.DataFrame(supabase.table("Particularidades").select("*").execute().data)
         
         st.info(f"DEBUG: particularidades.empty: {particularidades.empty}")
@@ -729,29 +729,61 @@ def carregar_base_supabase():
         
         st.info(f"DEBUG: 'CNPJ Destinatario' in base.columns: {'CNPJ Destinatario' in base.columns}")
 
+        # === NOVO CÓDIGO ===
+        # 1. Garante que a coluna 'Particularidade' exista em 'base' ANTES de qualquer merge
+        #    Se ela já existe, mantém seus valores; caso contrário, a cria com None.
+        if 'Particularidade' not in base.columns:
+            base['Particularidade'] = None
+            st.success("DEBUG: Coluna 'Particularidade' criada em 'base' (inicialmente vazia).")
+        else:
+            st.info("DEBUG: Coluna 'Particularidade' já existia em 'base'.")
+
+        # 2. Tenta realizar o merge APENAS se as condições de dados estiverem corretas
         if (
             'CNPJ Destinatario' in base.columns and
             not particularidades.empty and
             {'CNPJ', 'Particularidade'}.issubset(particularidades.columns)
         ):
-            st.success("DEBUG: Condição IF para o merge de Particularidades é VERDADEIRA. Tentando merge...")
+            st.success("DEBUG: Condição para o merge de Particularidades é VERDADEIRA. Tentando merge...")
             particularidades['CNPJ'] = particularidades['CNPJ'].astype(str).str.strip()
             base['CNPJ Destinatario'] = base['CNPJ Destinatario'].astype(str).str.strip()
-            base = base.merge(
-                particularidades[['CNPJ', 'Particularidade']],
+            
+            # Realiza o merge. Atenção aqui: o Sufixo "_y" será adicionado à coluna Particularidade
+            # se já existir uma com o mesmo nome em 'base'.
+            # Para evitar isso, vamos renomear a coluna de Particularidades para um nome temporário antes do merge
+            # e depois usar essa coluna temporária para atualizar a original.
+            df_temp_particularidades = particularidades[['CNPJ', 'Particularidade']].copy()
+            df_temp_particularidades.rename(columns={'Particularidade': 'Particularidade_temp_from_merge'}, inplace=True)
+
+            # Realiza o merge sem reatribuir 'base' diretamente, para ver o resultado do merge
+            # e depois atualizar 'base' de forma controlada.
+            base_merged = pd.merge(
+                base,
+                df_temp_particularidades,
                 how='left',
                 left_on='CNPJ Destinatario',
-                right_on='CNPJ'
-            ).drop(columns=['CNPJ'], errors='ignore')
-            st.success(f"DEBUG: Merge concluído. 'Particularidade' existe em 'base' após merge? {'Particularidade' in base.columns}")
-        else:
-            st.warning("DEBUG: Condição IF para o merge de Particularidades é FALSA. Entrou no ELSE.")
-            # Certifique-se de que 'base' é um DataFrame válido antes desta linha
-            if not isinstance(base, pd.DataFrame):
-                st.error("DEBUG: 'base' NÃO É UM DATAFRAME antes de tentar adicionar a coluna 'Particularidade' no ELSE!")
+                right_on='CNPJ',
+                suffixes=('', '_merge') # Evita sufixos em colunas que não são chave do merge
+            )
+            
+            # Agora, atualiza a coluna 'Particularidade' da 'base' com os valores do merge
+            # Garante que None seja usado para NaNs do merge
+            if 'Particularidade_temp_from_merge' in base_merged.columns:
+                base['Particularidade'] = base_merged['Particularidade_temp_from_merge'].fillna(base['Particularidade']).replace('', None)
+                st.success("DEBUG: Coluna 'Particularidade' em 'base' ATUALIZADA com dados do merge.")
             else:
-                base['Particularidade'] = '' # Esta linha DEVERIA criar a coluna
-                st.success(f"DEBUG: 'Particularidade' adicionada (vazia) no ELSE. Existe em 'base' agora? {'Particularidade' in base.columns}")
+                st.warning("DEBUG: Coluna 'Particularidade_temp_from_merge' NÃO encontrada no DataFrame mergeado. Particularidades não foram atualizadas pelo merge.")
+
+            base.drop(columns=['CNPJ_merge'], errors='ignore', inplace=True) # Remove a coluna 'CNPJ' do merge se existir
+            
+            st.success(f"DEBUG: Merge processado. 'Particularidade' existe em 'base' AGORA? {'Particularidade' in base.columns}")
+            if 'Particularidade' in base.columns and base['Particularidade'].count() > 0:
+                 st.info(f"DEBUG: Exemplo de Particularidades após merge/atualização: {base['Particularidade'].dropna().head().tolist()}")
+            
+        else:
+            st.warning("DEBUG: Condição para o merge de Particularidades é FALSA. Coluna 'Particularidade' em 'base' permanece como foi inicializada ou existente.")
+            if 'Particularidade' in base.columns and base['Particularidade'].count() == 0:
+                 st.info("DEBUG: 'Particularidade' em 'base' continua vazia após o ELSE.")
 
 
 
