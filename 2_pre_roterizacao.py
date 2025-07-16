@@ -2157,6 +2157,38 @@ def pagina_confirmar_producao():
 def pagina_aprovacao_diretoria():
     st.markdown("## Aprovação da Diretoria")
 
+    if st.button("✅ Aprovar Todas as Entregas da Página", key="btn_aprovar_todas_topo"):
+        try:
+            with st.spinner("🔄 Aprovando todas as entregas."):
+                df_aprovar = df_aprovacao.drop(columns=["_selectedRowNodeInfo"], errors="ignore").copy()
+                df_aprovar["aprovador_diretoria_login"] = st.session_state.get("username", "Desconhecido")
+                df_aprovar["data_aprovacao_diretoria"] = data_hora_brasil_iso()
+
+                # Normaliza datas antes de salvar
+                for col in GLOBAL_DATE_DISPLAY_COLUMNS:
+                    if col in df_aprovar.columns:
+                        df_aprovar[col] = pd.to_datetime(df_aprovar[col], errors='coerce')
+                        df_aprovar[col] = df_aprovar[col].apply(lambda x: x.isoformat() if pd.notna(x) else None)
+
+                df_aprovar = df_aprovar.replace([np.nan, np.inf, -np.inf, ""], None)
+                registros = df_aprovar.to_dict(orient="records")
+                registros = [r for r in registros if r.get("Serie_Numero_CTRC")]
+
+                if registros:
+                    supabase.table("pre_roterizacao").insert(registros).execute()
+                    chaves = [r["Serie_Numero_CTRC"] for r in registros]
+                    supabase.table("aprovacao_diretoria").delete().in_("Serie_Numero_CTRC", chaves).execute()
+
+                    st.session_state["reload_aprovacao_diretoria"] = True
+                    st.session_state["reload_pre_roterizacao"] = True
+                    st.success(f"✅ {len(chaves)} entregas aprovadas em lote.")
+                    st.rerun()
+                else:
+                    st.info("Nenhuma entrega válida encontrada para aprovar.")
+        except Exception as e:
+            st.error(f"❌ Erro ao aprovar todas as entregas: {e}")
+
+
     # Obter a classe do usuário logado (assume 'colaborador' se não estiver definida por segurança)
     current_user_class = st.session_state.get("classe", "colaborador")
     is_user_aprovador = (current_user_class == "aprovador")
@@ -2164,10 +2196,6 @@ def pagina_aprovacao_diretoria():
     # Mensagem de aviso se o usuário não for aprovador
     if not is_user_aprovador:
         st.warning("⛔ Apenas usuários com classe 'aprovador' podem realizar ações de aprovação de diretoria.")
-        # Se a página só pode ser acessada por aprovadores e o usuário não é um, retorne.
-        # Caso contrário, se a intenção for apenas desabilitar botões, pode-se remover este 'return'.
-        # Mantendo o return por enquanto para seguir a lógica inicial de acesso restrito.
-        return # Esta linha deve permanecer se você quer impedir que não-aprovadores vejam a página.
 
     try:
         with st.spinner("🔄 Carregando entregas pendentes para aprovação..."):
