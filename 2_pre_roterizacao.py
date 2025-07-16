@@ -1659,7 +1659,7 @@ def formatar_brasileiro(valor):
 
 ############################## Gerar PDF ########################################################
 
-def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, valor_frete, valor_contratacao):
+def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, veiculo, valor_frete, valor_contratacao):
     buffer = BytesIO()
     
     # --- NOVO: Configurações da Imagem ---
@@ -1740,6 +1740,7 @@ def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, valor_frete, val
     elements.append(Paragraph(f"<b>Rota:</b> {rota}", styles['CustomNormal']))
     elements.append(Paragraph(f"<b>Motorista:</b> {motorista if motorista and motorista.strip() else '<i>Não Informado</i>'}", styles['CustomNormal']))
     elements.append(Paragraph(f"<b>Placa:</b> {placa if placa and placa.strip() else '<i>Não Informada</i>'}", styles['CustomNormal']))
+    elements.append(Paragraph(f"<b>Tipo de Veículo:</b> {veiculo if veiculo and veiculo.strip() else '<i>Não Informado</i>'}", styles['CustomNormal']))
     #elements.append(Paragraph(f"<b>Valor Total do Frete:</b> R$ {formatar_brasileiro(valor_frete)}", styles['CustomNormal']))
     elements.append(Paragraph(f"<b>Valor de Contratação:</b> R$ {formatar_brasileiro(valor_contratacao)}", styles['CustomNormal']))
     elements.append(Spacer(1, 0.3 * inch))
@@ -3203,6 +3204,7 @@ def pagina_cargas_geradas():
                         with st.spinner(f"Gerando PDF para a carga {carga}... Por favor, aguarde..."):
                             pdf_motorista = info_motorista if info_motorista != "-" else ""
                             pdf_placa = info_placa if info_placa != "-" else ""
+                            pdf_veiculo = info_veiculo if info_veiculo != "-" else ""
                             pdf_valor_contratacao = valor_contratacao_info[0] if len(valor_contratacao_info) > 0 else 0.0
 
                             buffer_pdf = gerar_pdf_carga(
@@ -3211,6 +3213,7 @@ def pagina_cargas_geradas():
                                 rota=rota_dominante, # Alterado para usar rota_dominante
                                 motorista=pdf_motorista,
                                 placa=pdf_placa,
+                                veiculo=pdf_veiculo, 
                                 valor_frete=total_frete_carga,
                                 valor_contratacao=pdf_valor_contratacao
                             )
