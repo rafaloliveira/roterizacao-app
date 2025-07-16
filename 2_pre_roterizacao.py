@@ -3953,6 +3953,10 @@ def pagina_aprovacao_custos():
                             
                             df_aprovar["numero_carga"] = carga
                             df_aprovar["valor_contratacao"] = valor_contratacao_carga_existente # Usa o valor existente da carga
+
+                            df_aprovar["motorista"] = motorista_ # CORREÇÃO AQUI
+                            df_aprovar["placa"] = placa_veiculo  # CORREÇÃO AQUI
+                            df_aprovar["veiculo"] = veiculo
                             
                             df_aprovar["aprovador_custos_login"] = st.session_state.get("username", "Desconhecido")
                             df_aprovar["data_aprovacao_custos"] = data_hora_brasil_iso()
@@ -4129,8 +4133,7 @@ def pagina_cargas_aprovadas():
             "Numero da Nota Fiscal", "Status", "Entrega Programada", "Particularidade",
             "Codigo da Ultima Ocorrencia", "Peso Real em Kg", "Peso Calculado em Kg",
             "Cubagem em m³", "Quantidade de Volumes", "valor_contratacao", "numero_carga",
-            "motorista", "placa",
-            "aprovador_custos_login", "data_aprovacao_custos" # Adicionadas para exibição
+            "motorista", "placa","aprovador_custos_login", "data_aprovacao_custos" # Adicionadas para exibição
         ]
 
         cargas_unicas = sorted(df["numero_carga"].dropna().unique())
