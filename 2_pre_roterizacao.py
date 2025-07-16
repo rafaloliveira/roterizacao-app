@@ -1915,7 +1915,11 @@ def pagina_confirmar_producao():
         st.metric("📏 Peso Calculado (kg)", formatar_brasileiro(df['Peso Calculado em Kg'].sum()))
 
     # 🔹 DADOS CONFIRMADOS NA SESSÃO (à direita)
-    df_confirmadas = pd.DataFrame(supabase.table("aprovacao_diretoria").select("*").execute().data)
+    try:
+        df_confirmadas = pd.DataFrame(supabase.table("aprovacao_diretoria").select("*").execute().data)
+    except Exception as e:
+        st.error(f"Erro ao carregar dados da aprovação da diretoria: {e}")
+        df_confirmadas = pd.DataFrame()
 
 
     total_confirmadas = len(df_confirmadas)
