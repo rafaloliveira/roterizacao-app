@@ -714,27 +714,27 @@ def carregar_base_supabase():
             return pd.DataFrame()
 
         agendadas = pd.DataFrame(supabase.table("Clientes_Entrega_Agendada").select("*").execute().data)
-        particularidades = pd.DataFrame(supabase.table("Particularidades").select("*").execute().data)
+
+
         rotas = pd.DataFrame(supabase.table("Rotas").select("*").execute().data)
         rotas_poa = pd.DataFrame(supabase.table("RotasPortoAlegre").select("*").execute().data)
         confirmadas = pd.DataFrame(supabase.table("confirmadas_producao").select("*").execute().data)
+        
+        particularidades = pd.DataFrame(supabase.table("Particularidades").select("*").execute().data)
+        
+        st.info(f"DEBUG: particularidades.empty: {particularidades.empty}")
+        if not particularidades.empty:
+            st.info(f"DEBUG: Colunas em 'particularidades': {particularidades.columns.tolist()}")
+            st.info(f"DEBUG: 'CNPJ' e 'Particularidade' em particularidades.columns: {'CNPJ' in particularidades.columns and 'Particularidade' in particularidades.columns}")
+        
+        st.info(f"DEBUG: 'CNPJ Destinatario' in base.columns: {'CNPJ Destinatario' in base.columns}")
 
-        base['CNPJ Destinatario'] = base['CNPJ Destinatario'].astype(str).str.strip()
-        if {'CNPJ', 'Status de Agenda'}.issubset(agendadas.columns):
-            agendadas['CNPJ'] = agendadas['CNPJ'].astype(str).str.strip()
-
-            base = base.merge(
-                agendadas[['CNPJ', 'Status de Agenda']],
-                how='left',
-                left_on='CNPJ Destinatario',
-                right_on='CNPJ'
-            ).rename(columns={'Status de Agenda': 'Status'}).drop(columns=['CNPJ'], errors='ignore')
-            
         if (
             'CNPJ Destinatario' in base.columns and
             not particularidades.empty and
             {'CNPJ', 'Particularidade'}.issubset(particularidades.columns)
         ):
+            st.success("DEBUG: Condição IF para o merge de Particularidades é VERDADEIRA. Tentando merge...")
             particularidades['CNPJ'] = particularidades['CNPJ'].astype(str).str.strip()
             base['CNPJ Destinatario'] = base['CNPJ Destinatario'].astype(str).str.strip()
             base = base.merge(
@@ -743,8 +743,19 @@ def carregar_base_supabase():
                 left_on='CNPJ Destinatario',
                 right_on='CNPJ'
             ).drop(columns=['CNPJ'], errors='ignore')
+            st.success(f"DEBUG: Merge concluído. 'Particularidade' existe em 'base' após merge? {'Particularidade' in base.columns}")
         else:
-            base['Particularidade'] = ''
+            st.warning("DEBUG: Condição IF para o merge de Particularidades é FALSA. Entrou no ELSE.")
+            # Certifique-se de que 'base' é um DataFrame válido antes desta linha
+            if not isinstance(base, pd.DataFrame):
+                st.error("DEBUG: 'base' NÃO É UM DATAFRAME antes de tentar adicionar a coluna 'Particularidade' no ELSE!")
+            else:
+                base['Particularidade'] = '' # Esta linha DEVERIA criar a coluna
+                st.success(f"DEBUG: 'Particularidade' adicionada (vazia) no ELSE. Existe em 'base' agora? {'Particularidade' in base.columns}")
+
+
+
+
 
         for col in ['Cidade de Entrega', 'Bairro do Destinatario']:
             if col in base.columns:
@@ -830,7 +841,7 @@ def carregar_base_supabase():
             st.info(f"DEBUG (carregar_base_supabase RETURN): Quantidade de valores não nulos em 'Particularidade': {base['Particularidade'].count()}")
         else:
             st.error("DEBUG (carregar_base_supabase RETURN): A coluna 'Particularidade' NÃO está presente em 'base' antes do retorno!")
-            
+
         return base
 
     except Exception as e:
