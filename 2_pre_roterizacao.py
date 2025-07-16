@@ -4793,8 +4793,6 @@ def pagina_cargas_fechadas():
             st.warning("⚠️ Não foi possível gerar o CSV geral.")
             st.exception(e)
 
-               
-
     except Exception as e:
         st.error("Erro ao carregar cargas fechadas:")
         st.exception(e)
