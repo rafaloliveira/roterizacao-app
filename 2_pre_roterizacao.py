@@ -2000,7 +2000,7 @@ def pagina_confirmar_producao():
             )
 
         # Expander para o grid
-        with st.expander("🔽 Selecionar entregas", expanded=False):
+        with st.expander("🔽 Selecionar entregas", expanded=True):
             # NOVO: Checkbox "Marcar todas" dentro do expander
             checkbox_key = f"marcar_todas_conf_prod_{cliente_pagador}"
             # Garante que o estado do checkbox seja inicializado
@@ -2314,7 +2314,7 @@ def pagina_aprovacao_diretoria():
                 unsafe_allow_html=True
             )
 
-        with st.expander("🔽 Selecionar entregas", expanded=False):
+        with st.expander("🔽 Selecionar entregas", expanded=True):
             df_formatado = apply_brazilian_date_format_for_display(df_cliente[[col for col in colunas_exibir if col in df_cliente.columns]].copy())
 
             # NOVO: Checkbox "Marcar todas" dentro do expander
@@ -2847,7 +2847,7 @@ def pagina_pre_roterizacao():
             st.warning(f"A região '{regiao_chave}' não possui percentual definido.")
 
 
-        with st.expander("🔽 Selecionar entregas", expanded=False):
+        with st.expander("🔽 Selecionar entregas", expanded=True):
         # NOVO: Checkbox "Marcar todas" dentro do expander
             checkbox_key = f"marcar_todas_pre_rota_{rota_visual}"
             if checkbox_key not in st.session_state:
@@ -4243,7 +4243,7 @@ def pagina_cargas_aprovadas():
                 
                 # --- CAMPOS PARA MOTORISTA E PLACA PARA EDIÇÃO E BOTÃO ÚNICO DE SALVAR E FECHAR ---
                 
-            with st.expander("🔽 Ver entregas da carga aprovada", expanded=False):
+            with st.expander("🔽 Ver entregas da carga aprovada", expanded=True):
                 with st.spinner("🔄 Formatando entregas da carga aprovada..."):
                     # Define formatter for numeric values
                     formatter = JsCode("""
