@@ -1758,7 +1758,7 @@ def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, valor_frete, val
         "Peso Calculado em Kg": "Peso<br/>Calculado<br/>(Kg)",
         "Peso Real em Kg": "Peso Real<br/>(Kg)",
         "Cubagem em m³": "Cubagem<br/>(m³)",
-        "Valor do Frete": "Valor do<br/>Frete"
+        #"Valor do Frete": "Valor do<br/>Frete"
     }
 
     requested_order_keys = [
