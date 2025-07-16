@@ -4220,7 +4220,7 @@ def pagina_cargas_aprovadas():
                         {badge(f'Valor Contratação: R\$ {formatar_brasileiro(valor_contratacao_carga)}')}
                         {badge(f'Motorista: {motorista_carga}')}
                         {badge(f'Placa: {placa_carga}')}
-                        {badge(f'Veículo: {veiculo_carga}')} # <--- ADICIONE ESTE BADGE
+                        {badge(f'Veículo: {veiculo_carga}')}
                         {badge(f'Rentabilidade: {rentabilidade_percentual:.2f}%')}
                         {badge(f'Situação Custo: {situacao_custo_regional}', background_color=cor_situacao, text_color='white')}
                         {badge(f'Aprovado por: {aprovador_custos_login}')}
