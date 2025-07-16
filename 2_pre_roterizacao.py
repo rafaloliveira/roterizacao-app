@@ -788,7 +788,8 @@ def carregar_base_supabase():
 
         obrigatorias = base[
             # CORREÇÃO AQUI: Adicionar dayfirst=True
-            (pd.to_datetime(base['Previsao de Entrega'], errors='coerce', dayfirst=True) < d_mais_1)
+            (pd.to_datetime(base['Previsao de Entrega'], errors='coerce') < d_mais_1)
+
             |
             (base['Valor do Frete'] >= 300)
             |
@@ -1629,8 +1630,6 @@ def apply_brazilian_date_format_for_display(df_to_format):
                 else ''
             )
     return df_to_format
-
-
 
 # Constantes para colunas que devem ser tratadas como APENAS DATA (sem hora)
 # em algumas conversões (e.g., re-parsing do AgGrid para Supabase)
