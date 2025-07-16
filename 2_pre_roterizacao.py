@@ -714,7 +714,7 @@ def carregar_base_supabase():
             return pd.DataFrame()
 
         agendadas = pd.DataFrame(supabase.table("Clientes_Entrega_Agendada").select("*").execute().data)
-        particularidades = pd.DataFrame(supabase.table("Particularidades").select("*").execute().data)
+        particularidade = pd.DataFrame(supabase.table("Particularidade").select("*").execute().data)
         rotas = pd.DataFrame(supabase.table("Rotas").select("*").execute().data)
         rotas_poa = pd.DataFrame(supabase.table("RotasPortoAlegre").select("*").execute().data)
         confirmadas = pd.DataFrame(supabase.table("confirmadas_producao").select("*").execute().data)
@@ -731,13 +731,13 @@ def carregar_base_supabase():
             
         if (
             'CNPJ Destinatario' in base.columns and
-            not particularidades.empty and
-            {'CNPJ', 'Particularidade'}.issubset(particularidades.columns)
+            not particularidade.empty and
+            {'CNPJ', 'Particularidade'}.issubset(particularidade.columns)
         ):
-            particularidades['CNPJ'] = particularidades['CNPJ'].astype(str).str.strip()
+            particularidade['CNPJ'] = particularidade['CNPJ'].astype(str).str.strip()
             base['CNPJ Destinatario'] = base['CNPJ Destinatario'].astype(str).str.strip()
             base = base.merge(
-                particularidades[['CNPJ', 'Particularidade']],
+                particularidade[['CNPJ', 'Particularidade']],
                 how='left',
                 left_on='CNPJ Destinatario',
                 right_on='CNPJ'
@@ -1473,8 +1473,8 @@ def aplicar_regras_e_preencher_tabelas():
         # st.text("[DEBUG] Mescla com Micro_Regiao_por_data_embarque concluída.") # REMOVIDO
 #______________________________________________________________________________________________________________________
 
-        # Merge com Particularidades
-        part = supabase.table("Particularidades").select("*").execute().data
+        # Merge com Particularidade
+        part = supabase.table("Particularidade").select("*").execute().data
         if part:
             df_part = pd.DataFrame(part)
             df_part.columns = df_part.columns.str.strip()
@@ -1483,7 +1483,7 @@ def aplicar_regras_e_preencher_tabelas():
             df.drop(columns=['CNPJ'], inplace=True)
         else:
             df['Particularidade'] = None
-        # st.text("[DEBUG] Mescla com Particularidades concluída.") # REMOVIDO
+        # st.text("[DEBUG] Mescla com Particularidade concluída.") # REMOVIDO
 #________________________________________________________________________________________________________________________
         # Merge com Clientes_Entrega_Agendada
         agendados = supabase.table("Clientes_Entrega_Agendada").select("*").execute().data
