@@ -3488,6 +3488,7 @@ def pagina_cargas_geradas():
 
                         salvar_key = f"btn_salvar_info_{carga}"
                         if st.button(f"💾 Salvar Informações", key=f"btn_salvar_{carga}", disabled=not (motorista or placa or veiculo_selected or valor_contratacao)):
+                            
                             try:
                                 with st.spinner("Salvando dados da carga..."):
 
@@ -4133,7 +4134,8 @@ def pagina_cargas_aprovadas():
             "Numero da Nota Fiscal", "Status", "Entrega Programada", "Particularidade",
             "Codigo da Ultima Ocorrencia", "Peso Real em Kg", "Peso Calculado em Kg",
             "Cubagem em m³", "Quantidade de Volumes", "valor_contratacao", "numero_carga",
-            "motorista", "placa","aprovador_custos_login", "data_aprovacao_custos" # Adicionadas para exibição
+            "motorista", "placa", "veiculo", # <--- ADICIONAR "veiculo" AQUI
+            "aprovador_custos_login", "data_aprovacao_custos"
         ]
 
         cargas_unicas = sorted(df["numero_carga"].dropna().unique())
@@ -4146,6 +4148,8 @@ def pagina_cargas_aprovadas():
             valor_contratacao_carga = df_carga["valor_contratacao"].iloc[0] if "valor_contratacao" in df_carga.columns and not df_carga["valor_contratacao"].isnull().all() else 0.0
             motorista_carga = df_carga["motorista"].iloc[0] if "motorista" in df_carga.columns and not df_carga["motorista"].isnull().all() else 'Não Informado'
             placa_carga = df_carga["placa"].iloc[0] if "placa" in df_carga.columns and not df_carga["placa"].isnull().all() else 'Não Informada'
+            # NOVO: Adicione esta linha para ler o tipo de veículo
+            veiculo_carga = df_carga["veiculo"].iloc[0] if "veiculo" in df_carga.columns and not df_carga["veiculo"].isnull().all() else 'Não Informado'
             aprovador_custos_login = df_carga["aprovador_custos_login"].iloc[0] if "aprovador_custos_login" in df_carga.columns and not df_carga["aprovador_custos_login"].isnull().all() else 'Desconhecido'
             data_aprovacao_custos = df_carga["data_aprovacao_custos"].iloc[0] if "data_aprovacao_custos" in df_carga.columns and not df_carga["data_aprovacao_custos"].isnull().all() else None
 
@@ -4210,12 +4214,13 @@ def pagina_cargas_aprovadas():
                         {badge(f'{len(df_carga)} entregas')}
                         {badge(f'{formatar_brasileiro(df_carga["Peso Calculado em Kg"].sum())} kg calc')}
                         {badge(f'{formatar_brasileiro(df_carga["Peso Real em Kg"].sum())} kg real')}
-                        {badge(f'Valor frete: R$ {formatar_brasileiro(total_frete_carga)}')}
+                        {badge(f'Valor frete: R\$ {formatar_brasileiro(total_frete_carga)}')}
                         {badge(f'{formatar_brasileiro(df_carga["Cubagem em m³"].sum())} m³')}
                         {badge(f'{int(df_carga["Quantidade de Volumes"].sum())} volumes')}
-                        {badge(f'Valor Contratação: R$ {formatar_brasileiro(valor_contratacao_carga)}')}
+                        {badge(f'Valor Contratação: R\$ {formatar_brasileiro(valor_contratacao_carga)}')}
                         {badge(f'Motorista: {motorista_carga}')}
                         {badge(f'Placa: {placa_carga}')}
+                        {badge(f'Veículo: {veiculo_carga}')} # <--- ADICIONE ESTE BADGE
                         {badge(f'Rentabilidade: {rentabilidade_percentual:.2f}%')}
                         {badge(f'Situação Custo: {situacao_custo_regional}', background_color=cor_situacao, text_color='white')}
                         {badge(f'Aprovado por: {aprovador_custos_login}')}
@@ -4350,6 +4355,7 @@ def pagina_cargas_aprovadas():
                 # 2. Adicionar/Atualizar 'motorista', 'placa', 'data_fechamento', 'situacao' e 'fechador_carga_login'
                 df_to_move["motorista"] = motorista_carga  # Usa valor já carregado da carga
                 df_to_move["placa"] = placa_carga # Já está em UPPER()
+                df_to_move["veiculo"] = veiculo_carga # <--- ADICIONE ESTA LINHA
                 df_to_move["data_fechamento"] = data_hora_brasil_iso() # Data e hora atual do Brasil
                 df_to_move["situacao"] = "Fechada" # Definir a situação
                 df_to_move["fechador_carga_login"] = st.session_state.get("username", "Desconhecido") # Quem fechou
