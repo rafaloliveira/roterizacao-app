@@ -721,73 +721,35 @@ def carregar_base_supabase():
         confirmadas = pd.DataFrame(supabase.table("confirmadas_producao").select("*").execute().data)
 
         particularidades = pd.DataFrame(supabase.table("Particularidades").select("*").execute().data)
-        
-        st.info(f"DEBUG: particularidades.empty: {particularidades.empty}")
-        if not particularidades.empty:
-            st.info(f"DEBUG: Colunas em 'particularidades': {particularidades.columns.tolist()}")
-            st.info(f"DEBUG: 'CNPJ' e 'Particularidade' em particularidades.columns: {'CNPJ' in particularidades.columns and 'Particularidade' in particularidades.columns}")
-        
-        st.info(f"DEBUG: 'CNPJ Destinatario' in base.columns: {'CNPJ Destinatario' in base.columns}")
-
-        # === NOVO CÓDIGO ===
-        # 1. Garante que a coluna 'Particularidade' exista em 'base' ANTES de qualquer merge
-        #    Se ela já existe, mantém seus valores; caso contrário, a cria com None.
+        # Garante que a coluna 'Particularidade' exista em 'base' ANTES de qualquer merge
         if 'Particularidade' not in base.columns:
             base['Particularidade'] = None
-            st.success("DEBUG: Coluna 'Particularidade' criada em 'base' (inicialmente vazia).")
-        else:
-            st.info("DEBUG: Coluna 'Particularidade' já existia em 'base'.")
 
-        # 2. Tenta realizar o merge APENAS se as condições de dados estiverem corretas
+        # Tenta realizar o merge APENAS se as condições de dados estiverem corretas
         if (
             'CNPJ Destinatario' in base.columns and
             not particularidades.empty and
             {'CNPJ', 'Particularidade'}.issubset(particularidades.columns)
         ):
-            st.success("DEBUG: Condição para o merge de Particularidades é VERDADEIRA. Tentando merge...")
             particularidades['CNPJ'] = particularidades['CNPJ'].astype(str).str.strip()
             base['CNPJ Destinatario'] = base['CNPJ Destinatario'].astype(str).str.strip()
-            
-            # Realiza o merge. Atenção aqui: o Sufixo "_y" será adicionado à coluna Particularidade
-            # se já existir uma com o mesmo nome em 'base'.
-            # Para evitar isso, vamos renomear a coluna de Particularidades para um nome temporário antes do merge
-            # e depois usar essa coluna temporária para atualizar a original.
+
             df_temp_particularidades = particularidades[['CNPJ', 'Particularidade']].copy()
             df_temp_particularidades.rename(columns={'Particularidade': 'Particularidade_temp_from_merge'}, inplace=True)
 
-            # Realiza o merge sem reatribuir 'base' diretamente, para ver o resultado do merge
-            # e depois atualizar 'base' de forma controlada.
             base_merged = pd.merge(
                 base,
                 df_temp_particularidades,
                 how='left',
                 left_on='CNPJ Destinatario',
                 right_on='CNPJ',
-                suffixes=('', '_merge') # Evita sufixos em colunas que não são chave do merge
+                suffixes=('', '_merge')
             )
-            
-            # Agora, atualiza a coluna 'Particularidade' da 'base' com os valores do merge
-            # Garante que None seja usado para NaNs do merge
+
             if 'Particularidade_temp_from_merge' in base_merged.columns:
                 base['Particularidade'] = base_merged['Particularidade_temp_from_merge'].fillna(base['Particularidade']).replace('', None)
-                st.success("DEBUG: Coluna 'Particularidade' em 'base' ATUALIZADA com dados do merge.")
-            else:
-                st.warning("DEBUG: Coluna 'Particularidade_temp_from_merge' NÃO encontrada no DataFrame mergeado. Particularidades não foram atualizadas pelo merge.")
 
-            base.drop(columns=['CNPJ_merge'], errors='ignore', inplace=True) # Remove a coluna 'CNPJ' do merge se existir
-            
-            st.success(f"DEBUG: Merge processado. 'Particularidade' existe em 'base' AGORA? {'Particularidade' in base.columns}")
-            if 'Particularidade' in base.columns and base['Particularidade'].count() > 0:
-                 st.info(f"DEBUG: Exemplo de Particularidades após merge/atualização: {base['Particularidade'].dropna().head().tolist()}")
-            
-        else:
-            st.warning("DEBUG: Condição para o merge de Particularidades é FALSA. Coluna 'Particularidade' em 'base' permanece como foi inicializada ou existente.")
-            if 'Particularidade' in base.columns and base['Particularidade'].count() == 0:
-                 st.info("DEBUG: 'Particularidade' em 'base' continua vazia após o ELSE.")
-
-
-
-
+            base.drop(columns=['CNPJ_merge'], errors='ignore', inplace=True)
 
         for col in ['Cidade de Entrega', 'Bairro do Destinatario']:
             if col in base.columns:
@@ -2718,9 +2680,6 @@ def pagina_pre_roterizacao():
             except Exception as e:
                 st.error(f"Erro ao adicionar entregas: {e}")
 
-
-
-
     # --- Bloco de carregamento de dados ---
     with st.spinner("🔄 Carregando dados das entregas..."):
         try:
@@ -2732,25 +2691,14 @@ def pagina_pre_roterizacao():
                 df_total = carregar_base_supabase()
                 st.session_state["df_pre_roterizacao_cache"] = df_total
 
-                st.info(f"DEBUG (df_total): 'Particularidade' existe? {'Particularidade' in df_total.columns}")
-                if 'Particularidade' in df_total.columns:
-                    st.info(f"DEBUG (df_total): Primeiras 5 particularidades: {df_total['Particularidade'].head().tolist()}")
-                    st.info(f"DEBUG (df_total): Quantidade de valores não nulos em 'Particularidade': {df_total['Particularidade'].count()}")
-                else:
-                    st.error("DEBUG (df_total): A coluna 'Particularidade' NÃO está presente em df_total!")
-
-                # VAI AQUI A CORREÇÃO: Forçar a invalidação das chaves dos grids
-                if recarregar: # Este bloco só executa se 'recarregar' for True
-                    # Itera sobre uma cópia das chaves para evitar erros de modificação durante a iteração
+                # Força a invalidação das chaves dos grids
+                if recarregar:
                     for key in list(st.session_state.keys()):
-                        # Verifica se a chave pertence a um dos grids de rota da pré-roteirização
-                        # O prefixo 'grid_pre_rota_' deve corresponder exatamente a como você define as keys dos seus AgGrids
                         if key.startswith("grid_pre_rota_"):
-                            st.session_state.pop(key, None) # Remove a chave, forçando o redesenho do AgGrid na próxima execução
+                            st.session_state.pop(key, None)
 
             else:
                 df_total = st.session_state["df_pre_roterizacao_cache"]
-
 
             if recarregar or "df_pre_roterizacao_cache" not in st.session_state:
                 dados_confirmados_raw = supabase.table("rotas_confirmadas").select("Serie_Numero_CTRC").execute().data
@@ -2759,7 +2707,6 @@ def pagina_pre_roterizacao():
                 st.session_state["dados_confirmados_cache"] = dados_confirmados
             else:
                 dados_confirmados = st.session_state.get("dados_confirmados_cache", pd.DataFrame())
-
 
             if "Serie_Numero_CTRC" in df_aprovadas_diretoria.columns and "Serie_Numero_CTRC" in df_total.columns:
                 df_aprovadas_diretoria["Serie_Numero_CTRC"] = df_aprovadas_diretoria["Serie_Numero_CTRC"].astype(str)
@@ -2914,20 +2861,15 @@ def pagina_pre_roterizacao():
 
 
         with st.expander("🔽 Selecionar entregas", expanded=False):
-            # NOVO: Checkbox "Marcar todas" dentro do expander
+        # NOVO: Checkbox "Marcar todas" dentro do expander
             checkbox_key = f"marcar_todas_pre_rota_{rota_visual}"
             if checkbox_key not in st.session_state:
                 st.session_state[checkbox_key] = False
             marcar_todas = st.checkbox("Marcar todas", key=checkbox_key)
 
-            st.info(f"DEBUG (df_rota - {rota_visual}): 'Particularidade' existe? {'Particularidade' in df_rota.columns}")
-            if 'Particularidade' in df_rota.columns:
-                st.info(f"DEBUG (df_rota - {rota_visual}): Primeiras 5 particularidades da rota: {df_rota['Particularidade'].head().tolist()}")
-                st.info(f"DEBUG (df_rota - {rota_visual}): Quantidade de valores não nulos na rota: {df_rota['Particularidade'].count()}")
-            else:
-                st.error(f"DEBUG (df_rota - {rota_visual}): A coluna 'Particularidade' NÃO está presente em df_rota para esta rota!")
-
-            df_formatado = apply_brazilian_date_format_for_display(df_rota[[col for col in colunas_exibir if col in df_rota.columns]].copy())
+            df_formatado = apply_brazilian_date_format_for_display(
+                df_rota[[col for col in colunas_exibir if col in df_rota.columns]].copy()
+            )
 
             gb = GridOptionsBuilder.from_dataframe(df_formatado)
             gb.configure_default_column(minWidth=150)
@@ -3070,8 +3012,6 @@ def pagina_pre_roterizacao():
                             st.warning("Por favor, selecione uma rota válida.")
                         else:
                             try:
-                                st.write(f"DEBUG - CTRCs selecionados para mover: {ctrcs_selecionados}")
-                                st.write(f"DEBUG - Nova rota selecionada: '{nova_rota}'")
                                 mover_entregas_para_outra_rota(ctrcs_selecionados, nova_rota)
                                 
                                 # ✅ Força recarregamento de dados
