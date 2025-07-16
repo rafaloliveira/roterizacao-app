@@ -824,7 +824,13 @@ def carregar_base_supabase():
                 base[col] = pd.to_datetime(base[col], errors='coerce')
                 base[col] = base[col].dt.strftime("%d-%m-%Y").fillna("")
 
-
+        st.info(f"DEBUG (carregar_base_supabase RETURN): 'Particularidade' existe? {'Particularidade' in base.columns}")
+        if 'Particularidade' in base.columns:
+            st.info(f"DEBUG (carregar_base_supabase RETURN): Primeiras 5 particularidades: {base['Particularidade'].head().tolist()}")
+            st.info(f"DEBUG (carregar_base_supabase RETURN): Quantidade de valores não nulos em 'Particularidade': {base['Particularidade'].count()}")
+        else:
+            st.error("DEBUG (carregar_base_supabase RETURN): A coluna 'Particularidade' NÃO está presente em 'base' antes do retorno!")
+            
         return base
 
     except Exception as e:
