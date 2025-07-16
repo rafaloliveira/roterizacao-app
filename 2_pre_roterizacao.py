@@ -4238,12 +4238,6 @@ def pagina_cargas_aprovadas():
                 cor_situacao = "gray"
                 rentabilidade_percentual = 0.0
 
-
-
-
-
-
-
             st.markdown(f"""
             <div style="margin-top:20px;padding:10px;background:#e8f0fe;border-left:4px solid #34a853;border-radius:6px;display:inline-block;max-width:100%;">
                 <strong>Carga:</strong> {carga}
@@ -4439,7 +4433,7 @@ def pagina_cargas_aprovadas():
             except Exception as e:
                 st.error(f"Erro ao salvar e fechar carga {carga}: {e}")
 
-               
+            
     except Exception as e:
         st.error("Erro ao carregar cargas aprovadas:")
         st.exception(e)
