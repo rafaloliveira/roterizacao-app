@@ -2870,6 +2870,9 @@ def pagina_pre_roterizacao():
             gb.configure_grid_options(alwaysShowHorizontalScroll=True)
             gb.configure_grid_options(rowStyle={'font-size': '11px'})
             gb.configure_grid_options(onGridReady=GRID_RESIZE_JS_CODE) # <<< ADICIONADO AQUI
+            if "Particularidade" in df_formatado.columns:
+                gb.configure_column("Particularidade", header_name="Particularidade", filter=True)
+
             grid_options = gb.build()
             grid_options["getRowStyle"] = linha_destacar
 
