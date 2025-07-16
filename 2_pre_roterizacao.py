@@ -197,9 +197,9 @@ def mover_entregas_para_outra_rota(ctrcs_selecionados, nova_rota_visual):
             .update({"GrupoDeExibicao": nova_rota_visual}) \
             .in_("Serie_Numero_CTRC", ctrcs_selecionados) \
             .execute()
-        st.write(f"DEBUG - Resposta completa do Supabase: {response}") # <--- ADICIONE ESTA LINHA
-        st.write(f"DEBUG - Dados retornados na resposta: {getattr(response, 'data', 'N/A')}") # <--- ADICIONE ESTA LINHA
-        st.write(f"DEBUG - Erro retornado na resposta: {getattr(response, 'error', 'N/A')}") # <--- ADICIONE ESTA LINHA
+        #st.write(f"DEBUG - Resposta completa do Supabase: {response}") # <--- ADICIONE ESTA LINHA
+        #st.write(f"DEBUG - Dados retornados na resposta: {getattr(response, 'data', 'N/A')}") # <--- ADICIONE ESTA LINHA
+        #st.write(f"DEBUG - Erro retornado na resposta: {getattr(response, 'error', 'N/A')}") # <--- ADICIONE ESTA LINHA
 
 
         # Opcional: Verifique se a atualização foi bem-sucedida pelo número de registros afetados
@@ -815,32 +815,25 @@ def carregar_base_supabase():
         confirmadas = confirmadas.loc[:, ~confirmadas.columns.duplicated()]
         obrigatorias = obrigatorias.loc[:, ~obrigatorias.columns.duplicated()]
 
-
         colunas_comuns = confirmadas.columns.intersection(obrigatorias.columns)
         confirmadas = confirmadas[colunas_comuns]
         obrigatorias = obrigatorias[colunas_comuns]
 
         df_final = base.copy()
         df_final['Indice'] = df_final.index
-        
+
         # ✅ Formatar datas para exibição no grid como dd-mm-aaaa
         for col in ["Previsao de Entrega", "Entrega Programada"]:
             if col in base.columns:
                 base[col] = pd.to_datetime(base[col], errors='coerce')
                 base[col] = base[col].dt.strftime("%d-%m-%Y").fillna("")
 
-        st.info(f"DEBUG (carregar_base_supabase RETURN): 'Particularidade' existe? {'Particularidade' in base.columns}")
-        if 'Particularidade' in base.columns:
-            st.info(f"DEBUG (carregar_base_supabase RETURN): Primeiras 5 particularidades: {base['Particularidade'].head().tolist()}")
-            st.info(f"DEBUG (carregar_base_supabase RETURN): Quantidade de valores não nulos em 'Particularidade': {base['Particularidade'].count()}")
-        else:
-            st.error("DEBUG (carregar_base_supabase RETURN): A coluna 'Particularidade' NÃO está presente em 'base' antes do retorno!")
-
         return base
 
     except Exception as e:
         st.error(f"Erro ao consultar as tabelas do Supabase: {e}")
         return pd.DataFrame()
+
     
 
 
