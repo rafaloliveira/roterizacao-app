@@ -866,7 +866,7 @@ def gerar_proximo_numero_carga(supabase):
                 if response.data and len(response.data) > 0:
                     # Número de carga já existe nesta tabela, não é único
                     is_unique_candidate = False
-                    st.warning(f"Candidato '{random_cargo_number}' já existe na tabela '{table_name}'. Tentando outro...")
+                    #st.warning(f"Candidato '{random_cargo_number}' já existe na tabela '{table_name}'. Tentando outro...")
                     break # Sai do loop de tabelas e tenta um novo random_cargo_number
             except Exception as e:
                 # ERRO CRÍTICO: Se a consulta ao Supabase falhar, não podemos garantir a unicidade.
@@ -1234,7 +1234,7 @@ def limpar_tabelas_relacionadas():
             # Usaremos 'neq' (not equal to) em uma coluna que existe em todas essas tabelas
             # ('Serie_Numero_CTRC') com um valor que nunca existirá.
             # Adicionei um print para depuração.
-            st.write(f"DEBUG: Tentando limpar a tabela: {tabela}")
+            #st.write(f"DEBUG: Tentando limpar a tabela: {tabela}")
             response = supabase.table(tabela).delete().neq("Serie_Numero_CTRC", "DUMMY_VALUE_FOR_FULL_CLEAN_12345").execute()
             
             if response.data: # Se 'data' não for None, significa que algo foi retornado/deletado.
@@ -3370,7 +3370,7 @@ def pagina_cargas_geradas():
                                             break
 
                                         try:
-                                            st.info(f"DEBUG: Tentando deletar {len(chaves_para_deletar)} CTRCs da tabela 'cargas_geradas' (tentativa {tentativa+1}).")
+                                            #st.info(f"DEBUG: Tentando deletar {len(chaves_para_deletar)} CTRCs da tabela 'cargas_geradas' (tentativa {tentativa+1}).")
                                             delete_response = supabase.table("cargas_geradas").delete().in_("Serie_Numero_CTRC", chaves_para_deletar).execute()
 
                                             if delete_response.data:
