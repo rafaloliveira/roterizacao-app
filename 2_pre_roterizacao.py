@@ -714,7 +714,7 @@ def carregar_base_supabase():
             return pd.DataFrame()
 
         agendadas = pd.DataFrame(supabase.table("Clientes_Entrega_Agendada").select("*").execute().data)
-        particularidade = pd.DataFrame(supabase.table("Particularidade").select("*").execute().data)
+        particularidades = pd.DataFrame(supabase.table("Particularidades").select("*").execute().data)
         rotas = pd.DataFrame(supabase.table("Rotas").select("*").execute().data)
         rotas_poa = pd.DataFrame(supabase.table("RotasPortoAlegre").select("*").execute().data)
         confirmadas = pd.DataFrame(supabase.table("confirmadas_producao").select("*").execute().data)
@@ -731,13 +731,13 @@ def carregar_base_supabase():
             
         if (
             'CNPJ Destinatario' in base.columns and
-            not particularidade.empty and
-            {'CNPJ', 'Particularidade'}.issubset(particularidade.columns)
+            not particularidades.empty and
+            {'CNPJ', 'Particularidade'}.issubset(particularidades.columns)
         ):
-            particularidade['CNPJ'] = particularidade['CNPJ'].astype(str).str.strip()
+            particularidades['CNPJ'] = particularidades['CNPJ'].astype(str).str.strip()
             base['CNPJ Destinatario'] = base['CNPJ Destinatario'].astype(str).str.strip()
             base = base.merge(
-                particularidade[['CNPJ', 'Particularidade']],
+                particularidades[['CNPJ', 'Particularidade']],
                 how='left',
                 left_on='CNPJ Destinatario',
                 right_on='CNPJ'
@@ -1473,8 +1473,8 @@ def aplicar_regras_e_preencher_tabelas():
         # st.text("[DEBUG] Mescla com Micro_Regiao_por_data_embarque concluída.") # REMOVIDO
 #______________________________________________________________________________________________________________________
 
-        # Merge com Particularidade
-        part = supabase.table("Particularidade").select("*").execute().data
+        # Merge com Particularidades
+        part = supabase.table("Particularidades").select("*").execute().data
         if part:
             df_part = pd.DataFrame(part)
             df_part.columns = df_part.columns.str.strip()
@@ -1483,7 +1483,7 @@ def aplicar_regras_e_preencher_tabelas():
             df.drop(columns=['CNPJ'], inplace=True)
         else:
             df['Particularidade'] = None
-        # st.text("[DEBUG] Mescla com Particularidade concluída.") # REMOVIDO
+        # st.text("[DEBUG] Mescla com Particularidades concluída.") # REMOVIDO
 #________________________________________________________________________________________________________________________
         # Merge com Clientes_Entrega_Agendada
         agendados = supabase.table("Clientes_Entrega_Agendada").select("*").execute().data
@@ -2184,7 +2184,6 @@ def pagina_aprovacao_diretoria():
     except Exception as e:
         st.error(f"Erro ao carregar dados da aprovação: {e}")
         return
-    
     if st.button("✅ Aprovar Todas as Entregas da Página", key="btn_aprovar_todas_topo"):
         try:
             with st.spinner("🔄 Aprovando todas as entregas."):
@@ -2784,24 +2783,6 @@ def pagina_pre_roterizacao():
 
     for rota_visual in sorted(df_visivel["Rota_Grupo"].dropna().unique()):
         df_rota = df_visivel[df_visivel["Rota_Grupo"] == rota_visual].copy()
-
-        if "Particularidade" not in df_rota.columns:
-            st.warning("❌ Coluna 'Particularidade' ausente em df_rota")
-        else:
-            st.write("✅ Particularidade presente em df_rota:")
-            st.write(df_rota["Particularidade"].dropna().unique()[:5])
-
-        # Preenchimento forçado (caso AgGrid esconda colunas com muitos nulos)
-        if "Particularidade" in df_rota.columns:
-            df_rota["Particularidade"] = df_rota["Particularidade"].fillna("")
-        else:
-            df_rota["Particularidade"] = ""  # Cria a coluna vazia para evitar KeyError
-
-
-        # Garante que ela será exibida (caso tenha sido filtrada fora da exibição)
-        if "Particularidade" not in colunas_exibir:
-            colunas_exibir.append("Particularidade")
-
         
         if df_rota.empty:
             continue
@@ -2888,10 +2869,6 @@ def pagina_pre_roterizacao():
             gb.configure_grid_options(alwaysShowHorizontalScroll=True)
             gb.configure_grid_options(rowStyle={'font-size': '11px'})
             gb.configure_grid_options(onGridReady=GRID_RESIZE_JS_CODE) # <<< ADICIONADO AQUI
-            if "Particularidade" in df_formatado.columns:
-                gb.configure_column("Particularidade", header_name="Particularidade", filter=True)
-                gb.configure_column("Particularidade", width=200)
-
             grid_options = gb.build()
             grid_options["getRowStyle"] = linha_destacar
 
@@ -2906,7 +2883,7 @@ def pagina_pre_roterizacao():
                 gridOptions=grid_options,
                 # AJUSTE AQUI: MUDANÇA DE MANUAL PARA SELECTION_CHANGED
                 update_mode=GridUpdateMode.SELECTION_CHANGED, 
-                fit_columns_on_grid_load=True,
+                fit_columns_on_grid_load=False,
                 width="100%",
                 height=400,
                 allow_unsafe_jscode=True,
