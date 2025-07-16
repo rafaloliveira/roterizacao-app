@@ -2169,9 +2169,33 @@ def pagina_confirmar_producao():
 def pagina_aprovacao_diretoria():
     st.markdown("## Aprovação da Diretoria")
 
+    # --- INÍCIO DO BLOCO DE CARREGAMENTO DE DADOS (MOVIDO PARA O TOPO) ---
+    try:
+        with st.spinner("🔄 Carregando entregas pendentes para aprovação..."):
+            # Lógica de cache para evitar múltiplas chamadas ao Supabase em reruns
+            recarregar = st.session_state.pop("reload_aprovacao_diretoria", False) # Adiciona recarregamento de cache
+            if recarregar or "df_aprovacao_diretoria_cache" not in st.session_state: # Verifica o cache
+                df_aprovacao = pd.DataFrame(
+                    supabase.table("aprovacao_diretoria").select("*").execute().data
+                )
+                st.session_state["df_aprovacao_diretoria_cache"] = df_aprovacao # Atualiza o cache
+            else:
+                df_aprovacao = st.session_state["df_aprovacao_diretoria_cache"] # Usa o cache existente
+
+        if df_aprovacao.empty:
+            st.info("Nenhuma entrega pendente para aprovação.")
+            return # Se estiver vazio, sai da função antes de tentar processar
+    except Exception as e:
+        st.error(f"Erro ao carregar dados da aprovação: {e}")
+        return # Sai da função se houver um erro no carregamento
+    # --- FIM DO BLOCO DE CARREGAMENTO DE DADOS ---
+
+    # Agora, df_aprovacao está garantida de estar definida se a execução chegou até aqui.
+
     if st.button("✅ Aprovar Todas as Entregas da Página", key="btn_aprovar_todas_topo"):
         try:
             with st.spinner("🔄 Aprovando todas as entregas."):
+                # df_aprovacao agora estará disponível aqui
                 df_aprovar = df_aprovacao.drop(columns=["_selectedRowNodeInfo"], errors="ignore").copy()
                 df_aprovar["aprovador_diretoria_login"] = st.session_state.get("username", "Desconhecido")
                 df_aprovar["data_aprovacao_diretoria"] = data_hora_brasil_iso()
@@ -2200,7 +2224,6 @@ def pagina_aprovacao_diretoria():
         except Exception as e:
             st.error(f"❌ Erro ao aprovar todas as entregas: {e}")
 
-
     # Obter a classe do usuário logado (assume 'colaborador' se não estiver definida por segurança)
     current_user_class = st.session_state.get("classe", "colaborador")
     is_user_aprovador = (current_user_class == "aprovador")
@@ -2209,45 +2232,20 @@ def pagina_aprovacao_diretoria():
     if not is_user_aprovador:
         st.warning("⛔ Apenas usuários com classe 'aprovador' podem realizar ações de aprovação de diretoria.")
 
-    try:
-        with st.spinner("🔄 Carregando entregas pendentes para aprovação..."):
-            # Lógica de cache para evitar múltiplas chamadas ao Supabase em reruns
-            recarregar = st.session_state.pop("reload_aprovacao_diretoria", False) # Adiciona recarregamento de cache
-            if recarregar or "df_aprovacao_diretoria_cache" not in st.session_state: # Verifica o cache
-                df_aprovacao = pd.DataFrame(
-                    supabase.table("aprovacao_diretoria").select("*").execute().data
-                )
-                st.session_state["df_aprovacao_diretoria_cache"] = df_aprovacao # Atualiza o cache
-            else:
-                df_aprovacao = st.session_state["df_aprovacao_diretoria_cache"] # Usa o cache existente
-
-        if df_aprovacao.empty:
-            st.info("Nenhuma entrega pendente para aprovação.")
-            return
-
-    except Exception as e:
-        st.error(f"Erro ao carregar dados da aprovação: {e}")
-        return
-
-
-    df_aprovacao["Cliente Pagador"] = df_aprovacao["Cliente Pagador"].astype(str).str.strip().fillna("(Vazio)")
-
-
-    df_exibir = df_aprovacao.copy()
     # ======= BLOCO DE MÉTRICAS: TOTAL + APROVADAS (lado a lado) =======
     col1, col2, col3, col4, spacer, col5, col6, col7 = st.columns([1, 1, 1, 1, 0.3, 1, 1, 1])
 
     with col1:
-        st.metric("👥 Total de Clientes", df_exibir["Cliente Pagador"].nunique())
+        st.metric("👥 Total de Clientes", df_aprovacao["Cliente Pagador"].nunique()) # df_aprovacao já definido aqui
 
     with col2:
-        st.metric("📦 Total de Entregas", len(df_exibir))
+        st.metric("📦 Total de Entregas", len(df_aprovacao)) # df_aprovacao já definido aqui
 
     with col3:
-        st.metric("⚖️ Peso Real (kg)", formatar_brasileiro(df_exibir["Peso Real em Kg"].sum()))
+        st.metric("⚖️ Peso Real (kg)", formatar_brasileiro(df_aprovacao["Peso Real em Kg"].sum())) # df_aprovacao já definido aqui
 
     with col4:
-        st.metric("📏 Peso Calculado (kg)", formatar_brasileiro(df_exibir["Peso Calculado em Kg"].sum()))
+        st.metric("📏 Peso Calculado (kg)", formatar_brasileiro(df_aprovacao["Peso Calculado em Kg"].sum())) # df_aprovacao já definido aqui
 
     # === MÉTRICAS DINÂMICAS (Entregas selecionadas para aprovação) ===
     df_selecionadas_globais = st.session_state.get("df_aprovadas_diretoria", pd.DataFrame())
@@ -2262,8 +2260,6 @@ def pagina_aprovacao_diretoria():
     with col7:
         st.metric("✅ Peso Calc. Aprovado", formatar_brasileiro(peso_calc_aprovado))
         
-
-
     def badge(label):
         return f"<span style='background:#eef2f7;border-radius:12px;padding:6px 12px;margin:4px;color:inherit;display:inline-block;'>{label}</span>"
 
@@ -2290,8 +2286,8 @@ def pagina_aprovacao_diretoria():
         }
     """)
 
-    for cliente in sorted(df_aprovacao["Cliente Pagador"].unique()):
-        df_cliente = df_aprovacao[df_aprovacao["Cliente Pagador"] == cliente].copy()
+    for cliente in sorted(df_aprovacao["Cliente Pagador"].unique()): # df_aprovacao já definido aqui
+        df_cliente = df_aprovacao[df_aprovacao["Cliente Pagador"] == cliente].copy() # df_aprovacao já definido aqui
         if df_cliente.empty:
             continue
 
@@ -2307,18 +2303,16 @@ def pagina_aprovacao_diretoria():
                 badge(f"{len(df_cliente)} entregas") +
                 badge(f"{formatar_brasileiro(df_cliente['Peso Calculado em Kg'].sum())} kg calc") +
                 badge(f"{formatar_brasileiro(df_cliente['Peso Real em Kg'].sum())} kg real") +
-                badge(f"Valor frete: R$ {formatar_brasileiro(df_cliente['Valor do Frete'].sum())}") +
+                badge(f"Valor frete: R\$ {formatar_brasileiro(df_cliente['Valor do Frete'].sum())}") +
                 badge(f"{formatar_brasileiro(df_cliente['Cubagem em m³'].sum())} m³") +
                 badge(f"{int(df_cliente['Quantidade de Volumes'].sum())} volumes"),
                 unsafe_allow_html=True
             )
 
-
         with st.expander("🔽 Selecionar entregas", expanded=False):
-            
             df_formatado = apply_brazilian_date_format_for_display(df_cliente[[col for col in colunas_exibir if col in df_cliente.columns]].copy())
 
-             # NOVO: Checkbox "Marcar todas" dentro do expander
+            # NOVO: Checkbox "Marcar todas" dentro do expander
             checkbox_key = f"marcar_todas_aprov_{cliente}"
             if checkbox_key not in st.session_state:
                 st.session_state[checkbox_key] = False
@@ -2331,7 +2325,7 @@ def pagina_aprovacao_diretoria():
                 gb.configure_grid_options(paginationPageSize=12)
                 gb.configure_grid_options(alwaysShowHorizontalScroll=True)
                 gb.configure_grid_options(rowStyle={'font-size': '11px'})
-                gb.configure_grid_options(onGridReady=GRID_RESIZE_JS_CODE) # <<< ADICIONADO AQUI
+                gb.configure_grid_options(onGridReady=GRID_RESIZE_JS_CODE)
                 grid_options = gb.build()
                 grid_options["getRowStyle"] = linha_destacar
 
@@ -2401,11 +2395,9 @@ def pagina_aprovacao_diretoria():
                     unsafe_allow_html=True
                 )
 
-
                 if not selecionadas.empty:
-                    col_aprovar, col_rejeitar = st.columns(2) # Adiciona duas colunas para os botões
+                    col_aprovar, col_rejeitar = st.columns(2)
 
-                    # ... (código existente) ...
                     with col_aprovar:
                         if st.button(
                             f"✅ Aprovar entregas",
@@ -2451,8 +2443,6 @@ def pagina_aprovacao_diretoria():
                                             st.session_state["df_aprovadas_diretoria"] = pd.concat([st.session_state["df_aprovadas_diretoria"], df_aprovadas_sessao], ignore_index=True)
                                         else:
                                             st.session_state["df_aprovadas_diretoria"] = df_aprovadas_sessao
-
-
                                     chaves_aprovadas = [r.get("Serie_Numero_CTRC") for r in registros_para_pre_roterizacao if r.get("Serie_Numero_CTRC")]
                                     if chaves_aprovadas:
                                         supabase.table("aprovacao_diretoria").delete().in_("Serie_Numero_CTRC", chaves_aprovadas).execute()
@@ -2460,21 +2450,16 @@ def pagina_aprovacao_diretoria():
                                     st.success(f"✅ {len(registros_para_pre_roterizacao)} entregas aprovadas e enviadas para Pré-Roteirização.")
                                     
                                     # --- INVALIDAÇÃO DE CACHES E KEYS DE GRIDS (Origem e Destino) ---
-                                    st.session_state["reload_aprovacao_diretoria"] = True # Recarrega a página atual
-                                    st.session_state.pop(grid_key_id, None) # Invalida o grid da página de origem
-                                    st.session_state.pop(checkbox_key, None) # Limpa o estado do checkbox
+                                    st.session_state["reload_aprovacao_diretoria"] = True
+                                    st.session_state.pop(grid_key_id, None)
+                                    st.session_state.pop(checkbox_key, None)
 
-                                    # Invalidação da key do grid de destino (Pré Roterização)
                                     rotas_afetadas = df_aprovar["Rota"].dropna().unique()
-                                    # AQUI ESTÁ O AJUSTE PRINCIPAL: Remove a chave do UUID do AgGrid
                                     for rota_afetadas_val in rotas_afetadas:
-                                        # Primeiro, remove a chave que guarda o UUID do AgGrid
-                                        # Esta é a chave 'pai' que dita o UUID real do grid
                                         key_do_session_state_para_o_uuid = f"grid_pre_rota_{rota_afetadas_val}"
                                         if key_do_session_state_para_o_uuid in st.session_state:
                                             st.session_state.pop(key_do_session_state_para_o_uuid, None)
-
-                                    st.session_state["reload_pre_roterizacao"] = True # Recarrega a página de destino (dados)
+                                    st.session_state["reload_pre_roterizacao"] = True
                                     st.write(f"DEBUG - Rotas sendo processadas para invalidação do grid de Pré-Roterização: {rotas_afetadas.tolist()}")
                                     # --- FIM DA INVALIDAÇÃO ---
 
@@ -2483,7 +2468,6 @@ def pagina_aprovacao_diretoria():
                             except Exception as e:
                                 st.error(f"❌ Erro ao aprovar entregas: {e}")
 
-                    # ... (código existente) ...
                     with col_rejeitar:
                         if st.button(
                             f"❌ Rejeitar entregas",
@@ -2533,19 +2517,17 @@ def pagina_aprovacao_diretoria():
                                     st.warning(f"↩️ {len(registros_para_confirmar_producao)} entregas rejeitadas e retornadas para Confirmar Produção.")
                                     
                                     # --- ATUALIZAÇÃO DO GRID DE ORIGEM E DESTINO ---
-                                    st.session_state["reload_aprovacao_diretoria"] = True # Recarrega os dados da página atual
-                                    st.session_state.pop(grid_key_id, None) # Invalida o grid da página de origem
-                                    st.session_state.pop(checkbox_key, None) # Limpa o estado do checkbox
+                                    st.session_state["reload_aprovacao_diretoria"] = True
+                                    st.session_state.pop(grid_key_id, None)
+                                    st.session_state.pop(checkbox_key, None)
 
-                                    # Invalidação da key do grid de destino (Confirmar Produção)
-                                    # Isso força o grid de Confirmar Produção a redesenhar com os itens que retornaram.
                                     clientes_afetados = df_rejeitar["Cliente Pagador"].dropna().unique()
                                     for cliente_afetado in clientes_afetados:
                                         grid_key_confirmar_prod = f"grid_conf_prod_{cliente_afetado}"
                                         if grid_key_confirmar_prod in st.session_state:
                                             st.session_state.pop(grid_key_confirmar_prod, None)
                                     
-                                    st.session_state["reload_confirmadas_producao"] = True # Recarrega os dados da página de destino
+                                    st.session_state["reload_confirmadas_producao"] = True
                                     # --- FIM DA ATUALIZAÇÃO DO GRID ---
 
                                     st.rerun()
