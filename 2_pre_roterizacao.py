@@ -1121,13 +1121,13 @@ def pagina_sincronizacao():
             
 
         except Exception as e:
-            st.error(f"❌ Ocorreu um erro durante a sincronização: {e}")
+            #st.error(f"❌ Ocorreu um erro durante a sincronização: {e}")
             st.session_state.sync_triggered = False
             st.session_state.uploaded_sync_file_hash = None
             st.session_state.df_for_sync_cache = None
             st.session_state.file_uploader_key += 1
             salvar_hora_sincronizacao()
-            st.rerun()
+            #st.rerun()
 
 
 #___________________________________________________________________________________
