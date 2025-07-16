@@ -1118,7 +1118,7 @@ def pagina_sincronizacao():
             st.session_state.df_for_sync_cache = None
             st.session_state.file_uploader_key += 1
 
-            st.rerun()
+            
 
         except Exception as e:
             st.error(f"❌ Ocorreu um erro durante a sincronização: {e}")
