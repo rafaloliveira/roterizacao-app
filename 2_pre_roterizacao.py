@@ -1127,7 +1127,8 @@ def pagina_sincronizacao():
             st.session_state.df_for_sync_cache = None
             st.session_state.file_uploader_key += 1
             salvar_hora_sincronizacao()
-            #st.rerun()
+            time.sleep(2)
+            st.rerun()
 
 
 #___________________________________________________________________________________
