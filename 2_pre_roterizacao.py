@@ -4607,8 +4607,8 @@ def pagina_cargas_fechadas():
                     unsafe_allow_html=True
                 )
                 
-            with st.expander("🔽 Ver entregas da carga fechada", expanded=False):
-                
+            with st.expander("🔽 Ver entregas da carga fechada", expanded=True):
+
 
                 with st.spinner("🔄 Formatando entregas da carga fechada..."):
                     # Define formatter for numeric values
