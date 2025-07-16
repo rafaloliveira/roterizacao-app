@@ -2792,7 +2792,11 @@ def pagina_pre_roterizacao():
             st.write(df_rota["Particularidade"].dropna().unique()[:5])
 
         # Preenchimento forçado (caso AgGrid esconda colunas com muitos nulos)
-        df_rota["Particularidade"] = df_rota["Particularidade"].fillna("")
+        if "Particularidade" in df_rota.columns:
+            df_rota["Particularidade"] = df_rota["Particularidade"].fillna("")
+        else:
+            df_rota["Particularidade"] = ""  # Cria a coluna vazia para evitar KeyError
+
 
         # Garante que ela será exibida (caso tenha sido filtrada fora da exibição)
         if "Particularidade" not in colunas_exibir:
