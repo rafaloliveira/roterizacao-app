@@ -990,10 +990,8 @@ def pagina_sincronizacao():
     else:
         st.markdown("🕒 Última sincronização: **ainda não realizada**")
 
-    
     st.markdown("### 1. Carregar Planilha Excel")
         
-    # Usa a chave dinâmica para forçar o reset visual do uploader
     arquivo_excel = st.file_uploader(
         "Selecione a planilha da fBaseroter:", 
         type=["xlsx"], 
@@ -1002,20 +1000,16 @@ def pagina_sincronizacao():
 
     current_file_hash = None
     if arquivo_excel:
-        # CORREÇÃO AQUI: de .heigest() para .hexdigest()
         current_file_hash = hashlib.md5(arquivo_excel.getvalue()).hexdigest()
 
-    # Detecta se um novo arquivo foi carregado ou se o anterior foi limpo/removido
     if current_file_hash != st.session_state.uploaded_sync_file_hash:
         st.session_state.uploaded_sync_file_hash = current_file_hash
-        st.session_state.sync_triggered = False # Reseta o gatilho se o arquivo muda
-        st.session_state.df_for_sync_cache = None # Limpa o cache do DF
+        st.session_state.sync_triggered = False
+        st.session_state.df_for_sync_cache = None
 
-    # Exibe a interface inicial de upload ou o botão de sincronização
     if arquivo_excel:
         try:
             if st.session_state.df_for_sync_cache is None:
-                # Lê o arquivo apenas uma vez e armazena em cache
                 df_raw = pd.read_excel(arquivo_excel)
                 df_raw.columns = df_raw.columns.str.strip()
                 st.session_state.df_for_sync_cache = df_raw
@@ -1023,50 +1017,41 @@ def pagina_sincronizacao():
             st.success(f"Arquivo '{arquivo_excel.name}' carregado com sucesso!")
             st.write("Clique em 'Iniciar Sincronização' para começar o processo.")
 
-            # Botão para iniciar a sincronização (desabilitado se já estiver rodando)
             if st.button("🚀 Iniciar Sincronização", key="start_sync_button", disabled=st.session_state.sync_triggered):
                 st.session_state.sync_triggered = True
-                st.rerun() # Força um rerun para que a lógica de sincronização seja executada
+                st.rerun()
 
         except Exception as e:
             st.error(f"Erro ao ler o arquivo Excel: {e}")
-            st.session_state.uploaded_sync_file_hash = None # Resetar em caso de erro na leitura
+            st.session_state.uploaded_sync_file_hash = None
             st.session_state.sync_triggered = False
             st.session_state.df_for_sync_cache = None
 
     elif not arquivo_excel and st.session_state.uploaded_sync_file_hash:
-        # Caso em que o arquivo foi limpo pelo usuário ou resetado
         st.session_state.uploaded_sync_file_hash = None
         st.session_state.df_for_sync_cache = None
         st.session_state.sync_triggered = False
         st.info("Nenhum arquivo carregado. Faça o upload de um novo arquivo Excel para sincronizar.")
-        return # Sai da função se não há arquivo para processar
+        return
 
-    else: # Primeiro acesso ou nenhum arquivo carregado ainda
+    else:
         st.info("Aguardando o upload de um arquivo Excel para iniciar a sincronização.")
-        return # Sai da função se não há arquivo para processar
+        return
 
-
-    # --- Bloco de Sincronização (executado SOMENTE se sync_triggered for True) ---
     if st.session_state.sync_triggered:
-        st.markdown("---") # Separador visual para o bloco de sincronização
-        
-        # Apenas a barra de progresso, sem placeholder para mensagens textuais adicionais
+        st.markdown("---")
         progress_bar = st.progress(0)
         
         try:
-            # Passo 1: Limpando e inserindo dados em fBaseroter
-            progress_bar.progress(10) # 10%
-            
-            df_to_process = st.session_state.df_for_sync_cache.copy() 
-            
-            # 🔧 Remove colunas indesejadas (mesma lógica do seu 02-07.txt)
-            colunas_para_remover = ['Capa de Canhoto de NF','Unnamed: 70']
+            progress_bar.progress(10)
+
+            df_to_process = st.session_state.df_for_sync_cache.copy()
+
+            colunas_para_remover = ['Capa de Canhoto de NF', 'Unnamed: 70']
             colunas_existentes_para_remover = [col for col in colunas_para_remover if col in df_to_process.columns]
             if colunas_existentes_para_remover:
                 df_to_process.drop(columns=colunas_existentes_para_remover, inplace=True)
 
-            # 🔄 Renomeia colunas (mesma lógica do seu 02-07.txt)
             renomear_colunas = {
                 'Cubagem em m3': 'Cubagem em m³',
                 'Serie/Numero CTRC': 'Serie_Numero_CTRC'
@@ -1075,78 +1060,75 @@ def pagina_sincronizacao():
             if colunas_renomeadas:
                 df_to_process.rename(columns=colunas_renomeadas, inplace=True)
             
-            df_to_process = corrigir_tipos(df_to_process) # Garanta que esta função está no seu código
+            df_to_process = corrigir_tipos(df_to_process)
 
             supabase.table("fBaseroter").delete().neq("Serie_Numero_CTRC", "").execute()
-            inserir_em_lote("fBaseroter", df_to_process) # Garanta que esta função está no seu código
-            
-            progress_bar.progress(30) # 30%
+            inserir_em_lote("fBaseroter", df_to_process)
 
-            # Passo 2: Limpando tabelas dependentes
-            progress_bar.progress(50) # 50%
-            limpar_tabelas_relacionadas() # Garanta que esta função está no seu código
-            
-            progress_bar.progress(70) # 70%
+            progress_bar.progress(30)
 
-            # Passo 3: Aplicando regras de negócio
-            progress_bar.progress(90) # 90%
-            aplicar_regras_e_preencher_tabelas() # Garanta que esta função está no seu código
-            
-            progress_bar.progress(95) # 95%
+            progress_bar.progress(50)
+            limpar_tabelas_relacionadas()
 
-            # Passo 4: Invalidando caches (essencial, manter)
+            progress_bar.progress(70)
+
+            progress_bar.progress(90)
+            aplicar_regras_e_preencher_tabelas()
+
+            progress_bar.progress(95)
+
             st.session_state["reload_confirmadas_producao"] = True
             st.session_state.pop("df_confirmadas_cache", None)
 
             st.session_state["reload_aprovacao_diretoria"] = True 
-
             st.session_state["reload_pre_roterizacao"] = True
             st.session_state.pop("df_pre_roterizacao_cache", None)
             st.session_state.pop("dados_confirmados_cache", None) 
-            
             st.session_state["reload_rotas_confirmadas"] = True
             st.session_state.pop("df_rotas_confirmadas_cache", None)
-
             st.session_state["reload_cargas_geradas"] = True
             st.session_state.pop("df_cargas_cache", None)
-        
             st.session_state["reload_aprovacao_custos"] = True
             st.session_state.pop("df_aprovacao_custos_cache", None)
-        
             st.session_state["reload_cargas_aprovadas"] = True
             st.session_state.pop("df_cargas_aprovadas_cache", None)
 
             if 'carregar_base_supabase' in locals() or 'carregar_base_supabase' in globals():
-                carregar_base_supabase.clear() # Limpa o cache da função
-            
-            
-            progress_bar.progress(100) # 100%
+                carregar_base_supabase.clear()
 
-            # --- TRECHO PARA MENSAGEM DE SUCESSO E BALÕES ---
-            #st.success("✅ Sincronização concluída com sucesso!")
-            st.balloons() 
-            
-            # CRUCIAL: Adicione um pequeno atraso para que o Streamlit possa renderizar os balões e a mensagem
-            time.sleep(3) # Espera 2 segundos (ajuste conforme necessário)
-            # --- FIM DO TRECHO ---
+            progress_bar.progress(100)
 
-            # --- CRUCIAL PARA RETORNAR AO ESTADO INICIAL ---
-            st.session_state.sync_triggered = False  # Reseta o gatilho
-            st.session_state.uploaded_sync_file_hash = None # Remove o hash do arquivo anterior
-            st.session_state.df_for_sync_cache = None # Limpa o DataFrame cacheado
-            st.session_state.file_uploader_key += 1 # Incrementa a chave para RESETAR o file_uploader visualmente
+            # ✅ Mensagem final com contagem
+            try:
+                qtd_confirmadas = len(supabase.table("confirmadas_producao").select("Serie_Numero_CTRC").execute().data or [])
+                qtd_pre_roterizacao = len(supabase.table("pre_roterizacao").select("Serie_Numero_CTRC").execute().data or [])
 
-            st.rerun() # Dispara um rerun para recarregar a página no estado inicial
+                st.success("✅ Sincronização finalizada com sucesso!")
+                st.markdown(f"📦 Entregas em **Confirmar Produção**: **{qtd_confirmadas}**")
+                st.markdown(f"🗂️ Entregas em **Pré-Roteirização**: **{qtd_pre_roterizacao}**")
+                st.balloons()
+            except Exception as e:
+                st.error("⚠️ Sincronização concluída, mas houve erro ao consultar os totais.")
+                st.exception(e)
 
-        except Exception as e:
-            st.error(f"❌ Ocorreu um erro durante a sincronização: {e}")
-            # Certifique-se de que o uploader e o estado sejam resetados mesmo em caso de erro
+            salvar_hora_sincronizacao()
+
             st.session_state.sync_triggered = False
             st.session_state.uploaded_sync_file_hash = None
             st.session_state.df_for_sync_cache = None
-            st.session_state.file_uploader_key += 1 # Resetar uploader em erro também
+            st.session_state.file_uploader_key += 1
+
+            st.rerun()
+
+        except Exception as e:
+            st.error(f"❌ Ocorreu um erro durante a sincronização: {e}")
+            st.session_state.sync_triggered = False
+            st.session_state.uploaded_sync_file_hash = None
+            st.session_state.df_for_sync_cache = None
+            st.session_state.file_uploader_key += 1
             salvar_hora_sincronizacao()
-            st.rerun() # Dispara um rerun para recarregar a página após o erro
+            st.rerun()
+
 
 #___________________________________________________________________________________
 def corrigir_tipos(df):
@@ -1852,13 +1834,9 @@ def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, veiculo, valor_f
     buffer.seek(0)
     return buffer.getvalue()
 
-# ==============================================================================
-# FIM DAS NOVAS FUNÇÕES PARA GERAÇÃO DE PDF
-# ==============================================================================
-
-
-
-
+# ===========================================
+# # FIM DAS NOVAS FUNÇÕES PARA GERAÇÃO DE PDF
+# ===========================================
 ##########################################
 
 # PÁGINA Confirmar Produção
