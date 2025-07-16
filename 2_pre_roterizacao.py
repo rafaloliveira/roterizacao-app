@@ -714,7 +714,7 @@ def carregar_base_supabase():
             return pd.DataFrame()
 
         agendadas = pd.DataFrame(supabase.table("Clientes_Entrega_Agendada").select("*").execute().data)
-        particularidade = pd.DataFrame(supabase.table("Particularidade").select("*").execute().data)
+        particularidades = pd.DataFrame(supabase.table("Particularidades").select("*").execute().data)
         rotas = pd.DataFrame(supabase.table("Rotas").select("*").execute().data)
         rotas_poa = pd.DataFrame(supabase.table("RotasPortoAlegre").select("*").execute().data)
         confirmadas = pd.DataFrame(supabase.table("confirmadas_producao").select("*").execute().data)
@@ -731,13 +731,13 @@ def carregar_base_supabase():
             
         if (
             'CNPJ Destinatario' in base.columns and
-            not particularidade.empty and
-            {'CNPJ', 'Particularidade'}.issubset(particularidade.columns)
+            not particularidades.empty and
+            {'CNPJ', 'Particularidade'}.issubset(particularidades.columns)
         ):
-            particularidade['CNPJ'] = particularidade['CNPJ'].astype(str).str.strip()
+            particularidades['CNPJ'] = particularidades['CNPJ'].astype(str).str.strip()
             base['CNPJ Destinatario'] = base['CNPJ Destinatario'].astype(str).str.strip()
             base = base.merge(
-                particularidade[['CNPJ', 'Particularidade']],
+                particularidades[['CNPJ', 'Particularidade']],
                 how='left',
                 left_on='CNPJ Destinatario',
                 right_on='CNPJ'
@@ -1473,8 +1473,8 @@ def aplicar_regras_e_preencher_tabelas():
         # st.text("[DEBUG] Mescla com Micro_Regiao_por_data_embarque concluída.") # REMOVIDO
 #______________________________________________________________________________________________________________________
 
-        # Merge com Particularidade
-        part = supabase.table("Particularidade").select("*").execute().data
+        # Merge com Particularidades
+        part = supabase.table("Particularidades").select("*").execute().data
         if part:
             df_part = pd.DataFrame(part)
             df_part.columns = df_part.columns.str.strip()
@@ -1483,7 +1483,7 @@ def aplicar_regras_e_preencher_tabelas():
             df.drop(columns=['CNPJ'], inplace=True)
         else:
             df['Particularidade'] = None
-        # st.text("[DEBUG] Mescla com Particularidade concluída.") # REMOVIDO
+        # st.text("[DEBUG] Mescla com Particularidades concluída.") # REMOVIDO
 #________________________________________________________________________________________________________________________
         # Merge com Clientes_Entrega_Agendada
         agendados = supabase.table("Clientes_Entrega_Agendada").select("*").execute().data
@@ -2157,33 +2157,6 @@ def pagina_confirmar_producao():
 def pagina_aprovacao_diretoria():
     st.markdown("## Aprovação da Diretoria")
 
-    # Obter a classe do usuário logado (assume 'colaborador' se não estiver definida por segurança)
-    current_user_class = st.session_state.get("classe", "colaborador")
-    is_user_aprovador = (current_user_class == "aprovador")
-
-    # Mensagem de aviso se o usuário não for aprovador
-    if not is_user_aprovador:
-        st.warning("⛔ Apenas usuários com classe 'aprovador' podem realizar ações de aprovação de diretoria.")
-
-    try:
-        with st.spinner("🔄 Carregando entregas pendentes para aprovação..."):
-            # Lógica de cache para evitar múltiplas chamadas ao Supabase em reruns
-            recarregar = st.session_state.pop("reload_aprovacao_diretoria", False) # Adiciona recarregamento de cache
-            if recarregar or "df_aprovacao_diretoria_cache" not in st.session_state: # Verifica o cache
-                df_aprovacao = pd.DataFrame(
-                    supabase.table("aprovacao_diretoria").select("*").execute().data
-                )
-                st.session_state["df_aprovacao_diretoria_cache"] = df_aprovacao # Atualiza o cache
-            else:
-                df_aprovacao = st.session_state["df_aprovacao_diretoria_cache"] # Usa o cache existente
-
-        if df_aprovacao.empty:
-            st.info("Nenhuma entrega pendente para aprovação.")
-            return
-
-    except Exception as e:
-        st.error(f"Erro ao carregar dados da aprovação: {e}")
-        return
     if st.button("✅ Aprovar Todas as Entregas da Página", key="btn_aprovar_todas_topo"):
         try:
             with st.spinner("🔄 Aprovando todas as entregas."):
@@ -2214,6 +2187,36 @@ def pagina_aprovacao_diretoria():
                     st.info("Nenhuma entrega válida encontrada para aprovar.")
         except Exception as e:
             st.error(f"❌ Erro ao aprovar todas as entregas: {e}")
+
+
+    # Obter a classe do usuário logado (assume 'colaborador' se não estiver definida por segurança)
+    current_user_class = st.session_state.get("classe", "colaborador")
+    is_user_aprovador = (current_user_class == "aprovador")
+
+    # Mensagem de aviso se o usuário não for aprovador
+    if not is_user_aprovador:
+        st.warning("⛔ Apenas usuários com classe 'aprovador' podem realizar ações de aprovação de diretoria.")
+
+    try:
+        with st.spinner("🔄 Carregando entregas pendentes para aprovação..."):
+            # Lógica de cache para evitar múltiplas chamadas ao Supabase em reruns
+            recarregar = st.session_state.pop("reload_aprovacao_diretoria", False) # Adiciona recarregamento de cache
+            if recarregar or "df_aprovacao_diretoria_cache" not in st.session_state: # Verifica o cache
+                df_aprovacao = pd.DataFrame(
+                    supabase.table("aprovacao_diretoria").select("*").execute().data
+                )
+                st.session_state["df_aprovacao_diretoria_cache"] = df_aprovacao # Atualiza o cache
+            else:
+                df_aprovacao = st.session_state["df_aprovacao_diretoria_cache"] # Usa o cache existente
+
+        if df_aprovacao.empty:
+            st.info("Nenhuma entrega pendente para aprovação.")
+            return
+
+    except Exception as e:
+        st.error(f"Erro ao carregar dados da aprovação: {e}")
+        return
+
 
     df_aprovacao["Cliente Pagador"] = df_aprovacao["Cliente Pagador"].astype(str).str.strip().fillna("(Vazio)")
 
