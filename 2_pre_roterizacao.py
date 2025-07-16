@@ -2157,6 +2157,34 @@ def pagina_confirmar_producao():
 def pagina_aprovacao_diretoria():
     st.markdown("## Aprovação da Diretoria")
 
+    # Obter a classe do usuário logado (assume 'colaborador' se não estiver definida por segurança)
+    current_user_class = st.session_state.get("classe", "colaborador")
+    is_user_aprovador = (current_user_class == "aprovador")
+
+    # Mensagem de aviso se o usuário não for aprovador
+    if not is_user_aprovador:
+        st.warning("⛔ Apenas usuários com classe 'aprovador' podem realizar ações de aprovação de diretoria.")
+
+    try:
+        with st.spinner("🔄 Carregando entregas pendentes para aprovação..."):
+            # Lógica de cache para evitar múltiplas chamadas ao Supabase em reruns
+            recarregar = st.session_state.pop("reload_aprovacao_diretoria", False) # Adiciona recarregamento de cache
+            if recarregar or "df_aprovacao_diretoria_cache" not in st.session_state: # Verifica o cache
+                df_aprovacao = pd.DataFrame(
+                    supabase.table("aprovacao_diretoria").select("*").execute().data
+                )
+                st.session_state["df_aprovacao_diretoria_cache"] = df_aprovacao # Atualiza o cache
+            else:
+                df_aprovacao = st.session_state["df_aprovacao_diretoria_cache"] # Usa o cache existente
+
+        if df_aprovacao.empty:
+            st.info("Nenhuma entrega pendente para aprovação.")
+            return
+
+    except Exception as e:
+        st.error(f"Erro ao carregar dados da aprovação: {e}")
+        return
+    
     if st.button("✅ Aprovar Todas as Entregas da Página", key="btn_aprovar_todas_topo"):
         try:
             with st.spinner("🔄 Aprovando todas as entregas."):
@@ -2187,36 +2215,6 @@ def pagina_aprovacao_diretoria():
                     st.info("Nenhuma entrega válida encontrada para aprovar.")
         except Exception as e:
             st.error(f"❌ Erro ao aprovar todas as entregas: {e}")
-
-
-    # Obter a classe do usuário logado (assume 'colaborador' se não estiver definida por segurança)
-    current_user_class = st.session_state.get("classe", "colaborador")
-    is_user_aprovador = (current_user_class == "aprovador")
-
-    # Mensagem de aviso se o usuário não for aprovador
-    if not is_user_aprovador:
-        st.warning("⛔ Apenas usuários com classe 'aprovador' podem realizar ações de aprovação de diretoria.")
-
-    try:
-        with st.spinner("🔄 Carregando entregas pendentes para aprovação..."):
-            # Lógica de cache para evitar múltiplas chamadas ao Supabase em reruns
-            recarregar = st.session_state.pop("reload_aprovacao_diretoria", False) # Adiciona recarregamento de cache
-            if recarregar or "df_aprovacao_diretoria_cache" not in st.session_state: # Verifica o cache
-                df_aprovacao = pd.DataFrame(
-                    supabase.table("aprovacao_diretoria").select("*").execute().data
-                )
-                st.session_state["df_aprovacao_diretoria_cache"] = df_aprovacao # Atualiza o cache
-            else:
-                df_aprovacao = st.session_state["df_aprovacao_diretoria_cache"] # Usa o cache existente
-
-        if df_aprovacao.empty:
-            st.info("Nenhuma entrega pendente para aprovação.")
-            return
-
-    except Exception as e:
-        st.error(f"Erro ao carregar dados da aprovação: {e}")
-        return
-
 
     df_aprovacao["Cliente Pagador"] = df_aprovacao["Cliente Pagador"].astype(str).str.strip().fillna("(Vazio)")
 
