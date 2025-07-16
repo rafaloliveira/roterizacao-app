@@ -4470,24 +4470,6 @@ def pagina_cargas_fechadas():
         with col2:
             st.metric("Total de Entregas Fechadas", len(df))
 
-        # --- NOVO LOCAL PARA O BOTÃO DE DOWNLOAD GERAL ---
-        with col_download:
-            # Adiciona um pouco de espaço vertical para alinhar o botão com as métricas
-            st.write("")
-            st.write("") # Pode adicionar mais um st.write("") se o alinhamento não for perfeito
-
-            st.markdown("### 📥 Download Chaves") # Título mais conciso para o espaço
-
-            try:
-                 # Portanto, o bloco `with col_download` aqui estará vazio ou com mensagem simples.
-                st.info("Selecione as datas para baixar o CSV do período.")
-                # O CÓDIGO REAL DO BOTÃO SERÁ MOVIDO PARA DEPOIS DO FILTRO.
-            except Exception as e:
-                st.warning("⚠️ Erro ao preparar download no cabeçalho.")
-                #st.exception(e)
-        # --- FIM DO NOVO LOCAL ---
-
-
         st.markdown("---") # Separador visual para os filtros
 
         # --- Filtro por Data de Fechamento ---
@@ -4496,28 +4478,23 @@ def pagina_cargas_fechadas():
         with col_data_inicio:
             # Pega a data mínima do DataFrame, garante que seja um objeto date para o date_input
             min_date_val = df['data_fechamento'].min().date() if not df['data_fechamento'].empty and pd.notna(df['data_fechamento'].min()) else None
-            data_inicio = st.date_input("Data Inicial", 
-            value=min_date_val if min_date_val else pd.to_datetime('today').date(), 
-            key="filtro_data_inicio")
+            data_inicio = st.date_input("Data Inicial", value=min_date_val, key="filtro_data_inicio")
         with col_data_fim:
             # Pega a data máxima do DataFrame, garante que seja um objeto date para o date_input
             max_date_val = df['data_fechamento'].max().date() if not df['data_fechamento'].empty and pd.notna(df['data_fechamento'].max()) else None
-            data_fim = st.date_input("Data Final", 
-            value=max_date_val if max_date_val else pd.to_datetime('today').date(), 
-            key="filtro_data_fim")
+            data_fim = st.date_input("Data Final", value=max_date_val, key="filtro_data_fim")
 
         # Aplica a filtragem por data
         df_filtrado = df.copy()
         if data_inicio:
             # Converte data_inicio (datetime.date) para um Timestamp timezone-aware (UTC)
-            start_of_day_utc = pd.Timestamp(data_inicio).tz_localize('UTC') # Removendo tz='UTC' do construtor
+            start_of_day_utc = pd.Timestamp(data_inicio, tz='UTC')
             df_filtrado = df_filtrado[df_filtrado['data_fechamento'] >= start_of_day_utc]
 
         if data_fim:
             # Converte data_fim (datetime.date) para um Timestamp timezone-aware (UTC)
             # e define-o para o final do dia (23:59:59.999...) em UTC
-            end_of_day_utc = pd.Timestamp(data_fim) + pd.Timedelta(days=1) - pd.Timedelta(microseconds=1)
-            end_of_day_utc = end_of_day_utc.tz_localize('UTC')
+            end_of_day_utc = pd.Timestamp(data_fim, tz='UTC') + pd.Timedelta(days=1) - pd.Timedelta(microseconds=1)
             df_filtrado = df_filtrado[df_filtrado['data_fechamento'] <= end_of_day_utc]
         
         # Verifica se o DataFrame filtrado está vazio
@@ -4612,10 +4589,10 @@ def pagina_cargas_fechadas():
                         {badge(f'{len(df_carga)} entregas')}
                         {badge(f'{formatar_brasileiro(df_carga["Peso Calculado em Kg"].sum())} kg calc')}
                         {badge(f'{formatar_brasileiro(df_carga["Peso Real em Kg"].sum())} kg real')}
-                        {badge(f'Valor frete: R\$ {formatar_brasileiro(total_frete_carga)}')}
+                        {badge(f'Valor frete: R$ {formatar_brasileiro(total_frete_carga)}')}
                         {badge(f'{formatar_brasileiro(df_carga["Cubagem em m³"].sum())} m³')}
                         {badge(f'{int(df_carga["Quantidade de Volumes"].sum())} volumes')}
-                        {badge(f'Valor Contratação: R\$ {formatar_brasileiro(valor_contratacao_carga)}')}
+                        {badge(f'Valor Contratação: R$ {formatar_brasileiro(valor_contratacao_carga)}')}
                         {badge(f'Motorista: {motorista_carga}')}
                         {badge(f'Placa: {placa_carga}')}
                         {badge(f'Rentabilidade: {rentabilidade_percentual:.2f}%')}
@@ -4744,9 +4721,83 @@ def pagina_cargas_fechadas():
                     }
                 )
 
-    except Exception as e:
-            st.error("Erro ao carregar cargas:")
+               
+
+                # --- Botão de Download CSV e Botão de Impressão ---
+                st.markdown("---") # Separador
+                
+                # Prepara os dados para o CSV. Aqui df_carga ainda contém os objetos datetime
+                # porque df_formatado é uma cópia separada para o AgGrid.
+                colunas_para_csv = [
+                    "Serie_Numero_CTRC", "Chave CT-e", "numero_carga", 
+                    "Cliente Pagador", "Cliente Destinatario", "Cidade de Entrega",
+                    "Bairro do Destinatario", "Previsao de Entrega", "Valor do Frete",
+                    "motorista", "placa", "data_fechamento", "situacao",
+                    "aprovador_custos_login", "data_aprovacao_custos", "fechador_carga_login"
+                ]
+                df_csv = df_carga[[col for col in colunas_para_csv if col in df_carga.columns]].copy()
+                
+                # Converte colunas de data para um formato legível em CSV
+                for col_date in ["Previsao de Entrega", "data_fechamento", "data_aprovacao_custos"]:
+                    if col_date in df_csv.columns:
+                        df_csv[col_date] = df_csv[col_date].apply(
+                            # Usamos format='%d-%m-%Y' para strings conhecidas neste formato.
+                            # Se x não for string, pd.to_datetime o trata como um objeto datetime.
+                            lambda x: pd.to_datetime(x, format="%d-%m-%Y", errors='coerce').strftime("%d-%m-%Y %H:%M:%S") if isinstance(x, str) else (x.strftime("%d-%m-%Y %H:%M:%S") if pd.notna(x) else "")
+                        )
+
+
+                csv_content = df_csv.to_csv(index=False, sep=';', encoding='utf-8-sig')
+                
+                # Apenas as colunas solicitadas para o CSV
+                colunas_para_csv = ["Chave CT-e", "Serie_Numero_CTRC"]
+                df_csv = df_carga[[col for col in colunas_para_csv if col in df_carga.columns]].copy()
+
+                # Remove espaços extras
+                for col in df_csv.columns:
+                    df_csv[col] = df_csv[col].astype(str).str.strip()
+
+                # Garante que a Chave CT-e tenha os 44 dígitos completos no Excel
+                if "Chave CT-e" in df_csv.columns:
+                    df_csv["Chave CT-e"] = df_csv["Chave CT-e"].apply(lambda x: f"'{x}")
+
+                # Gera CSV em UTF-8 sem BOM
+                csv_content = df_csv.to_csv(index=False, sep=';', encoding='utf-8')
+
+                # --- Botão Geral de Download CSV para todas as cargas filtradas ---
+        st.markdown("### 📥 Download Geral de Chaves das Cargas Fechadas no Período")
+
+        try:
+            colunas_para_csv = ["Chave CT-e", "Serie_Numero_CTRC"]
+            df_csv_geral = df_filtrado[[col for col in colunas_para_csv if col in df_filtrado.columns]].copy()
+
+            # Remove espaços extras
+            for col in df_csv_geral.columns:
+                df_csv_geral[col] = df_csv_geral[col].astype(str).str.strip()
+
+            # Garante que a Chave CT-e tenha os 44 dígitos completos no Excel
+            if "Chave CT-e" in df_csv_geral.columns:
+                df_csv_geral["Chave CT-e"] = df_csv_geral["Chave CT-e"].apply(lambda x: f'="{x}"')
+
+            # Gera CSV em UTF-8
+            csv_content_geral = df_csv_geral.to_csv(index=False, sep=';', encoding='utf-8')
+
+            st.download_button(
+                label="⬇️ Baixar CSV Geral de Cargas Fechadas",
+                data=csv_content_geral,
+                file_name="cargas_fechadas_chaves.csv",
+                mime="text/csv",
+                key="download_csv_geral"
+            )
+        except Exception as e:
+            st.warning("⚠️ Não foi possível gerar o CSV geral.")
             st.exception(e)
+
+               
+
+    except Exception as e:
+        st.error("Erro ao carregar cargas fechadas:")
+        st.exception(e)
 
 # ========== EXECUÇÃO PRINCIPAL ========== #
 
