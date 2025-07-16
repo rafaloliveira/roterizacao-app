@@ -2784,6 +2784,20 @@ def pagina_pre_roterizacao():
 
     for rota_visual in sorted(df_visivel["Rota_Grupo"].dropna().unique()):
         df_rota = df_visivel[df_visivel["Rota_Grupo"] == rota_visual].copy()
+
+        if "Particularidade" not in df_rota.columns:
+            st.warning("❌ Coluna 'Particularidade' ausente em df_rota")
+        else:
+            st.write("✅ Particularidade presente em df_rota:")
+            st.write(df_rota["Particularidade"].dropna().unique()[:5])
+
+        # Preenchimento forçado (caso AgGrid esconda colunas com muitos nulos)
+        df_rota["Particularidade"] = df_rota["Particularidade"].fillna("")
+
+        # Garante que ela será exibida (caso tenha sido filtrada fora da exibição)
+        if "Particularidade" not in colunas_exibir:
+            colunas_exibir.append("Particularidade")
+
         
         if df_rota.empty:
             continue
@@ -2872,6 +2886,7 @@ def pagina_pre_roterizacao():
             gb.configure_grid_options(onGridReady=GRID_RESIZE_JS_CODE) # <<< ADICIONADO AQUI
             if "Particularidade" in df_formatado.columns:
                 gb.configure_column("Particularidade", header_name="Particularidade", filter=True)
+                gb.configure_column("Particularidade", width=200)
 
             grid_options = gb.build()
             grid_options["getRowStyle"] = linha_destacar
@@ -2887,7 +2902,7 @@ def pagina_pre_roterizacao():
                 gridOptions=grid_options,
                 # AJUSTE AQUI: MUDANÇA DE MANUAL PARA SELECTION_CHANGED
                 update_mode=GridUpdateMode.SELECTION_CHANGED, 
-                fit_columns_on_grid_load=False,
+                fit_columns_on_grid_load=True,
                 width="100%",
                 height=400,
                 allow_unsafe_jscode=True,
