@@ -1620,7 +1620,7 @@ def apply_brazilian_date_format_for_display(df_to_format):
                 elif amostras_validas.str.match(r"\d{4}-\d{2}-\d{2}").any():
                     df_to_format[col] = pd.to_datetime(df_to_format[col], errors='coerce', dayfirst=False)
                 else:
-                    df_to_format[col] = pd.to_datetime(df_to_format[col], errors='coerce')
+                    df_to_format[col] = pd.to_datetime(df_to_format[col], errors='coerce', dayfirst=True)
 
             # Formata para exibição no padrão brasileiro
             df_to_format[col] = df_to_format[col].apply(
