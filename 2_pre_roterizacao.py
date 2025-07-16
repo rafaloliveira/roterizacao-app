@@ -722,6 +722,7 @@ def carregar_base_supabase():
         base['CNPJ Destinatario'] = base['CNPJ Destinatario'].astype(str).str.strip()
         if {'CNPJ', 'Status de Agenda'}.issubset(agendadas.columns):
             agendadas['CNPJ'] = agendadas['CNPJ'].astype(str).str.strip()
+
             base = base.merge(
                 agendadas[['CNPJ', 'Status de Agenda']],
                 how='left',
@@ -2682,6 +2683,13 @@ def pagina_pre_roterizacao():
                 df_total = carregar_base_supabase()
                 st.session_state["df_pre_roterizacao_cache"] = df_total
 
+                st.info(f"DEBUG (df_total): 'Particularidade' existe? {'Particularidade' in df_total.columns}")
+                if 'Particularidade' in df_total.columns:
+                    st.info(f"DEBUG (df_total): Primeiras 5 particularidades: {df_total['Particularidade'].head().tolist()}")
+                    st.info(f"DEBUG (df_total): Quantidade de valores não nulos em 'Particularidade': {df_total['Particularidade'].count()}")
+                else:
+                    st.error("DEBUG (df_total): A coluna 'Particularidade' NÃO está presente em df_total!")
+
                 # VAI AQUI A CORREÇÃO: Forçar a invalidação das chaves dos grids
                 if recarregar: # Este bloco só executa se 'recarregar' for True
                     # Itera sobre uma cópia das chaves para evitar erros de modificação durante a iteração
@@ -2862,6 +2870,13 @@ def pagina_pre_roterizacao():
             if checkbox_key not in st.session_state:
                 st.session_state[checkbox_key] = False
             marcar_todas = st.checkbox("Marcar todas", key=checkbox_key)
+
+            st.info(f"DEBUG (df_rota - {rota_visual}): 'Particularidade' existe? {'Particularidade' in df_rota.columns}")
+            if 'Particularidade' in df_rota.columns:
+                st.info(f"DEBUG (df_rota - {rota_visual}): Primeiras 5 particularidades da rota: {df_rota['Particularidade'].head().tolist()}")
+                st.info(f"DEBUG (df_rota - {rota_visual}): Quantidade de valores não nulos na rota: {df_rota['Particularidade'].count()}")
+            else:
+                st.error(f"DEBUG (df_rota - {rota_visual}): A coluna 'Particularidade' NÃO está presente em df_rota para esta rota!")
 
             df_formatado = apply_brazilian_date_format_for_display(df_rota[[col for col in colunas_exibir if col in df_rota.columns]].copy())
 
