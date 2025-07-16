@@ -2668,6 +2668,9 @@ def pagina_pre_roterizacao():
             except Exception as e:
                 st.error(f"Erro ao adicionar entregas: {e}")
 
+
+
+
     # --- Bloco de carregamento de dados ---
     with st.spinner("🔄 Carregando dados das entregas..."):
         try:
@@ -2783,11 +2786,6 @@ def pagina_pre_roterizacao():
 
     for rota_visual in sorted(df_visivel["Rota_Grupo"].dropna().unique()):
         df_rota = df_visivel[df_visivel["Rota_Grupo"] == rota_visual].copy()
-
-        if "Particularidade" not in df_rota.columns:
-            df_rota["Particularidade"] = ""
-        else:
-            df_rota["Particularidade"] = df_rota["Particularidade"].fillna("")
         
         if df_rota.empty:
             continue
@@ -2865,13 +2863,7 @@ def pagina_pre_roterizacao():
                 st.session_state[checkbox_key] = False
             marcar_todas = st.checkbox("Marcar todas", key=checkbox_key)
 
-            df_formatado = apply_brazilian_date_format_for_display(
-                df_rota[[col for col in colunas_exibir if col in df_rota.columns]].copy()
-            )
-            if "Particularidade" in df_formatado.columns:
-                df_formatado["Particularidade"] = df_formatado["Particularidade"].fillna("")
-                gb.configure_column("Particularidade", header_name="Particularidade", width=180, filter=True)
-
+            df_formatado = apply_brazilian_date_format_for_display(df_rota[[col for col in colunas_exibir if col in df_rota.columns]].copy())
 
             gb = GridOptionsBuilder.from_dataframe(df_formatado)
             gb.configure_default_column(minWidth=150)
@@ -3273,8 +3265,6 @@ def pagina_cargas_geradas():
                 with st.spinner("Carregando entregas da carga no grid..."):
                     df_formatado = df_display[df_display["numero_carga"] == carga][[col for col in colunas_exibir if col in df_display.columns]]
                     #df_formatado = apply_brazilian_date_format_for_display(df_formatado) # Linha que causa o problema de datas, remover se ainda não o fez.
-
-
 
                     gb = GridOptionsBuilder.from_dataframe(df_formatado)
                     gb.configure_default_column(minWidth=150)
