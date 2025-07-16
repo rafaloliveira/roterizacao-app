@@ -1613,9 +1613,16 @@ def apply_brazilian_date_format_for_display(df_to_format):
     for col in GLOBAL_DATE_DISPLAY_COLUMNS:
         if col in df_to_format.columns:
             if not pd.api.types.is_datetime64_any_dtype(df_to_format[col]):
-                 # CORREÇÃO AQUI: REMOVER dayfirst=True
-                df_to_format[col] = pd.to_datetime(df_to_format[col], errors='coerce', dayfirst=True)
+                # Detecta automaticamente se a string está no formato brasileiro ou ISO
+                amostras_validas = df_to_format[col].dropna().astype(str).head(5)
+                if amostras_validas.str.match(r"\d{2}-\d{2}-\d{4}").any():
+                    df_to_format[col] = pd.to_datetime(df_to_format[col], errors='coerce', dayfirst=True)
+                elif amostras_validas.str.match(r"\d{4}-\d{2}-\d{2}").any():
+                    df_to_format[col] = pd.to_datetime(df_to_format[col], errors='coerce', dayfirst=False)
+                else:
+                    df_to_format[col] = pd.to_datetime(df_to_format[col], errors='coerce')
 
+            # Formata para exibição no padrão brasileiro
             df_to_format[col] = df_to_format[col].apply(
                 lambda x: x.strftime(DATE_DISPLAY_FORMAT_STRING)
                 if pd.notna(x) and isinstance(x, (Timestamp, datetime))
