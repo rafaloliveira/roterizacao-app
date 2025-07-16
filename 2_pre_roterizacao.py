@@ -56,7 +56,7 @@ from supabase import create_client, Client
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
 from pathlib import Path
 from st_aggrid.shared import JsCode
-
+from decimal import Decimal, ROUND_HALF_UP, getcontext
 
 
 
@@ -4192,42 +4192,56 @@ def pagina_cargas_aprovadas():
             data_aprovacao_custos = df_carga["data_aprovacao_custos"].iloc[0] if "data_aprovacao_custos" in df_carga.columns and not df_carga["data_aprovacao_custos"].isnull().all() else None
 
 
+            
+            getcontext().prec = 6  # Define precisão suficiente
+
             # --- Cálculos de Rentabilidade e Custo por Região ---
             total_frete_carga = df_carga["Valor do Frete"].sum()
-            
+
             rentabilidade_percentual = 0.0
             situacao_custo_regional = "N/A"
             cor_situacao = "gray"
 
             if total_frete_carga > 0:
-                rentabilidade_percentual = ((total_frete_carga - valor_contratacao_carga) / total_frete_carga) * 100
-                
-                # Determinar a região dominante da carga
-                dominant_region = 'NÃO DEFINIDA'
-                if 'Regiao' in df_carga.columns and not df_carga['Regiao'].empty:
-                    regions_to_consider = df_carga['Regiao'][df_carga['Regiao'] != 'NÃO DEFINIDA']
-                    if not regions_to_consider.empty:
-                        dominant_region = regions_to_consider.value_counts().idxmax()
-                    elif not df_carga['Regiao'].empty:
-                        dominant_region = df_carga['Regiao'].iloc[0]
+                try:
+                    custo = Decimal(str(valor_contratacao_carga))
+                    frete = Decimal(str(total_frete_carga))
+                    custo_receita_ratio = (custo / frete).quantize(Decimal('0.0001'), rounding=ROUND_HALF_UP)
 
-                max_cost_allowed = MAX_COST_PER_REGION.get(dominant_region, None)
+                    # Determinar a região dominante da carga
+                    dominant_region = 'NÃO DEFINIDA'
+                    if 'Regiao' in df_carga.columns and not df_carga['Regiao'].empty:
+                        regions_to_consider = df_carga['Regiao'][df_carga['Regiao'] != 'NÃO DEFINIDA']
+                        if not regions_to_consider.empty:
+                            dominant_region = regions_to_consider.value_counts().idxmax()
+                        elif not df_carga['Regiao'].empty:
+                            dominant_region = df_carga['Regiao'].iloc[0]
 
-                if max_cost_allowed is not None:
-                    custo_receita_ratio = (valor_contratacao_carga / total_frete_carga)
+                    max_cost_allowed = Decimal(str(MAX_COST_PER_REGION.get(dominant_region, 0)))
+
                     if custo_receita_ratio <= max_cost_allowed:
-                        situacao_custo_regional = f"Dentro do Limite ({max_cost_allowed*100:.0f}%)"
-                        cor_situacao = "#28a745" # Verde
+                        situacao_custo_regional = f"Dentro do Limite ({(max_cost_allowed * 100):.0f}%)"
+                        cor_situacao = "#28a745"  # Verde
                     else:
-                        situacao_custo_regional = f"Acima do Limite ({max_cost_allowed*100:.0f}%)"
-                        cor_situacao = "#dc3545" # Vermelho
-                else:
-                    situacao_custo_regional = f"Região '{dominant_region}' sem limite definido"
-                    cor_situacao = "orange"
+                        situacao_custo_regional = f"Acima do Limite ({(max_cost_allowed * 100):.0f}%)"
+                        cor_situacao = "#dc3545"  # Vermelho
+
+                    rentabilidade_percentual = ((frete - custo) / frete * 100).quantize(Decimal('0.01'))
+                
+                except Exception as e:
+                    situacao_custo_regional = f"Erro no cálculo: {e}"
+                    cor_situacao = "gray"
+                    rentabilidade_percentual = 0.0
+
             else:
-                rentabilidade_percentual = 0.0
                 situacao_custo_regional = "Total do Frete zero, cálculo impossível."
                 cor_situacao = "gray"
+                rentabilidade_percentual = 0.0
+
+
+
+
+
 
 
             st.markdown(f"""
