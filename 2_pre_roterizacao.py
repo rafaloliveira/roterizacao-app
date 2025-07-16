@@ -3944,8 +3944,6 @@ def pagina_aprovacao_custos():
                     # --- Fim da Configuração de colunas de data ---
 
 
-
-
                     grid_options = gb.build()
                     grid_key_id = f"grid_aprovacao_custos_{carga}"
                     if grid_key_id not in st.session_state:
