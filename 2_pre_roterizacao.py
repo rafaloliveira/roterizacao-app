@@ -3237,7 +3237,7 @@ def pagina_cargas_geradas():
             # ==============================================================================
 
 
-            with st.expander("🔽 Ver entregas da carga", expanded=False):
+            with st.expander("🔽 Ver entregas da carga", expanded=True):
                 checkbox_key = f"marcar_todas_carga_gerada_{carga}"
                 if checkbox_key not in st.session_state:
                     st.session_state[checkbox_key] = False
@@ -3838,7 +3838,7 @@ def pagina_aprovacao_custos():
                     unsafe_allow_html=True
                 )
                 
-            with st.expander("🔽 Ver entregas da carga para Aprovação de Custos", expanded=False):
+            with st.expander("🔽 Ver entregas da carga para Aprovação de Custos", expanded=True):
                 
 
                 with st.spinner("Formatando entregas da carga para aprovação..."):
