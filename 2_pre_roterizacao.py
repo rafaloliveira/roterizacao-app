@@ -2783,6 +2783,11 @@ def pagina_pre_roterizacao():
 
     for rota_visual in sorted(df_visivel["Rota_Grupo"].dropna().unique()):
         df_rota = df_visivel[df_visivel["Rota_Grupo"] == rota_visual].copy()
+
+        if "Particularidade" not in df_rota.columns:
+            df_rota["Particularidade"] = ""
+        else:
+            df_rota["Particularidade"] = df_rota["Particularidade"].fillna("")
         
         if df_rota.empty:
             continue
@@ -2865,7 +2870,7 @@ def pagina_pre_roterizacao():
             )
             if "Particularidade" in df_formatado.columns:
                 df_formatado["Particularidade"] = df_formatado["Particularidade"].fillna("")
-                gb.configure_column("Particularidade", header_name="Particularidade", width=200, filter=True)
+                gb.configure_column("Particularidade", header_name="Particularidade", width=180, filter=True)
 
 
             gb = GridOptionsBuilder.from_dataframe(df_formatado)
