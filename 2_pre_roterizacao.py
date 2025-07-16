@@ -1740,7 +1740,7 @@ def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, valor_frete, val
     elements.append(Paragraph(f"<b>Rota:</b> {rota}", styles['CustomNormal']))
     elements.append(Paragraph(f"<b>Motorista:</b> {motorista if motorista and motorista.strip() else '<i>Não Informado</i>'}", styles['CustomNormal']))
     elements.append(Paragraph(f"<b>Placa:</b> {placa if placa and placa.strip() else '<i>Não Informada</i>'}", styles['CustomNormal']))
-    elements.append(Paragraph(f"<b>Valor Total do Frete:</b> R$ {formatar_brasileiro(valor_frete)}", styles['CustomNormal']))
+    #elements.append(Paragraph(f"<b>Valor Total do Frete:</b> R$ {formatar_brasileiro(valor_frete)}", styles['CustomNormal']))
     elements.append(Paragraph(f"<b>Valor de Contratação:</b> R$ {formatar_brasileiro(valor_contratacao)}", styles['CustomNormal']))
     elements.append(Spacer(1, 0.3 * inch))
     elements.append(Paragraph("<b>Entregas Associadas:</b>", styles['h2']))
@@ -1764,7 +1764,7 @@ def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, valor_frete, val
     requested_order_keys = [
         "Serie_Numero_CTRC", "Cliente Pagador", "Cliente Destinatario", "Cidade de Entrega",
         "Bairro do Destinatario", "Previsao de Entrega", "Numero da Nota Fiscal",
-        "Entrega Programada", "Peso Calculado em Kg", "Peso Real em Kg", "Cubagem em m³", "Valor do Frete"
+        "Entrega Programada", "Peso Calculado em Kg", "Peso Real em Kg", "Cubagem em m³", #"Valor do Frete"
     ]
 
     df_filtrado = df_entregas[[col for col in requested_order_keys if col in df_entregas.columns]].copy()
@@ -1819,7 +1819,7 @@ def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, valor_frete, val
             0.8*inch,  # Peso Calculado em Kg
             0.8*inch,  # Peso Real em Kg
             0.7*inch,  # Cubagem em m³
-            0.6*inch   # Valor do Frete
+           #0.6*inch   # Valor do Frete
         ]
         
         table = Table(dados_tabela, colWidths=col_widths)
