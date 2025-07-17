@@ -1848,10 +1848,6 @@ def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, veiculo, valor_f
 # PÁGINA Confirmar Produção
 
 ##########################################
-import numpy as np # <-- Certifique-se que esta linha esteja no topo do seu arquivo
-
-# ... (restante do seu código, incluindo imports de pandas, streamlit, AgGrid, supabase, etc.) ...
-
 def pagina_confirmar_producao():
     st.markdown("## Confirmar Produção")
 
@@ -1889,14 +1885,14 @@ def pagina_confirmar_producao():
             st.info("Nenhuma entrega disponível para confirmar produção.")
             return
 
-    # ========= MÉTRICAS COMPARATIVAS (este bloco permanece inalterado) =========
+    # ========= MÉTRICAS COMPARATIVAS =========
     col_total_1, col_total_2, col_total_3, col_total_4, spacer, col_conf_1, col_conf_2, col_conf_3 = st.columns([1, 1, 1, 1, 0.5, 1, 1, 1])
 
     with col_total_1:
         st.metric("📦 Total de Clientes", df["Cliente Pagador"].nunique() if "Cliente Pagador" in df.columns else 0)
 
     with col_total_2:
-        st.metric("�� Total de Entregas", len(df))
+        st.metric("📦 Total de Entregas", len(df))
 
     with col_total_3:
         st.metric("⚖️ Peso Real (kg)", formatar_brasileiro(df['Peso Real em Kg'].sum()))
@@ -2013,7 +2009,7 @@ def pagina_confirmar_producao():
         if grid_key_id not in st.session_state:
             st.session_state[grid_key_id] = str(uuid.uuid4()) # Inicializa com uma chave única
 
-        with st.expander("�� Selecionar entregas", expanded=True):
+        with st.expander("🔽 Selecionar entregas", expanded=True):
             # Botões para Marcar Todas e Desmarcar Todas
             col_sel_all, col_desel_all = st.columns([1, 1])
             with col_sel_all:
@@ -2036,7 +2032,7 @@ def pagina_confirmar_producao():
             gb = GridOptionsBuilder.from_dataframe(df_formatado)
             gb.configure_default_column(minWidth=90)
             gb.configure_selection("multiple", use_checkbox=True)
-            # �� IMPORTANTE: Dizer ao AgGrid qual coluna é o ID da linha
+            # 💡 IMPORTANTE: Dizer ao AgGrid qual coluna é o ID da linha, para o 'selected_rows' funcionar
             if 'Serie_Numero_CTRC' in df_formatado.columns:
                 gb.configure_grid_options(rowNodeId='Serie_Numero_CTRC') 
 
@@ -2050,13 +2046,13 @@ def pagina_confirmar_producao():
             grid_response = AgGrid(
                 df_formatado,
                 gridOptions=grid_options,
-                update_mode=GridUpdateMode.SELECTION_CHANGED, # Essencial para capturar seleções manuais
+                update_mode=GridUpdateMode.SELECTION_CHANGED, # Essencial para capturar seleções manuais do usuário
                 fit_columns_on_grid_load=False,
                 width="100%",
                 height=400,
                 allow_unsafe_jscode=True,
                 key=st.session_state[grid_key_id], # Usa a chave única para o grid
-                data_return_mode="AS_INPUT",
+                data_return_mode="AS_INPUT", # Garante que `selected_rows` retorne o dataframe completo
                 theme=AgGridTheme.MATERIAL,
                 show_toolbar=False,
                 custom_css={
@@ -2096,6 +2092,8 @@ def pagina_confirmar_producao():
 
             # Após a renderização do AgGrid, atualiza o session state com as linhas *realmente* selecionadas no grid.
             # Isso captura quaisquer seleções ou desmarcações manuais feitas pelo usuário.
+            # O `pd.DataFrame` é convertido para lista de dicionários para compatibilidade com o `selected_rows` do AgGrid
+            # e para garantir que a próxima renderização reflita o que o usuário interagiu.
             st.session_state[aggrid_selections_key] = grid_response.get("selected_rows", [])
 
             # 'selecionadas' variável para processamento posterior
@@ -2139,7 +2137,7 @@ def pagina_confirmar_producao():
                                 df_confirmar[col_name] = df_confirmar[col_name].apply(
                                     lambda x: x.strftime("%Y-%m-%d %H:%M:%S") if pd.notna(x) else None
                                 )
-                            elif df_confirmar[col_name].dtype == 'object':
+                            elif df_confirmar[col_name].dtype == 'object': # Para outros objetos que possam ser datas (ex: de AgGrid)
                                 df_confirmar[col_name] = df_confirmar[col_name].apply(
                                     lambda x: x.strftime("%Y-%m-%d %H:%M:%S") if isinstance(x, (pd.Timestamp, datetime)) else x
                                 )
@@ -2164,10 +2162,9 @@ def pagina_confirmar_producao():
 
                         # Limpa o estado da sessão para forçar a recarga dos grids e evitar problemas de cache.
                         st.session_state["reload_confirmadas_producao"] = True # Sinaliza para recarregar os dados na próxima execução
-                        st.session_state.pop(grid_key_id, None) # Remove a key do grid para forçar a reconstrução, se necessário
+                        st.session_state.pop(grid_key_id, None) # Remove a key do grid para forçar a reconstrução
                         st.session_state.pop(aggrid_selections_key, None) # Limpa o estado de seleção do grid
-
-                        st.session_state["reload_aprovacao_diretoria"] = True
+                        st.session_state["reload_aprovacao_diretoria"] = True # Sinaliza recarga para a tela de destino
 
                         st.success(f"✅ {len(chaves)} entregas do Cliente {cliente_pagador} foram enviadas para a próxima etapa (Aprovação da Diretoria).")
                         
