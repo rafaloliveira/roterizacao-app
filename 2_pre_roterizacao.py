@@ -1995,13 +1995,7 @@ def pagina_confirmar_producao():
 
         # Expander para o grid
         with st.expander("🔽 Selecionar entregas", expanded=True):
-            # NOVO: Checkbox "Marcar todas" dentro do expander
-            checkbox_key = f"marcar_todas_conf_prod_{cliente_pagador}"
-            # Garante que o estado do checkbox seja inicializado
-            if checkbox_key not in st.session_state:
-                st.session_state[checkbox_key] = False
-            
-            marcar_todas = st.checkbox("Marcar todas", key=checkbox_key)
+           
 
             # Criação e estilização do grid (usando o AgGrid)
             df_formatado = df_cliente[[col for col in colunas_exibir if col in df_cliente.columns]].copy()
@@ -2025,60 +2019,12 @@ def pagina_confirmar_producao():
                 if grid_key_id not in st.session_state:
                     st.session_state[grid_key_id] = str(uuid.uuid4()) # Inicializa com um UUID
 
-                grid_response = AgGrid(
-                    df_formatado,
-                    gridOptions=grid_options,
-                    update_mode=GridUpdateMode.SELECTION_CHANGED, # Essencial para evitar o "wink" ao selecionar
-                    fit_columns_on_grid_load=False,
-                    width="100%",
-                    height=400,
-                    allow_unsafe_jscode=True,
-                    key=st.session_state[grid_key_id], # Usa a chave única para o grid
-                    data_return_mode="AS_INPUT",
-                    theme=AgGridTheme.MATERIAL,
-                    show_toolbar=False,
-                    custom_css={
-                        ".ag-theme-material .ag-cell": {
-                            "font-size": "11px",
-                            "line-height": "18px",
-                            "border-right": "1px solid #ccc",
-                        },
-                        ".ag-theme-material .ag-row:last-child .ag-cell": {
-                            "border-bottom": "1px solid #ccc",
-                        },
-                        ".ag-theme-material .ag-header-cell": {
-                            "border-right": "1px solid #ccc",
-                            "border-bottom": "1px solid #ccc",
-                        },
-                        ".ag-theme-material .ag-root-wrapper": {
-                            "border": "1px solid black",
-                            "border-radius": "6px",
-                            "padding": "4px",
-                        },
-                        ".ag-theme-material .ag-header-cell-label": {
-                            "font-size": "11px",
-                        },
-                        ".ag-center-cols-viewport": {
-                            "overflow-x": "auto !important",
-                            "overflow-y": "hidden",
-                        },
-                        ".ag-center-cols-container": {
-                            "min-width": "100% !important",
-                        },
-                        "#gridToolBar": {
-                            "padding-bottom": "0px !important",
-                        }
-                    }
+                selecionadas = controle_selecao(
+                    chave_estado=f"confirmar_prod_{cliente_pagador}",
+                    df_todos=df_formatado,
+                    grid_key=f"grid_conf_prod_{cliente_pagador}",
+                    grid_options=grid_options
                 )
-
-                # Captura os registros selecionados pelo usuário no grid
-                # Lógica ajustada para considerar o checkbox "Marcar todas"
-                if marcar_todas:
-                    # Se "Marcar todas" estiver checado, seleciona todas as entregas do DataFrame atual
-                    selecionadas = df_formatado[df_formatado["Serie_Numero_CTRC"].notna()].copy()
-                else:
-                    # Caso contrário, usa a seleção feita diretamente no grid
-                    selecionadas = pd.DataFrame(grid_response.get("selected_rows", []))
 
                 qtd_sel = len(selecionadas)
                 peso_real_sel = selecionadas["Peso Real em Kg"].sum() if "Peso Real em Kg" in selecionadas else 0
@@ -2145,7 +2091,7 @@ def pagina_confirmar_producao():
                             # Limpa o estado da sessão para forçar a recarga dos grids e evitar problemas de cache.
                             st.session_state["reload_confirmadas_producao"] = True # Sinaliza para recarregar os dados na próxima execução
                             st.session_state.pop(grid_key_id, None) # Remove a key do grid para forçar a reconstrução, se necessário
-                            st.session_state.pop(checkbox_key, None) # Limpa o estado do checkbox "Marcar todas" para esta rota após a ação
+                            st.session_state.pop(f"confirmar_prod_{cliente_pagador}", None) # Limpa o estado do checkbox "Marcar todas" para esta rota após a ação
 
                             st.session_state["reload_aprovacao_diretoria"] = True
 
