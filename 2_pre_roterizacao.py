@@ -142,43 +142,56 @@ def is_cookie_expired(expiry_time_str):
         return True # Se houver erro na data, considera expirado
     
 #================= MULTIPLA SELEÇÃO NO GRIDD ========================= 
-def controle_selecao(chave_estado, df_todos, grid_key, grid_options):
+from st_aggrid import GridOptionsBuilder, AgGrid, GridUpdateMode, JsCode
+
+def controle_selecao(chave_estado, df_todos, grid_key):
     col1, col2 = st.columns([1, 1])
 
-    # Botão para selecionar todas
+    selecionar_tudo = False
+    desmarcar_tudo = False
+
     with col1:
-        if st.button(f"🔘 Selecionar todas", key=f"btn_sel_{chave_estado}"):
-            st.session_state[chave_estado] = "selecionar_tudo"
+        if st.button("🔘 Selecionar todas", key=f"btn_sel_{chave_estado}"):
+            st.session_state[f"{chave_estado}_selecionar_tudo"] = True
+            st.session_state[f"{chave_estado}_desmarcar_tudo"] = False
 
-    # Botão para desmarcar todas
     with col2:
-        if st.button(f"❌ Desmarcar todas", key=f"btn_desmarcar_{chave_estado}"):
-            st.session_state[chave_estado] = "desmarcar_tudo"
+        if st.button("❌ Desmarcar todas", key=f"btn_desmarcar_{chave_estado}"):
+            st.session_state[f"{chave_estado}_selecionar_tudo"] = False
+            st.session_state[f"{chave_estado}_desmarcar_tudo"] = True
 
-    # ✅ Garantir scroll horizontal
-    grid_options["domLayout"] = "normal"
+    # Define o comportamento JS para selecionar/desmarcar todas no grid
+    js_on_grid_ready = JsCode("""
+    function(params) {
+        %s
+    }
+    """ % (
+        "params.api.selectAll();" if st.session_state.get(f"{chave_estado}_selecionar_tudo") else
+        "params.api.deselectAll();" if st.session_state.get(f"{chave_estado}_desmarcar_tudo") else
+        ""
+    ))
 
-    # Renderiza o grid com altura fixa
+    # Configura o grid
+    gb = GridOptionsBuilder.from_dataframe(df_todos)
+    gb.configure_default_column(resizable=True, sortable=True, filter=True)
+    gb.configure_selection("multiple", use_checkbox=True)
+    gb.configure_grid_options(onGridReady=js_on_grid_ready)
+    grid_options = gb.build()
+
+    # Renderiza o grid
     grid_response = AgGrid(
-    df_todos,
-    gridOptions=grid_options,
-    update_mode=GridUpdateMode.SELECTION_CHANGED,
-    fit_columns_on_grid_load=False,
-    height=470,  # ⬅️ AUMENTE AQUI
-    use_container_width=True,
-    allow_unsafe_jscode=True,
-    key=grid_key
-)
+        df_todos,
+        gridOptions=grid_options,
+        update_mode=GridUpdateMode.SELECTION_CHANGED,
+        fit_columns_on_grid_load=False,
+        height=470,
+        use_container_width=True,
+        allow_unsafe_jscode=True,
+        key=grid_key
+    )
 
-    # Lógica de seleção
-    if st.session_state.get(chave_estado) == "selecionar_tudo":
-        return df_todos.copy()
-
-    elif st.session_state.get(chave_estado) == "desmarcar_tudo":
-        return pd.DataFrame([])
-
-    else:
-        return pd.DataFrame(grid_response.get("selected_rows", []))
+    # Retorna as entregas selecionadas visualmente
+    return pd.DataFrame(grid_response.get("selected_rows", []))
 
 
 
