@@ -145,74 +145,79 @@ def is_cookie_expired(expiry_time_str):
 from st_aggrid import GridOptionsBuilder, AgGrid, GridUpdateMode, JsCode
 
 def controle_selecao(chave_estado, df_todos, grid_key, grid_options):
+    from st_aggrid import AgGrid, GridUpdateMode
+    from st_aggrid.grid_options_builder import GridOptionsBuilder
+    from st_aggrid.shared import JsCode
 
-    selecionar_tudo = False
-    desmarcar_tudo = False
-    # Define o comportamento JS para selecionar/desmarcar todas no grid
-    js_on_grid_ready = JsCode("""
-    function(params) {
-        %s
-    }
-    """ % (
-        "params.api.selectAll();" if st.session_state.get(f"{chave_estado}_selecionar_tudo") else
-        "params.api.deselectAll();" if st.session_state.get(f"{chave_estado}_desmarcar_tudo") else
-        ""
-    ))
+    # Verifica ação pendente
+    acao = st.session_state.get(chave_estado, None)
 
-    # Configura o grid
+    if acao == "selecionar_tudo":
+        df_todos["_selectedRowNodeInfo"] = [{} for _ in range(len(df_todos))]
+    elif acao == "desmarcar_tudo":
+        df_todos["_selectedRowNodeInfo"] = []
+
+    # Define JS vazio para não interferir
+    js_on_grid_ready = JsCode("""function(params) {}""")
+
+    # (Re)Constrói GridOptions com o estilo original
     gb = GridOptionsBuilder.from_dataframe(df_todos)
     gb.configure_default_column(resizable=True, sortable=True, filter=True)
     gb.configure_selection("multiple", use_checkbox=True)
     gb.configure_grid_options(onGridReady=js_on_grid_ready)
     grid_options = gb.build()
 
-    # Renderiza o grid
     grid_response = AgGrid(
-    df_todos,
-    gridOptions=grid_options,
-    update_mode=GridUpdateMode.SELECTION_CHANGED,
-    fit_columns_on_grid_load=False,
-    height=400,  
-    use_container_width=True,
-    allow_unsafe_jscode=True,
-    key=grid_key,
-    custom_css={
-        ".ag-root-wrapper": {
-            "height": "90% !important",
-        },
-        ".ag-theme-material .ag-cell": {
-            "font-size": "11px",
-            "line-height": "18px",
-            "border-right": "1px solid #ccc",
-        },
-        ".ag-theme-material .ag-row:last-child .ag-cell": {
-            "border-bottom": "1px solid #ccc",
-        },
-        ".ag-theme-material .ag-header-cell": {
-            "border-right": "1px solid #ccc",
-            "border-bottom": "1px solid #ccc",
-        },
-        ".ag-theme-material .ag-root-wrapper": {
-            "border": "1px solid black",
-            "border-radius": "6px",
-            "padding": "4px",
-            "overflow": "auto !important",   # ✅ Ajuda com o scroll
-        },
-        ".ag-theme-material .ag-header-cell-label": {
-            "font-size": "11px",
-        },
-        ".ag-center-cols-viewport": {
-            "overflow-x": "auto !important",
-            "overflow-y": "hidden",
-        },
-        ".ag-center-cols-container": {
-            "min-width": "100% !important",
-        },
-    }
-)
+        df_todos,
+        gridOptions=grid_options,
+        update_mode=GridUpdateMode.SELECTION_CHANGED,
+        fit_columns_on_grid_load=False,
+        height=400,
+        use_container_width=True,
+        allow_unsafe_jscode=True,
+        key=grid_key,
+        custom_css={
+            ".ag-root-wrapper": {
+                "height": "90% !important",
+            },
+            ".ag-theme-material .ag-cell": {
+                "font-size": "11px",
+                "line-height": "18px",
+                "border-right": "1px solid #ccc",
+            },
+            ".ag-theme-material .ag-row:last-child .ag-cell": {
+                "border-bottom": "1px solid #ccc",
+            },
+            ".ag-theme-material .ag-header-cell": {
+                "border-right": "1px solid #ccc",
+                "border-bottom": "1px solid #ccc",
+            },
+            ".ag-theme-material .ag-root-wrapper": {
+                "border": "1px solid black",
+                "border-radius": "6px",
+                "padding": "4px",
+                "overflow": "auto !important",
+            },
+            ".ag-theme-material .ag-header-cell-label": {
+                "font-size": "11px",
+            },
+            ".ag-center-cols-viewport": {
+                "overflow-x": "auto !important",
+                "overflow-y": "hidden",
+            },
+            ".ag-center-cols-container": {
+                "min-width": "100% !important",
+            },
+        }
+    )
 
-    # Retorna as entregas selecionadas visualmente
+    # Limpa a ação após execução para não repetir
+    if chave_estado in st.session_state:
+        del st.session_state[chave_estado]
+
+    # Retorna as linhas selecionadas
     return pd.DataFrame(grid_response.get("selected_rows", []))
+
 
 
 
