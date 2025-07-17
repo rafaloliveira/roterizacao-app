@@ -1952,17 +1952,16 @@ def pagina_confirmar_producao():
         # Filtra o DataFrame pelo cliente pagador atual
         df_cliente = df[df["Cliente Pagador"] == cliente_pagador].copy()
 
-        # --- NOVA CORREÇÃO APLICADA AQUI ---
         # Prepara df_formatado AQUI, antes de qualquer controle que o utilize
         df_formatado = df_cliente[[col for col in colunas_exibir if col in df_cliente.columns]].copy()
         df_formatado = apply_brazilian_date_format_for_display(df_formatado)
 
-        # Se df_formatado for vazio (ex: df_cliente era vazio ou colunas não encontradas),
-        # não precisamos exibir o expander e os botões para este cliente.
-        # ISSO É CRUCIAL: Se df_formatado é vazio, pulamos a renderização de qualquer coisa que possa causar erro.
+        # 🎯 NOVA LINHA IMPORTANTE: Garante consistência de None para AgGrid
+        # Converte np.nan para None e strings vazias para None em todo o DataFrame
+        df_formatado = df_formatado.fillna(value=None).replace('', None)
+
         if df_formatado.empty:
             continue # Pula para o próximo cliente pagador
-        # --- FIM DA NOVA CORREÇÃO ---
 
         st.markdown(f"""
         <div style="margin-top:20px;padding:10px;background:#e8f0fe;border-left:4px solid #4285f4;border-radius:6px;display:inline-block;max-width:100%;">
@@ -1991,22 +1990,23 @@ def pagina_confirmar_producao():
             )
 
         # Inicializa o estado da sessão para a seleção deste grid específico
-        if f"aggrid_selections_{cliente_pagador}" not in st.session_state:
-            st.session_state[f"aggrid_selections_{cliente_pagador}"] = [] # Começa sem seleções
+        aggrid_selections_key = f"aggrid_selections_{cliente_pagador}"
+        if aggrid_selections_key not in st.session_state:
+            st.session_state[aggrid_selections_key] = [] # Começa sem seleções
 
         # Chave única para o componente AgGrid (usada para forçar re-renderização)
         grid_key_id = f"grid_conf_prod_{cliente_pagador}"
         if grid_key_id not in st.session_state:
             st.session_state[grid_key_id] = str(uuid.uuid4()) # Inicializa com uma chave única
 
-        with st.expander("🔽 Selecionar entregas", expanded=True):
+        with st.expander("�� Selecionar entregas", expanded=True):
             # Botões para Marcar Todas e Desmarcar Todas
             col_sel_all, col_desel_all = st.columns([1, 1])
             with col_sel_all:
                 if st.button("✅ Marcar todas", key=f"btn_marcar_todas_{cliente_pagador}"):
                     # Quando "Marcar todas" é clicado, armazena todas as linhas como selecionadas no session_state
-                    # Agora df_formatado está garantidamente definido aqui e não é vazio.
-                    st.session_state[f"aggrid_selections_{cliente_pagador}"] = df_formatado.to_dict('records')
+                    # df_formatado está garantidamente definido e limpo.
+                    st.session_state[aggrid_selections_key] = df_formatado.to_dict('records')
                     # Muda a chave do grid para forçar uma re-renderização e aplicar o novo 'selected_rows'
                     st.session_state[grid_key_id] = str(uuid.uuid4())
                     st.rerun() # Re-executa para aplicar as mudanças imediatamente
@@ -2014,13 +2014,13 @@ def pagina_confirmar_producao():
             with col_desel_all:
                 if st.button("❌ Desmarcar todas", key=f"btn_desmarcar_todas_{cliente_pagador}"):
                     # Quando "Desmarcar todas" é clicado, limpa as seleções no session_state
-                    st.session_state[f"aggrid_selections_{cliente_pagador}"] = []
+                    st.session_state[aggrid_selections_key] = []
                     # Muda a chave do grid para forçar uma re-renderização e limpar 'selected_rows'
                     st.session_state[grid_key_id] = str(uuid.uuid4())
                     st.rerun() # Re-executa para aplicar as mudanças imediatamente
 
             # Criação e estilização do grid (usando o AgGrid)
-            # Como verificamos df_formatado.empty acima, não precisamos de um 'if' aqui.
+            # Como verificamos df_formatado.empty acima, o AgGrid sempre receberá um DataFrame válido aqui.
             gb = GridOptionsBuilder.from_dataframe(df_formatado)
             gb.configure_default_column(minWidth=90)
             gb.configure_selection("multiple", use_checkbox=True)
@@ -2075,15 +2075,15 @@ def pagina_confirmar_producao():
                         "padding-bottom": "0px !important",
                     }
                 },
-                selected_rows=st.session_state[f"aggrid_selections_{cliente_pagador}"] # NOVO: Usa o session state para a seleção inicial
+                selected_rows=st.session_state[aggrid_selections_key] # Esta é a parte crucial para a pré-seleção
             )
 
             # Após a renderização do AgGrid, atualiza o session state com as linhas *realmente* selecionadas no grid.
             # Isso captura quaisquer seleções ou desmarcações manuais feitas pelo usuário.
-            st.session_state[f"aggrid_selections_{cliente_pagador}"] = grid_response.get("selected_rows", [])
+            st.session_state[aggrid_selections_key] = grid_response.get("selected_rows", [])
 
             # 'selecionadas' variável para processamento posterior
-            selecionadas = pd.DataFrame(st.session_state[f"aggrid_selections_{cliente_pagador}"])
+            selecionadas = pd.DataFrame(st.session_state[aggrid_selections_key])
 
             qtd_sel = len(selecionadas)
             peso_real_sel = selecionadas["Peso Real em Kg"].sum() if "Peso Real em Kg" in selecionadas else 0
@@ -2149,7 +2149,7 @@ def pagina_confirmar_producao():
                         # Limpa o estado da sessão para forçar a recarga dos grids e evitar problemas de cache.
                         st.session_state["reload_confirmadas_producao"] = True # Sinaliza para recarregar os dados na próxima execução
                         st.session_state.pop(grid_key_id, None) # Remove a key do grid para forçar a reconstrução, se necessário
-                        st.session_state.pop(f"aggrid_selections_{cliente_pagador}", None) # Limpa o estado de seleção do grid
+                        st.session_state.pop(aggrid_selections_key, None) # Limpa o estado de seleção do grid
 
                         st.session_state["reload_aprovacao_diretoria"] = True
 
