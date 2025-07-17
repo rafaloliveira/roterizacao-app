@@ -145,12 +145,9 @@ def is_cookie_expired(expiry_time_str):
 from st_aggrid import GridOptionsBuilder, AgGrid, GridUpdateMode, JsCode
 
 def controle_selecao(chave_estado, df_todos, grid_key, grid_options):
-    col1, col2 = st.columns([1, 1])
 
     selecionar_tudo = False
     desmarcar_tudo = False
-
-    
     # Define o comportamento JS para selecionar/desmarcar todas no grid
     js_on_grid_ready = JsCode("""
     function(params) {
@@ -2009,6 +2006,15 @@ def pagina_confirmar_producao():
                 grid_key_id = f"grid_conf_prod_{cliente_pagador}"
                 if grid_key_id not in st.session_state:
                     st.session_state[grid_key_id] = str(uuid.uuid4()) # Inicializa com um UUID
+
+                col1, col2, _ = st.columns([0.6, 0.6, 4.8])
+                with col1:
+                    if st.button("🔘 Selecionar todas", key=f"sel_todas_{cliente_pagador}"):
+                        st.session_state[f"confirmar_prod_{cliente_pagador}"] = "selecionar_tudo"
+                with col2:
+                    if st.button("❌ Desmarcar todas", key=f"desmarcar_todas_{cliente_pagador}"):
+                        st.session_state[f"confirmar_prod_{cliente_pagador}"] = "desmarcar_tudo"
+
 
                 selecionadas = controle_selecao(
                 chave_estado=f"confirmar_prod_{cliente_pagador}",
