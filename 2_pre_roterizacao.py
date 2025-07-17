@@ -2028,15 +2028,6 @@ def pagina_confirmar_producao():
             df_formatado = df_cliente[[col for col in colunas_exibir if col in df_cliente.columns]].copy()
             df_formatado = apply_brazilian_date_format_for_display(df_formatado)
 
-            
-            selecionadas = grid_interativo_com_selecao(
-                df=df_formatado,
-                key_base=f"conf_prod_{cliente_pagador}",
-                js_estilo_condicional=linha_destacar,
-            )
-
-                            
-
 
 ###########################################
 
