@@ -2160,7 +2160,7 @@ def pagina_confirmar_producao():
                         # Força um rerun para atualizar a UI e refletir as mudanças
                         st.rerun()
                     except Exception as e:
-                        st.error(f"❌ Erro ao confirmar produção do cliente {cliente_pagador}: {e}"
+                        st.error(f"❌ Erro ao confirmar produção do cliente {cliente_pagador}: {e}")
 
                    
 
