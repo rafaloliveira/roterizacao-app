@@ -1977,7 +1977,7 @@ def pagina_confirmar_producao():
                 f"<span style='background:#eef2f7;border-radius:12px;padding:6px 12px;margin:4px;color:inherit;display:inline-block;'>{len(df_cliente)} entregas</span>"
                 f"<span style='background:#eef2f7;border-radius:12px;padding:6px 12px;margin:4px;color:inherit;display:inline-block;'>{formatar_brasileiro(peso_calc_sum)} kg calc</span>"
                 f"<span style='background:#eef2f7;border-radius:12px;padding:6px 12px;margin:4px;color:inherit;display:inline-block;'>{formatar_brasileiro(peso_real_sum)} kg real</span>"
-                f"<span style='background:#eef2f7;border-radius:12px;padding:6px 12px;margin:4px;color:inherit;display:inline-block;'>Valor frete: R$ {formatar_brasileiro(valor_frete_sum)}</span>"
+                f"<span style='background:#eef2f7;border-radius:12px;padding:6px 12px;margin:4px;color:inherit;display:inline-block;'>Valor frete: R\$ {formatar_brasileiro(valor_frete_sum)}</span>"
                 f"<span style='background:#eef2f7;border-radius:12px;padding:6px 12px;margin:4px;color:inherit;display:inline-block;'>{formatar_brasileiro(cubagem_sum)} m³</span>"
                 f"<span style='background:#eef2f7;border-radius:12px;padding:6px 12px;margin:4px;color:inherit;display:inline-block;'>{int(volumes_sum)} volumes</span>",
                 unsafe_allow_html=True
@@ -1985,46 +1985,65 @@ def pagina_confirmar_producao():
 
         # Expander para o grid
         with st.expander("🔽 Selecionar entregas", expanded=True):
-            # NOVO: Checkbox "Marcar todas" dentro do expander
             checkbox_key = f"marcar_todas_conf_prod_{cliente_pagador}"
-            # Garante que o estado do checkbox seja inicializado
-            if checkbox_key not in st.session_state:
-                st.session_state[checkbox_key] = False
-            
-            marcar_todas = st.checkbox("Marcar todas", key=checkbox_key)
+            # Chave única para armazenar a lista de selecionadas no session_state para este grid
+            session_selection_key = f"selected_rows_data_conf_prod_{cliente_pagador}"
+            # Chave para rastrear o estado anterior do checkbox "Marcar todas"
+            prev_checkbox_state_key = f"prev_marcar_todas_state_{cliente_pagador}"
 
-            # Criação e estilização do grid (usando o AgGrid)
-            df_formatado = df_cliente[[col for col in colunas_exibir if col in df_cliente.columns]].copy()
-            df_formatado = apply_brazilian_date_format_for_display(df_formatado)
+            # Inicializa o session state para a seleção e o estado anterior do checkbox
+            if session_selection_key not in st.session_state:
+                st.session_state[session_selection_key] = []
+            if prev_checkbox_state_key not in st.session_state:
+                st.session_state[prev_checkbox_state_key] = False # Assume que começa desmarcado
+
+            marcar_todas_current = st.checkbox("Marcar todas", key=checkbox_key)
+
+            # Prepara o DataFrame para exibição no AgGrid
+            df_display_for_aggrid = df_cliente[[col for col in colunas_exibir if col in df_cliente.columns]].copy()
+            df_display_for_aggrid = apply_brazilian_date_format_for_display(df_display_for_aggrid)
             
-            if not df_formatado.empty:
-                gb = GridOptionsBuilder.from_dataframe(df_formatado)
+            # Lógica para atualizar session_selection_key baseada no checkbox 'marcar_todas'
+            if marcar_todas_current and not st.session_state[prev_checkbox_state_key]:
+                # 'Marcar todas' acabou de ser marcado
+                st.session_state[session_selection_key] = df_display_for_aggrid.to_dict(orient="records")
+                st.rerun() # Reroda para que o AgGrid atualize visualmente
+            elif not marcar_todas_current and st.session_state[prev_checkbox_state_key]:
+                # 'Marcar todas' acabou de ser desmarcado
+                st.session_state[session_selection_key] = []
+                st.rerun() # Reroda para que o AgGrid atualize visualmente
+            
+            # Atualiza o estado anterior para a próxima execução
+            st.session_state[prev_checkbox_state_key] = marcar_todas_current
+
+            # AgGrid configuration
+            if not df_display_for_aggrid.empty:
+                gb = GridOptionsBuilder.from_dataframe(df_display_for_aggrid)
                 gb.configure_default_column(minWidth=90)
-                gb.configure_selection("multiple", use_checkbox=True)
+                gb.configure_selection("multiple", use_checkbox=True) 
+                # REMOVIDO: gb.configure_grid_options(isRowSelected=is_row_selected_js_code)
                 gb.configure_grid_options(paginationPageSize=12)
                 gb.configure_grid_options(alwaysShowHorizontalScroll=True)
                 gb.configure_grid_options(rowStyle={'font-size': '11px'})
-                gb.configure_grid_options(onGridReady=GRID_RESIZE_JS_CODE) # <<< ADICIONADO AQUI
+                gb.configure_grid_options(onGridReady=GRID_RESIZE_JS_CODE) 
+                
                 grid_options = gb.build()
-                grid_options["getRowStyle"] = linha_destacar # Atribui o JsCode aqui
+                grid_options["getRowStyle"] = linha_destacar 
 
-                # Gerencia a chave única para o grid, essencial para o st.rerun() funcionar
-                # A chave do grid só é alterada se os dados subjacentes tiverem sido modificados
-                # Para evitar "winks" desnecessários
-                grid_key_id = f"grid_conf_prod_{cliente_pagador}"
-                if grid_key_id not in st.session_state:
-                    st.session_state[grid_key_id] = str(uuid.uuid4()) # Inicializa com um UUID
+                grid_unique_key = f"grid_conf_prod_{cliente_pagador}"
+                if grid_unique_key not in st.session_state:
+                    st.session_state[grid_unique_key] = str(uuid.uuid4()) 
 
                 grid_response = AgGrid(
-                    df_formatado,
+                    df_display_for_aggrid,
                     gridOptions=grid_options,
-                    update_mode=GridUpdateMode.SELECTION_CHANGED, # Essencial para evitar o "wink" ao selecionar
+                    update_mode=GridUpdateMode.MODEL_CHANGED, # Captura todas as mudanças do modelo, incluindo seleção
                     fit_columns_on_grid_load=False,
                     width="100%",
                     height=400,
                     allow_unsafe_jscode=True,
-                    key=st.session_state[grid_key_id], # Usa a chave única para o grid
-                    data_return_mode="AS_INPUT",
+                    key=grid_unique_key, 
+                    data_return_mode="AS_INPUT", 
                     theme=AgGridTheme.MATERIAL,
                     show_toolbar=False,
                     custom_css={
@@ -2058,17 +2077,24 @@ def pagina_confirmar_producao():
                         "#gridToolBar": {
                             "padding-bottom": "0px !important",
                         }
-                    }
+                    },
+                    selected_rows=st.session_state[session_selection_key] # Entrada: Estado inicial da seleção
                 )
 
-                # Captura os registros selecionados pelo usuário no grid
-                # Lógica ajustada para considerar o checkbox "Marcar todas"
-                if marcar_todas:
-                    # Se "Marcar todas" estiver checado, seleciona todas as entregas do DataFrame atual
-                    selecionadas = df_formatado[df_formatado["Serie_Numero_CTRC"].notna()].copy()
-                else:
-                    # Caso contrário, usa a seleção feita diretamente no grid
-                    selecionadas = pd.DataFrame(grid_response.get("selected_rows", []))
+                # Saída: Obter as linhas selecionadas atualmente do grid (interações do usuário)
+                actual_grid_selected_rows = grid_response.get("selected_rows", [])
+
+                # CRÍTICO: Se a seleção atual do grid difere do nosso session state, atualize o session state.
+                # Isso captura desmarcações/marcações individuais.
+                set_actual = {frozenset(d.items()) for d in actual_grid_selected_rows}
+                set_session = {frozenset(d.items()) for d in st.session_state[session_selection_key]}
+
+                if set_actual != set_session:
+                    st.session_state[session_selection_key] = actual_grid_selected_rows
+
+                # A variável 'selecionadas' para a lógica subsequente (ex: "Enviar para Aprovação")
+                # deve sempre ler da fonte da verdade, que é o session state.
+                selecionadas = pd.DataFrame(st.session_state[session_selection_key])
 
                 qtd_sel = len(selecionadas)
                 peso_real_sel = selecionadas["Peso Real em Kg"].sum() if "Peso Real em Kg" in selecionadas else 0
@@ -2088,7 +2114,6 @@ def pagina_confirmar_producao():
                             # Prepara os dados para inserção na tabela de aprovacao_diretoria
                             df_confirmar = selecionadas.drop(columns=["_selectedRowNodeInfo"], errors="ignore").copy()
                             # A coluna "Rota" é um atributo da entrega e deve ser mantida, não confundir com o agrupamento
-                            
                             # --- NOVO/MODIFICADO: TRATAMENTO DE DATAS PARA INSERÇÃO NO SUPABASE ---
                             # As colunas de data no 'selecionadas' vêm como strings no formato brasileiro (DD-MM-AAAA HH:MM:SS).
                             # Primeiro, vamos converter essas strings de volta para objetos datetime.
@@ -2134,8 +2159,9 @@ def pagina_confirmar_producao():
 
                             # Limpa o estado da sessão para forçar a recarga dos grids e evitar problemas de cache.
                             st.session_state["reload_confirmadas_producao"] = True # Sinaliza para recarregar os dados na próxima execução
-                            st.session_state.pop(grid_key_id, None) # Remove a key do grid para forçar a reconstrução, se necessário
+                            st.session_state.pop(grid_unique_key, None) # Remove a key do grid para forçar a reconstrução, se necessário
                             st.session_state.pop(checkbox_key, None) # Limpa o estado do checkbox "Marcar todas" para esta rota após a ação
+                            st.session_state.pop(session_selection_key, None) # Limpa a seleção do session_state
 
                             st.session_state["reload_aprovacao_diretoria"] = True
 
