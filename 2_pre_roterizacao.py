@@ -2021,7 +2021,7 @@ def pagina_confirmar_producao():
                 gb = GridOptionsBuilder.from_dataframe(df_display_for_aggrid)
                 gb.configure_default_column(minWidth=90)
                 gb.configure_selection("multiple", use_checkbox=True) 
-                # REMOVIDO: gb.configure_grid_options(isRowSelected=is_row_selected_js_code)
+                # REMOVIDO: gb.configure_grid_options(isRowSelected=is_row_selected_js_code) # <-- Removida a tentativa anterior
                 gb.configure_grid_options(paginationPageSize=12)
                 gb.configure_grid_options(alwaysShowHorizontalScroll=True)
                 gb.configure_grid_options(rowStyle={'font-size': '11px'})
@@ -2037,7 +2037,7 @@ def pagina_confirmar_producao():
                 grid_response = AgGrid(
                     df_display_for_aggrid,
                     gridOptions=grid_options,
-                    update_mode=GridUpdateMode.MODEL_CHANGED, # Captura todas as mudanças do modelo, incluindo seleção
+                    update_mode=GridUpdateMode.SELECTION_CHANGED, # <-- Alterado para SELECTION_CHANGED
                     fit_columns_on_grid_load=False,
                     width="100%",
                     height=400,
@@ -2078,14 +2078,14 @@ def pagina_confirmar_producao():
                             "padding-bottom": "0px !important",
                         }
                     },
-                    selected_rows=st.session_state[session_selection_key] # Entrada: Estado inicial da seleção
+                    selected_rows=st.session_state[session_selection_key] # <-- Adicionada esta linha!
                 )
 
                 # Saída: Obter as linhas selecionadas atualmente do grid (interações do usuário)
                 actual_grid_selected_rows = grid_response.get("selected_rows", [])
 
                 # CRÍTICO: Se a seleção atual do grid difere do nosso session state, atualize o session state.
-                # Isso captura desmarcações/marcações individuais.
+                # Isso captura desmarcações/marcas individuais.
                 set_actual = {frozenset(d.items()) for d in actual_grid_selected_rows}
                 set_session = {frozenset(d.items()) for d in st.session_state[session_selection_key]}
 
