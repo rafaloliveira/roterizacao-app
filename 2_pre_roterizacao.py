@@ -1866,6 +1866,10 @@ def pagina_confirmar_producao():
                 df = st.session_state["df_confirmadas_cache"]
 
             if not df.empty:
+                # Limpeza e padronização da coluna chave principal
+                if 'Serie_Numero_CTRC' in df.columns:
+                    df['Serie_Numero_CTRC'] = df['Serie_Numero_CTRC'].astype(str).str.strip() # Garante string e remove espaços
+
                 if 'Rota' in df.columns:
                     df['Rota'] = df['Rota'].fillna('').astype(str)
                 if 'Status' in df.columns:
@@ -1874,8 +1878,6 @@ def pagina_confirmar_producao():
                     df['Entrega Programada'] = pd.to_datetime(df['Entrega Programada'], errors='coerce') 
                 if 'Particularidade' in df.columns:
                     df['Particularidade'] = df['Particularidade'].fillna('').astype(str)
-                if 'Serie_Numero_CTRC' in df.columns:
-                    df['Serie_Numero_CTRC'] = df['Serie_Numero_CTRC'].astype(str)
                 if 'Cliente Pagador' in df.columns:
                     df['Cliente Pagador'] = df['Cliente Pagador'].fillna('').astype(str)
 
@@ -1887,14 +1889,14 @@ def pagina_confirmar_producao():
             st.info("Nenhuma entrega disponível para confirmar produção.")
             return
 
-    # ========= MÉTRICAS COMPARATIVAS =========
+    # ========= MÉTRICAS COMPARATIVAS (este bloco permanece inalterado) =========
     col_total_1, col_total_2, col_total_3, col_total_4, spacer, col_conf_1, col_conf_2, col_conf_3 = st.columns([1, 1, 1, 1, 0.5, 1, 1, 1])
 
     with col_total_1:
         st.metric("📦 Total de Clientes", df["Cliente Pagador"].nunique() if "Cliente Pagador" in df.columns else 0)
 
     with col_total_2:
-        st.metric("📦 Total de Entregas", len(df))
+        st.metric("�� Total de Entregas", len(df))
 
     with col_total_3:
         st.metric("⚖️ Peso Real (kg)", formatar_brasileiro(df['Peso Real em Kg'].sum()))
@@ -1960,9 +1962,17 @@ def pagina_confirmar_producao():
         df_formatado = df_cliente[[col for col in colunas_exibir if col in df_cliente.columns]].copy()
         df_formatado = apply_brazilian_date_format_for_display(df_formatado)
 
-        # 🎯 NOVA LINHA IMPORTANTE: Garante consistência de None para AgGrid
-        # Converte np.nan para None E strings vazias para None em todo o DataFrame
-        df_formatado = df_formatado.replace({np.nan: None, '': None}) 
+        # 🎯 ETAPA DE PADRONIZAÇÃO FINAL PARA CONSISTÊNCIA COM AGGRID
+        # Converte np.nan para None e strings vazias para None
+        df_formatado = df_formatado.replace({np.nan: None, '': None})
+        
+        # Opcional, mas pode ajudar na consistência de tipos para AgGrid:
+        # Converte todas as colunas (exceto as de data que já são strings formatadas) para string,
+        # exceto se o valor for None. Isso uniformiza os tipos.
+        for col in df_formatado.columns:
+            if col not in GLOBAL_DATE_DISPLAY_COLUMNS: # Não altera colunas de data que já são strings
+                df_formatado[col] = df_formatado[col].apply(lambda x: str(x).strip() if x is not None else None)
+
 
         if df_formatado.empty:
             continue # Pula para o próximo cliente pagador
@@ -2003,7 +2013,7 @@ def pagina_confirmar_producao():
         if grid_key_id not in st.session_state:
             st.session_state[grid_key_id] = str(uuid.uuid4()) # Inicializa com uma chave única
 
-        with st.expander("🔽 Selecionar entregas", expanded=True):
+        with st.expander("�� Selecionar entregas", expanded=True):
             # Botões para Marcar Todas e Desmarcar Todas
             col_sel_all, col_desel_all = st.columns([1, 1])
             with col_sel_all:
@@ -2026,6 +2036,10 @@ def pagina_confirmar_producao():
             gb = GridOptionsBuilder.from_dataframe(df_formatado)
             gb.configure_default_column(minWidth=90)
             gb.configure_selection("multiple", use_checkbox=True)
+            # �� IMPORTANTE: Dizer ao AgGrid qual coluna é o ID da linha
+            if 'Serie_Numero_CTRC' in df_formatado.columns:
+                gb.configure_grid_options(rowNodeId='Serie_Numero_CTRC') 
+
             gb.configure_grid_options(paginationPageSize=12)
             gb.configure_grid_options(alwaysShowHorizontalScroll=True)
             gb.configure_grid_options(rowStyle={'font-size': '11px'})
