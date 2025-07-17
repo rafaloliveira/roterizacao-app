@@ -1865,7 +1865,7 @@ def pagina_confirmar_producao():
     st.markdown("## Confirmar Produção")
 
     # Carregando entregas diretamente da tabela 'confirmadas_producao'
-    with st.spinner("�� Carregando entregas para confirmar produção..."):
+    with st.spinner("🔄 Carregando entregas para confirmar produção..."):
         try:
             recarregar = st.session_state.pop("reload_confirmadas_producao", False)
             if recarregar or "df_confirmadas_cache" not in st.session_state:
@@ -1911,7 +1911,7 @@ def pagina_confirmar_producao():
         st.metric("⚖️ Peso Real (kg)", formatar_brasileiro(df['Peso Real em Kg'].sum()))
 
     with col_total_4:
-        st.metric("�� Peso Calculado (kg)", formatar_brasileiro(df['Peso Calculado em Kg'].sum()))
+        st.metric("📏 Peso Calculado (kg)", formatar_brasileiro(df['Peso Calculado em Kg'].sum()))
 
     # 🔹 DADOS CONFIRMADOS NA SESSÃO (à direita)
     try:
@@ -2056,7 +2056,7 @@ def pagina_confirmar_producao():
                 gb = GridOptionsBuilder.from_dataframe(df_display_for_aggrid) # Usamos o DataFrame já sanitizado
                 gb.configure_default_column(minWidth=90)
                 gb.configure_selection("multiple", use_checkbox=True) 
-                # REMOVIDO: gb.configure_grid_options(isRowSelected=is_row_selected_js_code)
+                # REMOVIDO: gb.configure_grid_options(isRowSelected=is_row_selected_js_code) # <-- Removida a tentativa anterior
                 gb.configure_grid_options(paginationPageSize=12)
                 gb.configure_grid_options(alwaysShowHorizontalScroll=True)
                 gb.configure_grid_options(rowStyle={'font-size': '11px'})
@@ -2078,7 +2078,7 @@ def pagina_confirmar_producao():
                     height=400,
                     allow_unsafe_jscode=True,
                     key=grid_unique_key, 
-                    data_return_mode="DATA_ONLY", # <-- Alterado para DATA_ONLY para retorno mais limpo
+                    data_return_mode="AS_INPUT", # <-- CORRIGIDO para AS_INPUT!
                     theme=AgGridTheme.MATERIAL,
                     show_toolbar=False,
                     custom_css={
