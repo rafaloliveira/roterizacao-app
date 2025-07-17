@@ -698,7 +698,7 @@ def criar_grid_destacado(df, key, selection_mode="multiple", page_size=500, altu
         gridOptions=grid_options,
         update_mode=GridUpdateMode.SELECTION_CHANGED,
         fit_columns_on_grid_load=False,
-        height=650,
+        height=400,
         allow_unsafe_jscode=True,
         key=key
     )
@@ -2026,12 +2026,14 @@ def pagina_confirmar_producao():
                 gb = GridOptionsBuilder.from_dataframe(df_formatado)
                 gb.configure_default_column(minWidth=90)
                 gb.configure_selection("multiple", use_checkbox=True)
+                gb.configure_grid_options(domLayout='normal')
                 gb.configure_grid_options(
                     paginationPageSize=12,
                     alwaysShowHorizontalScroll=True,
                     rowStyle={'font-size': '11px'},
                     onGridReady=GRID_RESIZE_JS_CODE,
                     sideBar=False  # ⛔ REMOVE toolbar lateral que injeta id="gridToolBar"
+                    
                 )
 
                 grid_options = gb.build()
