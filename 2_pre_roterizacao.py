@@ -765,11 +765,12 @@ def carregar_base_supabase():
 
         def definir_rota(row):
             if row.get('Cidade de Entrega') == 'PORTO ALEGRE':
-                return rotas_poa_dict.get(row.get('Bairro do Destinatario'), '')
+                return rotas_poa_dict.get(row.get('Bairro do Destinatario'), 'Indefinida')
             else:
-                return rotas_dict.get(row.get('Cidade de Entrega'), '')
+                return rotas_dict.get(row.get('Cidade de Entrega'), 'Indefinida')
 
         base['Rota'] = base.apply(definir_rota, axis=1)
+        base['Rota'] = base['Rota'].fillna('Indefinida').replace('', 'Indefinida')
 
         colunas_numericas = [
             'Peso Real em Kg', 'Cubagem em m³', 'Quantidade de Volumes', 'Valor da Mercadoria',
