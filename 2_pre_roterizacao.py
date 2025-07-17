@@ -1848,6 +1848,10 @@ def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, veiculo, valor_f
 # PÁGINA Confirmar Produção
 
 ##########################################
+import numpy as np # <-- Certifique-se que esta linha esteja no topo do seu arquivo
+
+# ... (restante do seu código, incluindo imports de pandas, streamlit, AgGrid, supabase, etc.) ...
+
 def pagina_confirmar_producao():
     st.markdown("## Confirmar Produção")
 
@@ -1883,7 +1887,7 @@ def pagina_confirmar_producao():
             st.info("Nenhuma entrega disponível para confirmar produção.")
             return
 
-    # ========= MÉTRICAS COMPARATIVAS (este bloco permanece inalterado) =========
+    # ========= MÉTRICAS COMPARATIVAS =========
     col_total_1, col_total_2, col_total_3, col_total_4, spacer, col_conf_1, col_conf_2, col_conf_3 = st.columns([1, 1, 1, 1, 0.5, 1, 1, 1])
 
     with col_total_1:
@@ -1957,8 +1961,8 @@ def pagina_confirmar_producao():
         df_formatado = apply_brazilian_date_format_for_display(df_formatado)
 
         # 🎯 NOVA LINHA IMPORTANTE: Garante consistência de None para AgGrid
-        # Converte np.nan para None e strings vazias para None em todo o DataFrame
-        df_formatado = df_formatado.fillna(value=None).replace('', None)
+        # Converte np.nan para None E strings vazias para None em todo o DataFrame
+        df_formatado = df_formatado.replace({np.nan: None, '': None}) 
 
         if df_formatado.empty:
             continue # Pula para o próximo cliente pagador
@@ -1999,13 +2003,12 @@ def pagina_confirmar_producao():
         if grid_key_id not in st.session_state:
             st.session_state[grid_key_id] = str(uuid.uuid4()) # Inicializa com uma chave única
 
-        with st.expander("�� Selecionar entregas", expanded=True):
+        with st.expander("🔽 Selecionar entregas", expanded=True):
             # Botões para Marcar Todas e Desmarcar Todas
             col_sel_all, col_desel_all = st.columns([1, 1])
             with col_sel_all:
                 if st.button("✅ Marcar todas", key=f"btn_marcar_todas_{cliente_pagador}"):
                     # Quando "Marcar todas" é clicado, armazena todas as linhas como selecionadas no session_state
-                    # df_formatado está garantidamente definido e limpo.
                     st.session_state[aggrid_selections_key] = df_formatado.to_dict('records')
                     # Muda a chave do grid para forçar uma re-renderização e aplicar o novo 'selected_rows'
                     st.session_state[grid_key_id] = str(uuid.uuid4())
@@ -2020,7 +2023,6 @@ def pagina_confirmar_producao():
                     st.rerun() # Re-executa para aplicar as mudanças imediatamente
 
             # Criação e estilização do grid (usando o AgGrid)
-            # Como verificamos df_formatado.empty acima, o AgGrid sempre receberá um DataFrame válido aqui.
             gb = GridOptionsBuilder.from_dataframe(df_formatado)
             gb.configure_default_column(minWidth=90)
             gb.configure_selection("multiple", use_checkbox=True)
@@ -2158,7 +2160,7 @@ def pagina_confirmar_producao():
                         # Força um rerun para atualizar a UI e refletir as mudanças
                         st.rerun()
                     except Exception as e:
-                        st.error(f"❌ Erro ao confirmar produção do cliente {cliente_pagador}: {e}")
+                        st.error(f"❌ Erro ao confirmar produção do cliente {cliente_pagador}: {e}"
 
                    
 
