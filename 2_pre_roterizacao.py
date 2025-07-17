@@ -1,3 +1,6 @@
+# 17-07 01 versão 1.0 liberada para teste
+
+
 
 
 #sincronização, Pré Roterização e Rotas Confirmadas funcionando
@@ -142,89 +145,43 @@ def is_cookie_expired(expiry_time_str):
         return True # Se houver erro na data, considera expirado
     
 #================= MULTIPLA SELEÇÃO NO GRIDD ========================= 
-from st_aggrid import GridOptionsBuilder, AgGrid, GridUpdateMode, JsCode
-
 def controle_selecao(chave_estado, df_todos, grid_key, grid_options):
-    from st_aggrid import AgGrid, GridUpdateMode
-    from st_aggrid.grid_options_builder import GridOptionsBuilder
-    from st_aggrid.shared import JsCode
+    col1, col2 = st.columns([1, 1])
 
-    # Verifica ação pendente
-    acao = st.session_state.get(chave_estado, None)
+    # Botão para selecionar todas
+    with col1:
+        if st.button(f"🔘 Selecionar todas", key=f"btn_sel_{chave_estado}"):
+            st.session_state[chave_estado] = "selecionar_tudo"
 
-    # Pré-seleção para o grid
-    pre_selecionadas = []
+    # Botão para desmarcar todas
+    with col2:
+        if st.button(f"❌ Desmarcar todas", key=f"btn_desmarcar_{chave_estado}"):
+            st.session_state[chave_estado] = "desmarcar_tudo"
 
-    if acao == "selecionar_tudo":
-        pre_selecionadas = df_todos.to_dict(orient="records")
-    elif acao == "desmarcar_tudo":
-        pre_selecionadas = []
+    # ✅ Garantir scroll horizontal
+    grid_options["domLayout"] = "normal"
 
-    # Define JS vazio para não interferir
-    js_on_grid_ready = JsCode("""function(params) {}""")
-
-    # (Re)Constrói GridOptions com o estilo original
-    gb = GridOptionsBuilder.from_dataframe(df_todos)
-    gb.configure_default_column(resizable=True, sortable=True, filter=True)
-    gb.configure_selection("multiple", use_checkbox=True)
-    gb.configure_grid_options(onGridReady=js_on_grid_ready)
-    grid_options = gb.build()
-
+    # Renderiza o grid com altura fixa
     grid_response = AgGrid(
-        df_todos,
-        gridOptions=grid_options,
-        update_mode=GridUpdateMode.SELECTION_CHANGED,
-        fit_columns_on_grid_load=False,
-        height=400,
-        use_container_width=True,
-        allow_unsafe_jscode=True,
-        key=grid_key,
-        data_return_mode='AS_INPUT',
-        theme='material',
-        custom_css={
-            ".ag-root-wrapper": {
-                "height": "90% !important",
-            },
-            ".ag-theme-material .ag-cell": {
-                "font-size": "11px",
-                "line-height": "18px",
-                "border-right": "1px solid #ccc",
-            },
-            ".ag-theme-material .ag-row:last-child .ag-cell": {
-                "border-bottom": "1px solid #ccc",
-            },
-            ".ag-theme-material .ag-header-cell": {
-                "border-right": "1px solid #ccc",
-                "border-bottom": "1px solid #ccc",
-            },
-            ".ag-theme-material .ag-root-wrapper": {
-                "border": "1px solid black",
-                "border-radius": "6px",
-                "padding": "4px",
-                "overflow": "auto !important",
-            },
-            ".ag-theme-material .ag-header-cell-label": {
-                "font-size": "11px",
-            },
-            ".ag-center-cols-viewport": {
-                "overflow-x": "auto !important",
-                "overflow-y": "hidden",
-            },
-            ".ag-center-cols-container": {
-                "min-width": "100% !important",
-            },
-        },
-        selected_rows=pre_selecionadas  # <-- ISSO GARANTE A SELEÇÃO VISUAL!
-    )
+    df_todos,
+    gridOptions=grid_options,
+    update_mode=GridUpdateMode.SELECTION_CHANGED,
+    fit_columns_on_grid_load=False,
+    height=470,  # ⬅️ AUMENTE AQUI
+    use_container_width=True,
+    allow_unsafe_jscode=True,
+    key=grid_key
+)
 
-    # Limpa a ação após execução para não repetir
-    if chave_estado in st.session_state:
-        del st.session_state[chave_estado]
+    # Lógica de seleção
+    if st.session_state.get(chave_estado) == "selecionar_tudo":
+        return df_todos.copy()
 
-    # Retorna as linhas selecionadas
-    return pd.DataFrame(grid_response.get("selected_rows", []))
+    elif st.session_state.get(chave_estado) == "desmarcar_tudo":
+        return pd.DataFrame([])
 
-
+    else:
+        return pd.DataFrame(grid_response.get("selected_rows", []))
 
 
 
@@ -710,7 +667,7 @@ def criar_grid_destacado(df, key, selection_mode="multiple", page_size=500, altu
         gridOptions=grid_options,
         update_mode=GridUpdateMode.SELECTION_CHANGED,
         fit_columns_on_grid_load=False,
-        height=400,
+        height=650,
         allow_unsafe_jscode=True,
         key=key
     )
@@ -2028,7 +1985,13 @@ def pagina_confirmar_producao():
 
         # Expander para o grid
         with st.expander("🔽 Selecionar entregas", expanded=True):
-           
+            # NOVO: Checkbox "Marcar todas" dentro do expander
+            checkbox_key = f"marcar_todas_conf_prod_{cliente_pagador}"
+            # Garante que o estado do checkbox seja inicializado
+            if checkbox_key not in st.session_state:
+                st.session_state[checkbox_key] = False
+            
+            marcar_todas = st.checkbox("Marcar todas", key=checkbox_key)
 
             # Criação e estilização do grid (usando o AgGrid)
             df_formatado = df_cliente[[col for col in colunas_exibir if col in df_cliente.columns]].copy()
@@ -2039,16 +2002,9 @@ def pagina_confirmar_producao():
                 gb.configure_default_column(minWidth=90)
                 gb.configure_selection("multiple", use_checkbox=True)
                 gb.configure_grid_options(paginationPageSize=12)
-                gb.configure_grid_options(domLayout='normal')
-                gb.configure_grid_options(
-                    paginationPageSize=12,
-                    alwaysShowHorizontalScroll=True,
-                    rowStyle={'font-size': '11px'},
-                    onGridReady=GRID_RESIZE_JS_CODE,
-                    sideBar=False  # ⛔ REMOVE toolbar lateral que injeta id="gridToolBar"
-                    
-                )
-
+                gb.configure_grid_options(alwaysShowHorizontalScroll=True)
+                gb.configure_grid_options(rowStyle={'font-size': '11px'})
+                gb.configure_grid_options(onGridReady=GRID_RESIZE_JS_CODE) # <<< ADICIONADO AQUI
                 grid_options = gb.build()
                 grid_options["getRowStyle"] = linha_destacar # Atribui o JsCode aqui
 
@@ -2059,22 +2015,60 @@ def pagina_confirmar_producao():
                 if grid_key_id not in st.session_state:
                     st.session_state[grid_key_id] = str(uuid.uuid4()) # Inicializa com um UUID
 
-                col1, col2, _ = st.columns([0.6, 0.6, 4.8])
-                with col1:
-                    if st.button("🔘 Selecionar todas", key=f"sel_todas_{cliente_pagador}"):
-                        st.session_state[f"confirmar_prod_{cliente_pagador}"] = "selecionar_tudo"
-                with col2:
-                    if st.button("❌ Desmarcar todas", key=f"desmarcar_todas_{cliente_pagador}"):
-                        st.session_state[f"confirmar_prod_{cliente_pagador}"] = "desmarcar_tudo"
+                grid_response = AgGrid(
+                    df_formatado,
+                    gridOptions=grid_options,
+                    update_mode=GridUpdateMode.SELECTION_CHANGED, # Essencial para evitar o "wink" ao selecionar
+                    fit_columns_on_grid_load=False,
+                    width="100%",
+                    height=400,
+                    allow_unsafe_jscode=True,
+                    key=st.session_state[grid_key_id], # Usa a chave única para o grid
+                    data_return_mode="AS_INPUT",
+                    theme=AgGridTheme.MATERIAL,
+                    show_toolbar=False,
+                    custom_css={
+                        ".ag-theme-material .ag-cell": {
+                            "font-size": "11px",
+                            "line-height": "18px",
+                            "border-right": "1px solid #ccc",
+                        },
+                        ".ag-theme-material .ag-row:last-child .ag-cell": {
+                            "border-bottom": "1px solid #ccc",
+                        },
+                        ".ag-theme-material .ag-header-cell": {
+                            "border-right": "1px solid #ccc",
+                            "border-bottom": "1px solid #ccc",
+                        },
+                        ".ag-theme-material .ag-root-wrapper": {
+                            "border": "1px solid black",
+                            "border-radius": "6px",
+                            "padding": "4px",
+                        },
+                        ".ag-theme-material .ag-header-cell-label": {
+                            "font-size": "11px",
+                        },
+                        ".ag-center-cols-viewport": {
+                            "overflow-x": "auto !important",
+                            "overflow-y": "hidden",
+                        },
+                        ".ag-center-cols-container": {
+                            "min-width": "100% !important",
+                        },
+                        "#gridToolBar": {
+                            "padding-bottom": "0px !important",
+                        }
+                    }
+                )
 
-
-                selecionadas = controle_selecao(
-                chave_estado=f"confirmar_prod_{cliente_pagador}",
-                df_todos=df_formatado,
-                grid_key=st.session_state[grid_key_id],
-                grid_options=grid_options
-            )
-
+                # Captura os registros selecionados pelo usuário no grid
+                # Lógica ajustada para considerar o checkbox "Marcar todas"
+                if marcar_todas:
+                    # Se "Marcar todas" estiver checado, seleciona todas as entregas do DataFrame atual
+                    selecionadas = df_formatado[df_formatado["Serie_Numero_CTRC"].notna()].copy()
+                else:
+                    # Caso contrário, usa a seleção feita diretamente no grid
+                    selecionadas = pd.DataFrame(grid_response.get("selected_rows", []))
 
                 qtd_sel = len(selecionadas)
                 peso_real_sel = selecionadas["Peso Real em Kg"].sum() if "Peso Real em Kg" in selecionadas else 0
@@ -2141,7 +2135,7 @@ def pagina_confirmar_producao():
                             # Limpa o estado da sessão para forçar a recarga dos grids e evitar problemas de cache.
                             st.session_state["reload_confirmadas_producao"] = True # Sinaliza para recarregar os dados na próxima execução
                             st.session_state.pop(grid_key_id, None) # Remove a key do grid para forçar a reconstrução, se necessário
-                            st.session_state.pop(f"confirmar_prod_{cliente_pagador}", None) # Limpa o estado do checkbox "Marcar todas" para esta rota após a ação
+                            st.session_state.pop(checkbox_key, None) # Limpa o estado do checkbox "Marcar todas" para esta rota após a ação
 
                             st.session_state["reload_aprovacao_diretoria"] = True
 
