@@ -1657,58 +1657,36 @@ def formatar_brasileiro(valor):
 
 def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, veiculo, valor_frete, valor_contratacao):
     buffer = BytesIO()
-    
-    # --- NOVO: Configurações da Imagem ---
-    # ATENÇÃO: SUBSTITUA 'caminho/para/sua/imagem.png' PELO CAMINHO REAL DO SEU ARQUIVO DE IMAGEM!
-    # A imagem pode ser JPG, PNG, GIF, etc.
-    image_path = r"C:\Users\Rafael\Roteriza\Scripts\logo.png"
-    # image_path = "assets/logo_transportadora.png" # Exemplo de caminho real
-    
-    # Defina a largura e altura da imagem no PDF (ajuste conforme necessário)
-    img_width = 1.0 * inch  # Ex: 1 polegada de largura
-    img_height = 0.75 * inch # Ex: 0.75 polegadas de altura
-    # Se quiser manter a proporção, você pode definir apenas a largura (ou altura)
-    # e usar preserveAspectRatio=True no drawImage.
-    # --- FIM NOVO: Configurações da Imagem ---
 
-    # --- NOVO: Função para desenhar a imagem em cada página ---
+    image_path = r"C:\Users\Rafael\Roteriza\Scripts\logo.png"
+    img_width = 1.0 * inch
+    img_height = 0.75 * inch
+
     def draw_image_on_page(canvas_obj, doc):
-        page_width, page_height = landscape(letter) # Obtém o tamanho da página atual
-        
-        # Calcula a posição da imagem no canto superior direito
-        # (page_width - img_width - padding_direita, page_height - img_height - padding_superior)
-        # Use um pequeno "padding" para não colar na borda
+        page_width, page_height = landscape(letter)
         padding_right = 0.25 * inch
         padding_top = 0.25 * inch
-
         x_pos = page_width - img_width - padding_right
         y_pos = page_height - img_height - padding_top
-        
-        # Desenha a imagem no canvas
-        # preserveAspectRatio=True é útil para evitar distorções se img_width/img_height não forem proporcionais
         try:
             canvas_obj.drawImage(image_path, x_pos, y_pos, width=img_width, height=img_height, preserveAspectRatio=True)
         except Exception as e:
-            # Em caso de erro (ex: imagem não encontrada), você pode logar ou ignorar
             print(f"Erro ao desenhar imagem no PDF: {e}")
-            # Ou até mesmo adicionar um texto no lugar da imagem para debug
-            # canvas_obj.drawString(x_pos, y_pos, "IMAGEM NÃO ENCONTRADA")
-    # --- FIM NOVO: Função para desenhar a imagem ---
 
-
-    # Configura o documento PDF com tamanho de página e margens
     doc = SimpleDocTemplate(
-        buffer, 
-        pagesize=landscape(letter), 
-        rightMargin=inch/2, leftMargin=inch/2, 
-        topMargin=inch/2, bottomMargin=inch/2,
-        onPage=draw_image_on_page # NOVO: Chama a função para desenhar a imagem em cada página
-    ) 
-    
+        buffer,
+        pagesize=landscape(letter),
+        rightMargin=inch / 2,
+        leftMargin=0.3 * inch,
+        topMargin=inch / 2,
+        bottomMargin=inch / 2,
+        onPage=draw_image_on_page
+    )
+
     styles = getSampleStyleSheet()
     h1 = styles['h1']
     styles.add(ParagraphStyle(name='CustomNormal', parent=styles['Normal'], spaceBefore=6, spaceAfter=6, leading=14))
-    
+
     header_paragraph_style = ParagraphStyle(
         name='TableHeader',
         parent=styles['Normal'],
@@ -1727,15 +1705,13 @@ def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, veiculo, valor_f
         alignment=0,
         leading=9
     )
-    
+
     elements = []
 
-    # --- Conteúdo do PDF (informações gerais da carga) ---
-    elements.append(Indenter(left=40))  # Aplica recuo de 40 pts (~0.55 inch)
-    elements.append(Paragraph("<b>Entregas Associadas:</b>", styles['h2']))
-    elements.append(Spacer(1, 0.1 * inch))
+    # --- Cabeçalho da Carga ---
+    elements.append(Paragraph(f"Detalhes da Carga: <font color='#1A73E8'><b>{carga}</b></font>", h1))
+    elements.append(Spacer(1, 0.2 * inch))
 
-    # Organizar informações em uma tabela com uma linha (ou duas)
     info_data = [
         [
             Paragraph(f"<b>Rota:</b> {rota}", styles['CustomNormal']),
@@ -1749,7 +1725,7 @@ def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, veiculo, valor_f
         ]
     ]
 
-    info_table = Table(info_data, colWidths=[2.3 * inch] * 3)
+    info_table = Table(info_data)
     info_table.setStyle(TableStyle([
         ('VALIGN', (0, 0), (-1, -1), 'TOP'),
         ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
@@ -1759,8 +1735,7 @@ def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, veiculo, valor_f
     elements.append(info_table)
     elements.append(Spacer(1, 0.3 * inch))
 
-
-    elements.append(Spacer(1, 0.3 * inch))
+    # --- Entregas Associadas ---
     elements.append(Paragraph("<b>Entregas Associadas:</b>", styles['h2']))
     elements.append(Spacer(1, 0.1 * inch))
 
@@ -1776,12 +1751,11 @@ def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, veiculo, valor_f
         "Peso Calculado em Kg": "Peso<br/>Calculado<br/>(Kg)",
         "Peso Real em Kg": "Peso Real<br/>(Kg)",
         "Cubagem em m³": "Cubagem<br/>(m³)",
-        
     }
 
     requested_order_keys = [
-        "Numero da Nota Fiscal", "Cliente Pagador", "Cidade de Entrega","Serie_Numero_CTRC",
-        "Cliente Destinatario", "Bairro do Destinatario", "Previsao de Entrega", 
+        "Numero da Nota Fiscal", "Cliente Pagador", "Cidade de Entrega", "Serie_Numero_CTRC",
+        "Cliente Destinatario", "Bairro do Destinatario", "Previsao de Entrega",
         "Entrega Programada", "Peso Calculado em Kg", "Peso Real em Kg", "Cubagem em m³"
     ]
 
@@ -1796,72 +1770,50 @@ def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, veiculo, valor_f
         if col in df_filtrado.columns:
             df_filtrado[col] = pd.to_numeric(df_filtrado[col], errors='coerce').fillna(0)
             df_filtrado[col] = df_filtrado[col].apply(lambda x: formatar_brasileiro(x))
-    
+
     for col in ["Previsao de Entrega", "Entrega Programada"]:
         if col in df_filtrado.columns:
             df_filtrado[col] = pd.to_datetime(df_filtrado[col], errors='coerce').dt.strftime('%d-%m-%Y').fillna('')
 
     table_body_data = []
-    for index, row in df_filtrado.iterrows():
+    for _, row in df_filtrado.iterrows():
         row_data = []
-        for col_name in df_filtrado.columns: # Iterar por nome da coluna para alinhar
+        for col_name in df_filtrado.columns:
             cell_value = row[col_name]
-            # Ajustar alinhamento das células de dados para numéricas/texto
-            alignment = 0 # TA_LEFT (padrão)
-            if col_name in ["Peso Calculado em Kg", "Peso Real em Kg", "Cubagem em m³", "Valor do Frete"]:
-                alignment = 2 # TA_RIGHT
-            
-            # Criar um estilo temporário para a célula, ajustando o alinhamento
-            temp_cell_style = ParagraphStyle(
-                name='TempCell',
-                parent=cell_paragraph_style,
-                alignment=alignment
-            )
+            alignment = 2 if col_name in ["Peso Calculado em Kg", "Peso Real em Kg", "Cubagem em m³", "Valor do Frete"] else 0
+            temp_cell_style = ParagraphStyle(name='TempCell', parent=cell_paragraph_style, alignment=alignment)
             row_data.append(Paragraph(str(cell_value), temp_cell_style))
         table_body_data.append(row_data)
 
     dados_tabela = [header_row] + table_body_data
 
-    if not dados_tabela or len(dados_tabela) == 1:
+    if not table_body_data:
         elements.append(Paragraph("<i>Nenhuma entrega detalhada disponível para esta carga.</i>", styles['CustomNormal']))
     else:
         col_widths = [
-            0.8*inch,  # Serie_Numero_CTRC
-            1.0*inch,  # Cliente Pagador
-            1.1*inch,  # Cliente Destinatario
-            0.7*inch,  # Cidade de Entrega
-            0.9*inch,  # Bairro do Destinatario
-            0.7*inch,  # Previsao de Entrega
-            0.6*inch,  # Numero da Nota Fiscal
-            0.7*inch,  # Entrega Programada
-            0.8*inch,  # Peso Calculado em Kg
-            0.8*inch,  # Peso Real em Kg
-            0.7*inch,  # Cubagem em m³
-           #0.6*inch   # Valor do Frete
+            0.8 * inch, 1.0 * inch, 1.1 * inch, 0.7 * inch, 0.9 * inch,
+            0.7 * inch, 0.6 * inch, 0.7 * inch, 0.8 * inch, 0.8 * inch, 0.7 * inch
         ]
-        
         table = Table(dados_tabela, colWidths=col_widths)
         table.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#EFEFEF')),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),
-            ('ALIGN', (0, 0), (-1, 0), 'CENTER'), # Cabeçalhos centralizados
+            ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
             ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
             ('TOPPADDING', (0, 0), (-1, 0), 6),
-
             ('BACKGROUND', (0, 1), (-1, -1), colors.white),
             ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
             ('LEFTPADDING', (0, 0), (-1, -1), 2),
             ('RIGHTPADDING', (0, 0), (-1, -1), 2),
-            # Alinhamentos específicos para as colunas de dados são definidos via ParagraphStyle da célula
         ]))
         elements.append(table)
-        elements.append(Indenter(left=-40))  # Remove o recuo
 
     doc.build(elements)
     buffer.seek(0)
     return buffer.getvalue()
+
 
 # ===========================================
 # # FIM DAS NOVAS FUNÇÕES PARA GERAÇÃO DE PDF
