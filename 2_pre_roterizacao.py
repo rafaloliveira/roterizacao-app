@@ -2956,7 +2956,7 @@ def pagina_pre_roterizacao():
                         ).dt.strftime("%Y-%m-%d %H:%M:%S")
 
                 # ➕ Botão: Criar nova carga com entregas selecionadas
-                if st.button(f"➕ Criar Nova Carga com entregas da Rota {rota_predominante}", key=f"btn_nova_carga_rota_{rota_visual}"): 
+                if st.button(f"🟢 Gerar Carga com entregas da Rota {rota_predominante}", key=f"btn_nova_carga_rota_{rota_visual}"): 
                     try:
                         numero_carga = gerar_proximo_numero_carga(supabase)
                         if numero_carga:
