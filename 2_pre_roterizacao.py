@@ -172,7 +172,7 @@ def controle_selecao(chave_estado, df_todos, grid_key, grid_options):
     gridOptions=grid_options,
     update_mode=GridUpdateMode.SELECTION_CHANGED,
     fit_columns_on_grid_load=False,
-    height=None,  # ⬅️ REMOVE a altura fixa para aplicar o CSS corretamente
+    height=400,  
     use_container_width=True,
     allow_unsafe_jscode=True,
     key=grid_key,
@@ -2026,6 +2026,7 @@ def pagina_confirmar_producao():
                 gb = GridOptionsBuilder.from_dataframe(df_formatado)
                 gb.configure_default_column(minWidth=90)
                 gb.configure_selection("multiple", use_checkbox=True)
+                gb.configure_grid_options(paginationPageSize=12)
                 gb.configure_grid_options(domLayout='normal')
                 gb.configure_grid_options(
                     paginationPageSize=12,
