@@ -1848,11 +1848,24 @@ def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, veiculo, valor_f
 # PÁGINA Confirmar Produção
 
 ##########################################
+import pandas as pd
+import numpy as np
+import streamlit as st
+from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, JsCode, AgGridTheme
+from datetime import datetime, date
+from pandas import Timestamp # Mantenha esta importação, é importante para o tipo Timestamp
+import uuid
+
+# Supondo que 'supabase' e as funções 'formatar_brasileiro', 'apply_brazilian_date_format_for_display',
+# 'GLOBAL_DATE_DISPLAY_COLUMNS', 'DATE_DISPLAY_FORMAT_STRING' e 'GRID_RESIZE_JS_CODE'
+# já estejam definidas no seu código e acessíveis.
+
+
 def pagina_confirmar_producao():
     st.markdown("## Confirmar Produção")
 
     # Carregando entregas diretamente da tabela 'confirmadas_producao'
-    with st.spinner("🔄 Carregando entregas para confirmar produção..."):
+    with st.spinner("�� Carregando entregas para confirmar produção..."):
         try:
             recarregar = st.session_state.pop("reload_confirmadas_producao", False)
             if recarregar or "df_confirmadas_cache" not in st.session_state:
@@ -1867,6 +1880,8 @@ def pagina_confirmar_producao():
                 if 'Status' in df.columns:
                     df['Status'] = df['Status'].fillna('').astype(str)
                 if 'Entrega Programada' in df.columns:
+                    # Converte para datetime e lida com erros, mas não formata para string aqui.
+                    # A formatação para string será feita em df_display_for_aggrid.
                     df['Entrega Programada'] = pd.to_datetime(df['Entrega Programada'], errors='coerce') 
                 if 'Particularidade' in df.columns:
                     df['Particularidade'] = df['Particularidade'].fillna('').astype(str)
@@ -1896,7 +1911,7 @@ def pagina_confirmar_producao():
         st.metric("⚖️ Peso Real (kg)", formatar_brasileiro(df['Peso Real em Kg'].sum()))
 
     with col_total_4:
-        st.metric("📏 Peso Calculado (kg)", formatar_brasileiro(df['Peso Calculado em Kg'].sum()))
+        st.metric("�� Peso Calculado (kg)", formatar_brasileiro(df['Peso Calculado em Kg'].sum()))
 
     # 🔹 DADOS CONFIRMADOS NA SESSÃO (à direita)
     try:
@@ -2003,6 +2018,26 @@ def pagina_confirmar_producao():
             df_display_for_aggrid = df_cliente[[col for col in colunas_exibir if col in df_cliente.columns]].copy()
             df_display_for_aggrid = apply_brazilian_date_format_for_display(df_display_for_aggrid)
             
+            # --- INÍCIO DA SANITIZAÇÃO CRÍTICA DOS DADOS PARA JSON ---
+            # Converte valores problemáticos (NaN, NaT, inf, strings vazias) para None
+            df_display_for_aggrid = df_display_for_aggrid.replace({
+                np.nan: None, 
+                pd.NaT: None, 
+                pd.NA: None, 
+                np.inf: None, 
+                -np.inf: None,
+                '': None  # Substitui strings vazias por None
+            })
+            # Para colunas de tipo 'object' (que podem conter strings ou outros tipos),
+            # garante que strings que são 'nan' ou 'nat' (caso tenham vindo assim de algum processo)
+            # ou que são apenas espaços em branco também se tornem None.
+            for col in df_display_for_aggrid.columns:
+                if df_display_for_aggrid[col].dtype == 'object':
+                    df_display_for_aggrid[col] = df_display_for_aggrid[col].apply(
+                        lambda x: None if str(x).strip().lower() in ('nan', 'nat', '') else x
+                    )
+            # --- FIM DA SANITIZAÇÃO CRÍTICA ---
+
             # Lógica para atualizar session_selection_key baseada no checkbox 'marcar_todas'
             if marcar_todas_current and not st.session_state[prev_checkbox_state_key]:
                 # 'Marcar todas' acabou de ser marcado
@@ -2018,10 +2053,10 @@ def pagina_confirmar_producao():
 
             # AgGrid configuration
             if not df_display_for_aggrid.empty:
-                gb = GridOptionsBuilder.from_dataframe(df_display_for_aggrid)
+                gb = GridOptionsBuilder.from_dataframe(df_display_for_aggrid) # Usamos o DataFrame já sanitizado
                 gb.configure_default_column(minWidth=90)
                 gb.configure_selection("multiple", use_checkbox=True) 
-                # REMOVIDO: gb.configure_grid_options(isRowSelected=is_row_selected_js_code) # <-- Removida a tentativa anterior
+                # REMOVIDO: gb.configure_grid_options(isRowSelected=is_row_selected_js_code)
                 gb.configure_grid_options(paginationPageSize=12)
                 gb.configure_grid_options(alwaysShowHorizontalScroll=True)
                 gb.configure_grid_options(rowStyle={'font-size': '11px'})
@@ -2035,15 +2070,15 @@ def pagina_confirmar_producao():
                     st.session_state[grid_unique_key] = str(uuid.uuid4()) 
 
                 grid_response = AgGrid(
-                    df_display_for_aggrid,
+                    df_display_for_aggrid, # Usamos o DataFrame já sanitizado
                     gridOptions=grid_options,
-                    update_mode=GridUpdateMode.SELECTION_CHANGED, # <-- Alterado para SELECTION_CHANGED
+                    update_mode=GridUpdateMode.SELECTION_CHANGED, # Mantemos SELECTION_CHANGED para reatividade
                     fit_columns_on_grid_load=False,
                     width="100%",
                     height=400,
                     allow_unsafe_jscode=True,
                     key=grid_unique_key, 
-                    data_return_mode="AS_INPUT", 
+                    data_return_mode="DATA_ONLY", # <-- Alterado para DATA_ONLY para retorno mais limpo
                     theme=AgGridTheme.MATERIAL,
                     show_toolbar=False,
                     custom_css={
@@ -2084,13 +2119,32 @@ def pagina_confirmar_producao():
                 # Saída: Obter as linhas selecionadas atualmente do grid (interações do usuário)
                 actual_grid_selected_rows = grid_response.get("selected_rows", [])
 
+                # --- SANITIZAÇÃO DA SAÍDA DO AGGRID ANTES DE ARMAZENAR NO SESSION STATE ---
+                # Garante que dados retornados do JS para Python também sejam limpos
+                cleaned_actual_selected_rows = []
+                for row_dict in actual_grid_selected_rows:
+                    cleaned_row = {}
+                    for k, v in row_dict.items():
+                        # Converte valores problemáticos para None
+                        if isinstance(v, (float, np.float64)) and np.isnan(v):
+                            cleaned_row[k] = None
+                        elif pd.isna(v): # Para pd.NaT, pd.NA
+                            cleaned_row[k] = None
+                        elif isinstance(v, str) and v.strip() == '': # Para strings vazias
+                            cleaned_row[k] = None
+                        else:
+                            cleaned_row[k] = v
+                    cleaned_actual_selected_rows.append(cleaned_row)
+                # --- FIM DA SANITIZAÇÃO DA SAÍDA ---
+
                 # CRÍTICO: Se a seleção atual do grid difere do nosso session state, atualize o session state.
                 # Isso captura desmarcações/marcas individuais.
-                set_actual = {frozenset(d.items()) for d in actual_grid_selected_rows}
+                # Usa os dados limpos para comparação e armazenamento.
+                set_actual = {frozenset(d.items()) for d in cleaned_actual_selected_rows}
                 set_session = {frozenset(d.items()) for d in st.session_state[session_selection_key]}
 
                 if set_actual != set_session:
-                    st.session_state[session_selection_key] = actual_grid_selected_rows
+                    st.session_state[session_selection_key] = cleaned_actual_selected_rows # Armazena os dados limpos
 
                 # A variável 'selecionadas' para a lógica subsequente (ex: "Enviar para Aprovação")
                 # deve sempre ler da fonte da verdade, que é o session state.
@@ -2112,12 +2166,12 @@ def pagina_confirmar_producao():
                     if st.button(" Enviar para Aprovação", key=f"enviar_aprovacao_{cliente_pagador}"):
                         try:
                             # Prepara os dados para inserção na tabela de aprovacao_diretoria
+                            # As 'selecionadas' já vêm limpas do session state.
                             df_confirmar = selecionadas.drop(columns=["_selectedRowNodeInfo"], errors="ignore").copy()
-                            # A coluna "Rota" é um atributo da entrega e deve ser mantida, não confundir com o agrupamento
-                            # --- NOVO/MODIFICADO: TRATAMENTO DE DATAS PARA INSERÇÃO NO SUPABASE ---
-                            # As colunas de data no 'selecionadas' vêm como strings no formato brasileiro (DD-MM-AAAA HH:MM:SS).
-                            # Primeiro, vamos converter essas strings de volta para objetos datetime.
-                            # Usamos GLOBAL_DATE_DISPLAY_COLUMNS e DATE_DISPLAY_FORMAT_STRING (definidas no seu código).
+                            
+                            # --- TRATAMENTO DE DATAS PARA INSERÇÃO NO SUPABASE (JÁ EXISTENTE E ROBUSTO) ---
+                            # Este bloco garante que datas sejam convertidas para o formato ISO necessário para Supabase,
+                            # e que NaT/NaN sejam tratados como None.
                             for col_name in GLOBAL_DATE_DISPLAY_COLUMNS:
                                 if col_name in df_confirmar.columns:
                                     df_confirmar[col_name] = pd.to_datetime(
@@ -2126,8 +2180,6 @@ def pagina_confirmar_producao():
                                         errors='coerce' # Convert unparseable values to pd.NaT
                                     )
 
-                            # Step 2: Iterate through all columns and convert any Pandas Timestamp or
-                            # standard Python datetime.datetime objects to ISO 8601 strings.
                             for col_name in df_confirmar.columns:
                                 if col_name in GLOBAL_DATE_DISPLAY_COLUMNS or \
                                    pd.api.types.is_datetime64_any_dtype(df_confirmar[col_name]):
@@ -2140,6 +2192,7 @@ def pagina_confirmar_producao():
                                     )
 
                             df_confirmar = df_confirmar.replace([np.nan, np.inf, -np.inf, ""], None)
+                            # --- FIM DO TRATAMENTO ---
 
                             registros = df_confirmar.to_dict(orient="records")
                             # Filtra registros inválidos (sem Serie_Numero_CTRC)
@@ -2152,7 +2205,7 @@ def pagina_confirmar_producao():
                                 # ✅ Alimenta o contador da sessão com o que foi confirmado
                                 st.session_state["df_entregas_confirmadas"] = pd.DataFrame(registros)
                             
-                            # === CORREÇÃO: Remove as entregas da tabela 'confirmadas_producao' ===
+                            # === Remove as entregas da tabela 'confirmadas_producao' ===
                             chaves = [r["Serie_Numero_CTRC"] for r in registros]
                             if chaves: # Apenas deleta se houver chaves para deletar
                                 supabase.table("confirmadas_producao").delete().in_("Serie_Numero_CTRC", chaves).execute()
