@@ -172,7 +172,7 @@ def controle_selecao(chave_estado, df_todos, grid_key, grid_options):
         gridOptions=grid_options,
         update_mode=GridUpdateMode.SELECTION_CHANGED,
         fit_columns_on_grid_load=False,
-        height=470,
+        height=370,
         use_container_width=True,
         allow_unsafe_jscode=True,
         key=grid_key
