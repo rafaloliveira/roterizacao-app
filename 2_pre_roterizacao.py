@@ -144,7 +144,7 @@ def is_cookie_expired(expiry_time_str):
 #================= MULTIPLA SELEÇÃO NO GRIDD ========================= 
 from st_aggrid import GridOptionsBuilder, AgGrid, GridUpdateMode, JsCode
 
-def controle_selecao(chave_estado, df_todos, grid_key):
+def controle_selecao(chave_estado, df_todos, grid_key, grid_options):
     col1, col2 = st.columns([1, 1])
 
     selecionar_tudo = False
@@ -2022,9 +2022,10 @@ def pagina_confirmar_producao():
                 selecionadas = controle_selecao(
                     chave_estado=f"confirmar_prod_{cliente_pagador}",
                     df_todos=df_formatado,
-                    grid_key=f"grid_conf_prod_{cliente_pagador}",
+                    grid_key=st.session_state[grid_key_id],
                     grid_options=grid_options
                 )
+
 
                 qtd_sel = len(selecionadas)
                 peso_real_sel = selecionadas["Peso Real em Kg"].sum() if "Peso Real em Kg" in selecionadas else 0
