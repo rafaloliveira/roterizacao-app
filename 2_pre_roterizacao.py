@@ -152,10 +152,13 @@ def controle_selecao(chave_estado, df_todos, grid_key, grid_options):
     # Verifica ação pendente
     acao = st.session_state.get(chave_estado, None)
 
+    # Pré-seleção para o grid
+    pre_selecionadas = []
+
     if acao == "selecionar_tudo":
-        df_todos["_selectedRowNodeInfo"] = [{} for _ in range(len(df_todos))]
+        pre_selecionadas = df_todos.to_dict(orient="records")
     elif acao == "desmarcar_tudo":
-        df_todos["_selectedRowNodeInfo"] = []
+        pre_selecionadas = []
 
     # Define JS vazio para não interferir
     js_on_grid_ready = JsCode("""function(params) {}""")
@@ -176,6 +179,8 @@ def controle_selecao(chave_estado, df_todos, grid_key, grid_options):
         use_container_width=True,
         allow_unsafe_jscode=True,
         key=grid_key,
+        data_return_mode='AS_INPUT',
+        theme='material',
         custom_css={
             ".ag-root-wrapper": {
                 "height": "90% !important",
@@ -208,7 +213,8 @@ def controle_selecao(chave_estado, df_todos, grid_key, grid_options):
             ".ag-center-cols-container": {
                 "min-width": "100% !important",
             },
-        }
+        },
+        selected_rows=pre_selecionadas  # <-- ISSO GARANTE A SELEÇÃO VISUAL!
     )
 
     # Limpa a ação após execução para não repetir
@@ -217,6 +223,7 @@ def controle_selecao(chave_estado, df_todos, grid_key, grid_options):
 
     # Retorna as linhas selecionadas
     return pd.DataFrame(grid_response.get("selected_rows", []))
+
 
 
 
