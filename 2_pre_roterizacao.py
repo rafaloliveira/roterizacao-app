@@ -1990,18 +1990,8 @@ def pagina_confirmar_producao():
             # Garante que o estado do checkbox seja inicializado
             if checkbox_key not in st.session_state:
                 st.session_state[checkbox_key] = False
-
-
+            
             marcar_todas = st.checkbox("Marcar todas", key=checkbox_key)
-
-            # Define JsCode for isRowSelected dynamically
-            # This JS function will return true if 'marcar_todas' is True in Python,
-            # effectively selecting all rows in the grid.
-            is_row_selected_js_code = JsCode(f"""
-                function(rowNode) {{
-                    return {str(marcar_todas).lower()};
-                }}
-            """)
 
             # Criação e estilização do grid (usando o AgGrid)
             df_formatado = df_cliente[[col for col in colunas_exibir if col in df_cliente.columns]].copy()
@@ -2010,53 +2000,75 @@ def pagina_confirmar_producao():
             if not df_formatado.empty:
                 gb = GridOptionsBuilder.from_dataframe(df_formatado)
                 gb.configure_default_column(minWidth=90)
-                # Keep configure_selection for checkboxes
-                gb.configure_selection("multiple", use_checkbox=True) 
-                
-                # Add isRowSelected to grid options
-                gb.configure_grid_options(isRowSelected=is_row_selected_js_code) # <--- ADDED LINE
+                gb.configure_selection("multiple", use_checkbox=True)
                 gb.configure_grid_options(paginationPageSize=12)
                 gb.configure_grid_options(alwaysShowHorizontalScroll=True)
                 gb.configure_grid_options(rowStyle={'font-size': '11px'})
-                gb.configure_grid_options(onGridReady=GRID_RESIZE_JS_CODE) 
-                
+                gb.configure_grid_options(onGridReady=GRID_RESIZE_JS_CODE) # <<< ADICIONADO AQUI
                 grid_options = gb.build()
-                grid_options["getRowStyle"] = linha_destacar 
+                grid_options["getRowStyle"] = linha_destacar # Atribui o JsCode aqui
 
                 # Gerencia a chave única para o grid, essencial para o st.rerun() funcionar
+                # A chave do grid só é alterada se os dados subjacentes tiverem sido modificados
+                # Para evitar "winks" desnecessários
                 grid_key_id = f"grid_conf_prod_{cliente_pagador}"
                 if grid_key_id not in st.session_state:
-                    st.session_state[grid_key_id] = str(uuid.uuid4()) 
+                    st.session_state[grid_key_id] = str(uuid.uuid4()) # Inicializa com um UUID
 
                 grid_response = AgGrid(
                     df_formatado,
                     gridOptions=grid_options,
-                    update_mode=GridUpdateMode.SELECTION_CHANGED, 
+                    update_mode=GridUpdateMode.SELECTION_CHANGED, # Essencial para evitar o "wink" ao selecionar
                     fit_columns_on_grid_load=False,
                     width="100%",
                     height=400,
                     allow_unsafe_jscode=True,
-                    key=st.session_state[grid_key_id], 
-                    data_return_mode="AS_INPUT", 
+                    key=st.session_state[grid_key_id], # Usa a chave única para o grid
+                    data_return_mode="AS_INPUT",
                     theme=AgGridTheme.MATERIAL,
                     show_toolbar=False,
                     custom_css={
-                        # ... (existing custom CSS) ...
+                        ".ag-theme-material .ag-cell": {
+                            "font-size": "11px",
+                            "line-height": "18px",
+                            "border-right": "1px solid #ccc",
+                        },
+                        ".ag-theme-material .ag-row:last-child .ag-cell": {
+                            "border-bottom": "1px solid #ccc",
+                        },
+                        ".ag-theme-material .ag-header-cell": {
+                            "border-right": "1px solid #ccc",
+                            "border-bottom": "1px solid #ccc",
+                        },
+                        ".ag-theme-material .ag-root-wrapper": {
+                            "border": "1px solid black",
+                            "border-radius": "6px",
+                            "padding": "4px",
+                        },
+                        ".ag-theme-material .ag-header-cell-label": {
+                            "font-size": "11px",
+                        },
+                        ".ag-center-cols-viewport": {
+                            "overflow-x": "auto !important",
+                            "overflow-y": "hidden",
+                        },
+                        ".ag-center-cols-container": {
+                            "min-width": "100% !important",
+                        },
+                        "#gridToolBar": {
+                            "padding-bottom": "0px !important",
+                        }
                     }
                 )
 
-                # Capture selected rows from grid_response
-                # The isRowSelected JsCode will handle the visual selection.
-                # The grid_response will accurately return whatever is selected (visually or by user interaction).
-                selecionadas = pd.DataFrame(grid_response.get("selected_rows", [])) # <--- MODIFIED LINE
-
-
-
-
-
-
-
-
+                # Captura os registros selecionados pelo usuário no grid
+                # Lógica ajustada para considerar o checkbox "Marcar todas"
+                if marcar_todas:
+                    # Se "Marcar todas" estiver checado, seleciona todas as entregas do DataFrame atual
+                    selecionadas = df_formatado[df_formatado["Serie_Numero_CTRC"].notna()].copy()
+                else:
+                    # Caso contrário, usa a seleção feita diretamente no grid
+                    selecionadas = pd.DataFrame(grid_response.get("selected_rows", []))
 
                 qtd_sel = len(selecionadas)
                 peso_real_sel = selecionadas["Peso Real em Kg"].sum() if "Peso Real em Kg" in selecionadas else 0
