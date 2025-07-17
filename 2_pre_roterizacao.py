@@ -168,15 +168,48 @@ def controle_selecao(chave_estado, df_todos, grid_key, grid_options):
 
     # Renderiza o grid
     grid_response = AgGrid(
-        df_todos,
-        gridOptions=grid_options,
-        update_mode=GridUpdateMode.SELECTION_CHANGED,
-        fit_columns_on_grid_load=False,
-        height=370,
-        use_container_width=True,
-        allow_unsafe_jscode=True,
-        key=grid_key
-    )
+    df_todos,
+    gridOptions=grid_options,
+    update_mode=GridUpdateMode.SELECTION_CHANGED,
+    fit_columns_on_grid_load=False,
+    height=None,  # ⬅️ REMOVE a altura fixa para aplicar o CSS corretamente
+    use_container_width=True,
+    allow_unsafe_jscode=True,
+    key=grid_key,
+    custom_css={
+        ".ag-root-wrapper": {
+            "height": "90% !important",
+        },
+        ".ag-theme-material .ag-cell": {
+            "font-size": "11px",
+            "line-height": "18px",
+            "border-right": "1px solid #ccc",
+        },
+        ".ag-theme-material .ag-row:last-child .ag-cell": {
+            "border-bottom": "1px solid #ccc",
+        },
+        ".ag-theme-material .ag-header-cell": {
+            "border-right": "1px solid #ccc",
+            "border-bottom": "1px solid #ccc",
+        },
+        ".ag-theme-material .ag-root-wrapper": {
+            "border": "1px solid black",
+            "border-radius": "6px",
+            "padding": "4px",
+            "overflow": "auto !important",   # ✅ Ajuda com o scroll
+        },
+        ".ag-theme-material .ag-header-cell-label": {
+            "font-size": "11px",
+        },
+        ".ag-center-cols-viewport": {
+            "overflow-x": "auto !important",
+            "overflow-y": "hidden",
+        },
+        ".ag-center-cols-container": {
+            "min-width": "100% !important",
+        },
+    }
+)
 
     # Retorna as entregas selecionadas visualmente
     return pd.DataFrame(grid_response.get("selected_rows", []))
