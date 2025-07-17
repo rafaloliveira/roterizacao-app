@@ -2136,7 +2136,7 @@ def pagina_confirmar_producao():
 ##########################################
 
 def pagina_aprovacao_diretoria():
-    st.markdown("## Aprovação da Diretoria")
+    st.markdown("## Aprovação Produção")
 
     # --- INÍCIO DO BLOCO DE CARREGAMENTO DE DADOS (MOVIDO PARA O TOPO) ---
     try:
