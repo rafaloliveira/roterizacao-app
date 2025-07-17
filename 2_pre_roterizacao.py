@@ -150,16 +150,7 @@ def controle_selecao(chave_estado, df_todos, grid_key, grid_options):
     selecionar_tudo = False
     desmarcar_tudo = False
 
-    with col1:
-        if st.button("🔘 Selecionar todas", key=f"btn_sel_{chave_estado}"):
-            st.session_state[f"{chave_estado}_selecionar_tudo"] = True
-            st.session_state[f"{chave_estado}_desmarcar_tudo"] = False
-
-    with col2:
-        if st.button("❌ Desmarcar todas", key=f"btn_desmarcar_{chave_estado}"):
-            st.session_state[f"{chave_estado}_selecionar_tudo"] = False
-            st.session_state[f"{chave_estado}_desmarcar_tudo"] = True
-
+    
     # Define o comportamento JS para selecionar/desmarcar todas no grid
     js_on_grid_ready = JsCode("""
     function(params) {
@@ -2020,11 +2011,11 @@ def pagina_confirmar_producao():
                     st.session_state[grid_key_id] = str(uuid.uuid4()) # Inicializa com um UUID
 
                 selecionadas = controle_selecao(
-                    chave_estado=f"confirmar_prod_{cliente_pagador}",
-                    df_todos=df_formatado,
-                    grid_key=st.session_state[grid_key_id],
-                    grid_options=grid_options
-                )
+                chave_estado=f"confirmar_prod_{cliente_pagador}",
+                df_todos=df_formatado,
+                grid_key=st.session_state[grid_key_id],
+                grid_options=grid_options
+            )
 
 
                 qtd_sel = len(selecionadas)
