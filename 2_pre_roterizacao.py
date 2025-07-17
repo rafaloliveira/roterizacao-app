@@ -1677,7 +1677,7 @@ def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, veiculo, valor_f
         buffer,
         pagesize=landscape(letter),
         rightMargin=inch / 2,
-        leftMargin=0.3 * inch,
+        leftMargin=0.1 * inch,
         topMargin=inch / 2,
         bottomMargin=inch / 2,
         onPage=draw_image_on_page
@@ -1794,7 +1794,7 @@ def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, veiculo, valor_f
             0.8 * inch, 1.0 * inch, 1.1 * inch, 0.7 * inch, 0.9 * inch,
             0.7 * inch, 0.6 * inch, 0.7 * inch, 0.8 * inch, 0.8 * inch, 0.7 * inch
         ]
-        table = Table(dados_tabela, colWidths=col_widths)
+        table = Table(dados_tabela, colWidths=col_widths, hAlign='LEFT')
         table.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#EFEFEF')),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),
