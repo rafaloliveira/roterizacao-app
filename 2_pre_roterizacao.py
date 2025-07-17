@@ -36,6 +36,7 @@ import traceback
 from fpdf import FPDF
 import io
 from reportlab.lib.pagesizes import letter, landscape
+from reportlab.platypus import Indenter
 
 from io import BytesIO
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
@@ -1730,37 +1731,58 @@ def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, veiculo, valor_f
     elements = []
 
     # --- Conteúdo do PDF (informações gerais da carga) ---
-    elements.append(Paragraph(f"Detalhes da Carga: <font color='#1A73E8'><b>{carga}</b></font>", h1))
-    elements.append(Spacer(1, 0.2 * inch))
-    elements.append(Paragraph(f"<b>Rota:</b> {rota}", styles['CustomNormal']))
-    elements.append(Paragraph(f"<b>Motorista:</b> {motorista if motorista and motorista.strip() else '<i>Não Informado</i>'}", styles['CustomNormal']))
-    elements.append(Paragraph(f"<b>Placa:</b> {placa if placa and placa.strip() else '<i>Não Informada</i>'}", styles['CustomNormal']))
-    elements.append(Paragraph(f"<b>Tipo de Veículo:</b> {veiculo if veiculo and veiculo.strip() else '<i>Não Informado</i>'}", styles['CustomNormal']))
-    #elements.append(Paragraph(f"<b>Valor Total do Frete:</b> R$ {formatar_brasileiro(valor_frete)}", styles['CustomNormal']))
-    elements.append(Paragraph(f"<b>Valor de Contratação:</b> R$ {formatar_brasileiro(valor_contratacao)}", styles['CustomNormal']))
+    elements.append(Indenter(left=40))  # Aplica recuo de 40 pts (~0.55 inch)
+    elements.append(Paragraph("<b>Entregas Associadas:</b>", styles['h2']))
+    elements.append(Spacer(1, 0.1 * inch))
+
+    # Organizar informações em uma tabela com uma linha (ou duas)
+    info_data = [
+        [
+            Paragraph(f"<b>Rota:</b> {rota}", styles['CustomNormal']),
+            Paragraph(f"<b>Motorista:</b> {motorista if motorista and motorista.strip() else '<i>Não Informado</i>'}", styles['CustomNormal']),
+            Paragraph(f"<b>Placa:</b> {placa if placa and placa.strip() else '<i>Não Informada</i>'}", styles['CustomNormal']),
+        ],
+        [
+            Paragraph(f"<b>Tipo de Veículo:</b> {veiculo if veiculo and veiculo.strip() else '<i>Não Informado</i>'}", styles['CustomNormal']),
+            Paragraph(f"<b>Valor de Contratação:</b> R$ {formatar_brasileiro(valor_contratacao)}", styles['CustomNormal']),
+            ""
+        ]
+    ]
+
+    info_table = Table(info_data, colWidths=[2.3 * inch] * 3)
+    info_table.setStyle(TableStyle([
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+        ('TOPPADDING', (0, 0), (-1, -1), 2),
+        ('LEFTPADDING', (0, 0), (-1, -1), 2),
+    ]))
+    elements.append(info_table)
+    elements.append(Spacer(1, 0.3 * inch))
+
+
     elements.append(Spacer(1, 0.3 * inch))
     elements.append(Paragraph("<b>Entregas Associadas:</b>", styles['h2']))
     elements.append(Spacer(1, 0.1 * inch))
 
     cols_header_map = {
-        "Serie_Numero_CTRC": "Série/Nº<br/>CTRC",
+        "Numero da Nota Fiscal": "Nº da<br/>NF",
         "Cliente Pagador": "Cliente<br/>Pagador",
-        "Cliente Destinatario": "Cliente<br/>Destinatário",
         "Cidade de Entrega": "Cidade<br/>de Entrega",
+        "Serie_Numero_CTRC": "Série/Nº<br/>CTRC",
+        "Cliente Destinatario": "Cliente<br/>Destinatário",
         "Bairro do Destinatario": "Bairro do<br/>Destinatário",
         "Previsao de Entrega": "Previsão<br/>de Entrega",
-        "Numero da Nota Fiscal": "Nº da<br/>NF",
         "Entrega Programada": "Entrega<br/>Programada",
         "Peso Calculado em Kg": "Peso<br/>Calculado<br/>(Kg)",
         "Peso Real em Kg": "Peso Real<br/>(Kg)",
         "Cubagem em m³": "Cubagem<br/>(m³)",
-        #"Valor do Frete": "Valor do<br/>Frete"
+        
     }
 
     requested_order_keys = [
-        "Serie_Numero_CTRC", "Cliente Pagador", "Cliente Destinatario", "Cidade de Entrega",
-        "Bairro do Destinatario", "Previsao de Entrega", "Numero da Nota Fiscal",
-        "Entrega Programada", "Peso Calculado em Kg", "Peso Real em Kg", "Cubagem em m³", #"Valor do Frete"
+        "Numero da Nota Fiscal", "Cliente Pagador", "Cidade de Entrega","Serie_Numero_CTRC",
+        "Cliente Destinatario", "Bairro do Destinatario", "Previsao de Entrega", 
+        "Entrega Programada", "Peso Calculado em Kg", "Peso Real em Kg", "Cubagem em m³"
     ]
 
     df_filtrado = df_entregas[[col for col in requested_order_keys if col in df_entregas.columns]].copy()
@@ -1835,6 +1857,7 @@ def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, veiculo, valor_f
             # Alinhamentos específicos para as colunas de dados são definidos via ParagraphStyle da célula
         ]))
         elements.append(table)
+        elements.append(Indenter(left=-40))  # Remove o recuo
 
     doc.build(elements)
     buffer.seek(0)
