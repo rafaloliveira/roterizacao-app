@@ -1862,10 +1862,6 @@ def pagina_confirmar_producao():
                 df = st.session_state["df_confirmadas_cache"]
 
             if not df.empty:
-                # Limpeza e padronização da coluna chave principal
-                if 'Serie_Numero_CTRC' in df.columns:
-                    df['Serie_Numero_CTRC'] = df['Serie_Numero_CTRC'].astype(str).str.strip() # Garante string e remove espaços
-
                 if 'Rota' in df.columns:
                     df['Rota'] = df['Rota'].fillna('').astype(str)
                 if 'Status' in df.columns:
@@ -1874,6 +1870,8 @@ def pagina_confirmar_producao():
                     df['Entrega Programada'] = pd.to_datetime(df['Entrega Programada'], errors='coerce') 
                 if 'Particularidade' in df.columns:
                     df['Particularidade'] = df['Particularidade'].fillna('').astype(str)
+                if 'Serie_Numero_CTRC' in df.columns:
+                    df['Serie_Numero_CTRC'] = df['Serie_Numero_CTRC'].astype(str)
                 if 'Cliente Pagador' in df.columns:
                     df['Cliente Pagador'] = df['Cliente Pagador'].fillna('').astype(str)
 
@@ -1900,11 +1898,13 @@ def pagina_confirmar_producao():
     with col_total_4:
         st.metric("📏 Peso Calculado (kg)", formatar_brasileiro(df['Peso Calculado em Kg'].sum()))
 
+    # 🔹 DADOS CONFIRMADOS NA SESSÃO (à direita)
     try:
         df_confirmadas = pd.DataFrame(supabase.table("aprovacao_diretoria").select("*").execute().data)
     except Exception as e:
         st.error(f"Erro ao carregar dados da aprovação da diretoria: {e}")
         df_confirmadas = pd.DataFrame()
+
 
     total_confirmadas = len(df_confirmadas)
     peso_real_conf = df_confirmadas["Peso Real em Kg"].sum() if "Peso Real em Kg" in df_confirmadas else 0
@@ -1948,30 +1948,14 @@ def pagina_confirmar_producao():
     """)
 
     # Iterar sobre os clientes pagadores únicos para exibir os grids
+    # Usamos 'Cliente Pagador' agora
     clientes_pagadores_unicos = sorted(df["Cliente Pagador"].dropna().unique()) if "Cliente Pagador" in df.columns else []
 
     for cliente_pagador in clientes_pagadores_unicos:
         # Filtra o DataFrame pelo cliente pagador atual
         df_cliente = df[df["Cliente Pagador"] == cliente_pagador].copy()
-
-        # Prepara df_formatado AQUI, antes de qualquer controle que o utilize
-        df_formatado = df_cliente[[col for col in colunas_exibir if col in df_cliente.columns]].copy()
-        df_formatado = apply_brazilian_date_format_for_display(df_formatado)
-
-        # 🎯 ETAPA DE PADRONIZAÇÃO FINAL PARA CONSISTÊNCIA COM AGGRID
-        # Converte np.nan para None e strings vazias para None
-        df_formatado = df_formatado.replace({np.nan: None, '': None})
-        
-        # Opcional, mas pode ajudar na consistência de tipos para AgGrid:
-        # Converte todas as colunas (exceto as de data que já são strings formatadas) para string,
-        # exceto se o valor for None. Isso uniformiza os tipos.
-        for col in df_formatado.columns:
-            if col not in GLOBAL_DATE_DISPLAY_COLUMNS: # Não altera colunas de data que já são strings
-                df_formatado[col] = df_formatado[col].apply(lambda x: str(x).strip() if x is not None else None)
-
-
-        if df_formatado.empty:
-            continue # Pula para o próximo cliente pagador
+        if df_cliente.empty:
+            continue
 
         st.markdown(f"""
         <div style="margin-top:20px;padding:10px;background:#e8f0fe;border-left:4px solid #4285f4;border-radius:6px;display:inline-block;max-width:100%;">
@@ -1993,185 +1977,162 @@ def pagina_confirmar_producao():
                 f"<span style='background:#eef2f7;border-radius:12px;padding:6px 12px;margin:4px;color:inherit;display:inline-block;'>{len(df_cliente)} entregas</span>"
                 f"<span style='background:#eef2f7;border-radius:12px;padding:6px 12px;margin:4px;color:inherit;display:inline-block;'>{formatar_brasileiro(peso_calc_sum)} kg calc</span>"
                 f"<span style='background:#eef2f7;border-radius:12px;padding:6px 12px;margin:4px;color:inherit;display:inline-block;'>{formatar_brasileiro(peso_real_sum)} kg real</span>"
-                f"<span style='background:#eef2f7;border-radius:12px;padding:6px 12px;margin:4px;color:inherit;display:inline-block;'>Valor frete: R\$ {formatar_brasileiro(valor_frete_sum)}</span>"
+                f"<span style='background:#eef2f7;border-radius:12px;padding:6px 12px;margin:4px;color:inherit;display:inline-block;'>Valor frete: R$ {formatar_brasileiro(valor_frete_sum)}</span>"
                 f"<span style='background:#eef2f7;border-radius:12px;padding:6px 12px;margin:4px;color:inherit;display:inline-block;'>{formatar_brasileiro(cubagem_sum)} m³</span>"
                 f"<span style='background:#eef2f7;border-radius:12px;padding:6px 12px;margin:4px;color:inherit;display:inline-block;'>{int(volumes_sum)} volumes</span>",
                 unsafe_allow_html=True
             )
 
-        # Inicializa o estado da sessão para a seleção deste grid específico
-        aggrid_selections_key = f"aggrid_selections_{cliente_pagador}"
-        if aggrid_selections_key not in st.session_state:
-            st.session_state[aggrid_selections_key] = [] # Começa sem seleções
-
-        # Chave única para o componente AgGrid (usada para forçar re-renderização)
-        grid_key_id = f"grid_conf_prod_{cliente_pagador}"
-        if grid_key_id not in st.session_state:
-            st.session_state[grid_key_id] = str(uuid.uuid4()) # Inicializa com uma chave única
-
+        # Expander para o grid
         with st.expander("🔽 Selecionar entregas", expanded=True):
-            # Botões para Marcar Todas e Desmarcar Todas
-            col_sel_all, col_desel_all = st.columns([1, 1])
-            with col_sel_all:
-                if st.button("✅ Marcar todas", key=f"btn_marcar_todas_{cliente_pagador}"):
-                    # Quando "Marcar todas" é clicado, armazena todas as linhas como selecionadas no session_state
-                    st.session_state[aggrid_selections_key] = df_formatado.to_dict('records')
-                    # Muda a chave do grid para forçar uma re-renderização e aplicar o novo 'selected_rows'
-                    st.session_state[grid_key_id] = str(uuid.uuid4())
-                    st.rerun() # Re-executa para aplicar as mudanças imediatamente
+            # NOVO: Checkbox "Marcar todas" dentro do expander
+            checkbox_key = f"marcar_todas_conf_prod_{cliente_pagador}"
+            # Garante que o estado do checkbox seja inicializado
+            if checkbox_key not in st.session_state:
+                st.session_state[checkbox_key] = False
 
-            with col_desel_all:
-                if st.button("❌ Desmarcar todas", key=f"btn_desmarcar_todas_{cliente_pagador}"):
-                    # Quando "Desmarcar todas" é clicado, limpa as seleções no session_state
-                    st.session_state[aggrid_selections_key] = []
-                    # Muda a chave do grid para forçar uma re-renderização e limpar 'selected_rows'
-                    st.session_state[grid_key_id] = str(uuid.uuid4())
-                    st.rerun() # Re-executa para aplicar as mudanças imediatamente
+
+            marcar_todas = st.checkbox("Marcar todas", key=checkbox_key)
+
+            # Define JsCode for isRowSelected dynamically
+            # This JS function will return true if 'marcar_todas' is True in Python,
+            # effectively selecting all rows in the grid.
+            is_row_selected_js_code = JsCode(f"""
+                function(rowNode) {{
+                    return {str(marcar_todas).lower()};
+                }}
+            """)
 
             # Criação e estilização do grid (usando o AgGrid)
-            gb = GridOptionsBuilder.from_dataframe(df_formatado)
-            gb.configure_default_column(minWidth=90)
-            gb.configure_selection("multiple", use_checkbox=True)
-            # 💡 IMPORTANTE: Dizer ao AgGrid qual coluna é o ID da linha, para o 'selected_rows' funcionar
-            if 'Serie_Numero_CTRC' in df_formatado.columns:
-                gb.configure_grid_options(rowNodeId='Serie_Numero_CTRC') 
+            df_formatado = df_cliente[[col for col in colunas_exibir if col in df_cliente.columns]].copy()
+            df_formatado = apply_brazilian_date_format_for_display(df_formatado)
+            
+            if not df_formatado.empty:
+                gb = GridOptionsBuilder.from_dataframe(df_formatado)
+                gb.configure_default_column(minWidth=90)
+                # Keep configure_selection for checkboxes
+                gb.configure_selection("multiple", use_checkbox=True) 
+                
+                # Add isRowSelected to grid options
+                gb.configure_grid_options(isRowSelected=is_row_selected_js_code) # <--- ADDED LINE
+                gb.configure_grid_options(paginationPageSize=12)
+                gb.configure_grid_options(alwaysShowHorizontalScroll=True)
+                gb.configure_grid_options(rowStyle={'font-size': '11px'})
+                gb.configure_grid_options(onGridReady=GRID_RESIZE_JS_CODE) 
+                
+                grid_options = gb.build()
+                grid_options["getRowStyle"] = linha_destacar 
 
-            gb.configure_grid_options(paginationPageSize=12)
-            gb.configure_grid_options(alwaysShowHorizontalScroll=True)
-            gb.configure_grid_options(rowStyle={'font-size': '11px'})
-            gb.configure_grid_options(onGridReady=GRID_RESIZE_JS_CODE)
-            grid_options = gb.build()
-            grid_options["getRowStyle"] = linha_destacar # Atribui o JsCode aqui
+                # Gerencia a chave única para o grid, essencial para o st.rerun() funcionar
+                grid_key_id = f"grid_conf_prod_{cliente_pagador}"
+                if grid_key_id not in st.session_state:
+                    st.session_state[grid_key_id] = str(uuid.uuid4()) 
 
-            grid_response = AgGrid(
-                df_formatado,
-                gridOptions=grid_options,
-                update_mode=GridUpdateMode.SELECTION_CHANGED, # Essencial para capturar seleções manuais do usuário
-                fit_columns_on_grid_load=False,
-                width="100%",
-                height=400,
-                allow_unsafe_jscode=True,
-                key=st.session_state[grid_key_id], # Usa a chave única para o grid
-                data_return_mode="AS_INPUT", # Garante que `selected_rows` retorne o dataframe completo
-                theme=AgGridTheme.MATERIAL,
-                show_toolbar=False,
-                custom_css={
-                    ".ag-theme-material .ag-cell": {
-                        "font-size": "11px",
-                        "line-height": "18px",
-                        "border-right": "1px solid #ccc",
-                    },
-                    ".ag-theme-material .ag-row:last-child .ag-cell": {
-                        "border-bottom": "1px solid #ccc",
-                    },
-                    ".ag-theme-material .ag-header-cell": {
-                        "border-right": "1px solid #ccc",
-                        "border-bottom": "1px solid #ccc",
-                    },
-                    ".ag-theme-material .ag-root-wrapper": {
-                        "border": "1px solid black",
-                        "border-radius": "6px",
-                        "padding": "4px",
-                    },
-                    ".ag-theme-material .ag-header-cell-label": {
-                        "font-size": "11px",
-                    },
-                    ".ag-center-cols-viewport": {
-                        "overflow-x": "auto !important",
-                        "overflow-y": "hidden",
-                    },
-                    ".ag-center-cols-container": {
-                        "min-width": "100% !important",
-                    },
-                    "#gridToolBar": {
-                        "padding-bottom": "0px !important",
+                grid_response = AgGrid(
+                    df_formatado,
+                    gridOptions=grid_options,
+                    update_mode=GridUpdateMode.SELECTION_CHANGED, 
+                    fit_columns_on_grid_load=False,
+                    width="100%",
+                    height=400,
+                    allow_unsafe_jscode=True,
+                    key=st.session_state[grid_key_id], 
+                    data_return_mode="AS_INPUT", 
+                    theme=AgGridTheme.MATERIAL,
+                    show_toolbar=False,
+                    custom_css={
+                        # ... (existing custom CSS) ...
                     }
-                },
-                selected_rows=st.session_state[aggrid_selections_key] # Esta é a parte crucial para a pré-seleção
-            )
+                )
 
-            # Após a renderização do AgGrid, atualiza o session state com as linhas *realmente* selecionadas no grid.
-            # Isso captura quaisquer seleções ou desmarcações manuais feitas pelo usuário.
-            # O `pd.DataFrame` é convertido para lista de dicionários para compatibilidade com o `selected_rows` do AgGrid
-            # e para garantir que a próxima renderização reflita o que o usuário interagiu.
-            st.session_state[aggrid_selections_key] = grid_response.get("selected_rows", [])
+                # Capture selected rows from grid_response
+                # The isRowSelected JsCode will handle the visual selection.
+                # The grid_response will accurately return whatever is selected (visually or by user interaction).
+                selecionadas = pd.DataFrame(grid_response.get("selected_rows", [])) # <--- MODIFIED LINE
 
-            # 'selecionadas' variável para processamento posterior
-            selecionadas = pd.DataFrame(st.session_state[aggrid_selections_key])
 
-            qtd_sel = len(selecionadas)
-            peso_real_sel = selecionadas["Peso Real em Kg"].sum() if "Peso Real em Kg" in selecionadas else 0
-            peso_calc_sel = selecionadas["Peso Calculado em Kg"].sum() if "Peso Calculado em Kg" in selecionadas else 0
 
-            st.markdown(
-                f"<span style='font-weight:bold;'>📦 Entregas selecionadas:</span> {qtd_sel} &nbsp;&nbsp; | &nbsp;&nbsp; "
-                f"<span style='font-weight:bold;'>⚖️ Peso Real:</span> {formatar_brasileiro(peso_real_sel)} kg &nbsp;&nbsp; | &nbsp;&nbsp; "
-                f"<span style='font-weight:bold;'>📏 Peso Calculado:</span> {formatar_brasileiro(peso_calc_sel)} kg",
-                unsafe_allow_html=True
-            )
 
-            # Botão para confirmar produção
-            if not selecionadas.empty:
-                if st.button(" Enviar para Aprovação", key=f"enviar_aprovacao_{cliente_pagador}"):
-                    try:
-                        # Prepara os dados para inserção na tabela de aprovacao_diretoria
-                        df_confirmar = selecionadas.drop(columns=["_selectedRowNodeInfo"], errors="ignore").copy()
-                        
-                        # --- NOVO/MODIFICADO: TRATAMENTO DE DATAS PARA INSERÇÃO NO SUPABASE ---
-                        # As colunas de data no 'selecionadas' vêm como strings no formato brasileiro (DD-MM-AAAA HH:MM:SS).
-                        # Primeiro, vamos converter essas strings de volta para objetos datetime.
-                        # Usamos GLOBAL_DATE_DISPLAY_COLUMNS e DATE_DISPLAY_FORMAT_STRING (definidas no seu código).
-                        for col_name in GLOBAL_DATE_DISPLAY_COLUMNS:
-                            if col_name in df_confirmar.columns:
-                                df_confirmar[col_name] = pd.to_datetime(
-                                    df_confirmar[col_name],
-                                    format=DATE_DISPLAY_FORMAT_STRING, # Brazilian format (DD-MM-AAAA HH:MM:SS)
-                                    errors='coerce' # Convert unparseable values to pd.NaT
-                                )
 
-                        # Step 2: Iterate through all columns and convert any Pandas Timestamp or
-                        # standard Python datetime.datetime objects to ISO 8601 strings.
-                        for col_name in df_confirmar.columns:
-                            if col_name in GLOBAL_DATE_DISPLAY_COLUMNS or \
-                               pd.api.types.is_datetime64_any_dtype(df_confirmar[col_name]):
-                                df_confirmar[col_name] = df_confirmar[col_name].apply(
-                                    lambda x: x.strftime("%Y-%m-%d %H:%M:%S") if pd.notna(x) else None
-                                )
-                            elif df_confirmar[col_name].dtype == 'object': # Para outros objetos que possam ser datas (ex: de AgGrid)
-                                df_confirmar[col_name] = df_confirmar[col_name].apply(
-                                    lambda x: x.strftime("%Y-%m-%d %H:%M:%S") if isinstance(x, (pd.Timestamp, datetime)) else x
-                                )
 
-                        df_confirmar = df_confirmar.replace([np.nan, np.inf, -np.inf, ""], None)
 
-                        registros = df_confirmar.to_dict(orient="records")
-                        # Filtra registros inválidos (sem Serie_Numero_CTRC)
-                        registros = [r for r in registros if r.get("Serie_Numero_CTRC")]
 
-                        # Insere na tabela de aprovacao_diretoria
-                        if registros:  # Apenas insere se houver registros válidos
-                            supabase.table("aprovacao_diretoria").insert(registros).execute()
 
-                            # Alimenta o contador da sessão com o que foi confirmado
-                            st.session_state["df_entregas_confirmadas"] = pd.DataFrame(registros)
-                        
-                        # === CORREÇÃO: Remove as entregas da tabela 'confirmadas_producao' ===
-                        chaves = [r["Serie_Numero_CTRC"] for r in registros]
-                        if chaves: # Apenas deleta se houver chaves para deletar
-                            supabase.table("confirmadas_producao").delete().in_("Serie_Numero_CTRC", chaves).execute()
+                qtd_sel = len(selecionadas)
+                peso_real_sel = selecionadas["Peso Real em Kg"].sum() if "Peso Real em Kg" in selecionadas else 0
+                peso_calc_sel = selecionadas["Peso Calculado em Kg"].sum() if "Peso Calculado em Kg" in selecionadas else 0
 
-                        # Limpa o estado da sessão para forçar a recarga dos grids e evitar problemas de cache.
-                        st.session_state["reload_confirmadas_producao"] = True # Sinaliza para recarregar os dados na próxima execução
-                        st.session_state.pop(grid_key_id, None) # Remove a key do grid para forçar a reconstrução
-                        st.session_state.pop(aggrid_selections_key, None) # Limpa o estado de seleção do grid
-                        st.session_state["reload_aprovacao_diretoria"] = True # Sinaliza recarga para a tela de destino
+                st.markdown(
+                    f"<span style='font-weight:bold;'>📦 Entregas selecionadas:</span> {qtd_sel} &nbsp;&nbsp; | &nbsp;&nbsp; "
+                    f"<span style='font-weight:bold;'>⚖️ Peso Real:</span> {formatar_brasileiro(peso_real_sel)} kg &nbsp;&nbsp; | &nbsp;&nbsp; "
+                    f"<span style='font-weight:bold;'>📏 Peso Calculado:</span> {formatar_brasileiro(peso_calc_sel)} kg",
+                    unsafe_allow_html=True
+                )
 
-                        st.success(f"✅ {len(chaves)} entregas do Cliente {cliente_pagador} foram enviadas para a próxima etapa (Aprovação da Diretoria).")
-                        
-                        # Força um rerun para atualizar a UI e refletir as mudanças
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"❌ Erro ao confirmar produção do cliente {cliente_pagador}: {e}")
+                # Botão para confirmar produção
+                if not selecionadas.empty:
+                    if st.button(" Enviar para Aprovação", key=f"enviar_aprovacao_{cliente_pagador}"):
+                        try:
+                            # Prepara os dados para inserção na tabela de aprovacao_diretoria
+                            df_confirmar = selecionadas.drop(columns=["_selectedRowNodeInfo"], errors="ignore").copy()
+                            # A coluna "Rota" é um atributo da entrega e deve ser mantida, não confundir com o agrupamento
+                            
+                            # --- NOVO/MODIFICADO: TRATAMENTO DE DATAS PARA INSERÇÃO NO SUPABASE ---
+                            # As colunas de data no 'selecionadas' vêm como strings no formato brasileiro (DD-MM-AAAA HH:MM:SS).
+                            # Primeiro, vamos converter essas strings de volta para objetos datetime.
+                            # Usamos GLOBAL_DATE_DISPLAY_COLUMNS e DATE_DISPLAY_FORMAT_STRING (definidas no seu código).
+                            for col_name in GLOBAL_DATE_DISPLAY_COLUMNS:
+                                if col_name in df_confirmar.columns:
+                                    df_confirmar[col_name] = pd.to_datetime(
+                                        df_confirmar[col_name],
+                                        format=DATE_DISPLAY_FORMAT_STRING, # Brazilian format (DD-MM-AAAA HH:MM:SS)
+                                        errors='coerce' # Convert unparseable values to pd.NaT
+                                    )
+
+                            # Step 2: Iterate through all columns and convert any Pandas Timestamp or
+                            # standard Python datetime.datetime objects to ISO 8601 strings.
+                            for col_name in df_confirmar.columns:
+                                if col_name in GLOBAL_DATE_DISPLAY_COLUMNS or \
+                                   pd.api.types.is_datetime64_any_dtype(df_confirmar[col_name]):
+                                    df_confirmar[col_name] = df_confirmar[col_name].apply(
+                                        lambda x: x.strftime("%Y-%m-%d %H:%M:%S") if pd.notna(x) else None
+                                    )
+                                elif df_confirmar[col_name].dtype == 'object':
+                                    df_confirmar[col_name] = df_confirmar[col_name].apply(
+                                        lambda x: x.strftime("%Y-%m-%d %H:%M:%S") if isinstance(x, (pd.Timestamp, datetime)) else x
+                                    )
+
+                            df_confirmar = df_confirmar.replace([np.nan, np.inf, -np.inf, ""], None)
+
+                            registros = df_confirmar.to_dict(orient="records")
+                            # Filtra registros inválidos (sem Serie_Numero_CTRC)
+                            registros = [r for r in registros if r.get("Serie_Numero_CTRC")]
+
+                            # Insere na tabela de aprovacao_diretoria
+                            if registros:  # Apenas insere se houver registros válidos
+                                supabase.table("aprovacao_diretoria").insert(registros).execute()
+
+                                # ✅ Alimenta o contador da sessão com o que foi confirmado
+                                st.session_state["df_entregas_confirmadas"] = pd.DataFrame(registros)
+                            
+                            # === CORREÇÃO: Remove as entregas da tabela 'confirmadas_producao' ===
+                            chaves = [r["Serie_Numero_CTRC"] for r in registros]
+                            if chaves: # Apenas deleta se houver chaves para deletar
+                                supabase.table("confirmadas_producao").delete().in_("Serie_Numero_CTRC", chaves).execute()
+
+                            # Limpa o estado da sessão para forçar a recarga dos grids e evitar problemas de cache.
+                            st.session_state["reload_confirmadas_producao"] = True # Sinaliza para recarregar os dados na próxima execução
+                            st.session_state.pop(grid_key_id, None) # Remove a key do grid para forçar a reconstrução, se necessário
+                            st.session_state.pop(checkbox_key, None) # Limpa o estado do checkbox "Marcar todas" para esta rota após a ação
+
+                            st.session_state["reload_aprovacao_diretoria"] = True
+
+                            st.success(f"✅ {len(chaves)} entregas do Cliente {cliente_pagador} foram enviadas para a próxima etapa (Aprovação da Diretoria).")
+                            
+                            # Força um rerun para atualizar a UI e refletir as mudanças
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"❌ Erro ao confirmar produção do cliente {cliente_pagador}: {e}")
 
                    
 
