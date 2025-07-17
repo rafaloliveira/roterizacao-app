@@ -1931,21 +1931,26 @@ def pagina_confirmar_producao():
 
     # Configuração de estilo condicional do grid (JsCode) - Permanece a mesma, pois é por linha
     linha_destacar = JsCode("""
-        function(params) {
-            const status = params.data['Status'];
-            const entrega = params.data['Entrega Programada'];
-            const particularidade = params.data['Particularidade'];
-            // Verifica se a entrega está vazia ou contém apenas espaços (para compatibilidade com strings vazias)
-            const isEntregaEmpty = !entrega || (typeof entrega === 'string' && entrega.trim() === '');
-            if (status === 'AGENDAR' && isEntregaEmpty) {
-                return { 'background-color': '#ffe0b2', 'color': '#333' }; // Amarelo claro para "AGENDAR" sem data
-            }
-            if (particularidade && typeof particularidade === 'string' && particularidade.trim() !== "") {
-                return { 'background-color': '#fff59d', 'color': '#333' }; // Amarelo um pouco mais escuro para "Particularidade"
-            }
-            return null;
+    function(params) {
+        const status = params.data['Status'];
+        const entrega = params.data['Entrega Programada'];
+        const particularidade = params.data['Particularidade'];
+
+        // Verifica se a entrega está vazia ou contém apenas espaços (para compatibilidade com strings vazias)
+        const isEntregaEmpty = !entrega || (typeof entrega === 'string' && entrega.trim() === '');
+
+        if (status === 'AGENDAR' && isEntregaEmpty) {
+            return { 'background-color': '#ffff00', 'color': '#333' }; // Amarelo puro para "AGENDAR" sem data
         }
-    """)
+
+        if (particularidade && typeof particularidade === 'string' && particularidade.trim() !== "") {
+            return { 'background-color': '#bc8f8f', 'color': '#fff' }; // Rosado escuro para "Particularidade"
+        }
+
+        return null;
+    }
+""")
+
 
     # Iterar sobre os clientes pagadores únicos para exibir os grids
     # Usamos 'Cliente Pagador' agora
@@ -2261,19 +2266,26 @@ def pagina_aprovacao_diretoria():
     ]
 
     linha_destacar = JsCode("""
-        function(params) {
-            const status = params.data['Status'];
-            const entrega = params.data['Entrega Programada'];
-            const particularidade = params.data['Particularidade'];
-            if (status === 'AGENDAR' && (!entrega || entrega.trim() === '')) {
-                return { 'background-color': '#ffe0b2', 'color': '#333' };
-            }
-            if (particularidade && particularidade.trim() !== "") {
-                return { 'background-color': '#fff59d', 'color': '#333' };
-            }
-            return null;
+    function(params) {
+        const status = params.data['Status'];
+        const entrega = params.data['Entrega Programada'];
+        const particularidade = params.data['Particularidade'];
+
+        // Verifica se a entrega está vazia ou contém apenas espaços (para compatibilidade com strings vazias)
+        const isEntregaEmpty = !entrega || (typeof entrega === 'string' && entrega.trim() === '');
+
+        if (status === 'AGENDAR' && isEntregaEmpty) {
+            return { 'background-color': '#ffff00', 'color': '#333' }; // Amarelo puro para "AGENDAR" sem data
         }
-    """)
+
+        if (particularidade && typeof particularidade === 'string' && particularidade.trim() !== "") {
+            return { 'background-color': '#bc8f8f', 'color': '#fff' }; // Rosado escuro para "Particularidade"
+        }
+
+        return null;
+    }
+""")
+
 
     for cliente in sorted(df_aprovacao["Cliente Pagador"].unique()): # df_aprovacao já definido aqui
         df_cliente = df_aprovacao[df_aprovacao["Cliente Pagador"] == cliente].copy() # df_aprovacao já definido aqui
@@ -2740,19 +2752,26 @@ def pagina_pre_roterizacao():
     ]
 
     linha_destacar = JsCode("""
-        function(params) {
-            const status = params.data['Status'];
-            const entrega = params.data['Entrega Programada'];
-            const particularidade = params.data['Particularidade'];
-            if (status === 'AGENDAR' && (!entrega || entrega.trim() === '')) {
-                return { 'background-color': '#ffe0b2', 'color': '#333' };
-            }
-            if (particularidade && particularidade.trim() !== "") {
-                return { 'background-color': '#fff59d', 'color': '#333' };
-            }
-            return null;
+    function(params) {
+        const status = params.data['Status'];
+        const entrega = params.data['Entrega Programada'];
+        const particularidade = params.data['Particularidade'];
+
+        // Verifica se a entrega está vazia ou contém apenas espaços (para compatibilidade com strings vazias)
+        const isEntregaEmpty = !entrega || (typeof entrega === 'string' && entrega.trim() === '');
+
+        if (status === 'AGENDAR' && isEntregaEmpty) {
+            return { 'background-color': '#ffff00', 'color': '#333' }; // Amarelo puro para "AGENDAR" sem data
         }
-    """)
+
+        if (particularidade && typeof particularidade === 'string' && particularidade.trim() !== "") {
+            return { 'background-color': '#bc8f8f', 'color': '#fff' }; // Rosado escuro para "Particularidade"
+        }
+
+        return null;
+    }
+""")
+
 
     if "GrupoDeExibicao" not in df_visivel.columns:
         df_visivel["GrupoDeExibicao"] = None
