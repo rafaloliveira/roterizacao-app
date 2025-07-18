@@ -1794,7 +1794,7 @@ def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, veiculo, valor_f
         col_widths = [
             0.8 * inch, 1.0 * inch, 1.1 * inch, 0.7 * inch, 0.9 * inch,
             0.7 * inch, 0.6 * inch, 0.7 * inch, 0.8 * inch, 0.8 * inch, 0.7 * inch,
-            0.6 * inch 
+            0.9 * inch 
         ]
         table = Table(dados_tabela, colWidths=col_widths, hAlign='LEFT')
         table.setStyle(TableStyle([
