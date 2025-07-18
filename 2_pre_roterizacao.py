@@ -1743,7 +1743,7 @@ def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, veiculo, valor_f
         "Numero da Nota Fiscal": "Nº da<br/>NF",
         "Cliente Pagador": "Cliente<br/>Pagador",
         "Cidade de Entrega": "Cidade<br/>de Entrega",
-        "Serie_Numero_CTRC": "Série/Nº<br/>CTRC",
+        "Quantidade de Volumes": "Qtd<br/>Volumes",
         "Cliente Destinatario": "Cliente<br/>Destinatário",
         "Bairro do Destinatario": "Bairro do<br/>Destinatário",
         "Previsao de Entrega": "Previsão<br/>de Entrega",
@@ -1751,12 +1751,13 @@ def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, veiculo, valor_f
         "Peso Calculado em Kg": "Peso<br/>Calculado<br/>(Kg)",
         "Peso Real em Kg": "Peso Real<br/>(Kg)",
         "Cubagem em m³": "Cubagem<br/>(m³)",
+        "Serie_Numero_CTRC": "Série/Nº<br/>CTRC"
     }
 
     requested_order_keys = [
-        "Numero da Nota Fiscal", "Cliente Pagador", "Cidade de Entrega", "Serie_Numero_CTRC",
+        "Numero da Nota Fiscal", "Cliente Pagador", "Cidade de Entrega", "Quantidade de Volumes",
         "Cliente Destinatario", "Bairro do Destinatario", "Previsao de Entrega",
-        "Entrega Programada", "Peso Calculado em Kg", "Peso Real em Kg", "Cubagem em m³"
+        "Entrega Programada", "Peso Calculado em Kg", "Peso Real em Kg", "Cubagem em m³","Serie_Numero_CTRC"
     ]
 
     df_filtrado = df_entregas[[col for col in requested_order_keys if col in df_entregas.columns]].copy()
@@ -1792,7 +1793,8 @@ def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, veiculo, valor_f
     else:
         col_widths = [
             0.8 * inch, 1.0 * inch, 1.1 * inch, 0.7 * inch, 0.9 * inch,
-            0.7 * inch, 0.6 * inch, 0.7 * inch, 0.8 * inch, 0.8 * inch, 0.7 * inch
+            0.7 * inch, 0.6 * inch, 0.7 * inch, 0.8 * inch, 0.8 * inch, 0.7 * inch,
+            0.6 * inch 
         ]
         table = Table(dados_tabela, colWidths=col_widths, hAlign='LEFT')
         table.setStyle(TableStyle([
