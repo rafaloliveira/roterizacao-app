@@ -3261,7 +3261,7 @@ def pagina_cargas_geradas():
                     """))
                     gb.configure_grid_options(headerCheckboxSelection=True)
                     gb.configure_grid_options(rowSelection='multiple')
-                    gb.configure_grid_options(onGridReady=GRID_RESIZE_JS_CODE)
+                    #gb.configure_grid_options(onGridReady=GRID_RESIZE_JS_CODE)
 
                     for col in numeric_cols_for_formatting:
                         if col in df_formatado.columns:
