@@ -637,7 +637,7 @@ def criar_grid_destacado(df, key, selection_mode="multiple", page_size=500, altu
         resizable=True,
         sortable=True,
         filter=True,
-        minWidth=150
+        minWidth=90
     )
     gb.configure_selection(selection_mode, use_checkbox=True)
     gb.configure_pagination(enabled=True, paginationAutoPageSize=False)
@@ -2298,7 +2298,7 @@ def pagina_aprovacao_diretoria():
 
             if not df_formatado.empty:
                 gb = GridOptionsBuilder.from_dataframe(df_formatado)
-                gb.configure_default_column(minWidth=150)
+                gb.configure_default_column(minWidth=90)
                 gb.configure_selection("multiple", use_checkbox=True)
                 gb.configure_grid_options(paginationPageSize=12)
                 gb.configure_grid_options(alwaysShowHorizontalScroll=True)
@@ -2839,7 +2839,7 @@ def pagina_pre_roterizacao():
             )
 
             gb = GridOptionsBuilder.from_dataframe(df_formatado)
-            gb.configure_default_column(minWidth=150)
+            gb.configure_default_column(minWidth=90)
             gb.configure_selection("multiple", use_checkbox=True)
             gb.configure_grid_options(paginationPageSize=12)
             gb.configure_grid_options(alwaysShowHorizontalScroll=True)
@@ -3240,7 +3240,7 @@ def pagina_cargas_geradas():
                     #df_formatado = apply_brazilian_date_format_for_display(df_formatado) # Linha que causa o problema de datas, remover se ainda não o fez.
 
                     gb = GridOptionsBuilder.from_dataframe(df_formatado)
-                    gb.configure_default_column(minWidth=150)
+                    gb.configure_default_column(minWidth=90)
                     gb.configure_selection("multiple", use_checkbox=True)
                     gb.configure_grid_options(paginationPageSize=12)
                     gb.configure_grid_options(alwaysShowHorizontalScroll=True)
@@ -3858,7 +3858,7 @@ def pagina_aprovacao_custos():
                     df_formatado = df_formatado.replace([np.nan, None], "")
 
                     gb = GridOptionsBuilder.from_dataframe(df_formatado)
-                    gb.configure_default_column(minWidth=150)
+                    gb.configure_default_column(minWidth=90)
                     gb.configure_selection("multiple", use_checkbox=True)
                     gb.configure_grid_options(paginationPageSize=12)
                     gb.configure_grid_options(alwaysShowHorizontalScroll=True)
@@ -4251,7 +4251,7 @@ def pagina_cargas_aprovadas():
                     selecionadas = df_formatado[df_formatado["Serie_Numero_CTRC"].notna()].copy().to_dict(orient="records")
 
                     gb = GridOptionsBuilder.from_dataframe(df_formatado)
-                    gb.configure_default_column(minWidth=150)
+                    gb.configure_default_column(minWidth=90)
                     gb.configure_selection("multiple", use_checkbox=True)
                     gb.configure_grid_options(paginationPageSize=12)
                     gb.configure_grid_options(alwaysShowHorizontalScroll=True)
@@ -4627,7 +4627,7 @@ def pagina_cargas_fechadas():
                     df_formatado = df_formatado.replace([np.nan, None], "")
 
                     gb = GridOptionsBuilder.from_dataframe(df_formatado)
-                    gb.configure_default_column(minWidth=150)
+                    gb.configure_default_column(minWidth=90)
                     gb.configure_selection("multiple", use_checkbox=True)
                     gb.configure_grid_options(paginationPageSize=12)
                     gb.configure_grid_options(alwaysShowHorizontalScroll=True)
