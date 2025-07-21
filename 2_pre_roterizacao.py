@@ -1257,9 +1257,9 @@ def limpar_tabelas_relacionadas():
 
 
 # ------------------------#############-------------------------------------------
-def adicionar_entregas_a_carga(chaves_cte, numero_carga_destino):
-    if not chaves_cte:
-        st.warning("⚠️ Nenhuma Chave CT-e foi informada.")
+def adicionar_entregas_a_carga(ctrcs_selecionados, numero_carga_destino):
+    if not ctrcs_selecionados:
+        st.warning("⚠️ Nenhum CTRC selecionado.")
         return
 
     if not numero_carga_destino:
@@ -1269,63 +1269,36 @@ def adicionar_entregas_a_carga(chaves_cte, numero_carga_destino):
     numero_carga = numero_carga_destino
     entregas_coletadas = []
     found_ctrc_in_pre_roterizacao = set()
-    found_ctrc_in_rotas_confirmadas = set()
-
-    # DEBUG: Exibir chaves recebidas
-    #st.code(f"🔍 {len(chaves_cte)} chaves recebidas:\n" + "\n".join(chaves_cte))
 
     # Carrega os dados brutos
     dados_pre_all = supabase.table("pre_roterizacao").select("*").execute().data or []
-    dados_rotas_all = supabase.table("rotas_confirmadas").select("*").execute().data or []
-
-    pre_chaves = [str(d.get("Chave CT-e", "")).strip() for d in dados_pre_all]
-    rotas_chaves = [str(d.get("Chave CT-e", "")).strip() for d in dados_rotas_all]
-
-    #encontradas_pre = [c for c in chaves_cte if c in pre_chaves]
-    #encontradas_rotas = [c for c in chaves_cte if c in rotas_chaves]
-
-    #st.code(f"🔎 Encontradas em pre_roterizacao: {encontradas_pre}")
-    #st.code(f"🔎 Encontradas em rotas_confirmadas: {encontradas_rotas}")
-
-    # Usa Serie_Numero_CTRC como chave de correspondência
     dados_pre_dict = {str(d.get("Serie_Numero_CTRC", "")).strip(): d for d in dados_pre_all}
-    dados_rotas_dict = {str(d.get("Serie_Numero_CTRC", "")).strip(): d for d in dados_rotas_all}
 
-    # Recupera todos os Serie_Numero_CTRC vinculados às chaves informadas
-    serie_ctrcs_pre = [str(d.get("Serie_Numero_CTRC", "")).strip() for d in dados_pre_all if str(d.get("Chave CT-e", "")).strip() in chaves_cte]
-    serie_ctrcs_rotas = [str(d.get("Serie_Numero_CTRC", "")).strip() for d in dados_rotas_all if str(d.get("Chave CT-e", "")).strip() in chaves_cte]
-
-    for ctrc in serie_ctrcs_pre:
-        entrega = dados_pre_dict.get(ctrc)
+    # Recupera as entregas com base somente nos CTRCs selecionados
+    for ctrc in ctrcs_selecionados:
+        entrega = dados_pre_dict.get(str(ctrc).strip())
         if entrega:
             entrega["origem_tabela"] = "pre_roterizacao"
             entregas_coletadas.append(entrega)
             found_ctrc_in_pre_roterizacao.add(ctrc)
 
-    for ctrc in serie_ctrcs_rotas:
-        if ctrc not in found_ctrc_in_pre_roterizacao:
-            entrega = dados_rotas_dict.get(ctrc)
-            if entrega:
-                entrega["origem_tabela"] = "rotas_confirmadas"
-                entregas_coletadas.append(entrega)
-                found_ctrc_in_rotas_confirmadas.add(ctrc)
-
     if not entregas_coletadas:
-        st.warning("⚠️ Nenhuma entrega encontrada nas tabelas para as Chaves CT-e informadas.")
+        st.warning("⚠️ Nenhuma entrega encontrada na tabela 'pre_roterizacao' para os CTRCs informados.")
         return
 
-    # Remove campo temporário não pertencente à tabela cargas_geradas
+    # Remove campo temporário
     for ent in entregas_coletadas:
         ent.pop("origem_tabela", None)
 
     df_para_inserir = pd.DataFrame(entregas_coletadas)
+
     if "GrupoDeExibicao" in df_para_inserir.columns:
         df_para_inserir["GrupoDeExibicao"] = df_para_inserir["GrupoDeExibicao"]
     else:
         df_para_inserir["GrupoDeExibicao"] = df_para_inserir["Rota"]
-    df_para_inserir["Data_Hora_Gerada"] = data_hora_brasil_iso()
-    df_para_inserir["numero_carga"] = numero_carga  # ✅ Adiciona número da carga para todas as entregas
 
+    df_para_inserir["Data_Hora_Gerada"] = data_hora_brasil_iso()
+    df_para_inserir["numero_carga"] = numero_carga
 
     for col_name in GLOBAL_DATE_DISPLAY_COLUMNS:
         if col_name in df_para_inserir.columns:
@@ -1350,13 +1323,12 @@ def adicionar_entregas_a_carga(chaves_cte, numero_carga_destino):
 
                 df_para_inserir.loc[to_parse_indices, col_name] = parsed_dates.apply(tratar_data_para_utc)
 
-
     df_para_inserir = df_para_inserir.replace([np.nan, pd.NaT, np.inf, -np.inf, ""], None)
-    #st.write("🧪 Preview das datas tratadas:", df_para_inserir[[col for col in ["Previsao de Entrega", "Entrega Programada"] if col in df_para_inserir.columns]])
     dados_para_insercao = df_para_inserir.to_dict(orient='records')
 
     insert_success = False
     inserted_ctrcs = []
+
     for tentativa in range(2):
         try:
             insert_response = supabase.table("cargas_geradas").insert(dados_para_insercao).execute()
@@ -1366,7 +1338,6 @@ def adicionar_entregas_a_carga(chaves_cte, numero_carga_destino):
                 st.success(f"✅ {len(inserted_ctrcs)} entrega(s) adicionada(s) à Carga {numero_carga}.")
                 break
         except Exception as e:
-            #st.warning(f"Tentativa {tentativa+1}/2: Erro ao inserir em 'cargas_geradas': {e}")
             if tentativa == 0:
                 time.sleep(1)
 
@@ -1382,16 +1353,8 @@ def adicionar_entregas_a_carga(chaves_cte, numero_carga_destino):
                 st.info(f"Removidas {len(delete_response_pre.data)} entregas de 'pre_roterizacao'.")
         except Exception as e:
             st.warning(f"Erro ao deletar de 'pre_roterizacao': {e}")
-
-        try:
-            ctrcs_to_delete_from_conf = list(set(inserted_ctrcs).intersection(found_ctrc_in_rotas_confirmadas))
-            if ctrcs_to_delete_from_conf:
-                delete_response_conf = supabase.table("rotas_confirmadas").delete().in_("Serie_Numero_CTRC", ctrcs_to_delete_from_conf).execute()
-                st.info(f"Removidas {len(delete_response_conf.data)} entregas de 'rotas_confirmadas'.")
-        except Exception as e:
-            st.warning(f"Erro ao deletar de 'rotas_confirmadas': {e}")
     else:
-        st.warning("Nenhuma entrega foi realmente inserida para deletar das tabelas de origem.")
+        st.warning("Nenhuma entrega foi realmente inserida para deletar da tabela de origem.")
 
     st.session_state["reload_rotas_confirmadas"] = True
     st.session_state["reload_pre_roterizacao"] = True
@@ -1401,6 +1364,7 @@ def adicionar_entregas_a_carga(chaves_cte, numero_carga_destino):
     st.session_state.pop("df_cargas_cache", None)
 
     st.rerun()
+
 
 # ------------------------#############-------------------------------------------
 def aplicar_regras_e_preencher_tabelas():
