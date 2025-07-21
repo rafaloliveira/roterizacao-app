@@ -4399,7 +4399,7 @@ def pagina_cargas_aprovadas():
 # ==============================================================================
 
 def pagina_cargas_fechadas():
-    st.markdown("## Cargas Fechadas")
+    st.markdown("## Cargas Encerradas")
 
     try:
         with st.spinner("🔄 Carregando dados para cargas fechadas..."):
