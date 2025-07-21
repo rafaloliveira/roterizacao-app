@@ -1255,7 +1255,13 @@ def limpar_tabelas_relacionadas():
             st.error(f"")
             #st.error(f"[ERRO GERAL] Ao tentar limpar a tabela '{tabela}': {e}. Por favor, verifique suas permissões (RLS) no Supabase ou se a coluna 'Serie_Numero_CTRC' existe em todas as tabelas listadas.")
 
-
+def tratar_data_para_utc(dt):
+    """Converte um objeto datetime para string ISO UTC, ou None se for NaT/None."""
+    if pd.isna(dt):
+        return None
+    if dt.tzinfo is None:
+        dt = dt.tz_localize(FUSO_BRASIL) # Assume fuso local se não tiver timezone
+    return dt.tz_convert("UTC").isoformat(timespec="seconds").replace("+00:00", "Z")
 # ------------------------#############-------------------------------------------
 def adicionar_entregas_a_carga(ctrcs_selecionados, numero_carga_destino):
     if not ctrcs_selecionados:
@@ -1270,7 +1276,7 @@ def adicionar_entregas_a_carga(ctrcs_selecionados, numero_carga_destino):
     entregas_coletadas = []
     found_ctrc_in_pre_roterizacao = set()
 
-    # Carrega os dados brutos
+    # Carrega os dados brutos da tabela 'pre_roterizacao'
     dados_pre_all = supabase.table("pre_roterizacao").select("*").execute().data or []
     dados_pre_dict = {str(d.get("Serie_Numero_CTRC", "")).strip(): d for d in dados_pre_all}
 
@@ -1278,7 +1284,7 @@ def adicionar_entregas_a_carga(ctrcs_selecionados, numero_carga_destino):
     for ctrc in ctrcs_selecionados:
         entrega = dados_pre_dict.get(str(ctrc).strip())
         if entrega:
-            entrega["origem_tabela"] = "pre_roterizacao"
+            # Não é necessário 'origem_tabela' aqui pois já estamos vindo de 'pre_roterizacao'
             entregas_coletadas.append(entrega)
             found_ctrc_in_pre_roterizacao.add(ctrc)
 
@@ -1286,67 +1292,107 @@ def adicionar_entregas_a_carga(ctrcs_selecionados, numero_carga_destino):
         st.warning("⚠️ Nenhuma entrega encontrada na tabela 'pre_roterizacao' para os CTRCs informados.")
         return
 
-    # Remove campo temporário
-    for ent in entregas_coletadas:
-        ent.pop("origem_tabela", None)
-
     df_para_inserir = pd.DataFrame(entregas_coletadas)
 
-    if "GrupoDeExibicao" in df_para_inserir.columns:
-        df_para_inserir["GrupoDeExibicao"] = df_para_inserir["GrupoDeExibicao"]
-    else:
-        df_para_inserir["GrupoDeExibicao"] = df_para_inserir["Rota"]
+    if "GrupoDeExibicao" not in df_para_inserir.columns:
+        df_para_inserir["GrupoDeExibicao"] = df_para_inserir["Rota"] # Garante que GrupoDeExibicao exista
+    # Certifica que GrupoDeExibicao tem o valor correto se já existe ou foi atribuído
+    # O código original: df_para_inserir["GrupoDeExibicao"] = df_para_inserir["GrupoDeExibicao"] não faz nada
+    # Se a intenção era preencher nulos, seria:
+    df_para_inserir["GrupoDeExibicao"] = df_para_inserir["GrupoDeExibicao"].fillna(df_para_inserir["Rota"])
+
 
     df_para_inserir["Data_Hora_Gerada"] = data_hora_brasil_iso()
     df_para_inserir["numero_carga"] = numero_carga
 
+    # --- NOVO BLOCO: TRATAMENTO ROBUSTO PARA DATAS ESPECÍFICAS PARA GARANTIR ORIGINALIDADE ---
+
+    # Lista de colunas de data que devem ser limpas rigorosamente
+    # Isso garante que representações de 'vazio' ou 'inválido' virem None
+    strict_date_cols = ["Previsao de Entrega", "Entrega Programada"]
+
+    for col_name in strict_date_cols:
+        if col_name in df_para_inserir.columns:
+            # 1. Converte para string e remove espaços para limpeza inicial
+            # Isso é importante porque datas do Supabase podem vir como objetos datetime ou strings
+            temp_str_series = df_para_inserir[col_name].astype(str).str.strip()
+
+            # 2. Identifica strings que representam "vazio" ou "data inválida/indesejada"
+            # Inclui NaN, NaT, strings vazias e datas de placeholder conhecidas
+            is_undesirable_string = temp_str_series.isin([
+                '', 'nat', 'nan', 'None', '0000-00-00', '1900-01-01', '0001-01-01', 'NaT',
+                'nan nan-nan-nan', # Alguns sistemas podem gerar isso para NaT
+                '0' # Alguns sistemas podem representar data vazia como '0'
+            ])
+
+            # 3. Tenta converter para datetime e verifica se resultou em NaT
+            # Isso pega outras strings mal-formadas que pd.to_datetime não consegue entender,
+            # ou datas inválidas que não estão na lista 'is_undesirable_string'
+            coerces_to_nat = pd.to_datetime(temp_str_series, errors='coerce').isna()
+
+            # 4. Combina todas as condições para determinar o que deve ser NULL/None
+            should_be_null = is_undesirable_string | coerces_to_nat
+
+            # Aplica None para essas células que devem ser nulas
+            df_para_inserir.loc[should_be_null, col_name] = None
+    
+    # 5. Regra de Negócio Específica para 'Entrega Programada' com Status 'AGENDAR'
+    # Esta regra é crucial: se o status é 'AGENDAR', a Entrega Programada DEVE ser NULA.
+    # Esta linha garante que mesmo se, por algum motivo, uma data válida estivesse lá, ela seja anulada.
+    if "Entrega Programada" in df_para_inserir.columns and "Status" in df_para_inserir.columns:
+        agendar_condition = (df_para_inserir["Status"] == "AGENDAR") # Apenas o status é o que importa aqui
+        df_para_inserir.loc[agendar_condition, "Entrega Programada"] = None
+
+    # --- FIM DO NOVO BLOCO DE TRATAMENTO ROBUSTO ---
+
+    # Loop para processar TODAS as colunas de data definidas em GLOBAL_DATE_DISPLAY_COLUMNS
+    # Este loop agora focará em converter datas válidas para o formato UTC
     for col_name in GLOBAL_DATE_DISPLAY_COLUMNS:
         if col_name in df_para_inserir.columns:
-            temp_str_series = df_para_inserir[col_name].astype(str).str.strip()
-            is_empty_or_invalid_str = temp_str_series.isin(['', 'nat', 'nan'])
-            df_para_inserir.loc[is_empty_or_invalid_str, col_name] = None
-            to_parse_indices = df_para_inserir.loc[~is_empty_or_invalid_str, col_name].index
-
-            if not to_parse_indices.empty:
+            # A máscara to_process_mask identifica apenas os valores que *não* são None (ou seja, são datas válidas)
+            to_process_mask = df_para_inserir[col_name].notna()
+            
+            if to_process_mask.any(): # Verifica se há alguma data válida para processar
                 parsed_dates = pd.to_datetime(
-                    df_para_inserir.loc[to_parse_indices, col_name],
-                    dayfirst=True,
-                    errors='coerce'
+                    df_para_inserir.loc[to_process_mask, col_name],
+                    dayfirst=True, # Tenta parsear no formato dia-mês-ano primeiro (comum no Brasil)
+                    errors='coerce' # Em caso de falha de parsing (apesar da limpeza prévia), coere para NaT
                 )
 
-                def tratar_data_para_utc(dt):
-                    if pd.isna(dt):
-                        return None
-                    if dt.tzinfo is None:
-                        dt = dt.tz_localize(FUSO_BRASIL)
-                    return dt.tz_convert("UTC").isoformat(timespec="seconds").replace("+00:00", "Z")
+                # Aplica a função de tratamento para UTC.
+                # Qualquer NaT resultante de 'errors=coerce' aqui também virará None.
+                df_para_inserir.loc[to_process_mask, col_name] = parsed_dates.apply(tratar_data_para_utc)
 
-                df_para_inserir.loc[to_parse_indices, col_name] = parsed_dates.apply(tratar_data_para_utc)
-
+    # Última limpeza: substitui quaisquer NaT, np.nan, infinitos ou strings vazias remanescentes por None
+    # Esta é uma boa medida de segurança final.
     df_para_inserir = df_para_inserir.replace([np.nan, pd.NaT, np.inf, -np.inf, ""], None)
+    
     dados_para_insercao = df_para_inserir.to_dict(orient='records')
 
     insert_success = False
     inserted_ctrcs = []
 
-    for tentativa in range(2):
+    for tentativa in range(2): # Tenta inserir duas vezes em caso de falha temporária
         try:
             insert_response = supabase.table("cargas_geradas").insert(dados_para_insercao).execute()
             if insert_response and insert_response.data:
                 inserted_ctrcs = [r.get("Serie_Numero_CTRC") for r in insert_response.data if r.get("Serie_Numero_CTRC")]
                 insert_success = True
                 st.success(f"✅ {len(inserted_ctrcs)} entrega(s) adicionada(s) à Carga {numero_carga}.")
-                break
+                break # Sai do loop de tentativas se a inserção for bem-sucedida
         except Exception as e:
+            st.warning(f"Erro na tentativa {tentativa + 1} de inserção: {e}")
             if tentativa == 0:
-                time.sleep(1)
+                time.sleep(1) # Pequena pausa antes de tentar novamente
 
     if not insert_success:
         st.error(f"❌ Falha ao adicionar entregas à carga {numero_carga}.")
         return
 
+    # Deleta as entregas de 'pre_roterizacao' após a inserção bem-sucedida em 'cargas_geradas'
     if inserted_ctrcs:
         try:
+            # Calcula a interseção para garantir que apenas CTRCs realmente inseridos sejam deletados
             ctrcs_to_delete_from_pre = list(set(inserted_ctrcs).intersection(found_ctrc_in_pre_roterizacao))
             if ctrcs_to_delete_from_pre:
                 delete_response_pre = supabase.table("pre_roterizacao").delete().in_("Serie_Numero_CTRC", ctrcs_to_delete_from_pre).execute()
@@ -1356,6 +1402,7 @@ def adicionar_entregas_a_carga(ctrcs_selecionados, numero_carga_destino):
     else:
         st.warning("Nenhuma entrega foi realmente inserida para deletar da tabela de origem.")
 
+    # Força o recarregamento dos caches de estado da sessão para atualizar os grids
     st.session_state["reload_rotas_confirmadas"] = True
     st.session_state["reload_pre_roterizacao"] = True
     st.session_state["reload_cargas_geradas"] = True
@@ -1363,7 +1410,7 @@ def adicionar_entregas_a_carga(ctrcs_selecionados, numero_carga_destino):
     st.session_state.pop("df_rotas_confirmadas_cache", None)
     st.session_state.pop("df_cargas_cache", None)
 
-    st.rerun()
+    st.rerun() # Força uma nova execução do script para refletir as mudanças
 
 
 # ------------------------#############-------------------------------------------
