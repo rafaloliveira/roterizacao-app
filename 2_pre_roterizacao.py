@@ -3310,7 +3310,7 @@ def pagina_cargas_geradas():
                                     registros = df_remover.to_dict(orient="records")
 
                                     try:
-                                        insert_response = supabase.table("rotas_confirmadas").insert(registros).execute()
+                                        insert_response = supabase.table("pre_roterizacao").insert(registros).execute()
 
                                         if insert_response and hasattr(insert_response, 'error') and insert_response.error:
                                             error_details = insert_response.error
