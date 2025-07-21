@@ -2951,33 +2951,6 @@ def pagina_pre_roterizacao():
                 ctrcs_selecionados = selecionadas["Serie_Numero_CTRC"].dropna().astype(str).str.strip().tolist()
 
 
-                # 🔁 Tratamento de datas antes de enviar para cargas
-                date_cols_to_process = [
-                    "Previsao de Entrega",
-                    "Entrega Programada",
-                    "Data de Emissao",
-                    "Data de Autorizacao",
-                    "Data do Cancelamento",
-                    "Data do Escaneamento",
-                    "Data da Entrega Realizada",
-                    "Data da Ultima Ocorrencia",
-                    "Data de inclusao da Ultima Ocorrencia"
-                ]
-
-                for col_name in date_cols_to_process:
-                    # ✅ Corrigir "Entrega Programada" se AGENDAR e estiver vazia
-                    if col_name == "Entrega Programada" and "Status" in selecionadas.columns:
-                        selecionadas["Entrega Programada"] = selecionadas.apply(
-                            lambda row: None if row["Status"] == "AGENDAR" and not row["Entrega Programada"] else row["Entrega Programada"],
-                            axis=1
-                        )
-
-                    selecionadas[col_name] = pd.to_datetime(
-                        selecionadas[col_name],
-                        format=DATE_DISPLAY_FORMAT_STRING,
-                        errors='coerce'
-                    ).dt.strftime("%Y-%m-%d %H:%M:%S")
-
 
 
                 # ➕ Botão: Criar nova carga com entregas selecionadas
