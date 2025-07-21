@@ -2565,8 +2565,18 @@ def pagina_pre_roterizacao():
                     for col in colunas_data:
                         if col in entrega:
                             try:
-                                entrega[col] = pd.to_datetime(entrega[col], errors='coerce')
-                                entrega[col] = entrega[col].isoformat() if pd.notnull(entrega[col]) else None
+                                valor_original = entrega.get(col)
+
+                                # Preservar vazio se for AGENDAR sem data
+                                if col == "Entrega Programada" and entrega.get("Status") == "AGENDAR" and not valor_original:
+                                    entrega[col] = None
+                                else:
+                                    try:
+                                        entrega[col] = pd.to_datetime(valor_original, errors='coerce')
+                                        entrega[col] = entrega[col].isoformat() if pd.notnull(entrega[col]) else None
+                                    except Exception:
+                                        entrega[col] = None
+
                             except Exception:
                                 entrega[col] = None
 
@@ -2908,12 +2918,20 @@ def pagina_pre_roterizacao():
                 ]
 
                 for col_name in date_cols_to_process:
-                    if col_name in selecionadas.columns:
-                        selecionadas[col_name] = pd.to_datetime(
-                            selecionadas[col_name],
-                            format=DATE_DISPLAY_FORMAT_STRING,
-                            errors='coerce'
-                        ).dt.strftime("%Y-%m-%d %H:%M:%S")
+                    # ✅ Corrigir "Entrega Programada" se AGENDAR e estiver vazia
+                    if col_name == "Entrega Programada" and "Status" in selecionadas.columns:
+                        selecionadas["Entrega Programada"] = selecionadas.apply(
+                            lambda row: None if row["Status"] == "AGENDAR" and not row["Entrega Programada"] else row["Entrega Programada"],
+                            axis=1
+                        )
+
+                    selecionadas[col_name] = pd.to_datetime(
+                        selecionadas[col_name],
+                        format=DATE_DISPLAY_FORMAT_STRING,
+                        errors='coerce'
+                    ).dt.strftime("%Y-%m-%d %H:%M:%S")
+
+
 
                 # ➕ Botão: Criar nova carga com entregas selecionadas
                 if st.button(f"🟢 Gerar Carga com entregas da Rota {rota_predominante}", key=f"btn_nova_carga_rota_{rota_visual}"): 
@@ -3279,7 +3297,13 @@ def pagina_cargas_geradas():
                                     df_remover = pd.DataFrame(selecionadas)
                                     df_remover = df_remover.drop(columns=["_selectedRowNodeInfo"], errors="ignore")
 
-                                    df_remover = df_remover.drop(columns=["numero_carga"], errors="ignore")
+                                    # Recupera rota original, se presente
+                                    if "Rota_Original" in df_remover.columns:
+                                        df_remover["Rota"] = df_remover["Rota_Original"]
+
+                                    # Remove campos não relevantes para o retorno
+                                    df_remover = df_remover.drop(columns=["numero_carga", "Rota_Original"], errors="ignore")
+
 
                                     # >> BLOCO ROBUSTO DE TRATAMENTO DE DATAS <<
                                     for col_name in GLOBAL_DATE_DISPLAY_COLUMNS:
