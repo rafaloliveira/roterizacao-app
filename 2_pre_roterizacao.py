@@ -1262,6 +1262,7 @@ def tratar_data_para_utc(dt):
     if dt.tzinfo is None:
         dt = dt.tz_localize(FUSO_BRASIL) # Assume fuso local se não tiver timezone
     return dt.tz_convert("UTC").isoformat(timespec="seconds").replace("+00:00", "Z")
+
 # ------------------------#############-------------------------------------------
 def adicionar_entregas_a_carga(ctrcs_selecionados, numero_carga_destino):
     if not ctrcs_selecionados:
@@ -1336,12 +1337,7 @@ def adicionar_entregas_a_carga(ctrcs_selecionados, numero_carga_destino):
             # Aplica None para essas células que devem ser nulas
             df_para_inserir.loc[should_be_null, col_name] = None
     
-    # 5. Regra de Negócio Específica para 'Entrega Programada' com Status 'AGENDAR'
-    # Esta regra é crucial: se o status é 'AGENDAR', a Entrega Programada DEVE ser NULA.
-    # Esta linha garante que mesmo se, por algum motivo, uma data válida estivesse lá, ela seja anulada.
-    if "Entrega Programada" in df_para_inserir.columns and "Status" in df_para_inserir.columns:
-        agendar_condition = (df_para_inserir["Status"] == "AGENDAR") # Apenas o status é o que importa aqui
-        df_para_inserir.loc[agendar_condition, "Entrega Programada"] = None
+    
 
     # --- FIM DO NOVO BLOCO DE TRATAMENTO ROBUSTO ---
 
