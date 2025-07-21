@@ -2920,7 +2920,8 @@ def pagina_pre_roterizacao():
                     try:
                         numero_carga = gerar_proximo_numero_carga(supabase)
                         if numero_carga:
-                            adicionar_entregas_a_carga(chaves_cte, numero_carga)
+                            adicionar_entregas_a_carga(ctrcs_selecionados, numero_carga)
+
                         else:
                             st.error("Erro ao gerar número de carga.")
                     except Exception as e:
