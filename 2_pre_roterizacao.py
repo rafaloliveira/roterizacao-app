@@ -3311,6 +3311,7 @@ def pagina_cargas_geradas():
 
                                     try:
                                         insert_response = supabase.table("pre_roterizacao").insert(registros).execute()
+                                        st.session_state["reload_pre_roterizacao"] = True
 
                                         if insert_response and hasattr(insert_response, 'error') and insert_response.error:
                                             error_details = insert_response.error
