@@ -4627,7 +4627,7 @@ def pagina_cargas_fechadas():
                     df_formatado = df_formatado.replace([np.nan, None], "")
 
                     gb = GridOptionsBuilder.from_dataframe(df_formatado)
-                    gb.configure_default_column(minWidth=170)
+                    gb.configure_default_column(minWidth=140)
                     gb.configure_selection("multiple", use_checkbox=True)
                     gb.configure_grid_options(paginationPageSize=12)
                     gb.configure_grid_options(alwaysShowHorizontalScroll=True)
