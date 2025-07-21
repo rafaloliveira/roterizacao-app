@@ -4627,7 +4627,7 @@ def pagina_cargas_fechadas():
                     df_formatado = df_formatado.replace([np.nan, None], "")
 
                     gb = GridOptionsBuilder.from_dataframe(df_formatado)
-                    gb.configure_default_column(minWidth=90)
+                    gb.configure_default_column(minWidth=110)
                     gb.configure_selection("multiple", use_checkbox=True)
                     gb.configure_grid_options(paginationPageSize=12)
                     gb.configure_grid_options(alwaysShowHorizontalScroll=True)
@@ -4818,7 +4818,7 @@ if st.session_state.get("login", False):
             sub_tab_cargas_aprovadas, sub_tab_cargas_fechadas = st.tabs([
                 "Confirmar Produção", "Aprovação Diretoria", "Pré Roterização", 
                 "Cargas Geradas", "Aprovação de Custos", "Cargas Aprovadas",
-                "Cargas Fechadas"
+                "Cargas Encerradas"
 ])
         with sub_tab_confirmar_prod:
             pagina_confirmar_producao()
