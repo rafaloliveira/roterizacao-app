@@ -1547,7 +1547,7 @@ def aplicar_regras_e_preencher_tabelas():
         hoje = pd.to_datetime('today').normalize()
         obrigatorias = df[
             (df['Data de Embarque'] < hoje + pd.Timedelta(days=1)) |
-            ((df['Status'] == 'AGENDADA') & (df['Entrega Programada'].isna()))
+            ((df['Status'] == 'AGENDAR') & (df['Entrega Programada'].isna()))
         ].copy()
 
         confirmadas = df[~df['Serie_Numero_CTRC'].isin(obrigatorias['Serie_Numero_CTRC'])].copy()
