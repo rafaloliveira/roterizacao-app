@@ -2694,7 +2694,6 @@ def pagina_pre_roterizacao():
             except Exception as e:
                 st.error(f"Erro ao adicionar entregas: {e}")
 
-    df_visivel = pd.DataFrame() 
 
     # --- Bloco de carregamento de dados ---
     with st.spinner("🔄 Carregando dados das entregas..."):
@@ -2703,25 +2702,29 @@ def pagina_pre_roterizacao():
             dados_confirmados = pd.DataFrame()
 
             recarregar = st.session_state.pop("reload_pre_roterizacao", False)
-            if recarregar or "df_pre_roterizacao_cache" not in st.session_state:
-                df_total = carregar_base_supabase()
-                st.write(f"DEBUG: [pagina_pre_roterizacao] carregar_base_supabase() retornou {len(df_total)} linhas.")
-                st.session_state["df_pre_roterizacao_cache"] = df_total
+            
+            if recarregar or "df_pre_roterizacao_cache" not in st.session_state or \
+               (st.session_state.get("df_pre_roterizacao_cache") is not None and st.session_state["df_pre_roterizacao_cache"].empty):
+                st.write("DEBUG: [pagina_pre_roterizacao] Cache desativado, recarregar=True, ou cache vazio. Chamando carregar_base_supabase()...")
+                df_total = carregar_base_supabase() # Esta chamada retorna 192 linhas
+                st.write(f"DEBUG: [pagina_pre_roterizacao] carregar_base_supabase() retornou {len(df_total)} linhas. df_total.empty: {df_total.empty}") # <--- AQUI
+                st.session_state["df_pre_roterizacao_cache"] = df_total # Atualiza o cache com o resultado
 
-                # Força a invalidação das chaves dos grids
-                if recarregar:
+                # Invalida as chaves dos grids APENAS se um recarregamento explícito ocorreu E se df_total não está vazio
+                if recarregar and not df_total.empty:
                     for key in list(st.session_state.keys()):
                         if key.startswith("grid_pre_rota_"):
-                            st.session_state.pop(key, None)
-
+                            st.session_state.pop(key, None) # Remove a key para forçar reconstrução do grid
             else:
-                df_total = st.session_state["df_pre_roterizacao_cache"]
+                st.write("DEBUG: [pagina_pre_roterizacao] Usando dados do cache 'df_pre_roterizacao_cache'.")
+                df_total = st.session_state["df_pre_roterizacao_cache"] # Pega do cache
 
-          
-        
-                df_visivel = df_total.copy()
-                time.sleep(0.3) 
-                st.write(f"DEBUG: [pagina_pre_roterizacao] df_visivel tem {len(df_visivel)} linhas antes das verificações empty.")
+            df_visivel = df_total.copy() # Cria uma cópia para trabalhar na página
+
+            st.session_state['_pre_roterizacao_df_check'] = df_visivel
+            df_to_check = st.session_state['_pre_roterizacao_df_check']
+                
+            st.write(f"DEBUG: [pagina_pre_roterizacao] df_visivel tem {len(df_visivel)} linhas antes das verificações empty. df_visivel.empty: {df_visivel.empty}") # <--- E AQUI
 
         except Exception as e:
             st.error(f"Erro ao consultar as tabelas do Supabase: {e}")
