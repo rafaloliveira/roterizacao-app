@@ -1230,7 +1230,7 @@ def limpar_tabelas_relacionadas():
     # 'fBaseroter' já é limpa separadamente no início da pagina_sincronizacao
     tabelas_para_limpar_por_ctrc = [
         "confirmadas_producao", "aprovacao_diretoria", "pre_roterizacao",
-        "rotas_confirmadas", "cargas_geradas", "aprovacao_custos", "cargas_aprovadas"
+        "cargas_geradas", "aprovacao_custos", "cargas_aprovadas"
     ]
 
     for tabela in tabelas_para_limpar_por_ctrc:
@@ -2568,7 +2568,7 @@ def pagina_pre_roterizacao():
                     return
 
                 dados_pre = supabase.table("pre_roterizacao").select("*").execute().data or []
-                dados_rotas = supabase.table("rotas_confirmadas").select("*").execute().data or []
+            
                 dados_cargas = supabase.table("cargas_geradas").select("*").execute().data or []
 
                 entregas_ja_em_carga = {
@@ -2586,9 +2586,7 @@ def pagina_pre_roterizacao():
                     entrega = next((d for d in dados_pre if str(d.get("Chave CT-e", "")).strip() == chave), None)
                     origem = "pre_roterizacao"
 
-                    if not entrega:
-                        entrega = next((d for d in dados_rotas if str(d.get("Chave CT-e", "")).strip() == chave), None)
-                        origem = "rotas_confirmadas" if entrega else None
+                    
 
                     if not entrega:
                         st.warning(f"⚠️ Chave {chave} não encontrada ou já foi processada.")
@@ -2651,7 +2649,7 @@ def pagina_pre_roterizacao():
                 st.session_state["numero_nova_carga"] = ""
                 st.session_state["reload_pre_roterizacao"] = True
                 st.session_state["reload_cargas_geradas"] = True
-                st.session_state["reload_rotas_confirmadas"] = True
+               
                 st.rerun()
 
             except Exception as e:
@@ -2677,19 +2675,8 @@ def pagina_pre_roterizacao():
             else:
                 df_total = st.session_state["df_pre_roterizacao_cache"]
 
-            if recarregar or "df_pre_roterizacao_cache" not in st.session_state:
-                dados_confirmados_raw = supabase.table("rotas_confirmadas").select("Serie_Numero_CTRC").execute().data
-                dados_confirmados = pd.DataFrame(dados_confirmados_raw)
-                st.session_state["df_pre_roterizacao_cache"] = df_total
-                st.session_state["dados_confirmados_cache"] = dados_confirmados
-            else:
-                dados_confirmados = st.session_state.get("dados_confirmados_cache", pd.DataFrame())
-
-            if "Serie_Numero_CTRC" in df_aprovadas_diretoria.columns and "Serie_Numero_CTRC" in df_total.columns:
-                df_aprovadas_diretoria["Serie_Numero_CTRC"] = df_aprovadas_diretoria["Serie_Numero_CTRC"].astype(str)
-                df_total["Serie_Numero_CTRC"] = df_total["Serie_Numero_CTRC"].astype(str)
-                df_visivel = df_total[~df_total["Serie_Numero_CTRC"].isin(df_aprovadas_diretoria["Serie_Numero_CTRC"])]
-            else:
+          
+        
                 df_visivel = df_total.copy()
 
         except Exception as e:
@@ -3443,13 +3430,7 @@ def pagina_cargas_geradas():
                                     st.session_state.pop(checkbox_key, None)
 
                                     st.session_state["reload_cargas_geradas"] = True
-                                    st.session_state["reload_rotas_confirmadas"] = True
-
-                                    rotas_afetadas = df_remover["Rota"].dropna().unique()
-                                    for rota_afetada in rotas_afetadas:
-                                        grid_key_rotas_confirmadas = f"grid_rotas_confirmadas_{rota_afetada}"
-                                        if grid_key_rotas_confirmadas in st.session_state:
-                                            st.session_state.pop(grid_key_rotas_confirmadas, None)
+                                    
 
                                     st.success(f"✅ {len(chaves_para_deletar)} entrega(s) removida(s) da carga {carga} e retornada(s) para Rotas Confirmadas.")
 
