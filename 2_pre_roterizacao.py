@@ -62,6 +62,13 @@ from pathlib import Path
 from st_aggrid.shared import JsCode
 from decimal import Decimal, ROUND_HALF_UP, getcontext
 
+# Inicializa o estado da aba principal ativa (usando o rótulo da aba)
+if "active_main_tab_label" not in st.session_state:
+    st.session_state.active_main_tab_label = "Sincronização"
+
+# Inicializa o estado da sub-aba de operações ativa (usando o rótulo da sub-aba)
+if "active_operacoes_sub_tab_label" not in st.session_state:
+    st.session_state.active_operacoes_sub_tab_label = "Confirmar Produção"
 
 
 def aplicar_zoom_personalizado(percent=85):
@@ -215,12 +222,7 @@ def mover_entregas_para_outra_rota(ctrcs_selecionados, nova_rota_visual):
     except Exception as e:
         st.error(f"Erro ao mover entregas: {e}")
 
-# No topo do seu script, após os imports
-if "active_main_tab_idx" not in st.session_state:
-    st.session_state.active_main_tab_idx = 0 # 0 para "Sincronização"
 
-if "active_operacoes_sub_tab_idx" not in st.session_state:
-    st.session_state.active_operacoes_sub_tab_idx = 0 # 0 para "Confirmar Produção"
 #################################
 
 # LOGIN
@@ -4816,19 +4818,23 @@ def pagina_cargas_fechadas():
 
 # ========== EXECUÇÃO PRINCIPAL ========== #
 
-login()  # Garante que o usuário esteja logado
+# ==============================================================================
+# INÍCIO DO BLOCO DE EXECUÇÃO PRINCIPAL CORRIGIDO
+# ==============================================================================
 
-# Mostra welcome + botão sair no topo da página principal
+# Garante que o usuário esteja logado antes de mostrar as abas
+login()
+
 if st.session_state.get("login", False):
     col_welcome, col_logout = st.columns([10, 2])
     with col_welcome:
         st.markdown(f"�� **Bem-vindo, {st.session_state.get('username','Usuário')}!**")
     with col_logout:
         if st.button("🚪 Sair"):
+            # Ao sair, limpe os cookies e também as chaves de controle de abas do session_state
             for key in ["login", "username", "is_admin", "expiry_time", "classe"]:
-                if key in cookies: # Verifica se a chave existe antes de tentar apagar
+                if key in cookies:
                     cookies[key] = ""
-            # Limpe também as chaves de controle de abas do session_state ao deslogar
             if "active_main_tab_label" in st.session_state:
                 del st.session_state.active_main_tab_label
             if "active_operacoes_sub_tab_label" in st.session_state:
@@ -4837,64 +4843,65 @@ if st.session_state.get("login", False):
             st.rerun()
     st.markdown("---")
 
-    # Definir os rótulos das abas principais
+    # 1. Definir os rótulos das abas principais
     main_tab_labels = ["Sincronização", "Operações", "Administração e Configurações"]
 
-    # Determinar o índice inicial da aba principal
-    initial_main_tab_idx = 0
-    if st.session_state.active_main_tab_label in main_tab_labels:
-        initial_main_tab_idx = main_tab_labels.index(st.session_state.active_main_tab_label)
+    # 2. Determinar o índice inicial da aba principal
+    #    Verifica o valor salvo em session_state ou usa o padrão ("Sincronização")
+    current_main_tab_label_from_session = st.session_state.get("active_main_tab_label", "Sincronização")
+    # Garante que o valor obtido é válido para a lista de rótulos
+    if current_main_tab_label_from_session not in main_tab_labels:
+        current_main_tab_label_from_session = "Sincronização" # Fallback
+    initial_main_tab_idx = main_tab_labels.index(current_main_tab_label_from_session)
 
-    # Definir as abas principais com uma 'key' para gerenciar o estado em session_state
+    # 3. Criar as abas principais usando 'key' e 'index'
+    #    O 'key' armazena o rótulo da aba selecionada em st.session_state.main_tabs_selection_key
     tab_sync_obj, tab_operacoes_obj, tab_admin_settings_obj = st.tabs(
         main_tab_labels,
-        index=initial_main_tab_idx, # Define a aba inicial com base no estado salvo
-        key="main_tabs_selection_key" # Chave única para este conjunto de abas
+        index=initial_main_tab_idx, # Define a aba ativa com base no estado salvo
+        key="main_tabs_selection_key" # ESSENCIAL: Chave única para este conjunto de abas
     )
 
-    # O Streamlit automaticamente atualizará st.session_state.main_tabs_selection_key
-    # com o rótulo da aba selecionada (ex: "Sincronização", "Operações").
-    # Usaremos esse valor para controlar qual conteúdo exibir.
+    # 4. Obter o rótulo da aba selecionada pelo usuário (ou reativada pelo 'index')
     current_main_tab_label = st.session_state.main_tabs_selection_key
-
-    # Atualiza o estado salvo para uso futuro (após rerun)
+    # Atualiza o estado salvo para uso no próximo rerun
     st.session_state.active_main_tab_label = current_main_tab_label
 
-    # Renderiza o conteúdo da aba principal selecionada
+    # 5. Renderizar o conteúdo da aba principal selecionada (renderização condicional)
     if current_main_tab_label == "Sincronização":
         with tab_sync_obj:
             pagina_sincronizacao()
 
     elif current_main_tab_label == "Operações":
         with tab_operacoes_obj:
-            # Definir os rótulos das sub-abas de operações
+            # 1. Definir os rótulos das sub-abas de operações
             operacoes_sub_tab_labels = [
                 "Confirmar Produção", "Aprovação Diretoria", "Pré Roterização",
                 "Cargas Geradas", "Aprovação de Custos", "Cargas Aprovadas",
                 "Cargas Encerradas"
             ]
 
-            # Determinar o índice inicial da sub-aba de operações
-            initial_operacoes_sub_tab_idx = 0
-            if st.session_state.active_operacoes_sub_tab_label in operacoes_sub_tab_labels:
-                initial_operacoes_sub_tab_idx = operacoes_sub_tab_labels.index(st.session_state.active_operacoes_sub_tab_label)
+            # 2. Determinar o índice inicial da sub-aba de operações
+            current_operacoes_sub_tab_label_from_session = st.session_state.get("active_operacoes_sub_tab_label", "Confirmar Produção")
+            if current_operacoes_sub_tab_label_from_session not in operacoes_sub_tab_labels:
+                current_operacoes_sub_tab_label_from_session = "Confirmar Produção" # Fallback
+            initial_operacoes_sub_tab_idx = operacoes_sub_tab_labels.index(current_operacoes_sub_tab_label_from_session)
 
-            # Definir as sub-abas com uma 'key' para gerenciar o estado em session_state
+            # 3. Criar as sub-abas de operações usando 'key' e 'index'
             sub_tab_confirmar_prod_obj, sub_tab_aprov_dir_obj, sub_tab_pre_rot_obj, \
             sub_tab_cargas_obj, sub_tab_aprov_custos_obj, \
             sub_tab_cargas_aprovadas_obj, sub_tab_cargas_fechadas_obj = st.tabs(
                 operacoes_sub_tab_labels,
-                index=initial_operacoes_sub_tab_idx, # Define a sub-aba inicial com base no estado salvo
-                key="operacoes_sub_tabs_selection_key" # Chave única para este conjunto de sub-abas
+                index=initial_operacoes_sub_tab_idx, # Define a sub-aba ativa com base no estado salvo
+                key="operacoes_sub_tabs_selection_key" # ESSENCIAL: Chave única para este conjunto de sub-abas
             )
 
-            # O Streamlit atualizará st.session_state.operacoes_sub_tabs_selection_key
+            # 4. Obter o rótulo da sub-aba selecionada
             current_operacoes_sub_tab_label = st.session_state.operacoes_sub_tabs_selection_key
-
-            # Atualiza o estado salvo para uso futuro (após rerun)
+            # Atualiza o estado salvo para o próximo rerun
             st.session_state.active_operacoes_sub_tab_label = current_operacoes_sub_tab_label
 
-            # Renderiza o conteúdo da sub-aba selecionada
+            # 5. Renderizar o conteúdo da sub-aba selecionada (renderização condicional)
             if current_operacoes_sub_tab_label == "Confirmar Produção":
                 with sub_tab_confirmar_prod_obj:
                     pagina_confirmar_producao()
@@ -4928,10 +4935,10 @@ if st.session_state.get("login", False):
             pagina_trocar_senha()
 
 # Se o usuário não estiver logado, a função login() no início já teria parado o script.
-# Este bloco 'else' não é estritamente necessário aqui se o login() faz um st.stop()
-# Mas é uma boa prática para clareza.
 else:
-    # A página de login é exibida pela função login()
     pass # Nada a fazer aqui, pois o login() já cuida do acesso.
 
+# ==============================================================================
+# FIM DO BLOCO DE EXECUÇÃO PRINCIPAL CORRIGIDO
+# ==============================================================================
 
