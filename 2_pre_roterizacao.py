@@ -262,9 +262,9 @@ def login():
                 st.session_state.is_admin = usuario.get("is_admin", False)
                 st.session_state.classe = usuario.get("classe", "colaborador") # Armazena a classe no session_state
 
-                # --- NOVO: Define a página inicial desejada após login ---
-                st.session_state.active_main_tab = "Operações" # Mover para a aba principal 'Operações'
-                st.session_state.active_operacoes_sub_tab = "Cargas Geradas"  # Mover para a sub-aba 'Cargas Geradas'
+                # --- NOVO: Define a página inicial desejada após login, usando as novas chaves ---
+                st.session_state.active_main_tab_key = "operacoes_tab" # Aba principal 'Operações'
+                st.session_state.active_operacoes_sub_tab_key = "cargas_geradas_sub_tab" # Sub-aba 'Cargas Geradas'
                 # --- FIM DO NOVO ---
                 
                 # Verifica se o usuário precisa alterar a senha (se houver essa flag no banco)
@@ -276,10 +276,9 @@ def login():
                 st.success("✅ Login bem-sucedido!")
                 st.rerun() # Força um rerun para que a interface atualize e mostre as páginas principais
             else:
-                st.error("🔴 Usuário ou senha incorretos.")
+                st.error(" Usuário ou senha incorretos.")
 
     st.stop()
-
 
 # ========== PÁGINA: ALTERAR SENHA PRÓPRIA ========== #
 def pagina_trocar_senha():
@@ -1017,10 +1016,11 @@ if 'file_uploader_key' not in st.session_state:
     st.session_state.file_uploader_key = 0
 # --- Fim das inicializações ---
 # --- NOVAS INICIALIZAÇÕES DO SESSION_STATE PARA CONTROLE DAS ABAS ---
-if "active_main_tab" not in st.session_state:
-    st.session_state.active_main_tab = "Sincronização" # Define a aba principal inicial
-if "active_operacoes_sub_tab" not in st.session_state:
-    st.session_state.active_operacoes_sub_tab = "Confirmar Produção" # Define a sub-aba inicial de 'Operações'
+# Mapeia rótulos para chaves únicas para controle de estado
+if "active_main_tab_key" not in st.session_state:
+    st.session_state.active_main_tab_key = "sync_tab" # Chave da aba 'Sincronização' como padrão inicial
+if "active_operacoes_sub_tab_key" not in st.session_state:
+    st.session_state.active_operacoes_sub_tab_key = "confirmar_prod_sub_tab" # Chave da sub-aba 'Confirmar Produção' como padrão
 # --- FIM DAS NOVAS INICIALIZAÇÕES ---
 
 def pagina_sincronizacao():
@@ -4822,107 +4822,104 @@ login()  # Garante que o usuário esteja logado
 if st.session_state.get("login", False):
     col_welcome, col_logout = st.columns([10, 2]) # Ajuste as proporções das colunas conforme necessário
     with col_welcome:
-        st.markdown(f"�� **Bem-vindo, {st.session_state.get('username','Usuário')}!**")
+        st.markdown(f"👋 **Bem-vindo, {st.session_state.get('username','Usuário')}!**")
     with col_logout:
         if st.button("🚪 Sair"):
             # Limpar também o estado das abas
-            for key in ["login", "username", "is_admin", "expiry_time", "active_main_tab", "active_operacoes_sub_tab"]:
+            for key in ["login", "username", "is_admin", "expiry_time", "active_main_tab_key", "active_operacoes_sub_tab_key"]:
                 cookies[key] = ""
             st.session_state.login = False
             st.rerun()
     st.markdown("---") # Linha separadora para separar o cabeçalho das abas
 
-    # Definir as abas principais
+    # --- Definição das abas principais ---
     main_tab_labels = ["Sincronização", "Operações", "Administração e Configurações"]
-    
-    # Tentar obter o índice da aba ativa do session_state, com fallback para 0 (Sincronização)
+    main_tab_keys = ["sync_tab", "operacoes_tab", "admin_settings_tab"] # Chaves correspondentes
+
+    # Obtém o índice da aba ativa do session_state
     try:
-        default_main_index = main_tab_labels.index(st.session_state.active_main_tab)
+        default_main_index = main_tab_keys.index(st.session_state.active_main_tab_key)
     except ValueError:
-        default_main_index = 0 # Se por algum motivo o valor em active_main_tab for inválido, volta para a primeira aba
+        default_main_index = 0 # Fallback para a primeira aba se a chave for inválida
 
-    tab_sync, tab_operacoes, tab_admin_settings = st.tabs(main_tab_labels, default_index=default_main_index)
+    # Cria as abas principais COM A NOVA KEY
+    tab_sync, tab_operacoes_obj, tab_admin_settings_obj = st.tabs(
+        main_tab_labels, 
+        default_index=default_main_index,
+        key="main_tabs_container" # <--- CHAVE ÚNICA ADICIONADA AQUI
+    )
 
-    # --- ATUALIZA O ESTADO DA ABA PRINCIPAL SELECIONADA ---
-    # Isso é fundamental: Streamlit retorna o objeto da aba selecionada.
-    # Através do atributo _is_selected (que é True para a aba ativa),
-    # podemos determinar qual aba está selecionada e atualizar o session_state.
-    if tab_sync._is_selected:
-        st.session_state.active_main_tab = "Sincronização"
-    elif tab_operacoes._is_selected:
-        st.session_state.active_main_tab = "Operações"
-    elif tab_admin_settings._is_selected:
-        st.session_state.active_main_tab = "Administração e Configurações"
+    # --- Renderiza o conteúdo da aba principal ativa ---
+    # Dentro de cada bloco 'with', a primeira linha atualiza a chave da aba no session_state.
+    # Isso garante que, mesmo após um rerun (ex: do AgGrid), a aba correta será restaurada.
+    with tab_sync:
+        st.session_state.active_main_tab_key = main_tab_keys[0] # Define a chave desta aba como ativa
+        pagina_sincronizacao()
 
-    # --- RENDERIZA O CONTEÚDO DA ABA PRINCIPAL ATIVA ---
-    # O conteúdo é renderizado DEPOIS da atualização do session_state,
-    # garantindo que o default_index da próxima renderização (se houver rerun) seja o correto.
-    if st.session_state.active_main_tab == "Sincronização":
-        with tab_sync:
-            pagina_sincronizacao()
+    with tab_operacoes_obj:
+        st.session_state.active_main_tab_key = main_tab_keys[1] # Define a chave desta aba como ativa
 
-    elif st.session_state.active_main_tab == "Operações":
-        with tab_operacoes:
-            operacoes_sub_tab_labels = [
-                "Confirmar Produção", "Aprovação Diretoria", "Pré Roterização",
-                "Cargas Geradas", "Aprovação de Custos", "Cargas Aprovadas",
-                "Cargas Encerradas"
-            ]
-            
-            # Tentar obter o índice da sub-aba ativa do session_state
-            try:
-                default_sub_index = operacoes_sub_tab_labels.index(st.session_state.active_operacoes_sub_tab)
-            except ValueError:
-                default_sub_index = 0 # Fallback para a primeira sub-aba se inválido
+        # --- Definição das sub-abas de Operações ---
+        operacoes_sub_tab_labels = [
+            "Confirmar Produção", "Aprovação Diretoria", "Pré Roterização", 
+            "Cargas Geradas", "Aprovação de Custos", "Cargas Aprovadas",
+            "Cargas Encerradas"
+        ]
+        operacoes_sub_tab_keys = [
+            "confirmar_prod_sub_tab", "aprov_dir_sub_tab", "pre_rot_sub_tab",
+            "cargas_geradas_sub_tab", "aprov_custos_sub_tab", "cargas_aprovadas_sub_tab",
+            "cargas_fechadas_sub_tab"
+        ]
 
-            sub_tab_confirmar_prod, sub_tab_aprov_dir, sub_tab_pre_rot, \
-            sub_tab_cargas, sub_tab_aprov_custos, \
-            sub_tab_cargas_aprovadas, sub_tab_cargas_fechadas = st.tabs(operacoes_sub_tab_labels, default_index=default_sub_index)
+        # Obtém o índice da sub-aba ativa do session_state
+        try:
+            default_sub_index = operacoes_sub_tab_keys.index(st.session_state.active_operacoes_sub_tab_key)
+        except ValueError:
+            default_sub_index = 0 # Fallback para a primeira sub-aba se a chave for inválida
 
-            # --- ATUALIZA O ESTADO DA SUB-ABA SELECIONADA ---
-            if sub_tab_confirmar_prod._is_selected:
-                st.session_state.active_operacoes_sub_tab = "Confirmar Produção"
-            elif sub_tab_aprov_dir._is_selected:
-                st.session_state.active_operacoes_sub_tab = "Aprovação Diretoria"
-            elif sub_tab_pre_rot._is_selected:
-                st.session_state.active_operacoes_sub_tab = "Pré Roterização"
-            elif sub_tab_cargas._is_selected:
-                st.session_state.active_operacoes_sub_tab = "Cargas Geradas"
-            elif sub_tab_aprov_custos._is_selected:
-                st.session_state.active_operacoes_sub_tab = "Aprovação de Custos"
-            elif sub_tab_cargas_aprovadas._is_selected:
-                st.session_state.active_operacoes_sub_tab = "Cargas Aprovadas"
-            elif sub_tab_cargas_fechadas._is_selected:
-                st.session_state.active_operacoes_sub_tab = "Cargas Encerradas"
+        # Cria as sub-abas COM A NOVA KEY
+        sub_tab_confirmar_prod, sub_tab_aprov_dir, sub_tab_pre_rot, \
+        sub_tab_cargas, sub_tab_aprov_custos, \
+        sub_tab_cargas_aprovadas, sub_tab_cargas_fechadas = st.tabs(
+            operacoes_sub_tab_labels, 
+            default_index=default_sub_index,
+            key="operacoes_sub_tabs_container" # <--- CHAVE ÚNICA ADICIONADA AQUI
+        )
 
-            # --- RENDERIZA O CONTEÚDO DA SUB-ABA ATIVA ---
-            if st.session_state.active_operacoes_sub_tab == "Confirmar Produção":
-                pagina_confirmar_producao()
-            elif st.session_state.active_operacoes_sub_tab == "Aprovação Diretoria":
-                pagina_aprovacao_diretoria()
-            elif st.session_state.active_operacoes_sub_tab == "Pré Roterização":
-                pagina_pre_roterizacao()
-            elif st.session_state.active_operacoes_sub_tab == "Cargas Geradas":
-                pagina_cargas_geradas()
-            elif st.session_state.active_operacoes_sub_tab == "Aprovação de Custos":
-                pagina_aprovacao_custos()
-            elif st.session_state.active_operacoes_sub_tab == "Cargas Aprovadas":
-                pagina_cargas_aprovadas()
-            elif st.session_state.active_operacoes_sub_tab == "Cargas Encerradas":
-                pagina_cargas_fechadas()
+        # --- Renderiza o conteúdo de cada sub-aba de Operações ---
+        with sub_tab_confirmar_prod:
+            st.session_state.active_operacoes_sub_tab_key = operacoes_sub_tab_keys[0]
+            pagina_confirmar_producao()
+        with sub_tab_aprov_dir:
+            st.session_state.active_operacoes_sub_tab_key = operacoes_sub_tab_keys[1]
+            pagina_aprovacao_diretoria()
+        with sub_tab_pre_rot:
+            st.session_state.active_operacoes_sub_tab_key = operacoes_sub_tab_keys[2]
+            pagina_pre_roterizacao()
+        with sub_tab_cargas:
+            st.session_state.active_operacoes_sub_tab_key = operacoes_sub_tab_keys[3]
+            pagina_cargas_geradas()
+        with sub_tab_aprov_custos:
+            st.session_state.active_operacoes_sub_tab_key = operacoes_sub_tab_keys[4]
+            pagina_aprovacao_custos()
+        with sub_tab_cargas_aprovadas:
+            st.session_state.active_operacoes_sub_tab_key = operacoes_sub_tab_keys[5]
+            pagina_cargas_aprovadas()
+        with sub_tab_cargas_fechadas: 
+            st.session_state.active_operacoes_sub_tab_key = operacoes_sub_tab_keys[6]
+            pagina_cargas_fechadas()
 
-    elif st.session_state.active_main_tab == "Administração e Configurações":
-        with tab_admin_settings:
-            # Conteúdo da aba de Administração e Configurações
-            if st.session_state.get("is_admin", False):
-                st.subheader("Gerenciamento de Usuários")
-                pagina_gerenciar_usuarios()
-                st.markdown("---") # Separador visual
+    with tab_admin_settings_obj:
+        st.session_state.active_main_tab_key = main_tab_keys[2] # Define a chave desta aba como ativa
+        # Conteúdo da aba de Administração e Configurações
+        if st.session_state.get("is_admin", False):
+            st.subheader("Gerenciamento de Usuários")
+            pagina_gerenciar_usuarios()
+            st.markdown("---") # Separador visual
 
-            st.subheader("Alterar Minha Senha")
-            pagina_trocar_senha()
+        st.subheader("Alterar Minha Senha")
+        pagina_trocar_senha()
 
 else:
     # A página de login é exibida pela função login()
     pass # Nada a fazer aqui, pois o login() já cuida do acesso.
-
