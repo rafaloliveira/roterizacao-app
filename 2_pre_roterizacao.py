@@ -1543,10 +1543,11 @@ def aplicar_regras_e_preencher_tabelas():
         # Pré-roterização
         hoje = pd.to_datetime('today').normalize()
         obrigatorias = df[
-            (df['Data de Embarque'] < hoje + pd.Timedelta(days=1)) |
-            ((df['Status'] == 'AGENDAR') & (df['Entrega Programada'].isna())) |
-            (df['Entrega Programada'].notna()) # <--- Esta condição é crucial
-            
+            (df['Data de Embarque'] < hoje + pd.Timedelta(days=1)) | # Entregas com data de embarque até o dia atual (passadas ou hoje)
+            ((df['Status'] == 'AGENDAR') & (df['Entrega Programada'].isna())) | # Entregas com status 'AGENDAR' e sem 'Entrega Programada'
+            (df['Entrega Programada'].notna()) | # Entregas que JÁ possuem uma 'Entrega Programada'
+            # --- NOVA CONDIÇÃO ADICIONADA AQUI ---
+            (df['Codigo da Ultima Ocorrencia'].isin(['17', '39', '78', '79'])) # Entregas com códigos de ocorrência específicos
         ].copy()
 
         confirmadas = df[~df['Serie_Numero_CTRC'].isin(obrigatorias['Serie_Numero_CTRC'])].copy()
