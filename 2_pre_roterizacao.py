@@ -1393,13 +1393,8 @@ def adicionar_entregas_a_carga(ctrcs_selecionados, numero_carga_destino):
                                     # df_aprovar vem do AgGrid, então os valores estão em formato de string
                                     # (DD-MM-YYYY ou DD-MM-YYYY HH:MM:SS).
                                     # A função tratar_data_para_utc lida com isso.
-    for col_name in GLOBAL_DATE_DISPLAY_COLUMNS:
-        if col_name in df_aprovar.columns:
-            df_aprovar[col_name] = df_aprovar[col_name].apply(tratar_data_para_utc)
-            # tratar_data_para_utc já cuida do pd.to_datetime,
-            # localização de fuso horário e formatação ISO.
+    
 
-    df_aprovar = df_aprovar.replace([np.nan, pd.NaT, np.inf, -np.inf, ""], None)
     
     dados_para_insercao = df_para_inserir.to_dict(orient='records')
 
@@ -2979,7 +2974,6 @@ def pagina_pre_roterizacao():
 
                 chaves_cte = selecionadas["Chave CT-e"].dropna().astype(str).str.strip().tolist()
                 ctrcs_selecionados = selecionadas["Serie_Numero_CTRC"].dropna().astype(str).str.strip().tolist()
-
 
 
 
