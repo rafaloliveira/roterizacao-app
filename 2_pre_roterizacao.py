@@ -2705,6 +2705,7 @@ def pagina_pre_roterizacao():
             recarregar = st.session_state.pop("reload_pre_roterizacao", False)
             if recarregar or "df_pre_roterizacao_cache" not in st.session_state:
                 df_total = carregar_base_supabase()
+                st.write(f"DEBUG: [pagina_pre_roterizacao] carregar_base_supabase() retornou {len(df_total)} linhas.")
                 st.session_state["df_pre_roterizacao_cache"] = df_total
 
                 # Força a invalidação das chaves dos grids
@@ -2719,6 +2720,7 @@ def pagina_pre_roterizacao():
           
         
                 df_visivel = df_total.copy()
+                st.write(f"DEBUG: [pagina_pre_roterizacao] df_visivel tem {len(df_visivel)} linhas antes das verificações empty.")
 
         except Exception as e:
             st.error(f"Erro ao consultar as tabelas do Supabase: {e}")
@@ -2726,6 +2728,7 @@ def pagina_pre_roterizacao():
 
         if df_visivel.empty:
             st.info("Nenhuma entrega disponível.")
+            st.write("DEBUG: [pagina_pre_roterizacao] df_visivel está vazio. Exibindo mensagem e retornando.")
             return
 
         
