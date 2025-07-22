@@ -834,6 +834,7 @@ def carregar_base_supabase():
                 base[col] = pd.to_datetime(base[col], errors='coerce')
                 base[col] = base[col].dt.strftime("%d-%m-%Y").fillna("")
 
+
         # --- DEBUG FINAL: Antes de retornar ---
         st.write(f"DEBUG: [carregar_base_supabase] Linhas antes de retornar (base final): {len(base)}")
         return base
@@ -1263,13 +1264,11 @@ def tratar_data_para_utc(valor):
     if pd.isna(valor):
         return None
 
-    # ✅ Se já for datetime válido, converte para UTC direto
     if isinstance(valor, (pd.Timestamp, datetime)):
         if valor.tzinfo is None:
             valor = valor.tz_localize("America/Sao_Paulo")
         return valor.tz_convert("UTC").isoformat()
 
-    # ✅ Tenta converter string em datetime apenas se necessário
     if isinstance(valor, str):
         try:
             valor = pd.to_datetime(valor, errors='coerce', dayfirst=True)
@@ -1280,7 +1279,8 @@ def tratar_data_para_utc(valor):
         except:
             return None
 
-    return None  # Valor inesperado
+    return None
+
 
 
 # ------------------------#############-------------------------------------------
@@ -1331,16 +1331,17 @@ def adicionar_entregas_a_carga(ctrcs_selecionados, numero_carga_destino):
     # --- BLOCO DE TRATAMENTO ROBUSTO PARA DATAS ---
     strict_date_cols = ["Previsao de Entrega", "Entrega Programada"]
 
+    strict_date_cols = ["Previsao de Entrega", "Entrega Programada"]
+
     for col_name in strict_date_cols:
         if col_name in df_para_inserir.columns:
-            # 1. Converte para datetime com dayfirst=True (formato brasileiro)
+            # Converte para datetime com formato brasileiro
             df_para_inserir[col_name] = pd.to_datetime(df_para_inserir[col_name], errors='coerce', dayfirst=True)
-
-            # 2. Define como None valores claramente inválidos (NaT)
+            # Substitui NaT por None
             df_para_inserir[col_name] = df_para_inserir[col_name].where(df_para_inserir[col_name].notna(), None)
-
-            # 3. Converte datas válidas para UTC ISO 8601
+            # Converte para UTC ISO 8601
             df_para_inserir[col_name] = df_para_inserir[col_name].apply(tratar_data_para_utc)
+
     # --- FIM DO BLOCO DE TRATAMENTO DE DATAS ---
 
     dados_para_insercao = df_para_inserir.to_dict(orient='records')
