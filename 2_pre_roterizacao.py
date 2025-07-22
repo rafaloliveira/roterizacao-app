@@ -595,6 +595,7 @@ def load_and_prepare_data(uploaded_file):
         for col in date_columns:
             if col in df.columns:
                 df[col] = pd.to_datetime(df[col], format='%d-%m-%Y', errors='coerce')
+                df[col] = pd.to_datetime(df[col], dayfirst=True, errors='coerce') 
                 df[col] = df[col].apply(lambda x: x.strftime('%Y-%m-%d') if pd.notnull(x) else None)
 
 
@@ -829,7 +830,7 @@ def carregar_base_supabase():
             return pd.DataFrame() # Retorna vazio se a chave primária essencial estiver faltando
 
         # Formata datas para exibição (Isto é feito APENAS para exibição, não afeta o DataFrame subjacente para cálculos)
-        for col in ["Previsao de Entrega", "Entrega Programada"]:
+        for col in ["Previsao de Entrega", "Entrega Programada", "Data de Emissao"]:
             if col in base.columns:
                 base[col] = pd.to_datetime(base[col], errors='coerce')
                 base[col] = base[col].dt.strftime("%d-%m-%Y").fillna("")
