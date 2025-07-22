@@ -2655,6 +2655,8 @@ def pagina_pre_roterizacao():
             except Exception as e:
                 st.error(f"Erro ao adicionar entregas: {e}")
 
+    df_visivel = pd.DataFrame() 
+
     # --- Bloco de carregamento de dados ---
     with st.spinner("🔄 Carregando dados das entregas..."):
         try:
