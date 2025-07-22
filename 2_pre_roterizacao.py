@@ -1304,9 +1304,9 @@ def tratar_data_para_utc(valor):
 
 # ------------------------#############-------------------------------------------
 def adicionar_entregas_a_carga(ctrcs_selecionados, numero_carga_destino): 
-    st.write("DEBUG: Função 'adicionar_entregas_a_carga' iniciada.")
-    st.write(f"DEBUG: Número da Carga Destino: {numero_carga_destino}")
-    st.write(f"DEBUG: CTRCs selecionados para adição: {ctrcs_selecionados[:5]}...")
+    #st.write("DEBUG: Função 'adicionar_entregas_a_carga' iniciada.")
+    #st.write(f"DEBUG: Número da Carga Destino: {numero_carga_destino}")
+    #st.write(f"DEBUG: CTRCs selecionados para adição: {ctrcs_selecionados[:5]}...")
 
     if not ctrcs_selecionados:
         st.warning("⚠️ Nenhum CTRC selecionado.")
@@ -2667,9 +2667,9 @@ def pagina_pre_roterizacao():
             
             if recarregar or "df_pre_roterizacao_cache" not in st.session_state or \
                (st.session_state.get("df_pre_roterizacao_cache") is not None and st.session_state["df_pre_roterizacao_cache"].empty):
-                st.write("DEBUG: [pagina_pre_roterizacao] Cache desativado, recarregar=True, ou cache vazio. Chamando carregar_base_supabase()...")
+                #st.write("DEBUG: [pagina_pre_roterizacao] Cache desativado, recarregar=True, ou cache vazio. Chamando carregar_base_supabase()...")
                 df_total = carregar_base_supabase() # Esta chamada retorna 192 linhas
-                st.write(f"DEBUG: [pagina_pre_roterizacao] carregar_base_supabase() retornou {len(df_total)} linhas. df_total.empty: {df_total.empty}") # <--- AQUI
+                #st.write(f"DEBUG: [pagina_pre_roterizacao] carregar_base_supabase() retornou {len(df_total)} linhas. df_total.empty: {df_total.empty}") # <--- AQUI
                 st.session_state["df_pre_roterizacao_cache"] = df_total # Atualiza o cache com o resultado
 
                 # Invalida as chaves dos grids APENAS se um recarregamento explícito ocorreu E se df_total não está vazio
@@ -2678,7 +2678,7 @@ def pagina_pre_roterizacao():
                         if key.startswith("grid_pre_rota_"):
                             st.session_state.pop(key, None) # Remove a key para forçar reconstrução do grid
             else:
-                st.write("DEBUG: [pagina_pre_roterizacao] Usando dados do cache 'df_pre_roterizacao_cache'.")
+                #st.write("DEBUG: [pagina_pre_roterizacao] Usando dados do cache 'df_pre_roterizacao_cache'.")
                 df_total = st.session_state["df_pre_roterizacao_cache"] # Pega do cache
 
             df_visivel = df_total.copy() # Cria uma cópia para trabalhar na página
@@ -2686,7 +2686,7 @@ def pagina_pre_roterizacao():
             st.session_state['_pre_roterizacao_df_check'] = df_visivel
             df_to_check = st.session_state['_pre_roterizacao_df_check']
                 
-            st.write(f"DEBUG: [pagina_pre_roterizacao] df_visivel tem {len(df_visivel)} linhas antes das verificações empty. df_visivel.empty: {df_visivel.empty}") # <--- E AQUI
+            #st.write(f"DEBUG: [pagina_pre_roterizacao] df_visivel tem {len(df_visivel)} linhas antes das verificações empty. df_visivel.empty: {df_visivel.empty}") # <--- E AQUI
 
         except Exception as e:
             st.error(f"Erro ao consultar as tabelas do Supabase: {e}")
@@ -2694,7 +2694,7 @@ def pagina_pre_roterizacao():
 
         if df_visivel.empty:
             st.info("Nenhuma entrega disponível.")
-            st.write("DEBUG: [pagina_pre_roterizacao] df_visivel está vazio. Exibindo mensagem e retornando.")
+            #st.write("DEBUG: [pagina_pre_roterizacao] df_visivel está vazio. Exibindo mensagem e retornando.")
             return
 
         
@@ -2947,8 +2947,8 @@ def pagina_pre_roterizacao():
                 # ➕ Botão: Criar nova carga com entregas selecionadas
                 if st.button(f"🟢 Gerar Carga com entregas da Rota {rota_predominante}", key=f"btn_nova_carga_rota_{rota_visual}"):
                     try:
-                        st.write("DEBUG: Botão 'Gerar Carga' clicado.")
-                        st.write(f"DEBUG: CTRCs selecionados recebidos: {ctrcs_selecionados[:5]}...") # Mostra os primeiros 5 CTRCs
+                        #st.write("DEBUG: Botão 'Gerar Carga' clicado.")
+                        #st.write(f"DEBUG: CTRCs selecionados recebidos: {ctrcs_selecionados[:5]}...") # Mostra os primeiros 5 CTRCs
                         numero_carga = gerar_proximo_numero_carga(supabase)
                         if numero_carga:
                             adicionar_entregas_a_carga(ctrcs_selecionados, numero_carga)
