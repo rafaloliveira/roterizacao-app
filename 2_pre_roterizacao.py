@@ -649,7 +649,8 @@ def criar_grid_destacado(df, key, selection_mode="multiple", page_size=500, altu
             (!params.data["Entrega Programada"] || params.data["Entrega Programada"].trim() === '')
         ) {
             return {
-                'backgroundColor': '#fff3cd',
+                'backgroundColor': '#FFA500', // LARANJA FORTE
+                'color': '#000', // Texto preto para contraste
                 'fontWeight': 'bold'
             }
         }
@@ -1956,11 +1957,11 @@ def pagina_confirmar_producao():
         const isEntregaEmpty = !entrega || (typeof entrega === 'string' && entrega.trim() === '');
 
         if (status === 'AGENDAR' && isEntregaEmpty) {
-            return { 'background-color': '#ffff00', 'color': '#333' }; // Amarelo puro para "AGENDAR" sem data
+            return { 'background-color': '#FFA500', 'color': '#000' }; // LARANJA FORTE
         }
 
         if (particularidade && typeof particularidade === 'string' && particularidade.trim() !== "") {
-            return { 'background-color': '#bc8f8f', 'color': '#fff' }; // Rosado escuro para "Particularidade"
+            return { 'background-color': '#FFFF00', 'color': '#000' }; // AMARELO FORTE
         }
 
         return null;
@@ -3282,10 +3283,10 @@ def pagina_cargas_geradas():
                             const entregaProg = params.data["Entrega Programada"];
                             const particularidade = params.data.Particularidade;
                             if (status === "AGENDAR" && (!entregaProg || entregaProg.trim() === "")) {
-                                return { 'background-color': '#ffe0b2', 'color': '#333' };
+                                return { 'background-color': '#FFA500', 'color': '#000' }; // LARANJA FORTE
                             }
                             if (particularidade && particularidade.trim() !== "") {
-                                return { 'background-color': '#fff59d', 'color': '#333' };
+                                return { 'background-color': '#FFFF00', 'color': '#000' }; // AMARELO FORTE
                             }
                             return null;
                         }
