@@ -2713,12 +2713,10 @@ def pagina_pre_roterizacao():
             st.write(f"DEBUG PRE_ROT POS_RECARREGAR: active_main_tab_key={st.session_state.get('active_main_tab_key')}, recarregar={recarregar}")
             
             if recarregar or "df_pre_roterizacao_cache" not in st.session_state or \
-               (st.session_state.get("df_pre_roterizacao_cache") is not None and st.session_state["df_pre_roterizacao_cache"].empty):
+            (st.session_state.get("df_pre_roterizacao_cache") is not None and st.session_state["df_pre_roterizacao_cache"].empty):
                 #st.write("DEBUG: [pagina_pre_roterizacao] Cache desativado, recarregar=True, ou cache vazio. Chamando carregar_base_supabase()...")
-                df_total = carregar_base_supabase() # Esta chamada retorna 192 linhas
-                
-                #st.write(f"DEBUG: [pagina_pre_roterizacao] carregar_base_supabase() retornou {len(df_total)} linhas. df_total.empty: {df_total.empty}") # <--- AQUI
-                st.session_state["df_pre_roterizacao_cache"] = df_total # Atualiza o cache com o resultado
+                df_total = carregar_base_supabase()
+                st.session_state["df_pre_roterizacao_cache"] = df_total
 
                 # Invalida as chaves dos grids APENAS se um recarregamento explícito ocorreu E se df_total não está vazio
                 if recarregar and not df_total.empty:
@@ -2738,8 +2736,7 @@ def pagina_pre_roterizacao():
             st.session_state['_pre_roterizacao_df_check'] = df_visivel  
             df_to_check = st.session_state['_pre_roterizacao_df_check']
                 
-            #st.write(f"DEBUG: [pagina_pre_roterizacao] df_visivel tem {len(df_visivel)} linhas antes das verificações empty. df_visivel.empty: {df_visivel.empty}") # <--- E AQUI
-
+            
         except Exception as e:
             st.error(f"Erro ao consultar as tabelas do Supabase: {e}")
             # LOG: Se houver erro ao carregar dados
@@ -4833,57 +4830,110 @@ def pagina_cargas_fechadas():
 login()  # Garante que o usuário esteja logado
 
 # Mostra welcome + botão sair no topo da página principal
+# ... (Seu código antes do loop principal, incluindo login() e o welcome/logout) ...
+
 if st.session_state.get("login", False):
-    col_welcome, col_logout = st.columns([10, 2]) # Ajuste as proporções das colunas conforme necessário
+    col_welcome, col_logout = st.columns([10, 2])
     with col_welcome:
         st.markdown(f"👋 **Bem-vindo, {st.session_state.get('username','Usuário')}!**")
     with col_logout:
         if st.button("🚪 Sair"):
-            for key in ["login", "username", "is_admin", "expiry_time"]:
-                cookies[key] = ""
+            for key in ["login", "username", "is_admin", "expiry_time", "active_main_tab_key", "active_operacoes_sub_tab_key"]:
+                cookies[key] = "" # Limpa também as chaves de controle de abas nos cookies
             st.session_state.login = False
             st.rerun()
-    st.markdown("---") # Linha separadora para separar o cabeçalho das abas
+    st.markdown("---")
 
-    # Definir as abas principais
-    # Adicionei uma aba para "Administração e Configurações" para agrupar as opções de usuário.
-    tab_sync, tab_operacoes, tab_admin_settings = st.tabs(["Sincronização", "Operações", "Administração e Configurações"])
+    # --- Funções de callback para atualizar o session_state nas abas ---
+    def set_main_tab():
+        # st.session_state.main_tabs é a chave automática gerada pelo st.tabs
+        st.session_state.active_main_tab_key = st.session_state.main_tabs
+        # Quando a aba principal muda, resetamos a sub-aba para um padrão (ex: 'Confirmar Produção')
+        if st.session_state.active_main_tab_key == "operacoes_tab":
+             st.session_state.active_operacoes_sub_tab_key = "confirmar_prod_sub_tab"
+        
+    def set_operacoes_sub_tab():
+        st.session_state.active_operacoes_sub_tab_key = st.session_state.operacoes_sub_tabs
+    # --- Fim das funções de callback ---
+
+    # Mapeamento de chaves para rótulos para as abas principais
+    main_tabs_keys = ["sync_tab", "operacoes_tab", "admin_settings_tab"]
+    main_tab_labels = ["Sincronização", "Operações", "Administração e Configurações"]
+    
+    # Encontra o índice da aba principal ativa no session_state
+    current_main_tab_index = main_tabs_keys.index(st.session_state.active_main_tab_key) if st.session_state.active_main_tab_key in main_tabs_keys else 0
+
+    tab_sync, tab_operacoes, tab_admin_settings = st.tabs(
+        main_tab_labels,
+        key="main_tabs", # Use uma key única para o widget st.tabs principal
+        default_index=current_main_tab_index,
+        on_change=set_main_tab # Chama a função de callback quando a aba principal é alterada
+    )
 
     with tab_sync:
-        pagina_sincronizacao()
+        # Apenas renderiza o conteúdo se esta for a aba ativa
+        if st.session_state.active_main_tab_key == "sync_tab":
+            pagina_sincronizacao()
 
-        with tab_operacoes:
-            sub_tab_confirmar_prod, sub_tab_aprov_dir, sub_tab_pre_rot, \
-            sub_tab_cargas, sub_tab_aprov_custos, \
-            sub_tab_cargas_aprovadas, sub_tab_cargas_fechadas = st.tabs([
+    with tab_operacoes:
+        # Apenas renderiza o conteúdo se esta for a aba ativa
+        if st.session_state.active_main_tab_key == "operacoes_tab":
+            operacoes_sub_tabs_keys = [
+                "confirmar_prod_sub_tab", "aprov_dir_sub_tab", "pre_rot_sub_tab", 
+                "cargas_geradas_sub_tab", "aprov_custos_sub_tab", "cargas_aprovadas_sub_tab",
+                "cargas_fechadas_sub_tab"
+            ]
+            operacoes_sub_tab_labels = [
                 "Confirmar Produção", "Aprovação Diretoria", "Pré Roterização", 
                 "Cargas Geradas", "Aprovação de Custos", "Cargas Aprovadas",
                 "Cargas Encerradas"
-])
-        with sub_tab_confirmar_prod:
-            pagina_confirmar_producao()
-        with sub_tab_aprov_dir:
-            pagina_aprovacao_diretoria()
-        with sub_tab_pre_rot:
-            pagina_pre_roterizacao()
-        with sub_tab_cargas:
-            pagina_cargas_geradas()
-        with sub_tab_aprov_custos:
-            pagina_aprovacao_custos()
-        with sub_tab_cargas_aprovadas:
-            pagina_cargas_aprovadas()
-        with sub_tab_cargas_fechadas: 
-            pagina_cargas_fechadas()
+            ]
+
+            # Encontra o índice da sub-aba ativa no session_state
+            current_operacoes_sub_tab_index = operacoes_sub_tabs_keys.index(st.session_state.active_operacoes_sub_tab_key) if st.session_state.active_operacoes_sub_tab_key in operacoes_sub_tabs_keys else 0
+
+            sub_tab_confirmar_prod, sub_tab_aprov_dir, sub_tab_pre_rot, \
+            sub_tab_cargas, sub_tab_aprov_custos, \
+            sub_tab_cargas_aprovadas, sub_tab_cargas_fechadas = st.tabs(
+                operacoes_sub_tab_labels,
+                key="operacoes_sub_tabs", # Use uma key única para o widget st.tabs das sub-abas
+                default_index=current_operacoes_sub_tab_index,
+                on_change=set_operacoes_sub_tab # Chama a função de callback quando a sub-aba é alterada
+            )
+            
+            # Use 'if/elif' para renderizar o conteúdo da sub-aba correta
+            if st.session_state.active_operacoes_sub_tab_key == "confirmar_prod_sub_tab":
+                with sub_tab_confirmar_prod:
+                    pagina_confirmar_producao()
+            elif st.session_state.active_operacoes_sub_tab_key == "aprov_dir_sub_tab":
+                with sub_tab_aprov_dir:
+                    pagina_aprovacao_diretoria()
+            elif st.session_state.active_operacoes_sub_tab_key == "pre_rot_sub_tab":
+                with sub_tab_pre_rot:
+                    pagina_pre_roterizacao()
+            elif st.session_state.active_operacoes_sub_tab_key == "cargas_geradas_sub_tab":
+                with sub_tab_cargas:
+                    pagina_cargas_geradas()
+            elif st.session_state.active_operacoes_sub_tab_key == "aprov_custos_sub_tab":
+                with sub_tab_aprov_custos:
+                    pagina_aprovacao_custos()
+            elif st.session_state.active_operacoes_sub_tab_key == "cargas_aprovadas_sub_tab":
+                with sub_tab_cargas_aprovadas:
+                    pagina_cargas_aprovadas()
+            elif st.session_state.active_operacoes_sub_tab_key == "cargas_fechadas_sub_tab": 
+                with sub_tab_cargas_fechadas:
+                    pagina_cargas_fechadas()
 
     with tab_admin_settings:
-        # Conteúdo da aba de Administração e Configurações
-        if st.session_state.get("is_admin", False):
-            st.subheader("Gerenciamento de Usuários")
-            pagina_gerenciar_usuarios()
-            st.markdown("---") # Separador visual
+        if st.session_state.active_main_tab_key == "admin_settings_tab":
+            if st.session_state.get("is_admin", False):
+                st.subheader("Gerenciamento de Usuários")
+                pagina_gerenciar_usuarios()
+                st.markdown("---")
+            st.subheader("Alterar Minha Senha")
+            pagina_trocar_senha()
 
-        st.subheader("Alterar Minha Senha")
-        pagina_trocar_senha()
+# ... (Seu código final 'else: pass') ...
 
 # Se o usuário não estiver logado, a função login() no início já teria parado o script.
 # Este bloco 'else' não é estritamente necessário aqui se o login() faz um st.stop()
