@@ -62,13 +62,6 @@ from pathlib import Path
 from st_aggrid.shared import JsCode
 from decimal import Decimal, ROUND_HALF_UP, getcontext
 
-# Inicializa o estado da aba principal ativa (usando o rótulo da aba)
-if "active_main_tab_label" not in st.session_state:
-    st.session_state.active_main_tab_label = "Sincronização"
-
-# Inicializa o estado da sub-aba de operações ativa (usando o rótulo da sub-aba)
-if "active_operacoes_sub_tab_label" not in st.session_state:
-    st.session_state.active_operacoes_sub_tab_label = "Confirmar Produção"
 
 
 def aplicar_zoom_personalizado(percent=85):
@@ -4818,121 +4811,66 @@ def pagina_cargas_fechadas():
 
 # ========== EXECUÇÃO PRINCIPAL ========== #
 
-# ==============================================================================
-# INÍCIO DO BLOCO DE EXECUÇÃO PRINCIPAL CORRIGIDO
-# ==============================================================================
+login()  # Garante que o usuário esteja logado
 
-# Trecho de SUBSTITUIÇÃO - INÍCIO (Cole este bloco completo no lugar do bloco "Trecho EXISTENTE")
-
-# A função login() deve ser chamada ANTES deste bloco para garantir que o usuário esteja logado
-login()
-
-# Verifica se o usuário está logado
+# Mostra welcome + botão sair no topo da página principal
 if st.session_state.get("login", False):
-    col_welcome, col_logout = st.columns([10, 2])
+    col_welcome, col_logout = st.columns([10, 2]) # Ajuste as proporções das colunas conforme necessário
     with col_welcome:
         st.markdown(f"👋 **Bem-vindo, {st.session_state.get('username','Usuário')}!**")
     with col_logout:
         if st.button("🚪 Sair"):
-            # Ao sair, limpe os cookies e também as chaves de controle de abas do session_state
-            for key in ["login", "username", "is_admin", "expiry_time", "classe"]:
-                if key in cookies:
-                    cookies[key] = ""
-            if "active_main_tab_label" in st.session_state:
-                del st.session_state.active_main_tab_label
-            if "active_operacoes_sub_tab_label" in st.session_state:
-                del st.session_state.active_operacoes_sub_tab_label
+            for key in ["login", "username", "is_admin", "expiry_time"]:
+                cookies[key] = ""
             st.session_state.login = False
             st.rerun()
-    st.markdown("---")
+    st.markdown("---") # Linha separadora para separar o cabeçalho das abas
 
-    # 1. Definir os rótulos das abas principais
-    main_tab_labels = ["Sincronização", "Operações", "Administração e Configurações"]
+    # Definir as abas principais
+    # Adicionei uma aba para "Administração e Configurações" para agrupar as opções de usuário.
+    tab_sync, tab_operacoes, tab_admin_settings = st.tabs(["Sincronização", "Operações", "Administração e Configurações"])
 
-    # 2. Determinar o índice inicial da aba principal
-    #    Verifica o valor salvo em session_state ou usa o padrão ("Sincronização")
-    current_main_tab_label_from_session = st.session_state.get("active_main_tab_label", "Sincronização")
-    # Garante que o valor obtido é válido para a lista de rótulos
-    if current_main_tab_label_from_session not in main_tab_labels:
-        current_main_tab_label_from_session = "Sincronização" # Fallback
-    initial_main_tab_idx = main_tab_labels.index(current_main_tab_label_from_session)
-
-    # --- INÍCIO DO BLOCO DE DEBUG ---
-    st.write(f"DEBUG: main_tab_labels: {main_tab_labels} (type: {type(main_tab_labels)})")
-    st.write(f"DEBUG: initial_main_tab_idx: {initial_main_tab_idx} (type: {type(initial_main_tab_idx)})")
-    st.write(f"DEBUG: st.session_state.active_main_tab_label: {st.session_state.get('active_main_tab_label', 'NOT_SET')} (type: {type(st.session_state.get('active_main_tab_label'))})")
-    # --- FIM DO BLOCO DE DEBUG ---
-    selected_main_tab_label = st.tabs(
-        main_tab_labels,
-        index=initial_main_tab_idx, # Define a aba ativa com base no estado salvo
-        key="main_tabs_selection_key" # ESSENCIAL: Chave única para este conjunto de abas
-    )
-
-    # 4. Obter o rótulo da aba selecionada pelo usuário (ou reativada pelo 'index')
-    current_main_tab_label = st.session_state.main_tabs_selection_key
-    # Atualiza o estado salvo para uso no próximo rerun
-    st.session_state.active_main_tab_label = current_main_tab_label
-
-    # 5. Renderizar o conteúdo da aba principal selecionada (renderização condicional)
-    if current_main_tab_label == "Sincronização":
-        # Não há 'with' block aqui, chamamos a função diretamente
+    with tab_sync:
         pagina_sincronizacao()
 
-    elif current_main_tab_label == "Operações":
-        # 1. Definir os rótulos das sub-abas de operações
-        operacoes_sub_tab_labels = [
-            "Confirmar Produção", "Aprovação Diretoria", "Pré Roterização",
-            "Cargas Geradas", "Aprovação de Custos", "Cargas Aprovadas",
-            "Cargas Encerradas"
-        ]
-
-        # 2. Determinar o índice inicial da sub-aba de operações
-        current_operacoes_sub_tab_label_from_session = st.session_state.get("active_operacoes_sub_tab_label", "Confirmar Produção")
-        if current_operacoes_sub_tab_label_from_session not in operacoes_sub_tab_labels:
-            current_operacoes_sub_tab_label_from_session = "Confirmar Produção" # Fallback
-        initial_operacoes_sub_tab_idx = operacoes_sub_tab_labels.index(current_operacoes_sub_tab_label_from_session)
-
-        # 3. Criar as sub-abas de operações usando 'key' e 'index'
-        selected_operacoes_sub_tab_label = st.tabs(
-            operacoes_sub_tab_labels,
-            index=initial_operacoes_sub_tab_idx, # Define a sub-aba ativa com base no estado salvo
-            key="operacoes_sub_tabs_selection_key" # ESSENCIAL: Chave única para este conjunto de sub-abas
-        )
-
-        # 4. Obter o rótulo da sub-aba selecionada
-        current_operacoes_sub_tab_label = st.session_state.operacoes_sub_tabs_selection_key
-        # Atualiza o estado salvo para o próximo rerun
-        st.session_state.active_operacoes_sub_tab_label = current_operacoes_sub_tab_label
-
-        # 5. Renderizar o conteúdo da sub-aba selecionada (renderização condicional)
-        if current_operacoes_sub_tab_label == "Confirmar Produção":
+        with tab_operacoes:
+            sub_tab_confirmar_prod, sub_tab_aprov_dir, sub_tab_pre_rot, \
+            sub_tab_cargas, sub_tab_aprov_custos, \
+            sub_tab_cargas_aprovadas, sub_tab_cargas_fechadas = st.tabs([
+                "Confirmar Produção", "Aprovação Diretoria", "Pré Roterização", 
+                "Cargas Geradas", "Aprovação de Custos", "Cargas Aprovadas",
+                "Cargas Encerradas"
+])
+        with sub_tab_confirmar_prod:
             pagina_confirmar_producao()
-        elif current_operacoes_sub_tab_label == "Aprovação Diretoria":
+        with sub_tab_aprov_dir:
             pagina_aprovacao_diretoria()
-        elif current_operacoes_sub_tab_label == "Pré Roterização":
+        with sub_tab_pre_rot:
             pagina_pre_roterizacao()
-        elif current_operacoes_sub_tab_label == "Cargas Geradas":
+        with sub_tab_cargas:
             pagina_cargas_geradas()
-        elif current_operacoes_sub_tab_label == "Aprovação de Custos":
+        with sub_tab_aprov_custos:
             pagina_aprovacao_custos()
-        elif current_operacoes_sub_tab_label == "Cargas Aprovadas":
+        with sub_tab_cargas_aprovadas:
             pagina_cargas_aprovadas()
-        elif current_operacoes_sub_tab_label == "Cargas Encerradas":
+        with sub_tab_cargas_fechadas: 
             pagina_cargas_fechadas()
 
-    elif current_main_tab_label == "Administração e Configurações":
+    with tab_admin_settings:
         # Conteúdo da aba de Administração e Configurações
         if st.session_state.get("is_admin", False):
             st.subheader("Gerenciamento de Usuários")
             pagina_gerenciar_usuarios()
-            st.markdown("---")
+            st.markdown("---") # Separador visual
 
         st.subheader("Alterar Minha Senha")
         pagina_trocar_senha()
 
-# Se o usuário não estiver logado, a função login() no início do script já cuida disso.
+# Se o usuário não estiver logado, a função login() no início já teria parado o script.
+# Este bloco 'else' não é estritamente necessário aqui se o login() faz um st.stop()
+# Mas é uma boa prática para clareza.
 else:
-    pass
+    # A página de login é exibida pela função login()
+    pass # Nada a fazer aqui, pois o login() já cuida do acesso.
 
-# Trecho de SUBSTITUIÇÃO - FIM
 
