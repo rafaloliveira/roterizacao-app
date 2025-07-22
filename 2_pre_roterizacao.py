@@ -3337,7 +3337,7 @@ def pagina_cargas_geradas():
                     col_ret, col_aprov = st.columns([1, 1])
 
                     with col_ret:
-                        if st.button(f"♻️ Retirar da Carga", key=f"btn_retirar_{carga}"):
+                        if st.button(f"♻️ Retirar da Carga", key=f"btn_retirar_{carga}_{time.time()}"):
                             try:
                                 with st.spinner("🔄 Retirando entregas da carga..."):
                                     ctrcs_a_remover_do_grid = [s.get("Serie_Numero_CTRC") for s in selecionadas if s.get("Serie_Numero_CTRC")]
@@ -3379,8 +3379,9 @@ def pagina_cargas_geradas():
                                         pass
 
                                     st.session_state.pop("df_cargas_cache", None)
-                                    st.session_state.pop(f"grid_carga_gerada_{carga}", None)
-                                    st.session_state.pop(checkbox_key, None)
+                                    grid_key_id = f"grid_carga_gerada_{carga}"
+                                    st.session_state.pop(grid_key_id, None)
+                                    st.session_state.pop(checkbox_key, None) # <<< ADICIONADO AQUI: Limpa o estado do checkbox "Marcar todas"
                                     st.session_state["reload_cargas_geradas"] = True
 
                                     st.success(f"✅ {len(ctrcs_a_remover_do_grid)} entrega(s) removida(s) da carga {carga} e retornada(s) para Pré-Roterização.")
