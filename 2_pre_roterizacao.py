@@ -1264,45 +1264,40 @@ def tratar_data_para_utc(valor):
     """
     Converte um valor de data/hora para uma string ISO 8601 em UTC.
     Prioriza o parsing de formatos ISO e lida com fusos horários.
+    Lida com valores NaN, None e strings vazias.
     """
-    if pd.isna(valor) or valor == "": # Lida com NaN e strings vazias/nulas
+    if pd.isna(valor) or valor == "":
         return None
 
     dt_obj = None
     if isinstance(valor, str):
-        # Tenta primeiro parsear como ISO 8601 (formato comum do Supabase),
-        # assumindo UTC se nenhuma informação de fuso horário estiver presente.
         try:
-            dt_obj = pd.to_datetime(valor, errors='raise', utc=True) # errors='raise' para diferenciar falhas de formato
+            # 1. Tenta parsear como ISO 8601 (formato preferencial do Supabase), assumindo UTC se nao especificado.
+            # 'errors='raise'' para nos dar controle sobre o fallback.
+            dt_obj = pd.to_datetime(valor, errors='raise', utc=True)
         except ValueError:
-            # Se a tentativa ISO falhar, tenta parsear com dayfirst=True.
-            # Isso é útil para formatos como "DD-MM-YYYY HH:MM:SS" ou "DD/MM/YYYY".
-            # Se for um valor numérico que virou string (ex: '2024.0'), coerce.
+            # 2. Se a tentativa ISO falhar, tenta parsear com dayfirst=True (comum para formatos brasileiros DD-MM-YYYY).
+            # 'errors='coerce'' converte falhas para NaT.
             dt_obj = pd.to_datetime(valor, errors='coerce', dayfirst=True)
             
     elif isinstance(valor, (pd.Timestamp, datetime)):
         dt_obj = valor
     else:
-        # Tenta coercer outros tipos (como numpy.datetime64) para datetime
-        try:
-            dt_obj = pd.to_datetime(valor, errors='coerce')
-        except Exception:
-            # st.warning(f"Não foi possível converter o valor '{valor}' para datetime.") # Para debug, se necessário
-            return None # Não foi possível converter para um objeto datetime
+        # 3. Tenta coercer outros tipos (ex: numpy.datetime64) para datetime.
+        dt_obj = pd.to_datetime(valor, errors='coerce')
 
-    if pd.isna(dt_obj): # Se, após todas as tentativas, ainda for NaT
-        return None # Retorna None se a data for inválida ou não puder ser parseada
+    if pd.isna(dt_obj): # Se, após todas as tentativas, ainda for NaT (data inválida)
+        return None # Retorna None para ser salvo como NULL no banco de dados
 
-    # Se o objeto datetime estiver "naive" (sem informação de fuso horário),
-    # assume-se que ele está no fuso horário de São Paulo (Brasil).
+    # Se o objeto datetime estiver "naive" (sem fuso horário), assume que ele está no fuso horário do Brasil.
     if dt_obj.tzinfo is None:
-        # 'ambiguous' e 'nonexistent' ajudam a lidar com mudanças de horário de verão
+        # 'ambiguous' e 'nonexistent' ajudam a lidar com mudanças de horário de verão.
         dt_obj = dt_obj.tz_localize(FUSO_BRASIL, ambiguous='NaT', nonexistent='NaT')
-        if pd.isna(dt_obj): # Se houve erro na localização, retorna None
+        if pd.isna(dt_obj): # Se a localização falhar, retorna None
             return None
 
     # Converte o objeto datetime para o fuso horário UTC e retorna no formato ISO 8601.
-    # .replace('+00:00', 'Z') é um detalhe de formatação para padronizar 'Z' para UTC.
+    # '.isoformat(timespec='seconds')' para incluir segundos, '.replace('+00:00', 'Z')' para padronizar 'Z' para UTC.
     return dt_obj.tz_convert("UTC").isoformat(timespec='seconds').replace('+00:00', 'Z')
 
 
