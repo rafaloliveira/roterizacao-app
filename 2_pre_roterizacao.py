@@ -822,23 +822,11 @@ def carregar_base_supabase():
         
         hoje = pd.Timestamp.today().normalize()
         d_mais_1 = hoje + pd.Timedelta(days=1)
-
-        # Esta lógica está no seu código, mas ela define 'obrigatorias' e 'confirmadas'
-        # e *não* altera o 'base' principal que é retornado.
-        # Apenas para depuração, se 'obrigatorias' ou 'confirmadas' estiverem afetando o retorno,
-        # precisaríamos analisar essa lógica em mais profundidade.
         
         # Apenas para garantir que 'base' contém 'Serie_Numero_CTRC'
         if 'Serie_Numero_CTRC' not in base.columns:
             st.error("DEBUG: [carregar_base_supabase] Coluna 'Serie_Numero_CTRC' não encontrada no DataFrame 'base'. Isso pode causar problemas.")
             return pd.DataFrame() # Retorna vazio se a chave primária essencial estiver faltando
-
-        # A sua lógica de `obrigatorias` e `confirmadas` está dentro da função `aplicar_regras_e_preencher_tabelas`.
-        # Em `carregar_base_supabase`, o `base` deve ser o DataFrame completo que vem do Supabase,
-        # com particularidades e rotas adicionadas.
-        # Se os dados são filtrados *aqui*, então a lógica está errada.
-        # Pelo código que você forneceu, `carregar_base_supabase` **não** filtra `base` por `obrigatorias` ou `confirmadas`
-        # para o retorno final. O retorno é o `base` completo.
 
         # Formata datas para exibição (Isto é feito APENAS para exibição, não afeta o DataFrame subjacente para cálculos)
         for col in ["Previsao de Entrega", "Entrega Programada"]:
@@ -1276,14 +1264,9 @@ def tratar_data_para_utc(valor):
         return None
     if isinstance(valor, str):
         try:
-            valor = pd.to_datetime(valor, dayfirst=True, errors='coerce')
+            valor = pd.to_datetime(valor, errors='coerce', dayfirst=True)  # <- inclua dayfirst aqui
         except:
             return None
-    if isinstance(valor, pd.Timestamp):
-        if valor.tzinfo is None:
-            valor = valor.tz_localize("America/Sao_Paulo")
-        return valor.tz_convert("UTC").isoformat()
-    return None
 
 # ------------------------#############-------------------------------------------
 def adicionar_entregas_a_carga(ctrcs_selecionados, numero_carga_destino): 
@@ -1330,20 +1313,18 @@ def adicionar_entregas_a_carga(ctrcs_selecionados, numero_carga_destino):
     # --- BLOCO DE TRATAMENTO ROBUSTO PARA DATAS ---
     strict_date_cols = ["Previsao de Entrega", "Entrega Programada"]
 
-    for col_name in strict_date_cols:
-        if col_name in df_para_inserir.columns:
-            temp_str_series = df_para_inserir[col_name].astype(str).str.strip()
-            is_undesirable_string = temp_str_series.isin([
-                '', 'nat', 'nan', 'None', '0000-00-00', '1900-01-01', '0001-01-01', 'NaT',
-                'nan nan-nan-nan', '0'
-            ])
-            coerces_to_nat = pd.to_datetime(temp_str_series, errors='coerce').isna()
-            should_be_null = is_undesirable_string | coerces_to_nat
-            df_para_inserir.loc[should_be_null, col_name] = None
+    # --- BLOCO DE TRATAMENTO ROBUSTO PARA DATAS ---
+    strict_date_cols = ["Previsao de Entrega", "Entrega Programada"]
 
-    # Converte datas válidas para UTC ISO 8601
     for col_name in strict_date_cols:
         if col_name in df_para_inserir.columns:
+            # 1. Converte para datetime com dayfirst=True (formato brasileiro)
+            df_para_inserir[col_name] = pd.to_datetime(df_para_inserir[col_name], errors='coerce', dayfirst=True)
+
+            # 2. Define como None valores claramente inválidos (NaT)
+            df_para_inserir[col_name] = df_para_inserir[col_name].where(df_para_inserir[col_name].notna(), None)
+
+            # 3. Converte datas válidas para UTC ISO 8601
             df_para_inserir[col_name] = df_para_inserir[col_name].apply(tratar_data_para_utc)
     # --- FIM DO BLOCO DE TRATAMENTO DE DATAS ---
 
