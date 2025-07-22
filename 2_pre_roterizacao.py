@@ -239,11 +239,9 @@ def login():
     # Cria três colunas e usa a do meio para o formulário de login
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
-        st.markdown("## 🔐 Login")
+        st.markdown("## �� Login")
         nome = st.text_input("Usuário").strip()
         senha = st.text_input("Senha", type="password").strip()
-
-        # ... (dentro da função login) ...
 
         if st.button("Entrar"):
             usuario = autenticar_usuario(nome, senha)
@@ -253,9 +251,6 @@ def login():
                 cookies["username"] = usuario["nome_usuario"]
                 cookies["is_admin"] = str(usuario.get("is_admin", False))
                 cookies["classe"] = usuario.get("classe", "colaborador") # <<< ADIÇÃO AQUI: Armazena a classe no cookie
-
-                # ✅ Define página inicial desejada após login
-                #st.session_state.pagina = "Cargas Geradas"  # ⬅️ Altere aqui se quiser outra página como "Dashboard" ou "Pré-Roteirização"
                 
                 # Define o tempo de expiração do cookie (24 horas)
                 expiry = datetime.now(timezone.utc) + timedelta(hours=24)
@@ -265,8 +260,15 @@ def login():
                 st.session_state.login = True
                 st.session_state.username = usuario["nome_usuario"]
                 st.session_state.is_admin = usuario.get("is_admin", False)
-                st.session_state.classe = usuario.get("classe", "colaborador") # <<< ADIÇÃO AQUI: Armazena a classe no session_state
+                st.session_state.classe = usuario.get("classe", "colaborador") # Armazena a classe no session_state
 
+                # --- NOVO: Define a página inicial desejada após login ---
+                # Estas são as linhas que você precisa ter certeza que estão presentes
+                # Elas sobrescrevem o valor padrão que vem do reset do cache
+                st.session_state.active_main_tab_key = "operacoes_tab" # Define a aba principal 'Operações'
+                st.session_state.active_operacoes_sub_tab_key = "cargas_geradas_sub_tab" # Define a sub-aba 'Cargas Geradas'
+                # --- FIM DO NOVO ---
+                
                 # Verifica se o usuário precisa alterar a senha (se houver essa flag no banco)
                 if usuario.get("precisa_alterar_senha") is True:
                     st.warning("🔐 Você deve alterar sua senha antes de continuar.")
@@ -279,7 +281,6 @@ def login():
                 st.error("🛑 Usuário ou senha incorretos.")
 
     st.stop()
-
 
 # ========== PÁGINA: ALTERAR SENHA PRÓPRIA ========== #
 def pagina_trocar_senha():
