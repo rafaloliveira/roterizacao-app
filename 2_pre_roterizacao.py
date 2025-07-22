@@ -2720,6 +2720,7 @@ def pagina_pre_roterizacao():
           
         
                 df_visivel = df_total.copy()
+                time.sleep(0.3) 
                 st.write(f"DEBUG: [pagina_pre_roterizacao] df_visivel tem {len(df_visivel)} linhas antes das verificações empty.")
 
         except Exception as e:
