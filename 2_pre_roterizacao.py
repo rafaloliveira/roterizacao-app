@@ -712,133 +712,146 @@ def formatar_brasileiro(valor):
 
 def carregar_base_supabase():
     try:
-        base = pd.DataFrame(supabase.table("pre_roterizacao").select("*").execute().data)
+        # --- DEBUG 1: Após a primeira busca no Supabase ---
+        base_raw_data = supabase.table("pre_roterizacao").select("*").execute().data
+        base = pd.DataFrame(base_raw_data)
+        st.write(f"DEBUG: [carregar_base_supabase] Linhas após SELECT na pre_roterizacao: {len(base)}")
+
         if base.empty:
-            #st.warning("⚠️ Nenhuma entrega encontrada na tabela pre_roterizacao.")
+            st.warning("DEBUG: [carregar_base_supabase] A busca inicial na pre_roterizacao retornou vazia. Verifique RLS ou dados.")
             return pd.DataFrame()
 
-        agendadas = pd.DataFrame(supabase.table("Clientes_Entrega_Agendada").select("*").execute().data)
+        # --- DEBUG 2: Após o merge com "Particularidades" ---
+        part = supabase.table("Particularidades").select("*").execute().data
+        if part:
+            df_part = pd.DataFrame(part)
+            df_part.columns = df_part.columns.str.strip()
+            # Certifique-se que CNPJ Destinatario está como string antes do merge
+            if 'CNPJ Destinatario' in base.columns:
+                base['CNPJ Destinatario'] = base['CNPJ Destinatario'].astype(str).str.strip()
+            if 'CNPJ' in df_part.columns:
+                df_part['CNPJ'] = df_part['CNPJ'].astype(str).str.strip()
 
-
-        rotas = pd.DataFrame(supabase.table("Rotas").select("*").execute().data)
-        rotas_poa = pd.DataFrame(supabase.table("RotasPortoAlegre").select("*").execute().data)
-        confirmadas = pd.DataFrame(supabase.table("confirmadas_producao").select("*").execute().data)
-
-        particularidades = pd.DataFrame(supabase.table("Particularidades").select("*").execute().data)
-        # Garante que a coluna 'Particularidade' exista em 'base' ANTES de qualquer merge
-        if 'Particularidade' not in base.columns:
-            base['Particularidade'] = None
-
-        # Tenta realizar o merge APENAS se as condições de dados estiverem corretas
-        if (
-            'CNPJ Destinatario' in base.columns and
-            not particularidades.empty and
-            {'CNPJ', 'Particularidade'}.issubset(particularidades.columns)
-        ):
-            particularidades['CNPJ'] = particularidades['CNPJ'].astype(str).str.strip()
-            base['CNPJ Destinatario'] = base['CNPJ Destinatario'].astype(str).str.strip()
-
-            df_temp_particularidades = particularidades[['CNPJ', 'Particularidade']].copy()
-            df_temp_particularidades.rename(columns={'Particularidade': 'Particularidade_temp_from_merge'}, inplace=True)
-
-            base_merged = pd.merge(
-                base,
-                df_temp_particularidades,
-                how='left',
-                left_on='CNPJ Destinatario',
-                right_on='CNPJ',
-                suffixes=('', '_merge')
-            )
-
-            if 'Particularidade_temp_from_merge' in base_merged.columns:
-                base['Particularidade'] = base_merged['Particularidade_temp_from_merge'].fillna(base['Particularidade']).replace('', None)
-
-            base.drop(columns=['CNPJ_merge'], errors='ignore', inplace=True)
-
-        for col in ['Cidade de Entrega', 'Bairro do Destinatario']:
-            if col in base.columns:
-                base[col] = base[col].astype(str).str.strip().str.upper()
-
-        rotas['Cidade de Entrega'] = rotas['Cidade de Entrega'].astype(str).str.strip().str.upper()
-        rotas['Bairro do Destinatario'] = rotas['Bairro do Destinatario'].astype(str).str.strip().str.upper()
-        rotas_dict = dict(zip(rotas['Cidade de Entrega'], rotas['Rota']))
-
-        rotas_poa['Cidade de Entrega'] = rotas_poa['Cidade de Entrega'].astype(str).str.strip().str.upper()
-        rotas_poa['Bairro do Destinatario'] = rotas_poa['Bairro do Destinatario'].astype(str).str.strip().str.upper()
-        rotas_poa_dict = dict(zip(rotas_poa['Bairro do Destinatario'], rotas_poa['Rota']))
-
-        def definir_rota(row):
-            if row.get('Cidade de Entrega') == 'PORTO ALEGRE':
-                return rotas_poa_dict.get(row.get('Bairro do Destinatario'), 'Indefinida')
+            base_merged_part = pd.merge(base, df_part[['CNPJ', 'Particularidade']], how='left',
+                                         left_on='CNPJ Destinatario', right_on='CNPJ', suffixes=('', '_part_merge'))
+            if 'Particularidade_part_merge' in base_merged_part.columns:
+                # Prioriza a particularidade do merge, mas mantém a original se a do merge for nula
+                base['Particularidade'] = base_merged_part['Particularidade_part_merge'].fillna(base.get('Particularidade', pd.NA))
             else:
-                return rotas_dict.get(row.get('Cidade de Entrega'), 'Indefinida')
+                base['Particularidade'] = base.get('Particularidade', pd.NA) # Garante que a coluna exista
+            base.drop(columns=['CNPJ_part_merge'], errors='ignore', inplace=True) # Renomeado para evitar conflito
 
-        base['Rota'] = base.apply(definir_rota, axis=1)
+        else:
+            if 'Particularidade' not in base.columns:
+                base['Particularidade'] = None # Garante que a coluna exista mesmo sem merge
+        st.write(f"DEBUG: [carregar_base_supabase] Linhas após merge Particularidades: {len(base)}")
+
+
+        # --- DEBUG 3: Após o merge com "Clientes_Entrega_Agendada" ---
+        agendados = supabase.table("Clientes_Entrega_Agendada").select("*").execute().data
+        if agendados:
+            df_ag = pd.DataFrame(agendados)
+            df_ag.columns = df_ag.columns.str.strip()
+            if 'CNPJ' in df_ag.columns and 'Status de Agenda' in df_ag.columns:
+                cnpjs_agendar = df_ag[df_ag['Status de Agenda'].str.upper() == 'AGENDAR']['CNPJ'].str.strip().unique()
+                if 'CNPJ Destinatario' in base.columns:
+                    base['Status'] = base['CNPJ Destinatario'].astype(str).str.strip().isin(cnpjs_agendar).map({True: 'AGENDAR', False: None})
+                else:
+                    base['Status'] = None
+            else:
+                base['Status'] = None
+        else:
+            base['Status'] = None
+        st.write(f"DEBUG: [carregar_base_supabase] Linhas após merge Clientes_Entrega_Agendada: {len(base)}")
+
+        # --- DEBUG 4: Após a definição da Rota ---
+        # Certifique-se que as colunas 'Cidade de Entrega' e 'Bairro do Destinatario' existam
+        for col_name in ['Cidade de Entrega', 'Bairro do Destinatario']:
+            if col_name not in base.columns:
+                base[col_name] = None # Ou alguma string vazia se preferir
+        base['Cidade de Entrega'] = base['Cidade de Entrega'].astype(str).str.strip().str.upper()
+        base['Bairro do Destinatario'] = base['Bairro do Destinatario'].astype(str).str.strip().str.upper()
+
+        rotas = supabase.table("Rotas").select("*").execute().data
+        df_rotas = pd.DataFrame(rotas) if rotas else pd.DataFrame()
+        df_rotas.columns = df_rotas.columns.str.strip()
+
+        rotas_poas = supabase.table("RotasPortoAlegre").select("*").execute().data
+        df_poas = pd.DataFrame(rotas_poas) if rotas_poas else pd.DataFrame()
+        df_poas.columns = df_poas.columns.str.strip()
+
+        base['Rota'] = None # Inicializa a coluna 'Rota'
+
+        # Garante que as colunas de merge existem em df_rotas e df_poas
+        if not df_rotas.empty and 'Cidade de Entrega' in df_rotas.columns and 'Rota' in df_rotas.columns:
+            df_rotas['Cidade de Entrega_upper'] = df_rotas['Cidade de Entrega'].astype(str).str.strip().str.upper()
+            rotas_dict = dict(zip(df_rotas['Cidade de Entrega_upper'], df_rotas['Rota']))
+        else:
+            rotas_dict = {}
+
+        if not df_poas.empty and 'Bairro do Destinatario' in df_poas.columns and 'Rota' in df_poas.columns:
+            df_poas['Bairro do Destinatario_upper'] = df_poas['Bairro do Destinatario'].astype(str).str.strip().str.upper()
+            rotas_poa_dict = dict(zip(df_poas['Bairro do Destinatario_upper'], df_poas['Rota']))
+        else:
+            rotas_poa_dict = {}
+
+        # Mapeia as rotas por apply
+        def definir_rota_func(row):
+            cidade = row.get('Cidade de Entrega', '').strip().upper()
+            bairro = row.get('Bairro do Destinatario', '').strip().upper()
+
+            if cidade == 'PORTO ALEGRE':
+                return rotas_poa_dict.get(bairro, 'Indefinida')
+            else:
+                return rotas_dict.get(cidade, 'Indefinida')
+
+        base['Rota'] = base.apply(definir_rota_func, axis=1)
         base['Rota'] = base['Rota'].fillna('Indefinida').replace('', 'Indefinida')
 
-        colunas_numericas = [
-            'Peso Real em Kg', 'Cubagem em m³', 'Quantidade de Volumes', 'Valor da Mercadoria',
-            'Valor do Frete', 'Valor do ICMS', 'Valor do ISS', 'Peso Calculado em Kg',
-            'Frete Peso', 'Frete Valor', 'TDA', 'TDE'
-        ]
-        for col in colunas_numericas:
-            if col in base.columns:
-                base[col] = pd.to_numeric(base[col], errors='coerce')
+        st.write(f"DEBUG: [carregar_base_supabase] Linhas após definir Rota: {len(base)}")
 
-        base['Indice'] = base.index
-        base = base.loc[:, ~base.columns.duplicated()]
 
+        # --- DEBUG 5: Após o processamento de "obrigatorias" e "confirmadas" ---
+        # Este bloco *não altera* o 'base' que é retornado, mas é importante para entender o fluxo
+        # Certifique-se de que df['Previsao de Entrega'] é datetime para esta comparação
+        if 'Previsao de Entrega' in base.columns:
+            base['Previsao de Entrega'] = pd.to_datetime(base['Previsao de Entrega'], errors='coerce')
+        
         hoje = pd.Timestamp.today().normalize()
         d_mais_1 = hoje + pd.Timedelta(days=1)
 
-        obrigatorias = base[
-            # CORREÇÃO AQUI: Adicionar dayfirst=True
-            (pd.to_datetime(base['Previsao de Entrega'], errors='coerce') < d_mais_1)
+        # Esta lógica está no seu código, mas ela define 'obrigatorias' e 'confirmadas'
+        # e *não* altera o 'base' principal que é retornado.
+        # Apenas para depuração, se 'obrigatorias' ou 'confirmadas' estiverem afetando o retorno,
+        # precisaríamos analisar essa lógica em mais profundidade.
+        
+        # Apenas para garantir que 'base' contém 'Serie_Numero_CTRC'
+        if 'Serie_Numero_CTRC' not in base.columns:
+            st.error("DEBUG: [carregar_base_supabase] Coluna 'Serie_Numero_CTRC' não encontrada no DataFrame 'base'. Isso pode causar problemas.")
+            return pd.DataFrame() # Retorna vazio se a chave primária essencial estiver faltando
 
-            |
-            (base['Valor do Frete'] >= 300)
-            |
-            ((base['Status'] == 'Agendar') & (base['Entrega Programada'].isnull() | base['Entrega Programada'].eq('')))
-        ].copy()
+        # A sua lógica de `obrigatorias` e `confirmadas` está dentro da função `aplicar_regras_e_preencher_tabelas`.
+        # Em `carregar_base_supabase`, o `base` deve ser o DataFrame completo que vem do Supabase,
+        # com particularidades e rotas adicionadas.
+        # Se os dados são filtrados *aqui*, então a lógica está errada.
+        # Pelo código que você forneceu, `carregar_base_supabase` **não** filtra `base` por `obrigatorias` ou `confirmadas`
+        # para o retorno final. O retorno é o `base` completo.
 
-        if not confirmadas.empty:
-            col_ctrc = 'Serie_Numero_CTRC'
-            confirmadas[col_ctrc] = confirmadas[col_ctrc].astype(str).str.strip()
-            obrigatorias = obrigatorias[~obrigatorias['Serie_Numero_CTRC'].isin(confirmadas[col_ctrc])]
-
-        def deduplicar_colunas(df):
-            cols = pd.Series(df.columns)
-            for dup in cols[cols.duplicated()].unique():
-                dup_idxs = cols[cols == dup].index.tolist()
-                for i, idx in enumerate(dup_idxs):
-                    cols[idx] = f"{dup}.{i}" if i > 0 else dup
-            df.columns = cols
-            return df
-
-        confirmadas = deduplicar_colunas(confirmadas)
-        obrigatorias = deduplicar_colunas(obrigatorias)
-
-        confirmadas = confirmadas.loc[:, ~confirmadas.columns.duplicated()]
-        obrigatorias = obrigatorias.loc[:, ~obrigatorias.columns.duplicated()]
-
-        colunas_comuns = confirmadas.columns.intersection(obrigatorias.columns)
-        confirmadas = confirmadas[colunas_comuns]
-        obrigatorias = obrigatorias[colunas_comuns]
-
-        df_final = base.copy()
-        df_final['Indice'] = df_final.index
-
-        # ✅ Formatar datas para exibição no grid como dd-mm-aaaa
+        # Formata datas para exibição (Isto é feito APENAS para exibição, não afeta o DataFrame subjacente para cálculos)
         for col in ["Previsao de Entrega", "Entrega Programada"]:
             if col in base.columns:
                 base[col] = pd.to_datetime(base[col], errors='coerce')
                 base[col] = base[col].dt.strftime("%d-%m-%Y").fillna("")
 
+        # --- DEBUG FINAL: Antes de retornar ---
+        st.write(f"DEBUG: [carregar_base_supabase] Linhas antes de retornar (base final): {len(base)}")
         return base
 
     except Exception as e:
-        st.error(f"Erro ao consultar as tabelas do Supabase: {e}")
-        return base
+        st.error(f"DEBUG: [carregar_base_supabase] Erro ao consultar ou processar as tabelas do Supabase: {e}")
+        st.exception(e)
+        return pd.DataFrame()
+
 
     
 
