@@ -62,7 +62,7 @@ from pathlib import Path
 from st_aggrid.shared import JsCode
 from decimal import Decimal, ROUND_HALF_UP, getcontext
 
-st.write(f"Streamlit Version from __version__: {st.__version__}") # Adicione esta linha
+
 
 def aplicar_zoom_personalizado(percent=85):
     escala = percent / 100
@@ -243,6 +243,8 @@ def login():
         nome = st.text_input("Usuário").strip()
         senha = st.text_input("Senha", type="password").strip()
 
+        # ... (dentro da função login) ...
+
         if st.button("Entrar"):
             usuario = autenticar_usuario(nome, senha)
             if usuario:
@@ -251,6 +253,9 @@ def login():
                 cookies["username"] = usuario["nome_usuario"]
                 cookies["is_admin"] = str(usuario.get("is_admin", False))
                 cookies["classe"] = usuario.get("classe", "colaborador") # <<< ADIÇÃO AQUI: Armazena a classe no cookie
+
+                # ✅ Define página inicial desejada após login
+                st.session_state.pagina = "Cargas Geradas"  # ⬅️ Altere aqui se quiser outra página como "Dashboard" ou "Pré-Roteirização"
                 
                 # Define o tempo de expiração do cookie (24 horas)
                 expiry = datetime.now(timezone.utc) + timedelta(hours=24)
@@ -260,13 +265,8 @@ def login():
                 st.session_state.login = True
                 st.session_state.username = usuario["nome_usuario"]
                 st.session_state.is_admin = usuario.get("is_admin", False)
-                st.session_state.classe = usuario.get("classe", "colaborador") # Armazena a classe no session_state
+                st.session_state.classe = usuario.get("classe", "colaborador") # <<< ADIÇÃO AQUI: Armazena a classe no session_state
 
-                # --- NOVO: Define a página inicial desejada após login, usando as novas chaves ---
-                st.session_state.active_main_tab_key = "operacoes_tab" # Aba principal 'Operações'
-                st.session_state.active_operacoes_sub_tab_key = "cargas_geradas_sub_tab" # Sub-aba 'Cargas Geradas'
-                # --- FIM DO NOVO ---
-                
                 # Verifica se o usuário precisa alterar a senha (se houver essa flag no banco)
                 if usuario.get("precisa_alterar_senha") is True:
                     st.warning("🔐 Você deve alterar sua senha antes de continuar.")
@@ -276,9 +276,10 @@ def login():
                 st.success("✅ Login bem-sucedido!")
                 st.rerun() # Força um rerun para que a interface atualize e mostre as páginas principais
             else:
-                st.error(" Usuário ou senha incorretos.")
+                st.error("🛑 Usuário ou senha incorretos.")
 
     st.stop()
+
 
 # ========== PÁGINA: ALTERAR SENHA PRÓPRIA ========== #
 def pagina_trocar_senha():
@@ -1015,13 +1016,7 @@ if "df_for_sync_cache" not in st.session_state:
 if 'file_uploader_key' not in st.session_state:
     st.session_state.file_uploader_key = 0
 # --- Fim das inicializações ---
-# --- NOVAS INICIALIZAÇÕES DO SESSION_STATE PARA CONTROLE DAS ABAS ---
-# Mapeia rótulos para chaves únicas para controle de estado
-if "active_main_tab_key" not in st.session_state:
-    st.session_state.active_main_tab_key = "sync_tab" # Chave da aba 'Sincronização' como padrão inicial
-if "active_operacoes_sub_tab_key" not in st.session_state:
-    st.session_state.active_operacoes_sub_tab_key = "confirmar_prod_sub_tab" # Chave da sub-aba 'Confirmar Produção' como padrão
-# --- FIM DAS NOVAS INICIALIZAÇÕES ---
+
 
 def pagina_sincronizacao():
     # Dentro da função pagina_sincronizacao():
@@ -4825,92 +4820,43 @@ if st.session_state.get("login", False):
         st.markdown(f"👋 **Bem-vindo, {st.session_state.get('username','Usuário')}!**")
     with col_logout:
         if st.button("🚪 Sair"):
-            # Limpar também o estado das abas
-            for key in ["login", "username", "is_admin", "expiry_time", "active_main_tab_key", "active_operacoes_sub_tab_key"]:
+            for key in ["login", "username", "is_admin", "expiry_time"]:
                 cookies[key] = ""
             st.session_state.login = False
             st.rerun()
     st.markdown("---") # Linha separadora para separar o cabeçalho das abas
 
-    # --- Definição das abas principais ---
-    main_tab_labels = ["Sincronização", "Operações", "Administração e Configurações"]
-    main_tab_keys = ["sync_tab", "operacoes_tab", "admin_settings_tab"] # Chaves correspondentes
+    # Definir as abas principais
+    # Adicionei uma aba para "Administração e Configurações" para agrupar as opções de usuário.
+    tab_sync, tab_operacoes, tab_admin_settings = st.tabs(["Sincronização", "Operações", "Administração e Configurações"])
 
-    # Obtém o índice da aba ativa do session_state
-    try:
-        default_main_index = main_tab_keys.index(st.session_state.active_main_tab_key)
-    except ValueError:
-        default_main_index = 0 # Fallback para a primeira aba se a chave for inválida
-
-    # Cria as abas principais COM A NOVA KEY
-    tab_sync, tab_operacoes_obj, tab_admin_settings_obj = st.tabs(
-        main_tab_labels, 
-        default_index=default_main_index,
-        key="main_tabs_container" # <--- CHAVE ÚNICA ADICIONADA AQUI
-    )
-
-    # --- Renderiza o conteúdo da aba principal ativa ---
-    # Dentro de cada bloco 'with', a primeira linha atualiza a chave da aba no session_state.
-    # Isso garante que, mesmo após um rerun (ex: do AgGrid), a aba correta será restaurada.
     with tab_sync:
-        st.session_state.active_main_tab_key = main_tab_keys[0] # Define a chave desta aba como ativa
         pagina_sincronizacao()
 
-    with tab_operacoes_obj:
-        st.session_state.active_main_tab_key = main_tab_keys[1] # Define a chave desta aba como ativa
-
-        # --- Definição das sub-abas de Operações ---
-        operacoes_sub_tab_labels = [
-            "Confirmar Produção", "Aprovação Diretoria", "Pré Roterização", 
-            "Cargas Geradas", "Aprovação de Custos", "Cargas Aprovadas",
-            "Cargas Encerradas"
-        ]
-        operacoes_sub_tab_keys = [
-            "confirmar_prod_sub_tab", "aprov_dir_sub_tab", "pre_rot_sub_tab",
-            "cargas_geradas_sub_tab", "aprov_custos_sub_tab", "cargas_aprovadas_sub_tab",
-            "cargas_fechadas_sub_tab"
-        ]
-
-        # Obtém o índice da sub-aba ativa do session_state
-        try:
-            default_sub_index = operacoes_sub_tab_keys.index(st.session_state.active_operacoes_sub_tab_key)
-        except ValueError:
-            default_sub_index = 0 # Fallback para a primeira sub-aba se a chave for inválida
-
-        # Cria as sub-abas COM A NOVA KEY
-        sub_tab_confirmar_prod, sub_tab_aprov_dir, sub_tab_pre_rot, \
-        sub_tab_cargas, sub_tab_aprov_custos, \
-        sub_tab_cargas_aprovadas, sub_tab_cargas_fechadas = st.tabs(
-            operacoes_sub_tab_labels, 
-            default_index=default_sub_index,
-            key="operacoes_sub_tabs_container" # <--- CHAVE ÚNICA ADICIONADA AQUI
-        )
-
-        # --- Renderiza o conteúdo de cada sub-aba de Operações ---
+        with tab_operacoes:
+            sub_tab_confirmar_prod, sub_tab_aprov_dir, sub_tab_pre_rot, \
+            sub_tab_cargas, sub_tab_aprov_custos, \
+            sub_tab_cargas_aprovadas, sub_tab_cargas_fechadas = st.tabs([
+                "Confirmar Produção", "Aprovação Diretoria", "Pré Roterização", 
+                "Cargas Geradas", "Aprovação de Custos", "Cargas Aprovadas",
+                "Cargas Encerradas"
+])
         with sub_tab_confirmar_prod:
-            st.session_state.active_operacoes_sub_tab_key = operacoes_sub_tab_keys[0]
             pagina_confirmar_producao()
         with sub_tab_aprov_dir:
-            st.session_state.active_operacoes_sub_tab_key = operacoes_sub_tab_keys[1]
             pagina_aprovacao_diretoria()
         with sub_tab_pre_rot:
-            st.session_state.active_operacoes_sub_tab_key = operacoes_sub_tab_keys[2]
             pagina_pre_roterizacao()
         with sub_tab_cargas:
-            st.session_state.active_operacoes_sub_tab_key = operacoes_sub_tab_keys[3]
             pagina_cargas_geradas()
         with sub_tab_aprov_custos:
-            st.session_state.active_operacoes_sub_tab_key = operacoes_sub_tab_keys[4]
             pagina_aprovacao_custos()
         with sub_tab_cargas_aprovadas:
-            st.session_state.active_operacoes_sub_tab_key = operacoes_sub_tab_keys[5]
             pagina_cargas_aprovadas()
         with sub_tab_cargas_fechadas: 
-            st.session_state.active_operacoes_sub_tab_key = operacoes_sub_tab_keys[6]
             pagina_cargas_fechadas()
 
-    with tab_admin_settings_obj:
-        st.session_state.active_main_tab_key = main_tab_keys[2] # Define a chave desta aba como ativa
+    with tab_admin_settings:
         # Conteúdo da aba de Administração e Configurações
         if st.session_state.get("is_admin", False):
             st.subheader("Gerenciamento de Usuários")
@@ -4920,6 +4866,11 @@ if st.session_state.get("login", False):
         st.subheader("Alterar Minha Senha")
         pagina_trocar_senha()
 
+# Se o usuário não estiver logado, a função login() no início já teria parado o script.
+# Este bloco 'else' não é estritamente necessário aqui se o login() faz um st.stop()
+# Mas é uma boa prática para clareza.
 else:
     # A página de login é exibida pela função login()
     pass # Nada a fazer aqui, pois o login() já cuida do acesso.
+
+
