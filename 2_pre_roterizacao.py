@@ -730,7 +730,7 @@ def carregar_base_supabase():
                 df_part['CNPJ'] = df_part['CNPJ'].astype(str).str.strip()
 
             base_merged_part = pd.merge(base, df_part[['CNPJ', 'Particularidade']], how='left',
-                                         left_on='CNPJ Destinatario', right_on='CNPJ', suffixes=('', '_part_merge'))
+            left_on='CNPJ Destinatario', right_on='CNPJ', suffixes=('', '_part_merge'))
             if 'Particularidade_part_merge' in base_merged_part.columns:
                 # Prioriza a particularidade do merge, mas mantém a original se a do merge for nula
                 base['Particularidade'] = base_merged_part['Particularidade_part_merge'].fillna(base.get('Particularidade', pd.NA))
@@ -830,7 +830,7 @@ def carregar_base_supabase():
             return pd.DataFrame() # Retorna vazio se a chave primária essencial estiver faltando
 
         # Formata datas para exibição (Isto é feito APENAS para exibição, não afeta o DataFrame subjacente para cálculos)
-        for col in ["Previsao de Entrega", "Entrega Programada", "Data de Emissao"]:
+        for col in ["Previsao de Entrega", "Entrega Programada", "Data de Emissao"]: # <<-- ADICIONE "Data de Emissao" AQUI
             if col in base.columns:
                 base[col] = pd.to_datetime(base[col], errors='coerce')
                 base[col] = base[col].dt.strftime("%d-%m-%Y").fillna("")
@@ -2670,6 +2670,17 @@ def pagina_pre_roterizacao():
                (st.session_state.get("df_pre_roterizacao_cache") is not None and st.session_state["df_pre_roterizacao_cache"].empty):
                 #st.write("DEBUG: [pagina_pre_roterizacao] Cache desativado, recarregar=True, ou cache vazio. Chamando carregar_base_supabase()...")
                 df_total = carregar_base_supabase() # Esta chamada retorna 192 linhas
+                # --- INÍCIO DO DEBUG POINT A ---
+                st.subheader("DEBUG A: Valores de 'Data de Emissao' após carregar_base_supabase()")
+                if 'Data de Emissao' in df_total.columns:
+                    st.write(f"Tipo da coluna 'Data de Emissao': {df_total['Data de Emissao'].dtype}")
+                    st.write("Primeiras 10 linhas de 'Data de Emissao':")
+                    st.write(df_total['Data de Emissao'].head(10))
+                    st.write("Contagem de valores (incluindo nulos/vazios):")
+                    st.write(df_total['Data de Emissao'].value_counts(dropna=False))
+                else:
+                    st.write("Coluna 'Data de Emissao' NÃO encontrada em df_total.")
+            # --- FIM DO DEBUG POINT A ---
                 #st.write(f"DEBUG: [pagina_pre_roterizacao] carregar_base_supabase() retornou {len(df_total)} linhas. df_total.empty: {df_total.empty}") # <--- AQUI
                 st.session_state["df_pre_roterizacao_cache"] = df_total # Atualiza o cache com o resultado
 
@@ -2851,6 +2862,19 @@ def pagina_pre_roterizacao():
             df_formatado = apply_brazilian_date_format_for_display(
                 df_rota[[col for col in colunas_exibir if col in df_rota.columns]].copy()
             )
+
+            # --- INÍCIO DO DEBUG POINT B ---
+            st.subheader(f"DEBUG B: Valores de 'Data de Emissao' antes do AgGrid (Rota: {rota_visual})")
+            if 'Data de Emissao' in df_formatado.columns:
+                st.write(f"Tipo da coluna 'Data de Emissao': {df_formatado['Data de Emissao'].dtype}")
+                st.write("Primeiras 10 linhas de 'Data de Emissao':")
+                st.write(df_formatado['Data de Emissao'].head(10))
+                st.write("Contagem de valores (incluindo nulos/vazios):")
+                st.write(df_formatado['Data de Emissao'].value_counts(dropna=False))
+            else:
+                st.write("Coluna 'Data de Emissao' NÃO encontrada em df_formatado.")
+            # --- FIM DO DEBUG POINT B ---
+
 
             gb = GridOptionsBuilder.from_dataframe(df_formatado)
             gb.configure_default_column(minWidth=90)
