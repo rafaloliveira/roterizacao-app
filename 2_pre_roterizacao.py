@@ -747,7 +747,12 @@ def carregar_base_supabase():
         st.write(f"DEBUG: [carregar_base_supabase] Linhas após merge Particularidades: {len(base)}")
 
 
-        # --- DEBUG 3: Após o merge com "Clientes_Entrega_Agendada" ---
+        # --- DEBUG 3: Após o merge com "Clientes_Entrega_Agendada" (AJUSTADO) ---
+        # Garante que a coluna 'Status' exista no DataFrame 'base' ANTES de qualquer modificação
+        # e que os valores já carregados da 'pre_roterizacao' sejam mantidos por padrão.
+        if 'Status' not in base.columns:
+            base['Status'] = pd.NA # Inicializa com valor ausente se a coluna não existe
+
         agendados = supabase.table("Clientes_Entrega_Agendada").select("*").execute().data
         if agendados:
             df_ag = pd.DataFrame(agendados)
@@ -755,13 +760,15 @@ def carregar_base_supabase():
             if 'CNPJ' in df_ag.columns and 'Status de Agenda' in df_ag.columns:
                 cnpjs_agendar = df_ag[df_ag['Status de Agenda'].str.upper() == 'AGENDAR']['CNPJ'].str.strip().unique()
                 if 'CNPJ Destinatario' in base.columns:
-                    base['Status'] = base['CNPJ Destinatario'].astype(str).str.strip().isin(cnpjs_agendar).map({True: 'AGENDAR', False: None})
-                else:
-                    base['Status'] = None
-            else:
-                base['Status'] = None
-        else:
-            base['Status'] = None
+                    # Identifica as linhas em 'base' cujo CNPJ do Destinatário está na lista de CNPJs a agendar
+                    mask_para_agendar = base['CNPJ Destinatario'].astype(str).str.strip().isin(cnpjs_agendar)
+                    # Aplica o status 'AGENDAR' APENAS para essas linhas que correspondem à máscara.
+                    # O status das outras linhas (onde a máscara é False) será PRESERVADO.
+                    base.loc[mask_para_agendar, 'Status'] = 'AGENDAR'
+                # Não é mais necessário um 'else' aqui que defina o Status como None,
+                # pois o valor original de 'Status' de 'base' já é preservado por padrão.
+        # Se 'agendados' estiver vazio, ou as colunas CNPJ/Status de Agenda não existirem,
+        # ou se 'CNPJ Destinatario' não estiver em 'base', o 'Status' original do DataFrame 'base' é mantido.
         st.write(f"DEBUG: [carregar_base_supabase] Linhas após merge Clientes_Entrega_Agendada: {len(base)}")
 
         # --- DEBUG 4: Após a definição da Rota ---
