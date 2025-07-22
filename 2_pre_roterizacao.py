@@ -112,6 +112,10 @@ cookies = EncryptedCookieManager(
 if not cookies.ready():
     st.stop()
 
+if "active_main_tab_key" not in st.session_state:
+    st.session_state.active_main_tab_key = "sync_tab" # Chave da aba 'Sincronização' como padrão inicial
+if "active_operacoes_sub_tab_key" not in st.session_state:
+    st.session_state.active_operacoes_sub_tab_key = "confirmar_prod_sub_tab" # Chave da sub-aba 'Confirmar Produção' como 
 # ========== UTILIDADES DE SENHA ========== #
 def hash_senha(senha):
     return bcrypt.hashpw(senha.encode(), bcrypt.gensalt()).decode()
@@ -2564,6 +2568,10 @@ def pagina_aprovacao_diretoria():
 def pagina_pre_roterizacao():
     st.markdown("## Pré-Roteirização")
 
+       # LOG: No início da função
+    st.write(f"DEBUG PRE_ROT INICIO: active_main_tab_key={st.session_state.get('active_main_tab_key')}")
+    st.write(f"DEBUG PRE_ROT INICIO: active_operacoes_sub_tab_key={st.session_state.get('active_operacoes_sub_tab_key')}")
+
     # --- Bloco de criação de carga avulsa ---
     if "nova_carga_em_criacao" not in st.session_state:
         st.session_state["nova_carga_em_criacao"] = False
@@ -2684,6 +2692,9 @@ def pagina_pre_roterizacao():
                 st.session_state["reload_pre_roterizacao"] = True
                 st.session_state["reload_cargas_geradas"] = True
                
+                 # LOG: Antes do rerun no bloco de adicionar carga avulsa
+                st.write(f"DEBUG PRE_ROT ADD CARGA: active_main_tab_key={st.session_state.get('active_main_tab_key')}")
+
                 st.rerun()
 
             except Exception as e:
@@ -2697,6 +2708,9 @@ def pagina_pre_roterizacao():
             dados_confirmados = pd.DataFrame()
 
             recarregar = st.session_state.pop("reload_pre_roterizacao", False)
+
+            # LOG: Após a definição de recarregar
+            st.write(f"DEBUG PRE_ROT POS_RECARREGAR: active_main_tab_key={st.session_state.get('active_main_tab_key')}")
             
             if recarregar or "df_pre_roterizacao_cache" not in st.session_state or \
                (st.session_state.get("df_pre_roterizacao_cache") is not None and st.session_state["df_pre_roterizacao_cache"].empty):
@@ -2711,24 +2725,30 @@ def pagina_pre_roterizacao():
                     for key in list(st.session_state.keys()):
                         if key.startswith("grid_pre_rota_"):
                             st.session_state.pop(key, None) # Remove a key para forçar reconstrução do grid
+
+ # LOG: Após carregar dados e limpar caches de grids
+                st.write(f"DEBUG PRE_ROT POS_CARGA_CACHE: active_main_tab_key={st.session_state.get('active_main_tab_key')}")
+
             else:
                 #st.write("DEBUG: [pagina_pre_roterizacao] Usando dados do cache 'df_pre_roterizacao_cache'.")
                 df_total = st.session_state["df_pre_roterizacao_cache"] # Pega do cache
 
             df_visivel = df_total.copy() # Cria uma cópia para trabalhar na página
 
-            st.session_state['_pre_roterizacao_df_check'] = df_visivel
+            #st.session_state['_pre_roterizacao_df_check'] = df_visivel
             df_to_check = st.session_state['_pre_roterizacao_df_check']
                 
             #st.write(f"DEBUG: [pagina_pre_roterizacao] df_visivel tem {len(df_visivel)} linhas antes das verificações empty. df_visivel.empty: {df_visivel.empty}") # <--- E AQUI
 
         except Exception as e:
             st.error(f"Erro ao consultar as tabelas do Supabase: {e}")
+            # LOG: Se houver erro ao carregar dados
+            st.write(f"DEBUG PRE_ROT ERRO SUPABASE: {e}")
             return
 
         if df_visivel.empty:
             st.info("Nenhuma entrega disponível.")
-            #st.write("DEBUG: [pagina_pre_roterizacao] df_visivel está vazio. Exibindo mensagem e retornando.")
+            st.write("DEBUG: [pagina_pre_roterizacao] df_visivel está vazio. Exibindo mensagem e retornando.")
             return
 
         
@@ -2884,9 +2904,6 @@ def pagina_pre_roterizacao():
             df_formatado = apply_brazilian_date_format_for_display(
                 df_rota[[col for col in colunas_exibir if col in df_rota.columns]].copy()
             )
-
-            
-
 
             gb = GridOptionsBuilder.from_dataframe(df_formatado)
             gb.configure_default_column(minWidth=90)
