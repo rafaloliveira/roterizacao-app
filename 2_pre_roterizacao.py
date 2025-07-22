@@ -958,10 +958,22 @@ formatter = JsCode("""
 
 
 #--------------------------------------------------------------------------------------------------------------------
+#--------------------------------------------------------------------------------------------------------------------
 def salvar_hora_sincronizacao():
     agora = data_hora_brasil_iso()
+    # Pega o nome de usuário do session_state
+    usuario_logado = st.session_state.get("username", "Desconhecido") # "Desconhecido" caso não haja usuário logado
+
+    # Cria um dicionário com as informações
+    sync_info = {
+        "timestamp": agora,
+        "username": usuario_logado
+    }
+    
     try:
-        supabase.table("metadados").upsert({"chave": "ultima_sincronizacao", "valor": agora}).execute()
+        # Converte o dicionário para uma string JSON antes de salvar
+        supabase.table("metadados").upsert({"chave": "ultima_sincronizacao", "valor": json.dumps(sync_info)}).execute()
+        # st.info(f"DEBUG: Salvo em metadados: {json.dumps(sync_info)}") # Debug opcional
     except Exception as e:
         st.warning(f"Erro ao salvar hora da sincronização: {e}")
 
@@ -969,12 +981,25 @@ def recuperar_hora_sincronizacao():
     try:
         dados = supabase.table("metadados").select("valor").eq("chave", "ultima_sincronizacao").execute()
         if dados.data:
-            return formatar_data_hora_br(dados.data[0]["valor"])
+            valor_salvo = dados.data[0]["valor"]
+            try:
+                # Tenta parsear como JSON
+                sync_info = json.loads(valor_salvo)
+                timestamp_str = sync_info.get("timestamp")
+                username_str = sync_info.get("username", "Desconhecido") # Garante compatibilidade se o username não estiver no JSON antigo
+            except json.JSONDecodeError:
+                # Se não for JSON, assume que é apenas a data/hora (formato antigo)
+                timestamp_str = valor_salvo
+                username_str = "Desconhecido (Formato Antigo)"
+            
+            # Formata a data/hora
+            data_hora_formatada = formatar_data_hora_br(timestamp_str)
+            return data_hora_formatada, username_str
         else:
-            return None
+            return None, None # Retorna None para ambos se não houver dados
     except Exception as e:
         st.warning(f"Erro ao recuperar hora da sincronização: {e}")
-        return None
+        return None, None
     
 ##############################
 # Página de sincronização
@@ -993,11 +1018,14 @@ if 'file_uploader_key' not in st.session_state:
 
 
 def pagina_sincronizacao():
+    # Dentro da função pagina_sincronizacao():
+
     st.title("🔄 Sincronização de Dados")
 
-    ultima = recuperar_hora_sincronizacao()
-    if ultima:
-        st.markdown(f"🕒 Última sincronização registrada: **{ultima}**")
+    # Modificado para receber duas variáveis
+    ultima_data, ultimo_usuario = recuperar_hora_sincronizacao()
+    if ultima_data:
+        st.markdown(f"🕒 Última sincronização registrada: **{ultima_data}** por **{ultimo_usuario}**")
     else:
         st.markdown("🕒 Última sincronização: **ainda não realizada**")
 
