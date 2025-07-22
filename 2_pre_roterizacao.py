@@ -4880,50 +4880,35 @@ if st.session_state.get("login", False):
 
     # Definir as abas principais
     # Adicionei uma aba para "Administração e Configurações" para agrupar as opções de usuário.
-        # Define as abas principais e qual delas está selecionada, usando o estado da sessão
-    current_main_tab = st.tabs(
-        ["Sincronização", "Operações", "Administração e Configurações"],
-        key="main_app_tabs", # Chave única para este conjunto de abas
-        selected=st.session_state.active_main_tab # Usa o estado salvo para definir a aba selecionada
-    )
+    tab_sync, tab_operacoes, tab_admin_settings = st.tabs(["Sincronização", "Operações", "Administração e Configurações"])
 
-    # Atualiza o estado da sessão com a aba principal que foi de fato selecionada (pelo clique do usuário ou default)
-    st.session_state.active_main_tab = current_main_tab
-
-    # Agora, use condicionais para renderizar o conteúdo da aba selecionada
-    if st.session_state.active_main_tab == "Sincronização":
+    with tab_sync:
         pagina_sincronizacao()
 
-    elif st.session_state.active_main_tab == "Operações":
-        # Dentro da aba "Operações", defina as sub-abas da mesma forma
-        current_operations_subtab = st.tabs(
-            ["Confirmar Produção", "Aprovação Diretoria", "Pré Roterização",
-             "Cargas Geradas", "Aprovação de Custos", "Cargas Aprovadas",
-             "Cargas Encerradas"],
-            key="operations_sub_tabs", # Chave única para este conjunto de sub-abas
-            selected=st.session_state.active_operations_subtab # Usa o estado salvo para definir a sub-aba selecionada
-        )
-
-        # Atualiza o estado da sessão com a sub-aba que foi de fato selecionada
-        st.session_state.active_operations_subtab = current_operations_subtab
-
-        # Renderiza o conteúdo da sub-aba selecionada
-        if st.session_state.active_operations_subtab == "Confirmar Produção":
+        with tab_operacoes:
+            sub_tab_confirmar_prod, sub_tab_aprov_dir, sub_tab_pre_rot, \
+            sub_tab_cargas, sub_tab_aprov_custos, \
+            sub_tab_cargas_aprovadas, sub_tab_cargas_fechadas = st.tabs([
+                "Confirmar Produção", "Aprovação Diretoria", "Pré Roterização", 
+                "Cargas Geradas", "Aprovação de Custos", "Cargas Aprovadas",
+                "Cargas Encerradas"
+])
+        with sub_tab_confirmar_prod:
             pagina_confirmar_producao()
-        elif st.session_state.active_operations_subtab == "Aprovação Diretoria":
+        with sub_tab_aprov_dir:
             pagina_aprovacao_diretoria()
-        elif st.session_state.active_operations_subtab == "Pré Roterização":
+        with sub_tab_pre_rot:
             pagina_pre_roterizacao()
-        elif st.session_state.active_operations_subtab == "Cargas Geradas":
+        with sub_tab_cargas:
             pagina_cargas_geradas()
-        elif st.session_state.active_operations_subtab == "Aprovação de Custos":
+        with sub_tab_aprov_custos:
             pagina_aprovacao_custos()
-        elif st.session_state.active_operations_subtab == "Cargas Aprovadas":
+        with sub_tab_cargas_aprovadas:
             pagina_cargas_aprovadas()
-        elif st.session_state.active_operations_subtab == "Cargas Encerradas":
+        with sub_tab_cargas_fechadas: 
             pagina_cargas_fechadas()
 
-    elif st.session_state.active_main_tab == "Administração e Configurações":
+    with tab_admin_settings:
         # Conteúdo da aba de Administração e Configurações
         if st.session_state.get("is_admin", False):
             st.subheader("Gerenciamento de Usuários")
