@@ -1262,11 +1262,26 @@ def limpar_tabelas_relacionadas():
 def tratar_data_para_utc(valor):
     if pd.isna(valor):
         return None
+
+    # ✅ Se já for datetime válido, converte para UTC direto
+    if isinstance(valor, (pd.Timestamp, datetime)):
+        if valor.tzinfo is None:
+            valor = valor.tz_localize("America/Sao_Paulo")
+        return valor.tz_convert("UTC").isoformat()
+
+    # ✅ Tenta converter string em datetime apenas se necessário
     if isinstance(valor, str):
         try:
-            valor = pd.to_datetime(valor, errors='coerce', dayfirst=True)  # <- inclua dayfirst aqui
+            valor = pd.to_datetime(valor, errors='coerce', dayfirst=True)
+            if pd.isna(valor):
+                return None
+            valor = valor.tz_localize("America/Sao_Paulo")
+            return valor.tz_convert("UTC").isoformat()
         except:
             return None
+
+    return None  # Valor inesperado
+
 
 # ------------------------#############-------------------------------------------
 def adicionar_entregas_a_carga(ctrcs_selecionados, numero_carga_destino): 
