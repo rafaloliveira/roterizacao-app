@@ -3378,7 +3378,7 @@ def pagina_cargas_geradas():
                                     if not dados_restantes_na_carga:
                                         pass
 
-                                    st.session_state.current_selected_rows_for_charge[carga] = [] # <<< ADICIONADO AQUI
+                                    
                                     st.session_state.pop("df_cargas_cache", None)
                                     st.session_state.pop(grid_key_id, None)
                                     st.session_state.pop(checkbox_key, None)
@@ -4880,35 +4880,50 @@ if st.session_state.get("login", False):
 
     # Definir as abas principais
     # Adicionei uma aba para "Administração e Configurações" para agrupar as opções de usuário.
-    tab_sync, tab_operacoes, tab_admin_settings = st.tabs(["Sincronização", "Operações", "Administração e Configurações"])
+        # Define as abas principais e qual delas está selecionada, usando o estado da sessão
+    current_main_tab = st.tabs(
+        ["Sincronização", "Operações", "Administração e Configurações"],
+        key="main_app_tabs", # Chave única para este conjunto de abas
+        selected=st.session_state.active_main_tab # Usa o estado salvo para definir a aba selecionada
+    )
 
-    with tab_sync:
+    # Atualiza o estado da sessão com a aba principal que foi de fato selecionada (pelo clique do usuário ou default)
+    st.session_state.active_main_tab = current_main_tab
+
+    # Agora, use condicionais para renderizar o conteúdo da aba selecionada
+    if st.session_state.active_main_tab == "Sincronização":
         pagina_sincronizacao()
 
-        with tab_operacoes:
-            sub_tab_confirmar_prod, sub_tab_aprov_dir, sub_tab_pre_rot, \
-            sub_tab_cargas, sub_tab_aprov_custos, \
-            sub_tab_cargas_aprovadas, sub_tab_cargas_fechadas = st.tabs([
-                "Confirmar Produção", "Aprovação Diretoria", "Pré Roterização", 
-                "Cargas Geradas", "Aprovação de Custos", "Cargas Aprovadas",
-                "Cargas Encerradas"
-])
-        with sub_tab_confirmar_prod:
+    elif st.session_state.active_main_tab == "Operações":
+        # Dentro da aba "Operações", defina as sub-abas da mesma forma
+        current_operations_subtab = st.tabs(
+            ["Confirmar Produção", "Aprovação Diretoria", "Pré Roterização",
+             "Cargas Geradas", "Aprovação de Custos", "Cargas Aprovadas",
+             "Cargas Encerradas"],
+            key="operations_sub_tabs", # Chave única para este conjunto de sub-abas
+            selected=st.session_state.active_operations_subtab # Usa o estado salvo para definir a sub-aba selecionada
+        )
+
+        # Atualiza o estado da sessão com a sub-aba que foi de fato selecionada
+        st.session_state.active_operations_subtab = current_operations_subtab
+
+        # Renderiza o conteúdo da sub-aba selecionada
+        if st.session_state.active_operations_subtab == "Confirmar Produção":
             pagina_confirmar_producao()
-        with sub_tab_aprov_dir:
+        elif st.session_state.active_operations_subtab == "Aprovação Diretoria":
             pagina_aprovacao_diretoria()
-        with sub_tab_pre_rot:
+        elif st.session_state.active_operations_subtab == "Pré Roterização":
             pagina_pre_roterizacao()
-        with sub_tab_cargas:
+        elif st.session_state.active_operations_subtab == "Cargas Geradas":
             pagina_cargas_geradas()
-        with sub_tab_aprov_custos:
+        elif st.session_state.active_operations_subtab == "Aprovação de Custos":
             pagina_aprovacao_custos()
-        with sub_tab_cargas_aprovadas:
+        elif st.session_state.active_operations_subtab == "Cargas Aprovadas":
             pagina_cargas_aprovadas()
-        with sub_tab_cargas_fechadas: 
+        elif st.session_state.active_operations_subtab == "Cargas Encerradas":
             pagina_cargas_fechadas()
 
-    with tab_admin_settings:
+    elif st.session_state.active_main_tab == "Administração e Configurações":
         # Conteúdo da aba de Administração e Configurações
         if st.session_state.get("is_admin", False):
             st.subheader("Gerenciamento de Usuários")
