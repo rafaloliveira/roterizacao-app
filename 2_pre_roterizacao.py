@@ -2735,8 +2735,9 @@ def pagina_pre_roterizacao():
 
             df_visivel = df_total.copy() # Cria uma cópia para trabalhar na página
 
-            #st.session_state['_pre_roterizacao_df_check'] = df_visivel
-            df_to_check = st.session_state['_pre_roterizacao_df_check']
+            st.session_state['_pre_roterizacao_df_check'] = df_visivel
+          
+            
                 
             #st.write(f"DEBUG: [pagina_pre_roterizacao] df_visivel tem {len(df_visivel)} linhas antes das verificações empty. df_visivel.empty: {df_visivel.empty}") # <--- E AQUI
 
