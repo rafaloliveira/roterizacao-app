@@ -3335,66 +3335,11 @@ def pagina_cargas_geradas():
 
                 if selecionadas:
                     col_ret, col_aprov = st.columns([1, 1])
-
-                    with col_ret:
-                        if st.button(f"♻️ Retirar da Carga", key=f"btn_retirar_{carga}_{time.time()}"):
-                            try:
-                                with st.spinner("🔄 Retirando entregas da carga..."):
-                                    ctrcs_a_remover_do_grid = [s.get("Serie_Numero_CTRC") for s in selecionadas if s.get("Serie_Numero_CTRC")]
-
-                                    if not ctrcs_a_remover_do_grid:
-                                        st.warning("Nenhuma entrega válida selecionada para remover.")
-                                        return
-
-                                    response_original = supabase.table("cargas_geradas").select("*").in_("Serie_Numero_CTRC", ctrcs_a_remover_do_grid).execute()
-                                    dados_originais = response_original.data
-
-                                    if not dados_originais:
-                                        st.warning("Não foi possível recuperar os dados originais das entregas no Supabase para os CTRCs selecionados. Nenhuma ação será realizada.")
-                                        return
-
-                                    df_para_retornar = pd.DataFrame(dados_originais)
-
-                                    df_para_retornar = df_para_retornar.drop(columns=[
-                                        "numero_carga", "Data_Hora_Gerada", "motorista", "placa", "veiculo",
-                                        "valor_contratacao", "aprovador_custos_login", "data_aprovacao_custos"
-                                    ], errors="ignore")
-
-                                    for col_name in GLOBAL_DATE_DISPLAY_COLUMNS:
-                                        if col_name in df_para_retornar.columns:
-                                            df_para_retornar[col_name] = df_para_retornar[col_name].apply(tratar_data_para_utc)
-
-                                    df_para_retornar = df_para_retornar.replace([np.nan, pd.NaT, np.inf, -np.inf, ""], None)
-
-                                    registros_para_inserir = df_para_retornar.to_dict(orient="records")
-
-                                    if registros_para_inserir:
-                                        supabase.table("pre_roterizacao").insert(registros_para_inserir).execute()
-                                        st.session_state["reload_pre_roterizacao"] = True
-
-                                    delete_response_cargas_geradas = supabase.table("cargas_geradas").delete().in_("Serie_Numero_CTRC", ctrcs_a_remover_do_grid).execute()
-                                    
-                                    dados_restantes_na_carga = supabase.table("cargas_geradas").select("numero_carga").eq("numero_carga", carga).execute().data
-                                    if not dados_restantes_na_carga:
-                                        pass
-
-                                    
-                                    st.session_state.pop("df_cargas_cache", None)
-                                    st.session_state.pop(grid_key_id, None)
-                                    st.session_state.pop(checkbox_key, None)
-                                    st.session_state["reload_cargas_geradas"] = True
-
-                                    st.success(f"✅ {len(ctrcs_a_remover_do_grid)} entrega(s) removida(s) da carga {carga} e retornada(s) para Pré-Roterização.")
-                                    st.rerun()
-
-                            except Exception as e:
-                                st.error(f"❌ Ocorreu um erro inesperado ao retirar entregas da carga: {e}")
-                                st.warning("A operação pode ter sido interrompida. Por favor, verifique a situação das entregas nas tabelas 'Pré-Roterização' e 'Cargas Geradas'.")
                                     
                     with col_ret:
                         if st.button(f"♻️ Retirar da Carga", key=f"btn_retirar_{carga}"):
                             try:
-                                with st.spinner("�� Retirando entregas da carga..."):
+                                with st.spinner(" Retirando entregas da carga..."):
                                     # Lista de CTRCs selecionados no AgGrid (formato de exibição)
                                     ctrcs_a_remover_do_grid = [s.get("Serie_Numero_CTRC") for s in selecionadas if s.get("Serie_Numero_CTRC")]
 
