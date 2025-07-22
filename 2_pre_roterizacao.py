@@ -4822,13 +4822,16 @@ def pagina_cargas_fechadas():
 # INÍCIO DO BLOCO DE EXECUÇÃO PRINCIPAL CORRIGIDO
 # ==============================================================================
 
-# Garante que o usuário esteja logado antes de mostrar as abas
+# Trecho de SUBSTITUIÇÃO - INÍCIO (Cole este bloco completo no lugar do bloco "Trecho EXISTENTE")
+
+# A função login() deve ser chamada ANTES deste bloco para garantir que o usuário esteja logado
 login()
 
+# Verifica se o usuário está logado
 if st.session_state.get("login", False):
     col_welcome, col_logout = st.columns([10, 2])
     with col_welcome:
-        st.markdown(f"�� **Bem-vindo, {st.session_state.get('username','Usuário')}!**")
+        st.markdown(f"👋 **Bem-vindo, {st.session_state.get('username','Usuário')}!**")
     with col_logout:
         if st.button("🚪 Sair"):
             # Ao sair, limpe os cookies e também as chaves de controle de abas do session_state
@@ -4856,7 +4859,7 @@ if st.session_state.get("login", False):
 
     # 3. Criar as abas principais usando 'key' e 'index'
     #    O 'key' armazena o rótulo da aba selecionada em st.session_state.main_tabs_selection_key
-    tab_sync_obj, tab_operacoes_obj, tab_admin_settings_obj = st.tabs(
+    selected_main_tab_label = st.tabs(
         main_tab_labels,
         index=initial_main_tab_idx, # Define a aba ativa com base no estado salvo
         key="main_tabs_selection_key" # ESSENCIAL: Chave única para este conjunto de abas
@@ -4869,76 +4872,64 @@ if st.session_state.get("login", False):
 
     # 5. Renderizar o conteúdo da aba principal selecionada (renderização condicional)
     if current_main_tab_label == "Sincronização":
-        with tab_sync_obj:
-            pagina_sincronizacao()
+        # Não há 'with' block aqui, chamamos a função diretamente
+        pagina_sincronizacao()
 
     elif current_main_tab_label == "Operações":
-        with tab_operacoes_obj:
-            # 1. Definir os rótulos das sub-abas de operações
-            operacoes_sub_tab_labels = [
-                "Confirmar Produção", "Aprovação Diretoria", "Pré Roterização",
-                "Cargas Geradas", "Aprovação de Custos", "Cargas Aprovadas",
-                "Cargas Encerradas"
-            ]
+        # 1. Definir os rótulos das sub-abas de operações
+        operacoes_sub_tab_labels = [
+            "Confirmar Produção", "Aprovação Diretoria", "Pré Roterização",
+            "Cargas Geradas", "Aprovação de Custos", "Cargas Aprovadas",
+            "Cargas Encerradas"
+        ]
 
-            # 2. Determinar o índice inicial da sub-aba de operações
-            current_operacoes_sub_tab_label_from_session = st.session_state.get("active_operacoes_sub_tab_label", "Confirmar Produção")
-            if current_operacoes_sub_tab_label_from_session not in operacoes_sub_tab_labels:
-                current_operacoes_sub_tab_label_from_session = "Confirmar Produção" # Fallback
-            initial_operacoes_sub_tab_idx = operacoes_sub_tab_labels.index(current_operacoes_sub_tab_label_from_session)
+        # 2. Determinar o índice inicial da sub-aba de operações
+        current_operacoes_sub_tab_label_from_session = st.session_state.get("active_operacoes_sub_tab_label", "Confirmar Produção")
+        if current_operacoes_sub_tab_label_from_session not in operacoes_sub_tab_labels:
+            current_operacoes_sub_tab_label_from_session = "Confirmar Produção" # Fallback
+        initial_operacoes_sub_tab_idx = operacoes_sub_tab_labels.index(current_operacoes_sub_tab_label_from_session)
 
-            # 3. Criar as sub-abas de operações usando 'key' e 'index'
-            sub_tab_confirmar_prod_obj, sub_tab_aprov_dir_obj, sub_tab_pre_rot_obj, \
-            sub_tab_cargas_obj, sub_tab_aprov_custos_obj, \
-            sub_tab_cargas_aprovadas_obj, sub_tab_cargas_fechadas_obj = st.tabs(
-                operacoes_sub_tab_labels,
-                index=initial_operacoes_sub_tab_idx, # Define a sub-aba ativa com base no estado salvo
-                key="operacoes_sub_tabs_selection_key" # ESSENCIAL: Chave única para este conjunto de sub-abas
-            )
+        # 3. Criar as sub-abas de operações usando 'key' e 'index'
+        selected_operacoes_sub_tab_label = st.tabs(
+            operacoes_sub_tab_labels,
+            index=initial_operacoes_sub_tab_idx, # Define a sub-aba ativa com base no estado salvo
+            key="operacoes_sub_tabs_selection_key" # ESSENCIAL: Chave única para este conjunto de sub-abas
+        )
 
-            # 4. Obter o rótulo da sub-aba selecionada
-            current_operacoes_sub_tab_label = st.session_state.operacoes_sub_tabs_selection_key
-            # Atualiza o estado salvo para o próximo rerun
-            st.session_state.active_operacoes_sub_tab_label = current_operacoes_sub_tab_label
+        # 4. Obter o rótulo da sub-aba selecionada
+        current_operacoes_sub_tab_label = st.session_state.operacoes_sub_tabs_selection_key
+        # Atualiza o estado salvo para o próximo rerun
+        st.session_state.active_operacoes_sub_tab_label = current_operacoes_sub_tab_label
 
-            # 5. Renderizar o conteúdo da sub-aba selecionada (renderização condicional)
-            if current_operacoes_sub_tab_label == "Confirmar Produção":
-                with sub_tab_confirmar_prod_obj:
-                    pagina_confirmar_producao()
-            elif current_operacoes_sub_tab_label == "Aprovação Diretoria":
-                with sub_tab_aprov_dir_obj:
-                    pagina_aprovacao_diretoria()
-            elif current_operacoes_sub_tab_label == "Pré Roterização":
-                with sub_tab_pre_rot_obj:
-                    pagina_pre_roterizacao()
-            elif current_operacoes_sub_tab_label == "Cargas Geradas":
-                with sub_tab_cargas_obj:
-                    pagina_cargas_geradas()
-            elif current_operacoes_sub_tab_label == "Aprovação de Custos":
-                with sub_tab_aprov_custos_obj:
-                    pagina_aprovacao_custos()
-            elif current_operacoes_sub_tab_label == "Cargas Aprovadas":
-                with sub_tab_cargas_aprovadas_obj:
-                    pagina_cargas_aprovadas()
-            elif current_operacoes_sub_tab_label == "Cargas Encerradas":
-                with sub_tab_cargas_fechadas_obj:
-                    pagina_cargas_fechadas()
+        # 5. Renderizar o conteúdo da sub-aba selecionada (renderização condicional)
+        if current_operacoes_sub_tab_label == "Confirmar Produção":
+            pagina_confirmar_producao()
+        elif current_operacoes_sub_tab_label == "Aprovação Diretoria":
+            pagina_aprovacao_diretoria()
+        elif current_operacoes_sub_tab_label == "Pré Roterização":
+            pagina_pre_roterizacao()
+        elif current_operacoes_sub_tab_label == "Cargas Geradas":
+            pagina_cargas_geradas()
+        elif current_operacoes_sub_tab_label == "Aprovação de Custos":
+            pagina_aprovacao_custos()
+        elif current_operacoes_sub_tab_label == "Cargas Aprovadas":
+            pagina_cargas_aprovadas()
+        elif current_operacoes_sub_tab_label == "Cargas Encerradas":
+            pagina_cargas_fechadas()
 
     elif current_main_tab_label == "Administração e Configurações":
-        with tab_admin_settings_obj:
-            if st.session_state.get("is_admin", False):
-                st.subheader("Gerenciamento de Usuários")
-                pagina_gerenciar_usuarios()
-                st.markdown("---")
+        # Conteúdo da aba de Administração e Configurações
+        if st.session_state.get("is_admin", False):
+            st.subheader("Gerenciamento de Usuários")
+            pagina_gerenciar_usuarios()
+            st.markdown("---")
 
-            st.subheader("Alterar Minha Senha")
-            pagina_trocar_senha()
+        st.subheader("Alterar Minha Senha")
+        pagina_trocar_senha()
 
-# Se o usuário não estiver logado, a função login() no início já teria parado o script.
+# Se o usuário não estiver logado, a função login() no início do script já cuida disso.
 else:
-    pass # Nada a fazer aqui, pois o login() já cuida do acesso.
+    pass
 
-# ==============================================================================
-# FIM DO BLOCO DE EXECUÇÃO PRINCIPAL CORRIGIDO
-# ==============================================================================
+# Trecho de SUBSTITUIÇÃO - FIM
 
