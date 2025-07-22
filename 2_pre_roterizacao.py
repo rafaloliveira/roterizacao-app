@@ -3378,10 +3378,10 @@ def pagina_cargas_geradas():
                                     if not dados_restantes_na_carga:
                                         pass
 
+                                    st.session_state.current_selected_rows_for_charge[carga] = [] # <<< ADICIONADO AQUI
                                     st.session_state.pop("df_cargas_cache", None)
-                                    grid_key_id = f"grid_carga_gerada_{carga}"
                                     st.session_state.pop(grid_key_id, None)
-                                    st.session_state.pop(checkbox_key, None) # <<< ADICIONADO AQUI: Limpa o estado do checkbox "Marcar todas"
+                                    st.session_state.pop(checkbox_key, None)
                                     st.session_state["reload_cargas_geradas"] = True
 
                                     st.success(f"✅ {len(ctrcs_a_remover_do_grid)} entrega(s) removida(s) da carga {carga} e retornada(s) para Pré-Roterização.")
