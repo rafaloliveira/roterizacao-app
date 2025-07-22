@@ -4857,8 +4857,11 @@ if st.session_state.get("login", False):
         current_main_tab_label_from_session = "Sincronização" # Fallback
     initial_main_tab_idx = main_tab_labels.index(current_main_tab_label_from_session)
 
-    # 3. Criar as abas principais usando 'key' e 'index'
-    #    O 'key' armazena o rótulo da aba selecionada em st.session_state.main_tabs_selection_key
+    # --- INÍCIO DO BLOCO DE DEBUG ---
+    st.write(f"DEBUG: main_tab_labels: {main_tab_labels} (type: {type(main_tab_labels)})")
+    st.write(f"DEBUG: initial_main_tab_idx: {initial_main_tab_idx} (type: {type(initial_main_tab_idx)})")
+    st.write(f"DEBUG: st.session_state.active_main_tab_label: {st.session_state.get('active_main_tab_label', 'NOT_SET')} (type: {type(st.session_state.get('active_main_tab_label'))})")
+    # --- FIM DO BLOCO DE DEBUG ---
     selected_main_tab_label = st.tabs(
         main_tab_labels,
         index=initial_main_tab_idx, # Define a aba ativa com base no estado salvo
