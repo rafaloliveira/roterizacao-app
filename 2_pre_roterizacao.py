@@ -838,7 +838,7 @@ def carregar_base_supabase():
 
     except Exception as e:
         st.error(f"Erro ao consultar as tabelas do Supabase: {e}")
-        return pd.DataFrame()
+        return base
 
     
 
@@ -1256,11 +1256,34 @@ def limpar_tabelas_relacionadas():
             #st.error(f"[ERRO GERAL] Ao tentar limpar a tabela '{tabela}': {e}. Por favor, verifique suas permissões (RLS) no Supabase ou se a coluna 'Serie_Numero_CTRC' existe em todas as tabelas listadas.")
 
 def tratar_data_para_utc(dt):
-    """Converte um objeto datetime para string ISO UTC, ou None se for NaT/None."""
-    if pd.isna(dt):
+    """
+    Converte um objeto datetime (ou algo parsável como datetime) para string ISO 8601 em UTC.
+    Assume que o datetime está no fuso horário do Brasil se não tiver tzinfo.
+    Lida com pd.NaT, np.nan e garante que o fuso horário seja tratado corretamente
+    com Horário de Verão usando parâmetros 'ambiguous' e 'nonexistent'.
+    """
+    if pd.isna(dt): # Verifica se é None, pd.NaT, np.nan
         return None
+
+    # Tentar converter para Timestamp do Pandas se não for já um
+    # Isso padroniza o objeto para manipulação de timezone
+    if not isinstance(dt, pd.Timestamp):
+        try:
+            dt = pd.Timestamp(dt)
+        except (ValueError, TypeError): # Captura erros de conversão para Timestamp
+            return None # Retorna None se não conseguir converter para uma data válida
+
+    # Se o objeto Timestamp não tem informações de fuso horário,
+    # localize-o para o fuso horário do Brasil.
     if dt.tzinfo is None:
-        dt = dt.tz_localize(FUSO_BRASIL) # Assume fuso local se não tiver timezone
+        # Use 'ambiguous' e 'nonexistent' para lidar com horários de verão de forma robusta.
+        # 'NaT' faz com que horários problemáticos (pulados/duplicados) resultem em NaT.
+        dt = dt.tz_localize(FUSO_BRASIL, ambiguous='NaT', nonexistent='NaT')
+        if pd.isna(dt): # Se a localização resultar em NaT, significa um problema (ex: hora pulada/duplicada)
+            return None # Retorna None para datas que não puderam ser localizadas
+
+    # Converta para UTC e formate para ISO 8601, que é o formato preferencial para Supabase
+    # (assumindo que suas colunas de data/hora no Supabase são 'timestamp with time zone').
     return dt.tz_convert("UTC").isoformat(timespec="seconds").replace("+00:00", "Z")
 
 # ------------------------#############-------------------------------------------
@@ -1343,25 +1366,17 @@ def adicionar_entregas_a_carga(ctrcs_selecionados, numero_carga_destino):
 
     # Loop para processar TODAS as colunas de data definidas em GLOBAL_DATE_DISPLAY_COLUMNS
     # Este loop agora focará em converter datas válidas para o formato UTC
+    # --- TRATAMENTO DE DATAS PARA SUPABASE (USANDO tratar_data_para_utc) ---
+                                    # df_aprovar vem do AgGrid, então os valores estão em formato de string
+                                    # (DD-MM-YYYY ou DD-MM-YYYY HH:MM:SS).
+                                    # A função tratar_data_para_utc lida com isso.
     for col_name in GLOBAL_DATE_DISPLAY_COLUMNS:
-        if col_name in df_para_inserir.columns:
-            # A máscara to_process_mask identifica apenas os valores que *não* são None (ou seja, são datas válidas)
-            to_process_mask = df_para_inserir[col_name].notna()
-            
-            if to_process_mask.any(): # Verifica se há alguma data válida para processar
-                parsed_dates = pd.to_datetime(
-                    df_para_inserir.loc[to_process_mask, col_name],
-                    dayfirst=True, # Tenta parsear no formato dia-mês-ano primeiro (comum no Brasil)
-                    errors='coerce' # Em caso de falha de parsing (apesar da limpeza prévia), coere para NaT
-                )
+        if col_name in df_aprovar.columns:
+            df_aprovar[col_name] = df_aprovar[col_name].apply(tratar_data_para_utc)
+            # tratar_data_para_utc já cuida do pd.to_datetime,
+            # localização de fuso horário e formatação ISO.
 
-                # Aplica a função de tratamento para UTC.
-                # Qualquer NaT resultante de 'errors=coerce' aqui também virará None.
-                df_para_inserir.loc[to_process_mask, col_name] = parsed_dates.apply(tratar_data_para_utc)
-
-    # Última limpeza: substitui quaisquer NaT, np.nan, infinitos ou strings vazias remanescentes por None
-    # Esta é uma boa medida de segurança final.
-    df_para_inserir = df_para_inserir.replace([np.nan, pd.NaT, np.inf, -np.inf, ""], None)
+    df_aprovar = df_aprovar.replace([np.nan, pd.NaT, np.inf, -np.inf, ""], None)
     
     dados_para_insercao = df_para_inserir.to_dict(orient='records')
 
@@ -1543,7 +1558,8 @@ def aplicar_regras_e_preencher_tabelas():
         hoje = pd.to_datetime('today').normalize()
         obrigatorias = df[
             (df['Data de Embarque'] < hoje + pd.Timedelta(days=1)) |
-            ((df['Status'] == 'AGENDAR') & (df['Entrega Programada'].isna()))
+            ((df['Status'] == 'AGENDAR') & (df['Entrega Programada'].isna())) |
+            (df['Entrega Programada'].notna()) # <--- Esta condição é crucial
         ].copy()
 
         confirmadas = df[~df['Serie_Numero_CTRC'].isin(obrigatorias['Serie_Numero_CTRC'])].copy()
@@ -2689,8 +2705,7 @@ def pagina_pre_roterizacao():
             st.info("Nenhuma entrega disponível.")
             return
 
-        if not dados_confirmados.empty and "Serie_Numero_CTRC" in dados_confirmados.columns:
-            df_visivel = df_visivel[~df_visivel["Serie_Numero_CTRC"].isin(dados_confirmados["Serie_Numero_CTRC"].astype(str))]
+        
 
         if df_visivel.empty:
             st.info("Nenhuma entrega disponível para pré-roterização após filtragem.")
@@ -3322,39 +3337,16 @@ def pagina_cargas_geradas():
                                         'nan nan-nan-nan', '00-00-0000' 
                                     ]
 
+                                                                        # >> REVISADO: TRATAMENTO DE DATAS PARA INSERÇÃO EM PRE_ROTERIZACAO <<
+                                    # df_remover vem do AgGrid, então os valores estão em formato de string
+                                    # (DD-MM-YYYY ou DD-MM-YYYY HH:MM:SS).
+                                    # A função tratar_data_para_utc lida com isso.
                                     for col_name in GLOBAL_DATE_DISPLAY_COLUMNS:
                                         if col_name in df_remover.columns:
-                                            current_series = df_remover[col_name].astype(str).str.strip()
-
-                                            # Identificar e marcar strings indesejáveis para virarem None
-                                            is_undesirable = current_series.isin(undesirable_date_strings)
-                                            df_remover.loc[is_undesirable, col_name] = None # Set these to None immediately
-
-                                            # Agora, processar apenas os valores que *não* são None após a primeira limpeza
-                                            to_parse_indices = df_remover.loc[current_series.notna() & ~is_undesirable, col_name].index
-                                            
-                                            if not to_parse_indices.empty:
-                                                values_to_parse = df_remover.loc[to_parse_indices, col_name]
-
-                                                # Tentar parsing de data de forma mais flexível
-                                                # Usamos dayfirst=True para formato brasileiro, errors='coerce' para NaT
-                                                parsed_dates = pd.to_datetime(values_to_parse, dayfirst=True, errors='coerce')
-                                                
-                                                # Lidar com datas que ainda resultaram em NaT após parsing flexível
-                                                is_still_nat = parsed_dates.isna()
-                                                if is_still_nat.any():
-                                                    df_remover.loc[to_parse_indices[is_still_nat], col_name] = None
-                                                    # Filter out the NaTs from further processing
-                                                    parsed_dates = parsed_dates[~is_still_nat]
-                                                    to_parse_indices = to_parse_indices[~is_still_nat] # Update indices for next step
-
-                                                # Se ainda houver datas válidas após parsing e limpeza, localize e converta para UTC ISO
-                                                if not parsed_dates.empty:
-                                                    localized_utc_dates = parsed_dates.apply(tratar_data_para_utc)
-                                                    df_remover.loc[to_parse_indices, col_name] = localized_utc_dates
-
-
-                                    # No final, qualquer np.nan, pd.NaT, np.inf ou -np.inf remanescente será None
+                                            df_remover[col_name] = df_remover[col_name].apply(tratar_data_para_utc)
+                                            # tratar_data_para_utc já cuida do pd.to_datetime,
+                                            # localização de fuso horário e formatação ISO.
+                                    
                                     df_remover = df_remover.replace([np.nan, pd.NaT, np.inf, -np.inf, ""], None)
 
                                     registros = df_remover.to_dict(orient="records")
