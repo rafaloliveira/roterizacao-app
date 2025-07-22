@@ -1288,6 +1288,9 @@ def tratar_data_para_utc(dt):
 
 # ------------------------#############-------------------------------------------
 def adicionar_entregas_a_carga(ctrcs_selecionados, numero_carga_destino):
+    st.write("DEBUG: Função 'adicionar_entregas_a_carga' iniciada.")
+    st.write(f"DEBUG: Número da Carga Destino: {numero_carga_destino}")
+    st.write(f"DEBUG: CTRCs selecionados para adição: {ctrcs_selecionados[:5]}...")
     if not ctrcs_selecionados:
         st.warning("⚠️ Nenhum CTRC selecionado.")
         return
@@ -2954,8 +2957,10 @@ def pagina_pre_roterizacao():
 
 
                 # ➕ Botão: Criar nova carga com entregas selecionadas
-                if st.button(f"🟢 Gerar Carga com entregas da Rota {rota_predominante}", key=f"btn_nova_carga_rota_{rota_visual}"): 
+                if st.button(f"🟢 Gerar Carga com entregas da Rota {rota_predominante}", key=f"btn_nova_carga_rota_{rota_visual}"):
                     try:
+                        st.write("DEBUG: Botão 'Gerar Carga' clicado.")
+                        st.write(f"DEBUG: CTRCs selecionados recebidos: {ctrcs_selecionados[:5]}...") # Mostra os primeiros 5 CTRCs
                         numero_carga = gerar_proximo_numero_carga(supabase)
                         if numero_carga:
                             adicionar_entregas_a_carga(ctrcs_selecionados, numero_carga)
