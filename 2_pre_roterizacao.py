@@ -3340,74 +3340,118 @@ def pagina_cargas_geradas():
                         if st.button(f"♻️ Retirar da Carga", key=f"btn_retirar_{carga}"):
                             try:
                                 with st.spinner("🔄 Retirando entregas da carga..."):
-                                    df_remover = pd.DataFrame(selecionadas)
-                                    df_remover = df_remover.drop(columns=["_selectedRowNodeInfo"], errors="ignore")
+                                    ctrcs_a_remover_do_grid = [s.get("Serie_Numero_CTRC") for s in selecionadas if s.get("Serie_Numero_CTRC")]
 
-                                    # Recupera rota original, se presente
-                                    if "Rota_Original" in df_remover.columns:
-                                        df_remover["Rota"] = df_remover["Rota_Original"]
-
-                                    # Remove campos não relevantes para o retorno
-                                    df_remover = df_remover.drop(columns=["numero_carga", "Rota_Original"], errors="ignore")
-
-
-                                    # >> BLOCO ROBUSTO DE TRATAMENTO DE DATAS <<
-                                                                        # >> REVISADO: BLOCO ROBUSTO DE TRATAMENTO DE DATAS PARA RETIRAR DA CARGA <<
-                                    # df_remover é o DataFrame de 'selecionadas' vindo do AgGrid
-                                    # As datas no AgGrid estão no formato 'DD-MM-YYYY HH:MM:SS' (DATE_DISPLAY_FORMAT_STRING)
-                                    # ou 'DD-MM-YYYY' (se forem colunas de data sem hora como 'Previsao de Entrega', 'Entrega Programada')
-                                    
-                                    # Criar uma lista mais abrangente de strings que devem ser consideradas Nulo/None
-                                    undesirable_date_strings = [
-                                        '', 'nat', 'nan', 'None', 'NaT', '0', '0000-00-00', '1900-01-01', '0001-01-01',
-                                        'nan nan-nan-nan', '00-00-0000' 
-                                    ]
-
-                                                                        # >> REVISADO: TRATAMENTO DE DATAS PARA INSERÇÃO EM PRE_ROTERIZACAO <<
-                                    # df_remover vem do AgGrid, então os valores estão em formato de string
-                                    # (DD-MM-YYYY ou DD-MM-YYYY HH:MM:SS).
-                                    # A função tratar_data_para_utc lida com isso.
-                                    for col_name in GLOBAL_DATE_DISPLAY_COLUMNS:
-                                        if col_name in df_remover.columns:
-                                            df_remover[col_name] = df_remover[col_name].apply(tratar_data_para_utc)
-                                            # tratar_data_para_utc já cuida do pd.to_datetime,
-                                            # localização de fuso horário e formatação ISO.
-                                    
-                                    df_remover = df_remover.replace([np.nan, pd.NaT, np.inf, -np.inf, ""], None)
-
-                                    registros = df_remover.to_dict(orient="records")
-
-                                    try:
-                                        insert_response = supabase.table("pre_roterizacao").insert(registros).execute()
-                                        st.session_state["reload_pre_roterizacao"] = True
-
-                                        if insert_response and hasattr(insert_response, 'error') and insert_response.error:
-                                            error_details = insert_response.error
-                                            error_message = getattr(error_details, 'message', str(error_details))
-                                            raise Exception(error_message)
-
-                                    except Exception as e_insert:
-                                        if "23505" in str(e_insert) and "duplicate key value violates unique constraint" in str(e_insert):
-                                            key_info = registros[0].get('Serie_Numero_CTRC', 'Desconhecida') if registros else 'Desconhecida'
-                                            st.error(f"❌ Erro de duplicidade ao retornar entrega {key_info} para Rotas Confirmadas: Já existe um registro com essa chave. Isso pode indicar uma falha de deleção anterior ou um dado inconsistente. Por favor, verifique o Supabase manualmente.")
-                                        else:
-                                            st.error(f"❌ Erro ao inserir entregas em Rotas Confirmadas: {e_insert}")
+                                    if not ctrcs_a_remover_do_grid:
+                                        st.warning("Nenhuma entrega válida selecionada para remover.")
                                         return
 
+                                    response_original = supabase.table("cargas_geradas").select("*").in_("Serie_Numero_CTRC", ctrcs_a_remover_do_grid).execute()
+                                    dados_originais = response_original.data
+
+                                    if not dados_originais:
+                                        st.warning("Não foi possível recuperar os dados originais das entregas no Supabase para os CTRCs selecionados. Nenhuma ação será realizada.")
+                                        return
+
+                                    df_para_retornar = pd.DataFrame(dados_originais)
+
+                                    df_para_retornar = df_para_retornar.drop(columns=[
+                                        "numero_carga", "Data_Hora_Gerada", "motorista", "placa", "veiculo",
+                                        "valor_contratacao", "aprovador_custos_login", "data_aprovacao_custos"
+                                    ], errors="ignore")
+
+                                    for col_name in GLOBAL_DATE_DISPLAY_COLUMNS:
+                                        if col_name in df_para_retornar.columns:
+                                            df_para_retornar[col_name] = df_para_retornar[col_name].apply(tratar_data_para_utc)
+
+                                    df_para_retornar = df_para_retornar.replace([np.nan, pd.NaT, np.inf, -np.inf, ""], None)
+
+                                    registros_para_inserir = df_para_retornar.to_dict(orient="records")
+
+                                    if registros_para_inserir:
+                                        supabase.table("pre_roterizacao").insert(registros_para_inserir).execute()
+                                        st.session_state["reload_pre_roterizacao"] = True
+
+                                    delete_response_cargas_geradas = supabase.table("cargas_geradas").delete().in_("Serie_Numero_CTRC", ctrcs_a_remover_do_grid).execute()
+                                    
+                                    dados_restantes_na_carga = supabase.table("cargas_geradas").select("numero_carga").eq("numero_carga", carga).execute().data
+                                    if not dados_restantes_na_carga:
+                                        pass
+
+                                    st.session_state.pop("df_cargas_cache", None)
+                                    st.session_state.pop(f"grid_carga_gerada_{carga}", None)
+                                    st.session_state.pop(checkbox_key, None)
+                                    st.session_state["reload_cargas_geradas"] = True
+
+                                    st.success(f"✅ {len(ctrcs_a_remover_do_grid)} entrega(s) removida(s) da carga {carga} e retornada(s) para Pré-Roterização.")
+                                    st.rerun()
+
+                            except Exception as e:
+                                st.error(f"❌ Ocorreu um erro inesperado ao retirar entregas da carga: {e}")
+                                st.warning("A operação pode ter sido interrompida. Por favor, verifique a situação das entregas nas tabelas 'Pré-Roterização' e 'Cargas Geradas'.")
+                                    
+                    with col_ret:
+                        if st.button(f"♻️ Retirar da Carga", key=f"btn_retirar_{carga}"):
+                            try:
+                                with st.spinner("�� Retirando entregas da carga..."):
+                                    # Lista de CTRCs selecionados no AgGrid (formato de exibição)
+                                    ctrcs_a_remover_do_grid = [s.get("Serie_Numero_CTRC") for s in selecionadas if s.get("Serie_Numero_CTRC")]
+
+                                    if not ctrcs_a_remover_do_grid:
+                                        st.warning("Nenhuma entrega válida selecionada para remover.")
+                                        return
+
+                                    # BUSCA OS DADOS ORIGINAIS DO SUPABASE para garantir fidelidade
+                                    response_original = supabase.table("cargas_geradas").select("*").in_("Serie_Numero_CTRC", ctrcs_a_remover_do_grid).execute()
+                                    dados_originais = response_original.data
+
+                                    if not dados_originais:
+                                        st.warning("Não foi possível recuperar os dados originais das entregas no Supabase para os CTRCs selecionados. Nenhuma ação será realizada.")
+                                        return
+
+                                    df_para_retornar = pd.DataFrame(dados_originais)
+
+                                    # Remove colunas específicas de "carga" que não pertencem a "pre_roterizacao"
+                                    df_para_retornar = df_para_retornar.drop(columns=[
+                                        "numero_carga", "Data_Hora_Gerada", "motorista", "placa", "veiculo",
+                                        "valor_contratacao", "aprovador_custos_login", "data_aprovacao_custos"
+                                    ], errors="ignore")
+
+                                    # Converte datas para o formato ISO UTC para inserção no Supabase
+                                    for col_name in GLOBAL_DATE_DISPLAY_COLUMNS:
+                                        if col_name in df_para_retornar.columns:
+                                            df_para_retornar[col_name] = df_para_retornar[col_name].apply(tratar_data_para_utc)
+
+                                    # Substitui NaNs e outros por None para o Supabase
+                                    df_para_retornar = df_para_retornar.replace([np.nan, pd.NaT, np.inf, -np.inf, ""], None)
+
+                                    registros_para_inserir = df_para_retornar.to_dict(orient="records")
+
+                                    # Tenta inserir em "pre_roterizacao" com tratamento de duplicidade
+                                    if registros_para_inserir:
+                                        try:
+                                            supabase.table("pre_roterizacao").insert(registros_para_inserir).execute()
+                                            st.session_state["reload_pre_roterizacao"] = True
+                                        except Exception as e_insert:
+                                            if "23505" in str(e_insert) and "duplicate key value violates unique constraint" in str(e_insert):
+                                                key_info = registros_para_inserir[0].get('Serie_Numero_CTRC', 'Desconhecida') if registros_para_inserir else 'Desconhecida'
+                                                st.error(f"❌ Erro de duplicidade ao retornar entrega {key_info} para Pré-Roterização: Já existe um registro com essa chave. Isso pode indicar uma falha de deleção anterior ou um dado inconsistente. Por favor, verifique o Supabase manualmente.")
+                                            else:
+                                                st.error(f"❌ Erro ao inserir entregas em Pré-Roterização: {e_insert}")
+                                            return # Interrompe a execução se a inserção falhar
+
                                     # >> DELEÇÃO DA CARGA GERADA COM RETRY <<
-                                    chaves_para_deletar = df_remover["Serie_Numero_CTRC"].dropna().astype(str).tolist()
                                     delete_success = False
                                     deleted_count = 0
-                                    attempted_delete = bool(chaves_para_deletar)
+                                    attempted_delete = bool(ctrcs_a_remover_do_grid) # Baseia-se na lista de CTRCs selecionados
 
-                                    for tentativa in range(2):
+                                    for tentativa in range(2): # 2 tentativas
                                         if not attempted_delete:
                                             delete_success = True
                                             break
 
                                         try:
-                                            #st.info(f"DEBUG: Tentando deletar {len(chaves_para_deletar)} CTRCs da tabela 'cargas_geradas' (tentativa {tentativa+1}).")
-                                            delete_response = supabase.table("cargas_geradas").delete().in_("Serie_Numero_CTRC", chaves_para_deletar).execute()
+                                            delete_response = supabase.table("cargas_geradas").delete().in_("Serie_Numero_CTRC", ctrcs_a_remover_do_grid).execute()
 
                                             if delete_response.data:
                                                 deleted_count = len(delete_response.data)
@@ -3418,18 +3462,17 @@ def pagina_cargas_geradas():
                                                 raise Exception(delete_response.error.message)
                                             else:
                                                 st.warning(f"DEBUG: Deleção em 'cargas_geradas' na Tentativa {tentativa+1} retornou sem erro, mas 0 registros deletados. Possível problema de RLS ou itens não encontrados. Resposta: {delete_response}")
-                                                if tentativa < 1: time.sleep(1)
+                                                if tentativa < 1: time.sleep(1) # Pequena pausa antes de tentar novamente
                                                 continue
 
                                         except Exception as e_delete:
-                                            error_message = str(e_delete)
                                             st.error(f"DEBUG: Exceção inesperada durante deleção de 'cargas_geradas': {e_delete} (Tipo: {type(e_delete)})")
                                             st.warning(f"Tentativa {tentativa+1}/2: Exceção geral durante remoção de 'cargas_geradas': {e_delete}")
                                             if tentativa < 1: time.sleep(1)
                                             continue
 
                                     if not delete_success and attempted_delete:
-                                        raise Exception(f"Falha CRÍTICA na remoção de {len(chaves_para_deletar)} entrega(s) de 'Cargas Geradas'. "
+                                        raise Exception(f"Falha CRÍTICA na remoção de {len(ctrcs_a_remover_do_grid)} entrega(s) de 'Cargas Geradas'. "
                                                         f"Verifique as políticas RLS ou inconsistência de dados no Supabase.")
                                     elif deleted_count > 0:
                                         st.success(f"✅ {deleted_count} entregas removidas de 'Cargas Geradas'.")
@@ -3437,28 +3480,29 @@ def pagina_cargas_geradas():
                                         st.warning(f"ℹ️ Deleção de 'Cargas Geradas' concluída, mas 0 entregas foram removidas. Isso pode indicar RLS ou que já haviam sido movidas.")
 
                                     if delete_success:
-                                        dados_restantes = supabase.table("cargas_geradas").select("numero_carga").eq("numero_carga", carga).execute().data
-                                        if not dados_restantes:
-                                            st.info(f"DEBUG: Não há mais entregas na carga {carga}. Removendo a entrada da carga.")
-                                            supabase.table("cargas_geradas").delete().eq("numero_carga", carga).execute()
-                                        else:
-                                            st.info(f"DEBUG: Ainda restam {len(dados_restantes)} entregas na carga {carga}. Não removendo a entrada da carga.")
-
+                                        # Verifica se a carga ainda possui entregas após a deleção
+                                        dados_restantes_na_carga_pos_delete = supabase.table("cargas_geradas").select("Serie_Numero_CTRC").eq("numero_carga", carga).limit(1).execute().data
+                                        if not dados_restantes_na_carga_pos_delete:
+                                            # Aqui você poderia, por exemplo, remover um registro "cabeçalho" da carga se ele existisse em outra tabela.
+                                            # No seu modelo atual, as informações da carga (motorista, placa, etc.) estão por entrega,
+                                            # então não há um registro de "carga" separado para deletar aqui.
+                                            pass
+                                    
+                                    # Limpa os caches e estados da sessão para forçar a atualização dos grids
                                     st.session_state.pop("df_cargas_cache", None)
                                     grid_key_id = f"grid_carga_gerada_{carga}"
                                     st.session_state.pop(grid_key_id, None)
-                                    st.session_state.pop(checkbox_key, None)
+                                    st.session_state.pop(checkbox_key, None) # Limpa o checkbox "Marcar todas"
 
-                                    st.session_state["reload_cargas_geradas"] = True
+                                    st.session_state["reload_cargas_geradas"] = True # Força o recarregamento da página "Cargas Geradas"
                                     
-
-                                    st.success(f"✅ {len(chaves_para_deletar)} entrega(s) removida(s) da carga {carga} e retornada(s) para Rotas Confirmadas.")
-
-                                    st.rerun()
+                                    # Mensagem final de sucesso (corrigida para Pré-Roterização)
+                                    st.success(f"✅ {len(ctrcs_a_remover_do_grid)} entrega(s) removida(s) da carga {carga} e retornada(s) para Pré-Roterização.")
+                                    st.rerun() # Força a re-renderização da aplicação
 
                             except Exception as e:
                                 st.error(f"❌ Ocorreu um erro inesperado ao retirar entregas da carga: {e}")
-                                st.warning("A operação pode ter sido interrompida. Por favor, verifique a situação das entregas nas tabelas 'Rotas Confirmadas' e 'Cargas Geradas'.")
+                                st.warning("A operação pode ter sido interrompida. Por favor, verifique a situação das entregas nas tabelas 'Pré-Roterização' e 'Cargas Geradas'.")
 
                     with col_aprov:
                         valor_contratacao_key = f"valor_contratacao_{carga}"
