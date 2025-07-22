@@ -1261,25 +1261,49 @@ def limpar_tabelas_relacionadas():
             #st.error(f"[ERRO GERAL] Ao tentar limpar a tabela '{tabela}': {e}. Por favor, verifique suas permissões (RLS) no Supabase ou se a coluna 'Serie_Numero_CTRC' existe em todas as tabelas listadas.")
 
 def tratar_data_para_utc(valor):
-    if pd.isna(valor):
+    """
+    Converte um valor de data/hora para uma string ISO 8601 em UTC.
+    Prioriza o parsing de formatos ISO e lida com fusos horários.
+    """
+    if pd.isna(valor) or valor == "": # Lida com NaN e strings vazias/nulas
         return None
 
-    if isinstance(valor, (pd.Timestamp, datetime)):
-        if valor.tzinfo is None:
-            valor = valor.tz_localize("America/Sao_Paulo")
-        return valor.tz_convert("UTC").isoformat()
-
+    dt_obj = None
     if isinstance(valor, str):
+        # Tenta primeiro parsear como ISO 8601 (formato comum do Supabase),
+        # assumindo UTC se nenhuma informação de fuso horário estiver presente.
         try:
-            valor = pd.to_datetime(valor, errors='coerce', dayfirst=True)
-            if pd.isna(valor):
-                return None
-            valor = valor.tz_localize("America/Sao_Paulo")
-            return valor.tz_convert("UTC").isoformat()
-        except:
+            dt_obj = pd.to_datetime(valor, errors='raise', utc=True) # errors='raise' para diferenciar falhas de formato
+        except ValueError:
+            # Se a tentativa ISO falhar, tenta parsear com dayfirst=True.
+            # Isso é útil para formatos como "DD-MM-YYYY HH:MM:SS" ou "DD/MM/YYYY".
+            # Se for um valor numérico que virou string (ex: '2024.0'), coerce.
+            dt_obj = pd.to_datetime(valor, errors='coerce', dayfirst=True)
+            
+    elif isinstance(valor, (pd.Timestamp, datetime)):
+        dt_obj = valor
+    else:
+        # Tenta coercer outros tipos (como numpy.datetime64) para datetime
+        try:
+            dt_obj = pd.to_datetime(valor, errors='coerce')
+        except Exception:
+            # st.warning(f"Não foi possível converter o valor '{valor}' para datetime.") # Para debug, se necessário
+            return None # Não foi possível converter para um objeto datetime
+
+    if pd.isna(dt_obj): # Se, após todas as tentativas, ainda for NaT
+        return None # Retorna None se a data for inválida ou não puder ser parseada
+
+    # Se o objeto datetime estiver "naive" (sem informação de fuso horário),
+    # assume-se que ele está no fuso horário de São Paulo (Brasil).
+    if dt_obj.tzinfo is None:
+        # 'ambiguous' e 'nonexistent' ajudam a lidar com mudanças de horário de verão
+        dt_obj = dt_obj.tz_localize(FUSO_BRASIL, ambiguous='NaT', nonexistent='NaT')
+        if pd.isna(dt_obj): # Se houve erro na localização, retorna None
             return None
 
-    return None
+    # Converte o objeto datetime para o fuso horário UTC e retorna no formato ISO 8601.
+    # .replace('+00:00', 'Z') é um detalhe de formatação para padronizar 'Z' para UTC.
+    return dt_obj.tz_convert("UTC").isoformat(timespec='seconds').replace('+00:00', 'Z')
 
 
 
@@ -1628,7 +1652,7 @@ from pandas import Timestamp # Importação mantida para compatibilidade de tipo
 # Supondo que FUSO_BRASIL e formatar_brasileiro já estão definidos no seu código
 # Exemplo (se não estiverem definidos, mantenha os seus):
 from zoneinfo import ZoneInfo
-FUSO_BRASIL = ZoneInfo("America/Sao_Paulo")
+
 def formatar_brasileiro(valor):
     if valor is None or (isinstance(valor, (float, np.float64)) and np.isnan(valor)):
         return "0,00"
