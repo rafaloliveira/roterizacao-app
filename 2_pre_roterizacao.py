@@ -4820,104 +4820,112 @@ login()  # Garante que o usuário esteja logado
 
 # Mostra welcome + botão sair no topo da página principal
 if st.session_state.get("login", False):
-    col_welcome, col_logout = st.columns([10, 2]) # Ajuste as proporções das colunas conforme necessário
+    col_welcome, col_logout = st.columns([10, 2])
     with col_welcome:
-        st.markdown(f"👋 **Bem-vindo, {st.session_state.get('username','Usuário')}!**")
+        st.markdown(f"�� **Bem-vindo, {st.session_state.get('username','Usuário')}!**")
     with col_logout:
         if st.button("🚪 Sair"):
-            for key in ["login", "username", "is_admin", "expiry_time"]:
-                cookies[key] = ""
+            for key in ["login", "username", "is_admin", "expiry_time", "classe"]:
+                if key in cookies: # Verifica se a chave existe antes de tentar apagar
+                    cookies[key] = ""
+            # Limpe também as chaves de controle de abas do session_state ao deslogar
+            if "active_main_tab_label" in st.session_state:
+                del st.session_state.active_main_tab_label
+            if "active_operacoes_sub_tab_label" in st.session_state:
+                del st.session_state.active_operacoes_sub_tab_label
             st.session_state.login = False
             st.rerun()
-    st.markdown("---") # Linha separadora para separar o cabeçalho das abas
+    st.markdown("---")
 
-    # Definir as abas principais
-    # Adicionei uma aba para "Administração e Configurações" para agrupar as opções de usuário.
+    # Definir os rótulos das abas principais
     main_tab_labels = ["Sincronização", "Operações", "Administração e Configurações"]
-    # Passa o índice da aba ativa armazenado no session_state
+
+    # Determinar o índice inicial da aba principal
+    initial_main_tab_idx = 0
+    if st.session_state.active_main_tab_label in main_tab_labels:
+        initial_main_tab_idx = main_tab_labels.index(st.session_state.active_main_tab_label)
+
+    # Definir as abas principais com uma 'key' para gerenciar o estado em session_state
     tab_sync_obj, tab_operacoes_obj, tab_admin_settings_obj = st.tabs(
         main_tab_labels,
-        index=st.session_state.active_main_tab_idx
+        index=initial_main_tab_idx, # Define a aba inicial com base no estado salvo
+        key="main_tabs_selection_key" # Chave única para este conjunto de abas
     )
 
-    # Verifica qual aba está selecionada e atualiza o session_state para o próximo rerun
-# (Note: st.tabs retorna o objeto da aba selecionada, não o índice diretamente)
-if tab_sync_obj._session_state_value == main_tab_labels[0]: # Se Sincronização está ativa
-    st.session_state.active_main_tab_idx = 0
-elif tab_operacoes_obj._session_state_value == main_tab_labels[1]: # Se Operações está ativa
-    st.session_state.active_main_tab_idx = 1
-elif tab_admin_settings_obj._session_state_value == main_tab_labels[2]: # Se Administração está ativa
-    st.session_state.active_main_tab_idx = 2
+    # O Streamlit automaticamente atualizará st.session_state.main_tabs_selection_key
+    # com o rótulo da aba selecionada (ex: "Sincronização", "Operações").
+    # Usaremos esse valor para controlar qual conteúdo exibir.
+    current_main_tab_label = st.session_state.main_tabs_selection_key
 
-# A partir daqui, você usará `st.session_state.active_main_tab_idx` para controlar o conteúdo
-if st.session_state.active_main_tab_idx == 0: # Sincronização
-    with tab_sync_obj:
-        pagina_sincronizacao()
+    # Atualiza o estado salvo para uso futuro (após rerun)
+    st.session_state.active_main_tab_label = current_main_tab_label
 
-elif st.session_state.active_main_tab_idx == 1: # Operações
-    with tab_operacoes_obj:
-        # Sub-abas de operações
-        operacoes_sub_tab_labels = [
-            "Confirmar Produção", "Aprovação Diretoria", "Pré Roterização",
-            "Cargas Geradas", "Aprovação de Custos", "Cargas Aprovadas",
-            "Cargas Encerradas"
-        ]
-        # Passa o índice da sub-aba ativa armazenado no session_state
-        sub_tab_confirmar_prod_obj, sub_tab_aprov_dir_obj, sub_tab_pre_rot_obj, \
-        sub_tab_cargas_obj, sub_tab_aprov_custos_obj, \
-        sub_tab_cargas_aprovadas_obj, sub_tab_cargas_fechadas_obj = st.tabs(
-            operacoes_sub_tab_labels,
-            index=st.session_state.active_operacoes_sub_tab_idx
-        )
+    # Renderiza o conteúdo da aba principal selecionada
+    if current_main_tab_label == "Sincronização":
+        with tab_sync_obj:
+            pagina_sincronizacao()
 
-        # Verifica qual sub-aba está selecionada e atualiza o session_state
-        if sub_tab_confirmar_prod_obj._session_state_value == operacoes_sub_tab_labels[0]:
-            st.session_state.active_operacoes_sub_tab_idx = 0
-        elif sub_tab_aprov_dir_obj._session_state_value == operacoes_sub_tab_labels[1]:
-            st.session_state.active_operacoes_sub_tab_idx = 1
-        elif sub_tab_pre_rot_obj._session_state_value == operacoes_sub_tab_labels[2]:
-            st.session_state.active_operacoes_sub_tab_idx = 2
-        elif sub_tab_cargas_obj._session_state_value == operacoes_sub_tab_labels[3]:
-            st.session_state.active_operacoes_sub_tab_idx = 3
-        elif sub_tab_aprov_custos_obj._session_state_value == operacoes_sub_tab_labels[4]:
-            st.session_state.active_operacoes_sub_tab_idx = 4
-        elif sub_tab_cargas_aprovadas_obj._session_state_value == operacoes_sub_tab_labels[5]:
-            st.session_state.active_operacoes_sub_tab_idx = 5
-        elif sub_tab_cargas_fechadas_obj._session_state_value == operacoes_sub_tab_labels[6]:
-            st.session_state.active_operacoes_sub_tab_idx = 6
+    elif current_main_tab_label == "Operações":
+        with tab_operacoes_obj:
+            # Definir os rótulos das sub-abas de operações
+            operacoes_sub_tab_labels = [
+                "Confirmar Produção", "Aprovação Diretoria", "Pré Roterização",
+                "Cargas Geradas", "Aprovação de Custos", "Cargas Aprovadas",
+                "Cargas Encerradas"
+            ]
 
-        # Renderiza o conteúdo da sub-aba selecionada
-        if st.session_state.active_operacoes_sub_tab_idx == 0:
-            with sub_tab_confirmar_prod_obj:
-                pagina_confirmar_producao()
-        elif st.session_state.active_operacoes_sub_tab_idx == 1:
-            with sub_tab_aprov_dir_obj:
-                pagina_aprovacao_diretoria()
-        elif st.session_state.active_operacoes_sub_tab_idx == 2:
-            with sub_tab_pre_rot_obj:
-                pagina_pre_roterizacao()
-        elif st.session_state.active_operacoes_sub_tab_idx == 3:
-            with sub_tab_cargas_obj:
-                pagina_cargas_geradas()
-        elif st.session_state.active_operacoes_sub_tab_idx == 4:
-            with sub_tab_aprov_custos_obj:
-                pagina_aprovacao_custos()
-        elif st.session_state.active_operacoes_sub_tab_idx == 5:
-            with sub_tab_cargas_aprovadas_obj:
-                pagina_cargas_aprovadas()
-        elif st.session_state.active_operacoes_sub_tab_idx == 6:
-            with sub_tab_cargas_fechadas_obj:
-                pagina_cargas_fechadas()
+            # Determinar o índice inicial da sub-aba de operações
+            initial_operacoes_sub_tab_idx = 0
+            if st.session_state.active_operacoes_sub_tab_label in operacoes_sub_tab_labels:
+                initial_operacoes_sub_tab_idx = operacoes_sub_tab_labels.index(st.session_state.active_operacoes_sub_tab_label)
 
-elif st.session_state.active_main_tab_idx == 2: # Administração e Configurações
-    with tab_admin_settings_obj:
-        if st.session_state.get("is_admin", False):
-            st.subheader("Gerenciamento de Usuários")
-            pagina_gerenciar_usuarios()
-            st.markdown("---")
+            # Definir as sub-abas com uma 'key' para gerenciar o estado em session_state
+            sub_tab_confirmar_prod_obj, sub_tab_aprov_dir_obj, sub_tab_pre_rot_obj, \
+            sub_tab_cargas_obj, sub_tab_aprov_custos_obj, \
+            sub_tab_cargas_aprovadas_obj, sub_tab_cargas_fechadas_obj = st.tabs(
+                operacoes_sub_tab_labels,
+                index=initial_operacoes_sub_tab_idx, # Define a sub-aba inicial com base no estado salvo
+                key="operacoes_sub_tabs_selection_key" # Chave única para este conjunto de sub-abas
+            )
 
-        st.subheader("Alterar Minha Senha")
-        pagina_trocar_senha()
+            # O Streamlit atualizará st.session_state.operacoes_sub_tabs_selection_key
+            current_operacoes_sub_tab_label = st.session_state.operacoes_sub_tabs_selection_key
+
+            # Atualiza o estado salvo para uso futuro (após rerun)
+            st.session_state.active_operacoes_sub_tab_label = current_operacoes_sub_tab_label
+
+            # Renderiza o conteúdo da sub-aba selecionada
+            if current_operacoes_sub_tab_label == "Confirmar Produção":
+                with sub_tab_confirmar_prod_obj:
+                    pagina_confirmar_producao()
+            elif current_operacoes_sub_tab_label == "Aprovação Diretoria":
+                with sub_tab_aprov_dir_obj:
+                    pagina_aprovacao_diretoria()
+            elif current_operacoes_sub_tab_label == "Pré Roterização":
+                with sub_tab_pre_rot_obj:
+                    pagina_pre_roterizacao()
+            elif current_operacoes_sub_tab_label == "Cargas Geradas":
+                with sub_tab_cargas_obj:
+                    pagina_cargas_geradas()
+            elif current_operacoes_sub_tab_label == "Aprovação de Custos":
+                with sub_tab_aprov_custos_obj:
+                    pagina_aprovacao_custos()
+            elif current_operacoes_sub_tab_label == "Cargas Aprovadas":
+                with sub_tab_cargas_aprovadas_obj:
+                    pagina_cargas_aprovadas()
+            elif current_operacoes_sub_tab_label == "Cargas Encerradas":
+                with sub_tab_cargas_fechadas_obj:
+                    pagina_cargas_fechadas()
+
+    elif current_main_tab_label == "Administração e Configurações":
+        with tab_admin_settings_obj:
+            if st.session_state.get("is_admin", False):
+                st.subheader("Gerenciamento de Usuários")
+                pagina_gerenciar_usuarios()
+                st.markdown("---")
+
+            st.subheader("Alterar Minha Senha")
+            pagina_trocar_senha()
 
 # Se o usuário não estiver logado, a função login() no início já teria parado o script.
 # Este bloco 'else' não é estritamente necessário aqui se o login() faz um st.stop()
