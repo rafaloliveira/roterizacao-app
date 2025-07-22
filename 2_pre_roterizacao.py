@@ -1546,6 +1546,7 @@ def aplicar_regras_e_preencher_tabelas():
             (df['Data de Embarque'] < hoje + pd.Timedelta(days=1)) |
             ((df['Status'] == 'AGENDAR') & (df['Entrega Programada'].isna())) |
             (df['Entrega Programada'].notna()) # <--- Esta condição é crucial
+            (df['Codigo da Ultima Ocorrencia'].isin(['17', '39', '78', '79'])) # Entregas com códigos de ocorrência específicos
         ].copy()
 
         confirmadas = df[~df['Serie_Numero_CTRC'].isin(obrigatorias['Serie_Numero_CTRC'])].copy()
