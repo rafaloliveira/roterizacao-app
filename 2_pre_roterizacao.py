@@ -1909,7 +1909,7 @@ def pagina_confirmar_producao():
     colunas_exibir = [
         "Serie_Numero_CTRC", "Rota", "Regiao", "Cidade de Entrega","Bairro do Destinatario",
         "Valor do Frete", "Cliente Pagador", "Cliente Destinatario", "Previsao de Entrega",
-        "Numero da Nota Fiscal", "Status","Entrega Programada",  
+        "Numero da Nota Fiscal", "Status","Entrega Programada", "Data de Emissao", 
         "Chave CT-e", "Particularidade", "Codigo da Ultima Ocorrencia", "Peso Real em Kg", 
         "Peso Calculado em Kg", "Cubagem em m³", "Quantidade de Volumes"
     ]
@@ -2245,7 +2245,7 @@ def pagina_aprovacao_diretoria():
     colunas_exibir = [
         "Serie_Numero_CTRC", "Rota", "Regiao", "Cidade de Entrega","Bairro do Destinatario",
         "Valor do Frete", "Cliente Pagador", "Cliente Destinatario", "Previsao de Entrega",
-        "Numero da Nota Fiscal", "Status","Entrega Programada",  
+        "Numero da Nota Fiscal", "Status","Entrega Programada", "Data de Emissao",  
         "Chave CT-e", "Particularidade", "Codigo da Ultima Ocorrencia", "Peso Real em Kg", 
         "Peso Calculado em Kg", "Cubagem em m³", "Quantidade de Volumes"
     ]
@@ -2736,7 +2736,7 @@ def pagina_pre_roterizacao():
     colunas_exibir = [
         "Serie_Numero_CTRC", "Rota", "Regiao", "Cidade de Entrega","Bairro do Destinatario",
         "Valor do Frete", "Cliente Pagador", "Cliente Destinatario", "Previsao de Entrega",
-        "Numero da Nota Fiscal", "Status","Entrega Programada",  
+        "Numero da Nota Fiscal", "Status","Entrega Programada", "Data de Emissao", 
         "Chave CT-e", "Particularidade", "Codigo da Ultima Ocorrencia", "Peso Real em Kg", 
         "Peso Calculado em Kg", "Cubagem em m³", "Quantidade de Volumes"
     ]
@@ -3103,7 +3103,7 @@ def pagina_cargas_geradas():
         colunas_exibir = [
         "Serie_Numero_CTRC", "Rota", "Regiao", "Cidade de Entrega","Bairro do Destinatario",
         "Valor do Frete", "Cliente Pagador", "Cliente Destinatario", "Previsao de Entrega",
-        "Numero da Nota Fiscal", "Status","Entrega Programada",
+        "Numero da Nota Fiscal", "Status","Entrega Programada",  "Data de Emissao",
         "Chave CT-e", "Particularidade", "Codigo da Ultima Ocorrencia", "Peso Real em Kg",
         "Peso Calculado em Kg", "Cubagem em m³", "Quantidade de Volumes"
     ]
@@ -3233,7 +3233,7 @@ def pagina_cargas_geradas():
 
                 with st.spinner("Carregando entregas da carga no grid..."):
                     df_formatado = df_display[df_display["numero_carga"] == carga][[col for col in colunas_exibir if col in df_display.columns]]
-                    #df_formatado = apply_brazilian_date_format_for_display(df_formatado) # Linha que causa o problema de datas, remover se ainda não o fez.
+                    df_formatado = apply_brazilian_date_format_for_display(df_formatado) # Linha que causa o problema de datas, remover se ainda não o fez.
 
                     gb = GridOptionsBuilder.from_dataframe(df_formatado)
                     gb.configure_default_column(minWidth=90)
@@ -3695,7 +3695,7 @@ def pagina_aprovacao_custos():
         colunas_exibir = [
         "Serie_Numero_CTRC", "Rota", "Regiao", "Cidade de Entrega","Bairro do Destinatario",
         "Valor do Frete", "Cliente Pagador", "Cliente Destinatario", "Previsao de Entrega",
-        "Numero da Nota Fiscal", "Status","Entrega Programada",  
+        "Numero da Nota Fiscal", "Status","Entrega Programada",  "Data de Emissao",
         "Chave CT-e", "Particularidade", "Codigo da Ultima Ocorrencia", "Peso Real em Kg", 
         "Peso Calculado em Kg", "Cubagem em m³", "Quantidade de Volumes"
     ]
@@ -4105,7 +4105,7 @@ def pagina_cargas_aprovadas():
 
         colunas_exibir = [
             "Serie_Numero_CTRC", "Rota", "Regiao", "Valor do Frete", "Cliente Pagador", "Chave CT-e",
-            "Cliente Destinatario",
+            "Cliente Destinatario",  "Data de Emissao",
             "Cidade de Entrega", "Bairro do Destinatario", "Previsao de Entrega",
             "Numero da Nota Fiscal", "Status", "Entrega Programada", "Particularidade",
             "Codigo da Ultima Ocorrencia", "Peso Real em Kg", "Peso Calculado em Kg",
@@ -4487,7 +4487,7 @@ def pagina_cargas_fechadas():
 
         colunas_exibir = [
             "Serie_Numero_CTRC", "Rota", "Regiao", "Valor do Frete", "Cliente Pagador", "Chave CT-e", "Cliente Destinatario",
-            "Cidade de Entrega", "Bairro do Destinatario", "Previsao de Entrega",
+            "Cidade de Entrega", "Bairro do Destinatario", "Previsao de Entrega",  "Data de Emissao",
             "Numero da Nota Fiscal", "Status", "Entrega Programada", "Particularidade",
             "Codigo da Ultima Ocorrencia", "Peso Real em Kg", "Peso Calculado em Kg",
             "Cubagem em m³", "Quantidade de Volumes", "valor_contratacao", "numero_carga",
