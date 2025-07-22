@@ -711,10 +711,10 @@ def carregar_base_supabase():
         # --- DEBUG 1: Após a primeira busca no Supabase ---
         base_raw_data = supabase.table("pre_roterizacao").select("*").execute().data
         base = pd.DataFrame(base_raw_data)
-        st.write(f"DEBUG: [carregar_base_supabase] Linhas após SELECT na pre_roterizacao: {len(base)}")
+        #st.write(f"DEBUG: [carregar_base_supabase] Linhas após SELECT na pre_roterizacao: {len(base)}")
 
         if base.empty:
-            st.warning("DEBUG: [carregar_base_supabase] A busca inicial na pre_roterizacao retornou vazia. Verifique RLS ou dados.")
+            #st.warning("DEBUG: [carregar_base_supabase] A busca inicial na pre_roterizacao retornou vazia. Verifique RLS ou dados.")
             return pd.DataFrame()
 
         # --- DEBUG 2: Após o merge com "Particularidades" ---
@@ -740,7 +740,7 @@ def carregar_base_supabase():
         else:
             if 'Particularidade' not in base.columns:
                 base['Particularidade'] = None # Garante que a coluna exista mesmo sem merge
-        st.write(f"DEBUG: [carregar_base_supabase] Linhas após merge Particularidades: {len(base)}")
+        #: [carregar_base_supabase] Linhas após merge Particularidades: {len(base)}")
 
 
         # --- DEBUG 3: Após o merge com "Clientes_Entrega_Agendada" (AJUSTADO) ---
@@ -765,7 +765,7 @@ def carregar_base_supabase():
                 # pois o valor original de 'Status' de 'base' já é preservado por padrão.
         # Se 'agendados' estiver vazio, ou as colunas CNPJ/Status de Agenda não existirem,
         # ou se 'CNPJ Destinatario' não estiver em 'base', o 'Status' original do DataFrame 'base' é mantido.
-        st.write(f"DEBUG: [carregar_base_supabase] Linhas após merge Clientes_Entrega_Agendada: {len(base)}")
+        #st.write(f"DEBUG: [carregar_base_supabase] Linhas após merge Clientes_Entrega_Agendada: {len(base)}")
 
         # --- DEBUG 4: Após a definição da Rota ---
         # Certifique-se que as colunas 'Cidade de Entrega' e 'Bairro do Destinatario' existam
@@ -811,7 +811,7 @@ def carregar_base_supabase():
         base['Rota'] = base.apply(definir_rota_func, axis=1)
         base['Rota'] = base['Rota'].fillna('Indefinida').replace('', 'Indefinida')
 
-        st.write(f"DEBUG: [carregar_base_supabase] Linhas após definir Rota: {len(base)}")
+        #st.write(f"DEBUG: [carregar_base_supabase] Linhas após definir Rota: {len(base)}")
 
 
         # --- DEBUG 5: Após o processamento de "obrigatorias" e "confirmadas" ---
@@ -836,7 +836,7 @@ def carregar_base_supabase():
 
 
         # --- DEBUG FINAL: Antes de retornar ---
-        st.write(f"DEBUG: [carregar_base_supabase] Linhas antes de retornar (base final): {len(base)}")
+        #st.write(f"DEBUG: [carregar_base_supabase] Linhas antes de retornar (base final): {len(base)}")
         return base
 
     except Exception as e:
