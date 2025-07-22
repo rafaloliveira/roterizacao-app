@@ -62,7 +62,7 @@ from pathlib import Path
 from st_aggrid.shared import JsCode
 from decimal import Decimal, ROUND_HALF_UP, getcontext
 
-
+st.write(f"Streamlit Version from __version__: {st.__version__}") # Adicione esta linha
 
 def aplicar_zoom_personalizado(percent=85):
     escala = percent / 100
