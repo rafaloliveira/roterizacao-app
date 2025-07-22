@@ -3322,29 +3322,50 @@ def pagina_cargas_geradas():
 
 
                                     # >> BLOCO ROBUSTO DE TRATAMENTO DE DATAS <<
+                                                                        # >> REVISADO: BLOCO ROBUSTO DE TRATAMENTO DE DATAS PARA RETIRAR DA CARGA <<
+                                    # df_remover é o DataFrame de 'selecionadas' vindo do AgGrid
+                                    # As datas no AgGrid estão no formato 'DD-MM-YYYY HH:MM:SS' (DATE_DISPLAY_FORMAT_STRING)
+                                    # ou 'DD-MM-YYYY' (se forem colunas de data sem hora como 'Previsao de Entrega', 'Entrega Programada')
+                                    
+                                    # Criar uma lista mais abrangente de strings que devem ser consideradas Nulo/None
+                                    undesirable_date_strings = [
+                                        '', 'nat', 'nan', 'None', 'NaT', '0', '0000-00-00', '1900-01-01', '0001-01-01',
+                                        'nan nan-nan-nan', '00-00-0000' 
+                                    ]
+
                                     for col_name in GLOBAL_DATE_DISPLAY_COLUMNS:
                                         if col_name in df_remover.columns:
-                                            temp_str_series = df_remover[col_name].astype(str).str.strip()
-                                            is_empty_or_invalid_str = temp_str_series.isin(['', 'nat', 'nan'])
-                                            df_remover.loc[is_empty_or_invalid_str, col_name] = None
-                                            to_parse_indices = df_remover.loc[~is_empty_or_invalid_str, col_name].index
-                                            if not to_parse_indices.empty:
-                                                current_col_values_to_parse = df_remover.loc[to_parse_indices, col_name]
-                                                input_format_str = DATE_ONLY_DISPLAY_FORMAT_STRING if col_name in DATE_ONLY_REPARSE_COLUMNS else DATE_DISPLAY_FORMAT_STRING
-                                                parsed_dates = pd.to_datetime(
-                                                    current_col_values_to_parse,
-                                                    format=input_format_str,
-                                                    errors='coerce'
-                                                )
-                                                localized_utc_dates = parsed_dates.apply(
-                                                    lambda x: x.tz_localize(FUSO_BRASIL, ambiguous='NaT', nonexistent='NaT').tz_convert('UTC')
-                                                    if pd.notna(x) else pd.NaT
-                                                )
-                                                df_remover.loc[to_parse_indices, col_name] = localized_utc_dates.apply(
-                                                    lambda x: x.isoformat(timespec='seconds').replace('+00:00', 'Z')
-                                                    if pd.notna(x) else None
-                                                )
+                                            current_series = df_remover[col_name].astype(str).str.strip()
 
+                                            # Identificar e marcar strings indesejáveis para virarem None
+                                            is_undesirable = current_series.isin(undesirable_date_strings)
+                                            df_remover.loc[is_undesirable, col_name] = None # Set these to None immediately
+
+                                            # Agora, processar apenas os valores que *não* são None após a primeira limpeza
+                                            to_parse_indices = df_remover.loc[current_series.notna() & ~is_undesirable, col_name].index
+                                            
+                                            if not to_parse_indices.empty:
+                                                values_to_parse = df_remover.loc[to_parse_indices, col_name]
+
+                                                # Tentar parsing de data de forma mais flexível
+                                                # Usamos dayfirst=True para formato brasileiro, errors='coerce' para NaT
+                                                parsed_dates = pd.to_datetime(values_to_parse, dayfirst=True, errors='coerce')
+                                                
+                                                # Lidar com datas que ainda resultaram em NaT após parsing flexível
+                                                is_still_nat = parsed_dates.isna()
+                                                if is_still_nat.any():
+                                                    df_remover.loc[to_parse_indices[is_still_nat], col_name] = None
+                                                    # Filter out the NaTs from further processing
+                                                    parsed_dates = parsed_dates[~is_still_nat]
+                                                    to_parse_indices = to_parse_indices[~is_still_nat] # Update indices for next step
+
+                                                # Se ainda houver datas válidas após parsing e limpeza, localize e converta para UTC ISO
+                                                if not parsed_dates.empty:
+                                                    localized_utc_dates = parsed_dates.apply(tratar_data_para_utc)
+                                                    df_remover.loc[to_parse_indices, col_name] = localized_utc_dates
+
+
+                                    # No final, qualquer np.nan, pd.NaT, np.inf ou -np.inf remanescente será None
                                     df_remover = df_remover.replace([np.nan, pd.NaT, np.inf, -np.inf, ""], None)
 
                                     registros = df_remover.to_dict(orient="records")
