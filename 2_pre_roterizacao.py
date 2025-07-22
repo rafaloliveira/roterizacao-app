@@ -2853,17 +2853,7 @@ def pagina_pre_roterizacao():
                 df_rota[[col for col in colunas_exibir if col in df_rota.columns]].copy()
             )
 
-            # --- INÍCIO DO DEBUG POINT B ---
-            st.subheader(f"DEBUG B: Valores de 'Data de Emissao' antes do AgGrid (Rota: {rota_visual})")
-            if 'Data de Emissao' in df_formatado.columns:
-                st.write(f"Tipo da coluna 'Data de Emissao': {df_formatado['Data de Emissao'].dtype}")
-                st.write("Primeiras 10 linhas de 'Data de Emissao':")
-                st.write(df_formatado['Data de Emissao'].head(10))
-                st.write("Contagem de valores (incluindo nulos/vazios):")
-                st.write(df_formatado['Data de Emissao'].value_counts(dropna=False))
-            else:
-                st.write("Coluna 'Data de Emissao' NÃO encontrada em df_formatado.")
-            # --- FIM DO DEBUG POINT B ---
+            
 
 
             gb = GridOptionsBuilder.from_dataframe(df_formatado)
