@@ -2670,17 +2670,7 @@ def pagina_pre_roterizacao():
                (st.session_state.get("df_pre_roterizacao_cache") is not None and st.session_state["df_pre_roterizacao_cache"].empty):
                 #st.write("DEBUG: [pagina_pre_roterizacao] Cache desativado, recarregar=True, ou cache vazio. Chamando carregar_base_supabase()...")
                 df_total = carregar_base_supabase() # Esta chamada retorna 192 linhas
-                # --- INÍCIO DO DEBUG POINT A ---
-                st.subheader("DEBUG A: Valores de 'Data de Emissao' após carregar_base_supabase()")
-                if 'Data de Emissao' in df_total.columns:
-                    st.write(f"Tipo da coluna 'Data de Emissao': {df_total['Data de Emissao'].dtype}")
-                    st.write("Primeiras 10 linhas de 'Data de Emissao':")
-                    st.write(df_total['Data de Emissao'].head(10))
-                    st.write("Contagem de valores (incluindo nulos/vazios):")
-                    st.write(df_total['Data de Emissao'].value_counts(dropna=False))
-                else:
-                    st.write("Coluna 'Data de Emissao' NÃO encontrada em df_total.")
-            # --- FIM DO DEBUG POINT A ---
+                
                 #st.write(f"DEBUG: [pagina_pre_roterizacao] carregar_base_supabase() retornou {len(df_total)} linhas. df_total.empty: {df_total.empty}") # <--- AQUI
                 st.session_state["df_pre_roterizacao_cache"] = df_total # Atualiza o cache com o resultado
 
