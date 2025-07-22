@@ -255,7 +255,7 @@ def login():
                 cookies["classe"] = usuario.get("classe", "colaborador") # <<< ADIÇÃO AQUI: Armazena a classe no cookie
 
                 # ✅ Define página inicial desejada após login
-                st.session_state.pagina = "Cargas Geradas"  # ⬅️ Altere aqui se quiser outra página como "Dashboard" ou "Pré-Roteirização"
+                #st.session_state.pagina = "Cargas Geradas"  # ⬅️ Altere aqui se quiser outra página como "Dashboard" ou "Pré-Roteirização"
                 
                 # Define o tempo de expiração do cookie (24 horas)
                 expiry = datetime.now(timezone.utc) + timedelta(hours=24)
