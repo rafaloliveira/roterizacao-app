@@ -2705,12 +2705,12 @@ def pagina_pre_roterizacao():
     with st.spinner("🔄 Carregando dados das entregas..."):
         try:
             df_aprovadas_diretoria = st.session_state.get("df_aprovadas_diretoria", pd.DataFrame())
-            dados_confirmados = pd.DataFrame()
+            dados_confirmados = st.session_state.get("dados_confirmados", pd.DataFrame())
 
             recarregar = st.session_state.pop("reload_pre_roterizacao", False)
 
-            # LOG: Após a definição de recarregar
-            st.write(f"DEBUG PRE_ROT POS_RECARREGAR: active_main_tab_key={st.session_state.get('active_main_tab_key')}")
+              # DEBUG: Loga o estado da aba principal após verificar o flag de recarregamento
+            st.write(f"DEBUG PRE_ROT POS_RECARREGAR: active_main_tab_key={st.session_state.get('active_main_tab_key')}, recarregar={recarregar}")
             
             if recarregar or "df_pre_roterizacao_cache" not in st.session_state or \
                (st.session_state.get("df_pre_roterizacao_cache") is not None and st.session_state["df_pre_roterizacao_cache"].empty):
@@ -2726,7 +2726,7 @@ def pagina_pre_roterizacao():
                         if key.startswith("grid_pre_rota_"):
                             st.session_state.pop(key, None) # Remove a key para forçar reconstrução do grid
 
- # LOG: Após carregar dados e limpar caches de grids
+                # LOG: Após carregar dados e limpar caches de grids
                 st.write(f"DEBUG PRE_ROT POS_CARGA_CACHE: active_main_tab_key={st.session_state.get('active_main_tab_key')}")
 
             else:
@@ -2735,9 +2735,8 @@ def pagina_pre_roterizacao():
 
             df_visivel = df_total.copy() # Cria uma cópia para trabalhar na página
 
-            st.session_state['_pre_roterizacao_df_check'] = df_visivel
-          
-            
+            st.session_state['_pre_roterizacao_df_check'] = df_visivel  
+            df_to_check = st.session_state['_pre_roterizacao_df_check']
                 
             #st.write(f"DEBUG: [pagina_pre_roterizacao] df_visivel tem {len(df_visivel)} linhas antes das verificações empty. df_visivel.empty: {df_visivel.empty}") # <--- E AQUI
 
@@ -2749,14 +2748,15 @@ def pagina_pre_roterizacao():
 
         if df_visivel.empty:
             st.info("Nenhuma entrega disponível.")
-            st.write("DEBUG: [pagina_pre_roterizacao] df_visivel está vazio. Exibindo mensagem e retornando.")
+            st.write("DEBUG PRE_ROT VAZIO INICIAL: df_visivel está vazio. Exibindo mensagem e retornando.") # Log para depuração
             return
-
-        
 
         if df_visivel.empty:
             st.info("Nenhuma entrega disponível para pré-roterização após filtragem.")
+            st.write("DEBUG PRE_ROT VAZIO POS_FILTRO: df_visivel está vazio após filtragem. Exibindo mensagem e retornando.") 
             return
+
+
 
     # ======= NOVAS MÉTRICAS SEPARADAS: EXISTENTES vs DIRETORIA =======
     col_esq_1, col_esq_2, col_esq_3, col_esq_4, spacer, col_dir_1, col_dir_2, col_dir_3 = st.columns([1, 1, 1, 1, 0.3, 1, 1, 1])
