@@ -154,10 +154,6 @@ def controle_selecao(chave_estado, df_todos, grid_key, grid_options):
         if st.button(f"🔘 Selecionar todas", key=f"btn_sel_{chave_estado}"):
             st.session_state[chave_estado] = "selecionar_tudo"
 
-    # Botão para desmarcar todas
-    with col2:
-        if st.button(f"❌ Desmarcar todas", key=f"btn_desmarcar_{chave_estado}"):
-            st.session_state[chave_estado] = "desmarcar_tudo"
 
     # ✅ Garantir scroll horizontal
     grid_options["domLayout"] = "normal"
@@ -1275,42 +1271,26 @@ def limpar_tabelas_relacionadas():
             st.error(f"")
             #st.error(f"[ERRO GERAL] Ao tentar limpar a tabela '{tabela}': {e}. Por favor, verifique suas permissões (RLS) no Supabase ou se a coluna 'Serie_Numero_CTRC' existe em todas as tabelas listadas.")
 
-def tratar_data_para_utc(dt):
-    """
-    Converte um objeto datetime (ou algo parsável como datetime) para string ISO 8601 em UTC.
-    Assume que o datetime está no fuso horário do Brasil se não tiver tzinfo.
-    Lida com pd.NaT, np.nan e garante que o fuso horário seja tratado corretamente
-    com Horário de Verão usando parâmetros 'ambiguous' e 'nonexistent'.
-    """
-    if pd.isna(dt): # Verifica se é None, pd.NaT, np.nan
+def tratar_data_para_utc(valor):
+    if pd.isna(valor):
         return None
-
-    # Tentar converter para Timestamp do Pandas se não for já um
-    # Isso padroniza o objeto para manipulação de timezone
-    if not isinstance(dt, pd.Timestamp):
+    if isinstance(valor, str):
         try:
-            dt = pd.Timestamp(dt)
-        except (ValueError, TypeError): # Captura erros de conversão para Timestamp
-            return None # Retorna None se não conseguir converter para uma data válida
-
-    # Se o objeto Timestamp não tem informações de fuso horário,
-    # localize-o para o fuso horário do Brasil.
-    if dt.tzinfo is None:
-        # Use 'ambiguous' e 'nonexistent' para lidar com horários de verão de forma robusta.
-        # 'NaT' faz com que horários problemáticos (pulados/duplicados) resultem em NaT.
-        dt = dt.tz_localize(FUSO_BRASIL, ambiguous='NaT', nonexistent='NaT')
-        if pd.isna(dt): # Se a localização resultar em NaT, significa um problema (ex: hora pulada/duplicada)
-            return None # Retorna None para datas que não puderam ser localizadas
-
-    # Converta para UTC e formate para ISO 8601, que é o formato preferencial para Supabase
-    # (assumindo que suas colunas de data/hora no Supabase são 'timestamp with time zone').
-    return dt.tz_convert("UTC").isoformat(timespec="seconds").replace("+00:00", "Z")
+            valor = pd.to_datetime(valor, dayfirst=True, errors='coerce')
+        except:
+            return None
+    if isinstance(valor, pd.Timestamp):
+        if valor.tzinfo is None:
+            valor = valor.tz_localize("America/Sao_Paulo")
+        return valor.tz_convert("UTC").isoformat()
+    return None
 
 # ------------------------#############-------------------------------------------
-def adicionar_entregas_a_carga(ctrcs_selecionados, numero_carga_destino):
+def adicionar_entregas_a_carga(ctrcs_selecionados, numero_carga_destino): 
     st.write("DEBUG: Função 'adicionar_entregas_a_carga' iniciada.")
     st.write(f"DEBUG: Número da Carga Destino: {numero_carga_destino}")
     st.write(f"DEBUG: CTRCs selecionados para adição: {ctrcs_selecionados[:5]}...")
+
     if not ctrcs_selecionados:
         st.warning("⚠️ Nenhum CTRC selecionado.")
         return
@@ -1331,7 +1311,6 @@ def adicionar_entregas_a_carga(ctrcs_selecionados, numero_carga_destino):
     for ctrc in ctrcs_selecionados:
         entrega = dados_pre_dict.get(str(ctrc).strip())
         if entrega:
-            # Não é necessário 'origem_tabela' aqui pois já estamos vindo de 'pre_roterizacao'
             entregas_coletadas.append(entrega)
             found_ctrc_in_pre_roterizacao.add(ctrc)
 
@@ -1342,60 +1321,32 @@ def adicionar_entregas_a_carga(ctrcs_selecionados, numero_carga_destino):
     df_para_inserir = pd.DataFrame(entregas_coletadas)
 
     if "GrupoDeExibicao" not in df_para_inserir.columns:
-        df_para_inserir["GrupoDeExibicao"] = df_para_inserir["Rota"] # Garante que GrupoDeExibicao exista
-    # Certifica que GrupoDeExibicao tem o valor correto se já existe ou foi atribuído
-    # O código original: df_para_inserir["GrupoDeExibicao"] = df_para_inserir["GrupoDeExibicao"] não faz nada
-    # Se a intenção era preencher nulos, seria:
+        df_para_inserir["GrupoDeExibicao"] = df_para_inserir["Rota"]
+
     df_para_inserir["GrupoDeExibicao"] = df_para_inserir["GrupoDeExibicao"].fillna(df_para_inserir["Rota"])
-
-
     df_para_inserir["Data_Hora_Gerada"] = data_hora_brasil_iso()
     df_para_inserir["numero_carga"] = numero_carga
 
-    # --- NOVO BLOCO: TRATAMENTO ROBUSTO PARA DATAS ESPECÍFICAS PARA GARANTIR ORIGINALIDADE ---
-
-    # Lista de colunas de data que devem ser limpas rigorosamente
-    # Isso garante que representações de 'vazio' ou 'inválido' virem None
+    # --- BLOCO DE TRATAMENTO ROBUSTO PARA DATAS ---
     strict_date_cols = ["Previsao de Entrega", "Entrega Programada"]
 
     for col_name in strict_date_cols:
         if col_name in df_para_inserir.columns:
-            # 1. Converte para string e remove espaços para limpeza inicial
-            # Isso é importante porque datas do Supabase podem vir como objetos datetime ou strings
             temp_str_series = df_para_inserir[col_name].astype(str).str.strip()
-
-            # 2. Identifica strings que representam "vazio" ou "data inválida/indesejada"
-            # Inclui NaN, NaT, strings vazias e datas de placeholder conhecidas
             is_undesirable_string = temp_str_series.isin([
                 '', 'nat', 'nan', 'None', '0000-00-00', '1900-01-01', '0001-01-01', 'NaT',
-                'nan nan-nan-nan', # Alguns sistemas podem gerar isso para NaT
-                '0' # Alguns sistemas podem representar data vazia como '0'
+                'nan nan-nan-nan', '0'
             ])
-
-            # 3. Tenta converter para datetime e verifica se resultou em NaT
-            # Isso pega outras strings mal-formadas que pd.to_datetime não consegue entender,
-            # ou datas inválidas que não estão na lista 'is_undesirable_string'
             coerces_to_nat = pd.to_datetime(temp_str_series, errors='coerce').isna()
-
-            # 4. Combina todas as condições para determinar o que deve ser NULL/None
             should_be_null = is_undesirable_string | coerces_to_nat
-
-            # Aplica None para essas células que devem ser nulas
             df_para_inserir.loc[should_be_null, col_name] = None
-    
-    
 
-    # --- FIM DO NOVO BLOCO DE TRATAMENTO ROBUSTO ---
+    # Converte datas válidas para UTC ISO 8601
+    for col_name in strict_date_cols:
+        if col_name in df_para_inserir.columns:
+            df_para_inserir[col_name] = df_para_inserir[col_name].apply(tratar_data_para_utc)
+    # --- FIM DO BLOCO DE TRATAMENTO DE DATAS ---
 
-    # Loop para processar TODAS as colunas de data definidas em GLOBAL_DATE_DISPLAY_COLUMNS
-    # Este loop agora focará em converter datas válidas para o formato UTC
-    # --- TRATAMENTO DE DATAS PARA SUPABASE (USANDO tratar_data_para_utc) ---
-                                    # df_aprovar vem do AgGrid, então os valores estão em formato de string
-                                    # (DD-MM-YYYY ou DD-MM-YYYY HH:MM:SS).
-                                    # A função tratar_data_para_utc lida com isso.
-    
-
-    
     dados_para_insercao = df_para_inserir.to_dict(orient='records')
 
     insert_success = False
