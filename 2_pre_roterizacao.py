@@ -249,7 +249,7 @@ def login():
                 cookies["classe"] = usuario.get("classe", "colaborador") # <<< ADIÇÃO AQUI: Armazena a classe no cookie
 
                 # ✅ Define página inicial desejada após login
-                st.session_state.pagina = "Cargas Geradas"  # ⬅️ Altere aqui se quiser outra página como "Dashboard" ou "Pré-Roteirização"
+                #st.session_state.pagina = "Cargas Geradas"  # ⬅️ Altere aqui se quiser outra página como "Dashboard" ou "Pré-Roteirização"
                 
                 # Define o tempo de expiração do cookie (24 horas)
                 expiry = datetime.now(timezone.utc) + timedelta(hours=24)
@@ -273,16 +273,6 @@ def login():
                 st.error("🛑 Usuário ou senha incorretos.")
 
     st.stop()
-
-
-
-
-
-
-if "pagina" not in st.session_state:
-    st.session_state.pagina = "Pré-Roteirização"
-
-
 
 # ========== PÁGINA: ALTERAR SENHA PRÓPRIA ========== #
 def pagina_trocar_senha():
