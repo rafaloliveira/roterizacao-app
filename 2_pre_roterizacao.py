@@ -162,7 +162,7 @@ def controle_selecao(chave_estado, df_todos, grid_key, grid_options):
     grid_response = AgGrid(
     df_todos,
     gridOptions=grid_options,
-    update_mode=GridUpdateMode.SELECTION_CHANGED,
+    update_mode=GridUpdateMode.MODEL_CHANGED,
     fit_columns_on_grid_load=False,
     height=470,  # ⬅️ AUMENTE AQUI
     use_container_width=True,
@@ -2032,7 +2032,7 @@ def pagina_confirmar_producao():
                 grid_response = AgGrid(
                     df_formatado,
                     gridOptions=grid_options,
-                    update_mode=GridUpdateMode.MODEL_CHANGED,  #  acompanhar teste 
+                    update_mode=GridUpdateMode.SELECTION_CHANGED,  #  acompanhar teste 
                     fit_columns_on_grid_load=False,
                     width="100%",
                     height=400,
