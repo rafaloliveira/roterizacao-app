@@ -197,13 +197,7 @@ def mover_entregas_para_outra_rota(ctrcs_selecionados, nova_rota_visual):
             .update({"GrupoDeExibicao": nova_rota_visual}) \
             .in_("Serie_Numero_CTRC", ctrcs_selecionados) \
             .execute()
-        #st.write(f"DEBUG - Resposta completa do Supabase: {response}") # <--- ADICIONE ESTA LINHA
-        #st.write(f"DEBUG - Dados retornados na resposta: {getattr(response, 'data', 'N/A')}") # <--- ADICIONE ESTA LINHA
-        #st.write(f"DEBUG - Erro retornado na resposta: {getattr(response, 'error', 'N/A')}") # <--- ADICIONE ESTA LINHA
-
-
-        # Opcional: Verifique se a atualização foi bem-sucedida pelo número de registros afetados
-        # (Isso pode variar um pouco dependendo da versão do cliente Supabase e da resposta da API)
+        
         if hasattr(response, 'data') and response.data:
             st.success(f"✅ {len(response.data)} entrega(s) movida(s visualmente) para o grupo '{nova_rota_visual}'.")
         else:
@@ -279,6 +273,15 @@ def login():
                 st.error("🛑 Usuário ou senha incorretos.")
 
     st.stop()
+
+
+
+
+
+
+if "pagina" not in st.session_state:
+    st.session_state.pagina = "Pré-Roteirização"
+
 
 
 # ========== PÁGINA: ALTERAR SENHA PRÓPRIA ========== #
@@ -1019,8 +1022,7 @@ if 'file_uploader_key' not in st.session_state:
 
 
 def pagina_sincronizacao():
-    # Dentro da função pagina_sincronizacao():
-
+   
     st.title("🔄 Sincronização de Dados")
 
     # Modificado para receber duas variáveis
@@ -2861,7 +2863,7 @@ def pagina_pre_roterizacao():
                 f"""
                 <div style='padding: 8px 12px; margin-top: 6px; background-color:#eaf4ea;
                             border-left: 4px solid #4caf50; border-radius: 4px;'>
-                    💡 <strong>Valor Ideal de Contratação</strong> para região <b>{regiao_chave}</b>
+                    💡 <strong> Custo parcial estimado</strong> para região <b>{regiao_chave}</b>
                     ({int(percentual_usado * 100)}% do frete): <b>R$ {formatar_brasileiro(valor_ideal)}</b>
                 </div>
                 """,
