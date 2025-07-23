@@ -1891,7 +1891,7 @@ def pagina_confirmar_producao():
             return
 
     # ========= MÉTRICAS COMPARATIVAS =========
-    col_total_1, col_total_2, col_total_3, col_total_4, spacer, col_conf_1, col_conf_2, col_conf_3 = st.columns([1, 1, 1, 1, 0.5, 1, 1, 1])
+    col_total_2, col_total_1, col_total_3, col_total_4, spacer, col_conf_1, col_conf_2, col_conf_3 = st.columns([1, 1, 1, 1, 0.5, 1, 1, 1])
 
     with col_total_2:
         st.metric("📦 Total de Entregas", len(df))
