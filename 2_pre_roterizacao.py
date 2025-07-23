@@ -162,7 +162,7 @@ def controle_selecao(chave_estado, df_todos, grid_key, grid_options):
     grid_response = AgGrid(
     df_todos,
     gridOptions=grid_options,
-    update_mode=GridUpdateMode.MODEL_CHANGED,
+    update_mode=GridUpdateMode.SELECTION_CHANGED,
     fit_columns_on_grid_load=False,
     height=470,  # ⬅️ AUMENTE AQUI
     use_container_width=True,
@@ -657,7 +657,7 @@ def criar_grid_destacado(df, key, selection_mode="multiple", page_size=500, altu
     grid_response = AgGrid(
         df,
         gridOptions=grid_options,
-        update_mode=GridUpdateMode.MODEL_CHANGED,
+        update_mode=GridUpdateMode.SELECTION_CHANGED,
         fit_columns_on_grid_load=False,
         height=650,
         allow_unsafe_jscode=True,
@@ -2030,7 +2030,7 @@ def pagina_confirmar_producao():
                 grid_response = AgGrid(
                     df_formatado,
                     gridOptions=grid_options,
-                    update_mode=GridUpdateMode.MODEL_CHANGED,  #  acompanhar teste 
+                    update_mode=GridUpdateMode.SELECTION_CHANGED,  #  acompanhar teste 
                     fit_columns_on_grid_load=False,
                     width="100%",
                     height=400,
@@ -4818,49 +4818,42 @@ if st.session_state.get("login", False):
 
     # Definir as abas principais
     # Adicionei uma aba para "Administração e Configurações" para agrupar as opções de usuário.
-    tab_sync, tab_operacoes, tab_admin_settings = st.tabs(["Sincronização", "Operações", "Administração e Configurações"])
+    abas = ["Sincronização", "Operações", "Administração e Configurações"]
+    aba_selecionada = st.radio("Selecione uma aba:", abas, horizontal=True)
 
-    with tab_sync:
+    if aba_selecionada == "Sincronização":
         pagina_sincronizacao()
 
-        with tab_operacoes:
-            sub_tab_confirmar_prod, sub_tab_aprov_dir, sub_tab_pre_rot, \
-            sub_tab_cargas, sub_tab_aprov_custos, \
-            sub_tab_cargas_aprovadas, sub_tab_cargas_fechadas = st.tabs([
-                "Confirmar Produção", "Aprovação Diretoria", "Pré Roterização", 
-                "Cargas Geradas", "Aprovação de Custos", "Cargas Aprovadas",
-                "Cargas Encerradas"
-])
-        with sub_tab_confirmar_prod:
+    elif aba_selecionada == "Operações":
+        sub_abas = [
+            "Confirmar Produção", "Aprovação Diretoria", "Pré Roterização", 
+            "Cargas Geradas", "Aprovação de Custos", "Cargas Aprovadas", "Cargas Encerradas"
+        ]
+        sub_aba = st.radio("Selecione a sub-aba:", sub_abas, horizontal=True)
+
+        if sub_aba == "Confirmar Produção":
             pagina_confirmar_producao()
-        with sub_tab_aprov_dir:
+        elif sub_aba == "Aprovação Diretoria":
             pagina_aprovacao_diretoria()
-        with sub_tab_pre_rot:
+        elif sub_aba == "Pré Roterização":
             pagina_pre_roterizacao()
-        with sub_tab_cargas:
+        elif sub_aba == "Cargas Geradas":
             pagina_cargas_geradas()
-        with sub_tab_aprov_custos:
+        elif sub_aba == "Aprovação de Custos":
             pagina_aprovacao_custos()
-        with sub_tab_cargas_aprovadas:
+        elif sub_aba == "Cargas Aprovadas":
             pagina_cargas_aprovadas()
-        with sub_tab_cargas_fechadas: 
+        elif sub_aba == "Cargas Encerradas":
             pagina_cargas_fechadas()
 
-    with tab_admin_settings:
-        # Conteúdo da aba de Administração e Configurações
+    elif aba_selecionada == "Administração e Configurações":
         if st.session_state.get("is_admin", False):
             st.subheader("Gerenciamento de Usuários")
             pagina_gerenciar_usuarios()
-            st.markdown("---") # Separador visual
+            st.markdown("---")  # Separador visual
 
         st.subheader("Alterar Minha Senha")
         pagina_trocar_senha()
 
-# Se o usuário não estiver logado, a função login() no início já teria parado o script.
-# Este bloco 'else' não é estritamente necessário aqui se o login() faz um st.stop()
-# Mas é uma boa prática para clareza.
-else:
-    # A página de login é exibida pela função login()
-    pass # Nada a fazer aqui, pois o login() já cuida do acesso.
 
 
