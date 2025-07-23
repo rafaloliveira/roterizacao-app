@@ -2234,7 +2234,7 @@ def pagina_aprovacao_diretoria():
         st.warning("⛔ Apenas usuários com classe 'aprovador' podem realizar ações de aprovação de diretoria.")
 
     # ======= BLOCO DE MÉTRICAS: TOTAL + APROVADAS (lado a lado) =======
-    col1, col2, col3, col4, spacer, col5, col6, col7 = st.columns([1, 1, 1, 1, 0.3, 1, 1, 1])
+    col2, col1, col3, col4, spacer, col5, col6, col7 = st.columns([1, 1, 1, 1, 0.3, 1, 1, 1])
 
     with col1:
         st.metric("👥 Total de Clientes", df_aprovacao["Cliente Pagador"].nunique()) # df_aprovacao já definido aqui
