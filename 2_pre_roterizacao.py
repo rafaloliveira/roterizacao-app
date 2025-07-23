@@ -3148,8 +3148,8 @@ def pagina_cargas_geradas():
             veiculo_info = df_carga_raw["veiculo"].dropna().unique()
             valor_contratacao_info = df_carga_raw["valor_contratacao"].dropna().unique()
 
-            info_motorista = motorista_info[0] if len(motorista_info) > 0 else "-"
-            info_placa = placa_info[0] if len(placa_info) > 0 else "-"
+            info_motorista = motorista_info[0] if len(motorista_info) > 0 else ""
+            info_placa = placa_info[0] if len(placa_info) > 0 else ""
             info_veiculo = veiculo_info[0] if len(veiculo_info) > 0 else "-"
             info_valor_contratacao = formatar_brasileiro(valor_contratacao_info[0]) if len(valor_contratacao_info) > 0 else "0,00"
 
