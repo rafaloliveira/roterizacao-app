@@ -3806,11 +3806,6 @@ def pagina_aprovacao_custos():
                     situacao_custo_regional = "Frete total zero, Contratação zero"
                     cor_situacao = "gray"
 
-            # DEBUG: Resultado final
-            #st.write(f"- **Situação Final:** {situacao_custo_regional}")
-            #st.write(f"- **Cor:** {cor_situacao}")
-            #st.write("---")
-
 
             st.markdown(f"""
             <div style="margin-top:20px;padding:10px;background:#e8f0fe;border-left:4px solid #f9ab00;border-radius:6px;display:inline-block;max-width:100%;">
@@ -3869,7 +3864,7 @@ def pagina_aprovacao_custos():
                     df_formatado = df_formatado.replace([np.nan, None], "")
 
                     gb = GridOptionsBuilder.from_dataframe(df_formatado)
-                    gb.configure_default_column(minWidth=90)
+                    gb.configure_default_column(minWidth=130)
                     gb.configure_selection("multiple", use_checkbox=True)
                     gb.configure_grid_options(paginationPageSize=12)
                     gb.configure_grid_options(alwaysShowHorizontalScroll=True)
