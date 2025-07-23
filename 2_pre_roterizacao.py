@@ -2032,7 +2032,7 @@ def pagina_confirmar_producao():
                 grid_response = AgGrid(
                     df_formatado,
                     gridOptions=grid_options,
-                    update_mode=GridUpdateMode.NO_UPDATE, #  acompanhar teste 
+                    update_mode=GridUpdateMode.MODEL_CHANGED,  #  acompanhar teste 
                     fit_columns_on_grid_load=False,
                     width="100%",
                     height=400,
