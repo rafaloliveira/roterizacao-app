@@ -4711,10 +4711,10 @@ def pagina_cargas_fechadas():
 
                         for col in df_carga.select_dtypes(include=['datetimetz']).columns:
                             df_carga[col] = df_carga[col].dt.tz_localize(None)
-                            
+
                         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
                             df_carga.to_excel(writer, index=False, sheet_name='Carga')
-                            writer.save()
+                            
                         excel_data = output.getvalue()
 
                         st.download_button(
