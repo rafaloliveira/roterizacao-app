@@ -3853,6 +3853,8 @@ def pagina_aprovacao_custos():
                         {badge(f'Motorista: {motorista_}')}
                         {badge(f'Placa: {placa_veiculo}')}
                         {badge(f'Veículo: {veiculo}')}
+                        {badge(f'Valor contratação: R$ {formatar_brasileiro(valor_contratacao_carga_existente)}')}
+
                     </div>
                     """,
                     unsafe_allow_html=True
