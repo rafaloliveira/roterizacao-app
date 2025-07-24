@@ -3743,10 +3743,7 @@ def pagina_aprovacao_custos():
             veiculo = df_carga["veiculo"].iloc[0] if "veiculo" in df_carga.columns and not df_carga["veiculo"].isnull().all() else "–"
 
             
-            # DEBUG: Adicionar logs para verificar os valores
-            #st.write(f"🔍 **DEBUG - Carga {carga}:**")
-            #st.write(f"- Total Frete: R$ {total_frete_carga:.2f}")
-            #st.write(f"- Valor Contratação: R$ {valor_contratacao_carga_existente:.2f}")
+            
             
             rentabilidade_percentual = 0.0
             situacao_custo_regional = "N/A"
@@ -3826,6 +3823,7 @@ def pagina_aprovacao_custos():
                         {badge(f'{int(df_carga["Quantidade de Volumes"].sum())} volumes')}
                         {badge(f'Valor Contratação: R$ {formatar_brasileiro(valor_contratacao_carga_existente)}')}
                         {badge(f'Rentabilidade: {rentabilidade_percentual:.2f}%')}
+                        {badge(f'Custo: {100 - rentabilidade_percentual:.2f}%', background_color='#ffc107', text_color='black')}
                         {badge(f'Situação Custo: {situacao_custo_regional}', background_color=cor_situacao, text_color='white')}
                         {badge(f'Motorista: {motorista_}')}
                         {badge(f'Placa: {placa_veiculo}')}
