@@ -4694,7 +4694,7 @@ def pagina_cargas_fechadas():
                         )
 
                         st.download_button(
-                            label="🖨️ Gerar e Baixar PDF",
+                            label="🖨️ PDF",
                             data=buffer_pdf,
                             file_name=f"carga_encerrada_{carga}.pdf",
                             mime="application/pdf",
