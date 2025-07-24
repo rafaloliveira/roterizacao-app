@@ -1,4 +1,4 @@
-# 17-07 01 versão 1.0 liberada para teste
+# 23-07 versão 1.0 ajustada os botões de salva e fechar carga
 
 
 
@@ -4849,6 +4849,5 @@ if st.session_state.get("login", False):
 
         st.subheader("Alterar Minha Senha")
         pagina_trocar_senha()
-
 
 
