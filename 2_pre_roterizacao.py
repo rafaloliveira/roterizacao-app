@@ -3751,6 +3751,7 @@ def pagina_aprovacao_custos():
 
             if total_frete_carga > 0:
                 rentabilidade_percentual = ((total_frete_carga - valor_contratacao_carga_existente) / total_frete_carga) * 100
+                percentual_custo = 100 - rentabilidade_percentual
                 
                 # Determinar a região dominante da carga
                 dominant_region = 'NÃO DEFINIDA'
@@ -3821,8 +3822,9 @@ def pagina_aprovacao_custos():
                         {badge(f'Valor frete: R$ {formatar_brasileiro(total_frete_carga)}')}
                         {badge(f'{formatar_brasileiro(df_carga["Cubagem em m³"].sum())} m³')}
                         {badge(f'{int(df_carga["Quantidade de Volumes"].sum())} volumes')}
-                        {badge(f'Valor Contratação: R$ {formatar_brasileiro(valor_contratacao_carga_existente)}')}
-                        {badge(f'Rentabilidade: {rentabilidade_percentual:.2f}%')}
+                        {badge(f'Rentabilidade: {rentabilidade_percentual:.2f}%', background_color=("#28a745" if rentabilidade_percentual >= 0 else "#dc3545"), text_color="white")}
+                        {badge(f'Custo: {percentual_custo:.2f}%', background_color='#ffc107', text_color='black')}
+
                         {badge(f'Custo: {100 - rentabilidade_percentual:.2f}%', background_color='#ffc107', text_color='black')}
                         {badge(f'Situação Custo: {situacao_custo_regional}', background_color=cor_situacao, text_color='white')}
                         {badge(f'Motorista: {motorista_}')}
