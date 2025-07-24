@@ -4670,41 +4670,39 @@ def pagina_cargas_fechadas():
             with col2_placeholder:
                 col_pdf, col_excel = st.columns([1, 1])
                 with col_pdf:
-                    if st.button("🖨️ PDF", key=f"pdf_fechada_{carga}"):
-                        try:
-                            with st.spinner(f"Gerando PDF para a carga encerrada {carga}... Por favor, aguarde..."):
-                                pdf_motorista = motorista_carga if motorista_carga and motorista_carga != "-" else ""
-                                pdf_placa = placa_carga if placa_carga and placa_carga != "-" else ""
-                                pdf_veiculo = df_carga["veiculo"].iloc[0] if "veiculo" in df_carga.columns and not df_carga["veiculo"].isnull().all() else ""
-                                pdf_valor_contratacao = valor_contratacao_carga
+                    pdf_motorista = motorista_carga if motorista_carga and motorista_carga != "-" else ""
+                    pdf_placa = placa_carga if placa_carga and placa_carga != "-" else ""
+                    pdf_veiculo = df_carga["veiculo"].iloc[0] if "veiculo" in df_carga.columns and not df_carga["veiculo"].isnull().all() else ""
+                    pdf_valor_contratacao = valor_contratacao_carga
 
-                                rota_dominante = (
-                                    df_carga['Rota'].mode()[0]
-                                    if 'Rota' in df_carga.columns and not df_carga['Rota'].isnull().all()
-                                    else 'NÃO DEFINIDA'
-                                )
+                    rota_dominante = (
+                        df_carga['Rota'].mode()[0]
+                        if 'Rota' in df_carga.columns and not df_carga['Rota'].isnull().all()
+                        else 'NÃO DEFINIDA'
+                    )
 
-                                buffer_pdf = gerar_pdf_carga(
-                                    df_entregas=df_carga.copy(),
-                                    carga=carga,
-                                    rota=rota_dominante,
-                                    motorista=pdf_motorista,
-                                    placa=pdf_placa,
-                                    veiculo=pdf_veiculo,
-                                    valor_frete=total_frete_carga,
-                                    valor_contratacao=pdf_valor_contratacao
-                                )
+                    try:
+                        buffer_pdf = gerar_pdf_carga(
+                            df_entregas=df_carga.copy(),
+                            carga=carga,
+                            rota=rota_dominante,
+                            motorista=pdf_motorista,
+                            placa=pdf_placa,
+                            veiculo=pdf_veiculo,
+                            valor_frete=total_frete_carga,
+                            valor_contratacao=pdf_valor_contratacao
+                        )
 
-                            st.success(f"✅ PDF da carga encerrada {carga} gerado com sucesso!")
-                            st.download_button(
-                                label="📥 Baixar PDF da Carga",
-                                data=buffer_pdf,
-                                file_name=f"carga_encerrada_{carga}.pdf",
-                                mime="application/pdf",
-                                key=f"download_pdf_final_fechada_{carga}"
-                            )
-                        except Exception as e:
-                            st.error(f"❌ Erro ao gerar o PDF da carga encerrada {carga}: {e}")
+                        st.download_button(
+                            label="🖨️ Gerar e Baixar PDF",
+                            data=buffer_pdf,
+                            file_name=f"carga_encerrada_{carga}.pdf",
+                            mime="application/pdf",
+                            key=f"pdf_fechada_{carga}"
+                        )
+                    except Exception as e:
+                        st.error(f"❌ Erro ao gerar o PDF da carga encerrada {carga}: {e}")
+
 
                 with col_excel:
                     try:
@@ -4749,11 +4747,6 @@ def pagina_cargas_fechadas():
 
                     except Exception as e:
                         st.error(f"❌ Erro ao gerar CSV da carga {carga}: {e}")
-
-
-
-
-
 
 
             with st.expander("🔽 Ver entregas da carga fechada", expanded=True):
