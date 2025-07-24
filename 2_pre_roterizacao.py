@@ -4671,10 +4671,9 @@ def pagina_cargas_fechadas():
                         with st.spinner(f"Gerando PDF para a carga encerrada {carga}... Por favor, aguarde..."):
                             pdf_motorista = motorista_carga if motorista_carga and motorista_carga != "-" else ""
                             pdf_placa = placa_carga if placa_carga and placa_carga != "-" else ""
-                            pdf_veiculo = pdf_veiculo if pdf_veiculo and pdf_veiculo != "-" else ""
+                            pdf_veiculo = df_carga["veiculo"].iloc[0] if "veiculo" in df_carga.columns and not df_carga["veiculo"].isnull().all() else ""
                             pdf_valor_contratacao = valor_contratacao_carga
 
-                            # Rota dominante pode ainda existir em df_carga
                             rota_dominante = (
                                 df_carga['Rota'].mode()[0]
                                 if 'Rota' in df_carga.columns and not df_carga['Rota'].isnull().all()
@@ -4682,7 +4681,7 @@ def pagina_cargas_fechadas():
                             )
 
                             buffer_pdf = gerar_pdf_carga(
-                                df_entregas=df_carga.copy(),  # DataFrame das entregas da carga fechada
+                                df_entregas=df_carga.copy(),
                                 carga=carga,
                                 rota=rota_dominante,
                                 motorista=pdf_motorista,
@@ -4700,17 +4699,9 @@ def pagina_cargas_fechadas():
                             mime="application/pdf",
                             key=f"download_pdf_final_fechada_{carga}"
                         )
-
-                        csv_carga = df_carga.to_csv(index=False, sep=";", decimal=",").encode("utf-8-sig")
-                        st.download_button(
-                            label="📥 CSV da Carga",
-                            data=csv_carga,
-                            file_name=f"carga_fechada_{carga}.csv",
-                            mime="text/csv",
-                            key=f"csv_fechada_{carga}"
-                        )
                     except Exception as e:
                         st.error(f"❌ Erro ao gerar o PDF da carga encerrada {carga}: {e}")
+
 
 
 
