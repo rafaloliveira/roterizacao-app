@@ -4711,26 +4711,41 @@ def pagina_cargas_fechadas():
                         import io
                         output = io.BytesIO()
 
+                        # Remove timezone das datas
                         for col in df_carga.select_dtypes(include=['datetimetz']).columns:
                             df_carga[col] = df_carga[col].dt.tz_localize(None)
 
-                        # Cria um DataFrame com apenas a coluna "Chave CT-e"
-                        df_chaves = df_carga[["Chave CT-e", "Serie_Numero_CTRC"]].dropna().copy()
-                        df_chaves["Chave CT-e"] = df_chaves["Chave CT-e"].astype(str).str.strip()
-                        df_chaves["Serie_Numero_CTRC"] = df_chaves["Serie_Numero_CTRC"].astype(str).str.strip()
+                        # Verifica se as colunas existem
+                        colunas_chaves = ["Chave CT-e", "Serie_Numero_CTRC"]
+                        colunas_existentes = [col for col in colunas_chaves if col in df_carga.columns]
+
+                        if not colunas_existentes:
+                            st.warning(f"❌ A carga {carga} não possui colunas necessárias para exportar.")
+                            return
+
+                        # Filtra e trata o DataFrame
+                        df_chaves = df_carga[colunas_existentes].dropna(how="all").copy()
+
+                        # Se estiver vazio, avisa
+                        if df_chaves.empty:
+                            st.warning(f"❌ A carga {carga} não possui dados válidos de chaves para exportar.")
+                            return
+
+                        for col in df_chaves.columns:
+                            df_chaves[col] = df_chaves[col].astype(str).str.strip()
 
                         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-                            workbook  = writer.book
+                            workbook = writer.book
                             worksheet = workbook.add_worksheet("Chaves")
                             writer.sheets["Chaves"] = worksheet
 
-                            # Define formato de texto explícito
                             text_format = workbook.add_format({'num_format': '@'})
 
-                            # Escreve linha a linha nas colunas A e B
                             for row_idx, row in df_chaves.iterrows():
-                                worksheet.write_string(row_idx, 0, row["Chave CT-e"], text_format)  # Coluna A
-                                worksheet.write_string(row_idx, 1, row["Serie_Numero_CTRC"], text_format)  # Coluna B
+                                if "Chave CT-e" in df_chaves.columns:
+                                    worksheet.write_string(row_idx, 0, row.get("Chave CT-e", ""), text_format)
+                                if "Serie_Numero_CTRC" in df_chaves.columns:
+                                    worksheet.write_string(row_idx, 1, row.get("Serie_Numero_CTRC", ""), text_format)
 
                         excel_data = output.getvalue()
 
@@ -4742,7 +4757,8 @@ def pagina_cargas_fechadas():
                             key=f"download_excel_chaves_carga_{carga}"
                         )
                     except Exception as e:
-                        st.error(f"❌ Erro ao gerar Excel de chaves da carga {carga}: {e}")
+                        st.error(f"❌ Erro ao gerar Excel da carga {carga}: {e}")
+
 
 
 
