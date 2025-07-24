@@ -1686,6 +1686,7 @@ def formatar_brasileiro(valor):
 ############################## Gerar PDF ########################################################
 
 def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, veiculo, valor_frete, valor_contratacao):
+
     buffer = BytesIO()
 
     image_path = r"C:\Users\Rafael\Roteriza\Scripts\logo.png"
@@ -1763,9 +1764,38 @@ def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, veiculo, valor_f
         ('LEFTPADDING', (0, 0), (-1, -1), 2),
     ]))
     elements.append(info_table)
-    elements.append(Spacer(1, 0.3 * inch))
 
-    # --- Entregas Associadas ---
+    # --- Cálculo Totais ---
+    df_entregas["Peso Real em Kg"] = pd.to_numeric(df_entregas.get("Peso Real em Kg", 0), errors="coerce").fillna(0)
+    df_entregas["Cubagem em m³"] = pd.to_numeric(df_entregas.get("Cubagem em m³", 0), errors="coerce").fillna(0)
+
+    qtd_entregas = len(df_entregas)
+    peso_real_total = df_entregas["Peso Real em Kg"].sum()
+    cubagem_total = df_entregas["Cubagem em m³"].sum()
+
+    elements.append(Spacer(1, 0.2 * inch))
+    elements.append(Paragraph("<b>Resumo das Entregas:</b>", styles['h2']))
+    elements.append(Spacer(1, 0.1 * inch))
+
+    resumo_dados = [
+        [
+            Paragraph(f"<b>Qtde Total de Entregas:</b> {qtd_entregas}", styles['CustomNormal']),
+            Paragraph(f"<b>Peso Real Total:</b> {formatar_brasileiro(peso_real_total)} Kg", styles['CustomNormal']),
+            Paragraph(f"<b>Cubagem Total:</b> {formatar_brasileiro(cubagem_total)} m³", styles['CustomNormal']),
+        ]
+    ]
+
+    resumo_table = Table(resumo_dados)
+    resumo_table.setStyle(TableStyle([
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+        ('TOPPADDING', (0, 0), (-1, -1), 2),
+        ('LEFTPADDING', (0, 0), (-1, -1), 2),
+    ]))
+    elements.append(resumo_table)
+
+    # --- Tabela de Entregas ---
+    elements.append(Spacer(1, 0.3 * inch))
     elements.append(Paragraph("<b>Entregas Associadas:</b>", styles['h2']))
     elements.append(Spacer(1, 0.1 * inch))
 
@@ -1845,6 +1875,7 @@ def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, veiculo, valor_f
     doc.build(elements)
     buffer.seek(0)
     return buffer.getvalue()
+
 
 
 # ===========================================
