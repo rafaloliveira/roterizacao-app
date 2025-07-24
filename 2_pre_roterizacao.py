@@ -4715,7 +4715,6 @@ def pagina_cargas_fechadas():
                         for col in df_carga.select_dtypes(include=['datetimetz']).columns:
                             df_carga[col] = df_carga[col].dt.tz_localize(None)
 
-                        # Verifica se as colunas existem
                         colunas_chaves = ["Chave CT-e", "Serie_Numero_CTRC"]
                         colunas_existentes = [col for col in colunas_chaves if col in df_carga.columns]
 
@@ -4723,11 +4722,8 @@ def pagina_cargas_fechadas():
                             st.warning(f"❌ A carga {carga} não possui colunas necessárias para exportar.")
                             return
 
-                        # Filtra e trata o DataFrame
-                        df_chaves = df_carga[colunas_existentes].dropna(how="all").copy()
-                        df_chaves = df_chaves.reset_index(drop=True)
+                        df_chaves = df_carga[colunas_existentes].dropna(how="all").copy().reset_index(drop=True)
 
-                        # Se estiver vazio, avisa
                         if df_chaves.empty:
                             st.warning(f"❌ A carga {carga} não possui dados válidos de chaves para exportar.")
                             return
@@ -4736,7 +4732,11 @@ def pagina_cargas_fechadas():
                         for col in df_chaves.columns:
                             df_chaves[col] = df_chaves[col].astype(str).str.strip()
 
-                        # Escreve CSV para buffer (com BOM para compatibilidade Excel)
+                        # Formata colunas com números longos para manter integridade no Excel
+                        if "Chave CT-e" in df_chaves.columns:
+                            df_chaves["Chave CT-e"] = df_chaves["Chave CT-e"].apply(lambda x: f'="{x}"')
+
+                        # Escreve CSV com BOM e separador ";"
                         df_chaves.to_csv(output, index=False, encoding='utf-8-sig', sep=';')
 
                         st.download_button(
@@ -4749,6 +4749,7 @@ def pagina_cargas_fechadas():
 
                     except Exception as e:
                         st.error(f"❌ Erro ao gerar CSV da carga {carga}: {e}")
+
 
 
 
