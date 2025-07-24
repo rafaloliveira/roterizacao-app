@@ -37,7 +37,7 @@ from fpdf import FPDF
 import io
 from reportlab.lib.pagesizes import letter, landscape
 from reportlab.platypus import Indenter
-
+from reportlab.lib.utils import ImageReader
 from io import BytesIO
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -1686,23 +1686,30 @@ def formatar_brasileiro(valor):
 ############################## Gerar PDF ########################################################
 
 def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, veiculo, valor_frete, valor_contratacao):
-
     buffer = BytesIO()
 
+    # Caminho do logo
     image_path = r"C:\Users\Rafael\Roteriza\Scripts\logo.png"
     img_width = 1.0 * inch
     img_height = 0.75 * inch
 
+    # Tenta carregar o logo com segurança
+    try:
+        logo_reader = ImageReader(image_path)
+    except Exception as e:
+        print(f"❌ Erro ao carregar o logo: {e}")
+        logo_reader = None
+
+    # Desenhar o logo no canto superior esquerdo
     def draw_image_on_page(canvas_obj, doc):
-        page_width, page_height = landscape(letter)
-        padding_left = 0.25 * inch
-        padding_top = 0.25 * inch
-        x_pos = padding_left
-        y_pos = page_height - img_height - padding_top
-        try:
-            canvas_obj.drawImage(image_path, x_pos, y_pos, width=img_width, height=img_height, preserveAspectRatio=True)
-        except Exception as e:
-            print(f"Erro ao desenhar imagem no PDF: {e}")
+        if logo_reader:
+            try:
+                page_width, page_height = landscape(letter)
+                x_pos = 0.25 * inch
+                y_pos = page_height - img_height - 0.25 * inch
+                canvas_obj.drawImage(logo_reader, x_pos, y_pos, width=img_width, height=img_height, preserveAspectRatio=True)
+            except Exception as e:
+                print(f"❌ Erro ao desenhar o logo no PDF: {e}")
 
     doc = SimpleDocTemplate(
         buffer,
