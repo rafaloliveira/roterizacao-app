@@ -4709,7 +4709,7 @@ def pagina_cargas_fechadas():
                 with col_excel:
                     try:
                         import io
-                        output = io.BytesIO()
+                        output = io.StringIO()
 
                         # Remove timezone das datas
                         for col in df_carga.select_dtypes(include=['datetimetz']).columns:
@@ -4725,44 +4725,31 @@ def pagina_cargas_fechadas():
 
                         # Filtra e trata o DataFrame
                         df_chaves = df_carga[colunas_existentes].dropna(how="all").copy()
-                        df_chaves = df_chaves.reset_index(drop=True)  # <-- ESSENCIAL!
+                        df_chaves = df_chaves.reset_index(drop=True)
 
                         # Se estiver vazio, avisa
                         if df_chaves.empty:
                             st.warning(f"❌ A carga {carga} não possui dados válidos de chaves para exportar.")
                             return
 
+                        # Limpa os dados (string com trim)
                         for col in df_chaves.columns:
                             df_chaves[col] = df_chaves[col].astype(str).str.strip()
 
-                        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-                            workbook = writer.book
-                            worksheet = workbook.add_worksheet("Chaves")
-                            writer.sheets["Chaves"] = worksheet
-
-                            text_format = workbook.add_format({'num_format': '@'})
-
-                            # Cabeçalho
-                            for col_idx, coluna in enumerate(df_chaves.columns):
-                                worksheet.write_string(0, col_idx, coluna, text_format)
-
-                            # Dados
-                            for row_idx, row in df_chaves.iterrows():
-                                for col_idx, coluna in enumerate(df_chaves.columns):
-                                    valor = row.get(coluna, "")
-                                    worksheet.write_string(row_idx + 1, col_idx, valor, text_format)
-
-                        excel_data = output.getvalue()
+                        # Escreve CSV para buffer (com BOM para compatibilidade Excel)
+                        df_chaves.to_csv(output, index=False, encoding='utf-8-sig', sep=';')
 
                         st.download_button(
-                            label="📥 Excel",
-                            data=excel_data,
-                            file_name=f"carga_encerrada_{carga}_chaves.xlsx",
-                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                            key=f"download_excel_chaves_carga_{carga}"
+                            label="📥 CSV",
+                            data=output.getvalue(),
+                            file_name=f"carga_encerrada_{carga}_chaves.csv",
+                            mime="text/csv",
+                            key=f"download_csv_chaves_carga_{carga}"
                         )
+
                     except Exception as e:
-                        st.error(f"❌ Erro ao gerar Excel da carga {carga}: {e}")
+                        st.error(f"❌ Erro ao gerar CSV da carga {carga}: {e}")
+
 
 
 
