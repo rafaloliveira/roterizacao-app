@@ -4713,15 +4713,19 @@ def pagina_cargas_fechadas():
                             df_carga[col] = df_carga[col].dt.tz_localize(None)
 
                         # Cria um DataFrame com apenas a coluna "Chave CT-e"
-                        df_chave = df_carga[["Chave CT-e"]].copy()
-
-                        # Remove espaços extras e formata com ="..." para manter zeros à esquerda no Excel
-                        df_chave["Chave CT-e"] = df_chave["Chave CT-e"].astype(str).str.strip()
-                        df_chave["Chave CT-e"] = df_chave["Chave CT-e"].apply(lambda x: f'="{x}"')
+                        chaves = df_carga["Chave CT-e"].dropna().astype(str).str.strip().tolist()
 
                         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-                            # Gera Excel sem cabeçalho
-                            df_chave.to_excel(writer, index=False, header=False, sheet_name='Chaves', startcol=0, startrow=0)
+                            workbook  = writer.book
+                            worksheet = workbook.add_worksheet("Chaves")
+                            writer.sheets["Chaves"] = worksheet
+
+                            # Define o formato de texto explícito
+                            text_format = workbook.add_format({'num_format': '@'})
+
+                            # Escreve uma por uma, como string na coluna A, sem cabeçalho
+                            for idx, chave in enumerate(chaves):
+                                worksheet.write_string(idx, 0, chave, text_format)
 
                         excel_data = output.getvalue()
 
