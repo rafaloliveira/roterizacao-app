@@ -4225,7 +4225,45 @@ def pagina_cargas_aprovadas():
                     """,
                     unsafe_allow_html=True
                 )
-                
+                # 
+            with col2_placeholder:
+                if st.button("🖨️ PDF", key=f"pdf_{carga}"):
+                    try:
+                        with st.spinner(f"Gerando PDF para a carga {carga}... Por favor, aguarde..."):
+                            pdf_motorista = motorista_carga if motorista_carga != "-" else ""
+                            pdf_placa = placa_carga if placa_carga != "-" else ""
+                            pdf_veiculo = veiculo_carga if veiculo_carga != "-" else ""
+                            pdf_valor_contratacao = valor_contratacao_carga
+
+                            # Define rota dominante da carga (igual ao usado no cálculo de custo regional)
+                            rota_dominante = df_carga['Rota'].mode()[0] if 'Rota' in df_carga.columns and not df_carga['Rota'].isnull().all() else 'NÃO DEFINIDA'
+
+                            buffer_pdf = gerar_pdf_carga(
+                                df_entregas=df_carga.copy(),
+                                carga=carga,
+                                rota=rota_dominante,
+                                motorista=pdf_motorista,
+                                placa=pdf_placa,
+                                veiculo=pdf_veiculo,
+                                valor_frete=total_frete_carga,
+                                valor_contratacao=pdf_valor_contratacao
+                            )
+
+                        st.success(f"✅ PDF da carga {carga} gerado com sucesso!")
+                        st.download_button(
+                            label="📥 Baixar PDF da Carga",
+                            data=buffer_pdf,
+                            file_name=f"carga_{carga}.pdf",
+                            mime="application/pdf",
+                            key=f"download_pdf_final_{carga}"
+                        )
+                    except Exception as e:
+                        st.error(f"❌ Erro ao gerar o PDF da carga {carga}: {e}")
+
+
+
+
+
                 # --- CAMPOS PARA MOTORISTA E PLACA PARA EDIÇÃO E BOTÃO ÚNICO DE SALVAR E FECHAR ---
                 
             with st.expander("🔽 Ver entregas da carga aprovada", expanded=True):
