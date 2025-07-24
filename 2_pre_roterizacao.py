@@ -4712,20 +4712,29 @@ def pagina_cargas_fechadas():
                         for col in df_carga.select_dtypes(include=['datetimetz']).columns:
                             df_carga[col] = df_carga[col].dt.tz_localize(None)
 
+                        # Cria um DataFrame com apenas a coluna "Chave CT-e"
+                        df_chave = df_carga[["Chave CT-e"]].copy()
+
+                        # Remove espaços extras e formata com ="..." para manter zeros à esquerda no Excel
+                        df_chave["Chave CT-e"] = df_chave["Chave CT-e"].astype(str).str.strip()
+                        df_chave["Chave CT-e"] = df_chave["Chave CT-e"].apply(lambda x: f'="{x}"')
+
                         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-                            df_carga.to_excel(writer, index=False, sheet_name='Carga')
-                            
+                            # Gera Excel sem cabeçalho
+                            df_chave.to_excel(writer, index=False, header=False, sheet_name='Chaves', startcol=0, startrow=0)
+
                         excel_data = output.getvalue()
 
                         st.download_button(
                             label="📥 Excel",
                             data=excel_data,
-                            file_name=f"carga_encerrada_{carga}.xlsx",
+                            file_name=f"carga_encerrada_{carga}_chaves.xlsx",
                             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                            key=f"download_excel_carga_{carga}"
+                            key=f"download_excel_chaves_carga_{carga}"
                         )
                     except Exception as e:
-                        st.error(f"❌ Erro ao gerar Excel da carga {carga}: {e}")
+                        st.error(f"❌ Erro ao gerar Excel de chaves da carga {carga}: {e}")
+
 
 
             with st.expander("🔽 Ver entregas da carga fechada", expanded=True):
