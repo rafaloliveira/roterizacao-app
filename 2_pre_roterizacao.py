@@ -4713,19 +4713,22 @@ def pagina_cargas_fechadas():
                             df_carga[col] = df_carga[col].dt.tz_localize(None)
 
                         # Cria um DataFrame com apenas a coluna "Chave CT-e"
-                        chaves = df_carga["Chave CT-e"].dropna().astype(str).str.strip().tolist()
+                        df_chaves = df_carga[["Chave CT-e", "Serie_Numero_CTRC"]].dropna().copy()
+                        df_chaves["Chave CT-e"] = df_chaves["Chave CT-e"].astype(str).str.strip()
+                        df_chaves["Serie_Numero_CTRC"] = df_chaves["Serie_Numero_CTRC"].astype(str).str.strip()
 
                         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
                             workbook  = writer.book
                             worksheet = workbook.add_worksheet("Chaves")
                             writer.sheets["Chaves"] = worksheet
 
-                            # Define o formato de texto explícito
+                            # Define formato de texto explícito
                             text_format = workbook.add_format({'num_format': '@'})
 
-                            # Escreve uma por uma, como string na coluna A, sem cabeçalho
-                            for idx, chave in enumerate(chaves):
-                                worksheet.write_string(idx, 0, chave, text_format)
+                            # Escreve linha a linha nas colunas A e B
+                            for row_idx, row in df_chaves.iterrows():
+                                worksheet.write_string(row_idx, 0, row["Chave CT-e"], text_format)  # Coluna A
+                                worksheet.write_string(row_idx, 1, row["Serie_Numero_CTRC"], text_format)  # Coluna B
 
                         excel_data = output.getvalue()
 
