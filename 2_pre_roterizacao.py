@@ -1695,9 +1695,9 @@ def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, veiculo, valor_f
 
     def draw_image_on_page(canvas_obj, doc):
         page_width, page_height = landscape(letter)
-        padding_right = 0.25 * inch
+        padding_left = 0.25 * inch
         padding_top = 0.25 * inch
-        x_pos = page_width - img_width - padding_right
+        x_pos = padding_left
         y_pos = page_height - img_height - padding_top
         try:
             canvas_obj.drawImage(image_path, x_pos, y_pos, width=img_width, height=img_height, preserveAspectRatio=True)
