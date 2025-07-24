@@ -3806,11 +3806,18 @@ def pagina_aprovacao_custos():
                     cor_situacao = "gray"
 
 
+            # Obter rota predominante
+            rota_dominante = "–"
+            if "Rota" in df_carga.columns and not df_carga["Rota"].isnull().all():
+                rota_dominante = df_carga["Rota"].value_counts().idxmax()
+
+            # Exibir Carga + Rota
             st.markdown(f"""
             <div style="margin-top:20px;padding:10px;background:#e8f0fe;border-left:4px solid #f9ab00;border-radius:6px;display:inline-block;max-width:100%;">
-                <strong>Carga:</strong> {carga}
+                <strong>Carga:</strong> {carga} &nbsp;&nbsp;|&nbsp;&nbsp; <strong>Rota Predominante:</strong> {rota_dominante}
             </div>
             """, unsafe_allow_html=True)
+
 
             col1_badges, col2_placeholder = st.columns([5, 1])
             with col1_badges:
