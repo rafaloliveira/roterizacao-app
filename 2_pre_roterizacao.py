@@ -3826,7 +3826,7 @@ def pagina_aprovacao_custos():
                         {badge(f'Rentabilidade: {rentabilidade_percentual:.2f}%', background_color=("#28a745" if rentabilidade_percentual >= 0 else "#dc3545"), text_color="white")}
                         {badge(f'Custo: {percentual_custo:.2f}%', background_color='#ffc107', text_color='black')}
                         {badge(f'Custo: {percentual_custo:.2f}%', background_color=cor_custo, text_color=cor_texto_custo)}
-                        
+                        {badge(f'Custo: {100 - rentabilidade_percentual:.2f}%', background_color='#ffc107', text_color='black')}
                         {badge(f'Situação Custo: {situacao_custo_regional}', background_color=cor_situacao, text_color='white')}
                         {badge(f'Motorista: {motorista_}')}
                         {badge(f'Placa: {placa_veiculo}')}
