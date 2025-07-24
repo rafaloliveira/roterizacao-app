@@ -4725,6 +4725,7 @@ def pagina_cargas_fechadas():
 
                         # Filtra e trata o DataFrame
                         df_chaves = df_carga[colunas_existentes].dropna(how="all").copy()
+                        df_chaves = df_chaves.reset_index(drop=True)  # <-- ESSENCIAL!
 
                         # Se estiver vazio, avisa
                         if df_chaves.empty:
@@ -4740,13 +4741,16 @@ def pagina_cargas_fechadas():
                             writer.sheets["Chaves"] = worksheet
 
                             text_format = workbook.add_format({'num_format': '@'})
-                            
-                            df_chaves = df_chaves.reset_index(drop=True)
+
+                            # Cabeçalho
+                            for col_idx, coluna in enumerate(df_chaves.columns):
+                                worksheet.write_string(0, col_idx, coluna, text_format)
+
+                            # Dados
                             for row_idx, row in df_chaves.iterrows():
-                                if "Chave CT-e" in df_chaves.columns:
-                                    worksheet.write_string(row_idx, 0, row.get("Chave CT-e", ""), text_format)
-                                if "Serie_Numero_CTRC" in df_chaves.columns:
-                                    worksheet.write_string(row_idx, 1, row.get("Serie_Numero_CTRC", ""), text_format)
+                                for col_idx, coluna in enumerate(df_chaves.columns):
+                                    valor = row.get(coluna, "")
+                                    worksheet.write_string(row_idx + 1, col_idx, valor, text_format)
 
                         excel_data = output.getvalue()
 
@@ -4759,6 +4763,7 @@ def pagina_cargas_fechadas():
                         )
                     except Exception as e:
                         st.error(f"❌ Erro ao gerar Excel da carga {carga}: {e}")
+
 
 
 
