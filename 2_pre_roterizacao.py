@@ -4740,7 +4740,8 @@ def pagina_cargas_fechadas():
                             writer.sheets["Chaves"] = worksheet
 
                             text_format = workbook.add_format({'num_format': '@'})
-
+                            
+                            df_chaves = df_chaves.reset_index(drop=True)
                             for row_idx, row in df_chaves.iterrows():
                                 if "Chave CT-e" in df_chaves.columns:
                                     worksheet.write_string(row_idx, 0, row.get("Chave CT-e", ""), text_format)
