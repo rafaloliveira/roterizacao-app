@@ -2706,6 +2706,23 @@ def pagina_pre_roterizacao():
 
             df_visivel = df_total.copy() # Cria uma cópia para trabalhar na página
 
+            # 📤 Exportação em Excel de todas as entregas visíveis na pré-roteirização
+            if not df_visivel.empty:
+                excel_buffer = BytesIO()
+                with pd.ExcelWriter(excel_buffer, engine='xlsxwriter') as writer:
+                    df_visivel.to_excel(writer, index=False, sheet_name="Pre-Roterizacao")
+                    writer.close()
+                excel_buffer.seek(0)
+
+                st.download_button(
+                    label="📥 Baixar Excel Geral da Pré-Roteirização",
+                    data=excel_buffer,
+                    file_name="pre_roterizacao_entregas.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    key="download_excel_pre_rota"
+                )
+
+
             st.session_state['_pre_roterizacao_df_check'] = df_visivel
             df_to_check = st.session_state['_pre_roterizacao_df_check']
                 
@@ -4694,8 +4711,6 @@ def pagina_cargas_fechadas():
                         )
                     except Exception as e:
                         st.error(f"❌ Erro ao gerar o PDF da carga encerrada {carga}: {e}")
-
-
 
 
 
