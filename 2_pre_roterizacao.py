@@ -1686,20 +1686,25 @@ def formatar_brasileiro(valor):
 ############################## Gerar PDF ########################################################
 
 def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, veiculo, valor_frete, valor_contratacao):
-
     buffer = BytesIO()
 
+    # Confirme que este é o caminho EXATO para o seu logo.png
     image_path = r"C:\Users\Rafael\Roteriza\Scripts\logo.png" 
-    img_width = 1.0 * inch
-    img_height = 0.75 * inch
+    img_width = 1.0 * inch # Largura desejada para o logo
+    img_height = 0.75 * inch # Altura desejada para o logo
 
     def draw_image_on_page(canvas_obj, doc):
         page_width, page_height = landscape(letter)
-        padding_left = 0.25 * inch
-        padding_top = 0.25 * inch
         
-        x_pos = padding_left
-        y_pos = page_height - img_height - padding_top
+        # --- ALTERAÇÃO PRINCIPAL AQUI: Usar as margens do documento ---
+        # x_pos: Alinha com a margem esquerda do documento
+        x_pos = doc.leftMargin 
+        
+        # y_pos: Calcula a posição Y para que o topo da imagem esteja alinhado
+        # com a margem superior do documento.
+        # page_height - doc.topMargin é a posição da margem superior.
+        # Subtraímos img_height para obter a posição inferior da imagem.
+        y_pos = page_height - img_height - doc.topMargin
         try:
             canvas_obj.drawImage(image_path, x_pos, y_pos, width=img_width, height=img_height, preserveAspectRatio=True)
         except Exception as e:
@@ -1708,13 +1713,12 @@ def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, veiculo, valor_f
     doc = SimpleDocTemplate(
         buffer,
         pagesize=landscape(letter),
-        rightMargin=inch / 2,
-        leftMargin=0.1 * inch,
-        topMargin=inch / 2,
+        rightMargin=inch / 2, # 0.5 polegadas
+        leftMargin=inch / 2, # Aumentei um pouco para 0.5 para dar espaço à imagem
+        topMargin=inch / 2,  # 0.5 polegadas
         bottomMargin=inch / 2,
-        onPage=draw_image_on_page
+        onPage=draw_image_on_page # Continua chamando a função para desenhar em cada página
     )
-
     styles = getSampleStyleSheet()
     h1 = styles['h1']
     styles.add(ParagraphStyle(name='CustomNormal', parent=styles['Normal'], spaceBefore=6, spaceAfter=6, leading=14))
