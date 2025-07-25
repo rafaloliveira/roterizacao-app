@@ -37,7 +37,7 @@ from fpdf import FPDF
 import io
 from reportlab.lib.pagesizes import letter, landscape
 from reportlab.platypus import Indenter
-from reportlab.lib.utils import ImageReader
+
 from io import BytesIO
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -1686,40 +1686,30 @@ def formatar_brasileiro(valor):
 ############################## Gerar PDF ########################################################
 
 def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, veiculo, valor_frete, valor_contratacao):
+
     buffer = BytesIO()
 
-    # --- ALTERAÇÃO 1: Mudar a extensão do arquivo de logo para .jpg ---
-    # Certifique-se de que o caminho 'C:\Users\Rafael\Roteriza\Scripts\' está correto no ambiente de execução.
-    image_path = "logo.jpg" 
+    image_path = r"C:\Users\Rafael\Roteriza\Scripts\logo.png"
     img_width = 1.0 * inch
     img_height = 0.75 * inch
 
     def draw_image_on_page(canvas_obj, doc):
         page_width, page_height = landscape(letter)
-        # Definir um preenchimento (padding) para a imagem em relação às bordas da página
-        padding_horizontal = 0.25 * inch 
-        padding_vertical = 0.25 * inch   
-
-        # --- ALTERAÇÃO 2: Calcular a posição para o canto superior esquerdo ---
-        # x_pos: Posição do canto esquerdo da imagem (a partir da borda esquerda da página)
-        x_pos = padding_horizontal
-        # y_pos: Posição do canto inferior da imagem (a partir da borda inferior da página)
-        # page_height - img_height - padding_vertical calcula a posição correta
-        # para que o topo da imagem fique 'padding_vertical' de distância da borda superior.
-        y_pos = page_height - img_height - padding_vertical
-
+        padding_left = 0.25 * inch
+        padding_top = 0.25 * inch
+        x_pos = padding_left
+        y_pos = page_height - img_height - padding_top
         try:
             canvas_obj.drawImage(image_path, x_pos, y_pos, width=img_width, height=img_height, preserveAspectRatio=True)
         except Exception as e:
-            # É uma boa prática imprimir o erro para depuração
             print(f"Erro ao desenhar imagem no PDF: {e}")
 
     doc = SimpleDocTemplate(
         buffer,
         pagesize=landscape(letter),
         rightMargin=inch / 2,
-        leftMargin=0.1 * inch, # Margem padrão do documento
-        topMargin=inch / 2,    # Margem padrão do documento
+        leftMargin=0.1 * inch,
+        topMargin=inch / 2,
         bottomMargin=inch / 2,
         onPage=draw_image_on_page
     )
@@ -1733,7 +1723,7 @@ def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, veiculo, valor_f
         parent=styles['Normal'],
         fontName='Helvetica-Bold',
         fontSize=8,
-        alignment=1, # Centro
+        alignment=1,
         leading=9,
         spaceAfter=3
     )
@@ -1743,7 +1733,7 @@ def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, veiculo, valor_f
         parent=styles['Normal'],
         fontName='Helvetica',
         fontSize=8,
-        alignment=0, # Esquerda
+        alignment=0,
         leading=9
     )
 
@@ -1761,8 +1751,8 @@ def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, veiculo, valor_f
         ],
         [
             Paragraph(f"<b>Tipo de Veículo:</b> {veiculo if veiculo and veiculo.strip() else '<i>Não Informado</i>'}", styles['CustomNormal']),
-            Paragraph(f"<b>Valor de Contratação:</b> R\$ {formatar_brasileiro(valor_contratacao)}", styles['CustomNormal']),
-            "" # Coluna vazia para alinhamento
+            Paragraph(f"<b>Valor de Contratação:</b> R$ {formatar_brasileiro(valor_contratacao)}", styles['CustomNormal']),
+            ""
         ]
     ]
 
@@ -1774,9 +1764,38 @@ def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, veiculo, valor_f
         ('LEFTPADDING', (0, 0), (-1, -1), 2),
     ]))
     elements.append(info_table)
-    elements.append(Spacer(1, 0.3 * inch))
 
-    # --- Entregas Associadas ---
+    # --- Cálculo Totais ---
+    df_entregas["Peso Real em Kg"] = pd.to_numeric(df_entregas.get("Peso Real em Kg", 0), errors="coerce").fillna(0)
+    df_entregas["Cubagem em m³"] = pd.to_numeric(df_entregas.get("Cubagem em m³", 0), errors="coerce").fillna(0)
+
+    qtd_entregas = len(df_entregas)
+    peso_real_total = df_entregas["Peso Real em Kg"].sum()
+    cubagem_total = df_entregas["Cubagem em m³"].sum()
+
+    elements.append(Spacer(1, 0.2 * inch))
+    elements.append(Paragraph("<b>Resumo das Entregas:</b>", styles['h2']))
+    elements.append(Spacer(1, 0.1 * inch))
+
+    resumo_dados = [
+        [
+            Paragraph(f"<b>Qtde Total de Entregas:</b> {qtd_entregas}", styles['CustomNormal']),
+            Paragraph(f"<b>Peso Real Total:</b> {formatar_brasileiro(peso_real_total)} Kg", styles['CustomNormal']),
+            Paragraph(f"<b>Cubagem Total:</b> {formatar_brasileiro(cubagem_total)} m³", styles['CustomNormal']),
+        ]
+    ]
+
+    resumo_table = Table(resumo_dados)
+    resumo_table.setStyle(TableStyle([
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+        ('TOPPADDING', (0, 0), (-1, -1), 2),
+        ('LEFTPADDING', (0, 0), (-1, -1), 2),
+    ]))
+    elements.append(resumo_table)
+
+    # --- Tabela de Entregas ---
+    elements.append(Spacer(1, 0.3 * inch))
     elements.append(Paragraph("<b>Entregas Associadas:</b>", styles['h2']))
     elements.append(Spacer(1, 0.1 * inch))
 
