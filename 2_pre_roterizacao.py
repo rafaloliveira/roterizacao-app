@@ -1689,7 +1689,7 @@ def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, veiculo, valor_f
 
     buffer = BytesIO()
 
-    image_path = r"C:\Users\Rafael\Roteriza\Scripts\logo.png"
+    image_path = r"C:\Users\Rafael\Roteriza\Scripts\logo.png" 
     img_width = 1.0 * inch
     img_height = 0.75 * inch
 
@@ -1697,6 +1697,7 @@ def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, veiculo, valor_f
         page_width, page_height = landscape(letter)
         padding_left = 0.25 * inch
         padding_top = 0.25 * inch
+        
         x_pos = padding_left
         y_pos = page_height - img_height - padding_top
         try:
