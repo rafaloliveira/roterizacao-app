@@ -1690,7 +1690,7 @@ def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, veiculo, valor_f
 
     # --- ALTERAÇÃO 1: Mudar a extensão do arquivo de logo para .jpg ---
     # Certifique-se de que o caminho 'C:\Users\Rafael\Roteriza\Scripts\' está correto no ambiente de execução.
-    image_path = r"C:\Users\Rafael\Roteriza\Scripts\logo.jpg" 
+    image_path = "logo.jpg" 
     img_width = 1.0 * inch
     img_height = 0.75 * inch
 
