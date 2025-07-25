@@ -1744,6 +1744,9 @@ def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, veiculo, valor_f
 
     elements = []
 
+       # --- ADICIONE ESTA LINHA AQUI! (Espaço para o logo) ---
+    elements.append(Spacer(1, 0.75 * inch)) # Ajuste 0.75 conforme necessário para o tamanho do seu logo
+
     # --- Cabeçalho da Carga ---
     elements.append(Paragraph(f"Detalhes da Carga: <font color='#1A73E8'><b>{carga}</b></font>", h1))
     elements.append(Spacer(1, 0.2 * inch))
