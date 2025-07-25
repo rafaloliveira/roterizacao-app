@@ -1700,7 +1700,7 @@ def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, veiculo, valor_f
         print(f"❌ Erro ao carregar o logo: {e}")
         logo_reader = None
 
-    # Desenhar o logo no canto superior esquerdo
+    # Função para desenhar o logo no canto superior esquerdo em todas as páginas
     def draw_image_on_page(canvas_obj, doc):
         if logo_reader:
             try:
@@ -1711,6 +1711,7 @@ def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, veiculo, valor_f
             except Exception as e:
                 print(f"❌ Erro ao desenhar o logo no PDF: {e}")
 
+    # Configuração do documento PDF com a função draw_image_on_page
     doc = SimpleDocTemplate(
         buffer,
         pagesize=landscape(letter),
@@ -1718,8 +1719,9 @@ def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, veiculo, valor_f
         leftMargin=0.1 * inch,
         topMargin=inch / 2,
         bottomMargin=inch / 2,
-        onPage=draw_image_on_page
+        onPage=draw_image_on_page  # <- Aqui conectamos o desenho do logo em cada página
     )
+
 
     styles = getSampleStyleSheet()
     h1 = styles['h1']
