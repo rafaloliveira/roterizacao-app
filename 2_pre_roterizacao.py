@@ -3144,7 +3144,7 @@ def pagina_cargas_geradas():
             # --- CORREÇÃO AQUI: LISTA FIXA DE VEÍCULOS ---
             # Preparar a lista de opções de veículos para o selectbox
             # Lista definida pelo usuário, mantendo a consistência de letras maiúsculas
-            static_vehicle_types = ["VAN", "HR", "3/4", "TOCO", "TRUCK"]
+            static_vehicle_types = ["CARRETA","HR", "3/4", "TOCO", "TRUCK","VAN"]
             vehicle_options_list = [""] + static_vehicle_types # Adiciona a opção vazia no início
             # --- FIM DA CORREÇÃO ---
 
