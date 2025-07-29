@@ -4989,34 +4989,26 @@ def pagina_cargas_fechadas():
 
 
             download_key = "download_csv_geral"
-            download_count_key = f"{download_key}_count"
+            count_key = f"{download_key}_count"
 
-            # Inicializa o contador se ainda não estiver no estado
-            if download_count_key not in st.session_state:
-                st.session_state[download_count_key] = 0
+            if count_key not in st.session_state:
+                st.session_state[count_key] = 0
 
-            # Define a cor do botão com base no número de downloads
-            button_color = "#007bff" if st.session_state[download_count_key] == 0 else "#ffc107"  # azul → amarelo após o primeiro clique
-            text_color = "#ffffff" if st.session_state[download_count_key] == 0 else "#000000"
+            button_label = "⬇️ Baixar CSV Geral de Cargas Fechadas"
+            if st.session_state[count_key] > 0:
+                button_label = "⚠️ Baixar Novamente (Já foi baixado)"
 
-            # Define o rótulo com estilo inline
-            custom_label = f"""
-            <span style="background-color:{button_color}; color:{text_color}; padding:8px 12px; border-radius:5px; display:inline-block;">
-            ⬇️ Baixar CSV Geral de Cargas Fechadas
-            </span>
-            """
-
-            # Botão com rótulo customizado
             if st.download_button(
-                label=custom_label,
+                label=button_label,
                 data=csv_content_geral,
                 file_name="cargas_fechadas_chaves.csv",
                 mime="text/csv",
                 key=download_key
             ):
-                st.session_state[download_count_key] += 1
-                if st.session_state[download_count_key] > 1:
+                st.session_state[count_key] += 1
+                if st.session_state[count_key] > 1:
                     st.warning("⚠️ Você já fez o download deste CSV anteriormente.")
+
 
 
 
