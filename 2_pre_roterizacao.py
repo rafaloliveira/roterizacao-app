@@ -4963,13 +4963,41 @@ def pagina_cargas_fechadas():
             # Gera CSV em UTF-8
             csv_content_geral = df_csv_geral.to_csv(index=False, sep=';', encoding='utf-8')
 
-            st.download_button(
-                label="⬇️ Baixar CSV Geral de Cargas Fechadas",
+
+
+            download_key = "download_csv_geral"
+            count_key = f"{download_key}_count"
+
+            # Inicializa o contador se ainda não existir
+            if count_key not in st.session_state:
+                st.session_state[count_key] = 0
+
+            # Define o rótulo do botão com base na contagem
+            button_label = "⬇️ Baixar CSV Geral de Cargas Fechadas"
+            if st.session_state[count_key] > 0:
+                button_label = "⚠️ Baixar Novamente (Já foi baixado)"
+
+            # Cria botão e verifica se foi clicado
+            download_clicked = st.download_button(
+                label=button_label,
                 data=csv_content_geral,
                 file_name="cargas_fechadas_chaves.csv",
                 mime="text/csv",
-                key="download_csv_geral"
+                key=download_key
             )
+
+            # Atualiza contador e mostra aviso
+            if download_clicked:
+                st.session_state[count_key] += 1
+
+            if st.session_state[count_key] > 1:
+                st.warning("⚠️ Este CSV já foi baixado anteriormente. Verifique se deseja realmente fazer o download novamente.")
+
+
+
+
+
+            
         except Exception as e:
             st.warning("⚠️ Não foi possível gerar o CSV geral.")
             st.exception(e)
