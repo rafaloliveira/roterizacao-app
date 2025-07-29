@@ -4986,8 +4986,6 @@ def pagina_cargas_fechadas():
 
 
 
-
-
             download_key = "download_csv_geral"
             count_key = f"{download_key}_count"
 
