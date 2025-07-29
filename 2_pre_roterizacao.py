@@ -4967,17 +4967,20 @@ def pagina_cargas_fechadas():
 
             download_key = "download_csv_geral"
             count_key = f"{download_key}_count"
+            trigger_key = f"{download_key}_trigger"
 
-            # Inicializa o contador se ainda não existir
+            # Inicializa contadores no session_state se necessário
             if count_key not in st.session_state:
                 st.session_state[count_key] = 0
+            if trigger_key not in st.session_state:
+                st.session_state[trigger_key] = False
 
-            # Define o rótulo do botão com base na contagem
+            # Label do botão muda após o primeiro download
             button_label = "⬇️ Baixar CSV Geral de Cargas Fechadas"
             if st.session_state[count_key] > 0:
                 button_label = "⚠️ Baixar Novamente (Já foi baixado)"
 
-            # Cria botão e verifica se foi clicado
+            # Cria botão de download
             download_clicked = st.download_button(
                 label=button_label,
                 data=csv_content_geral,
@@ -4985,6 +4988,19 @@ def pagina_cargas_fechadas():
                 mime="text/csv",
                 key=download_key
             )
+
+            # Se clicado, atualiza contador e ativa flag de exibição
+            if download_clicked:
+                st.session_state[count_key] += 1
+                st.session_state[trigger_key] = True
+
+            # Exibe aviso de múltiplos downloads
+            if st.session_state[count_key] > 1 or st.session_state[trigger_key]:
+                st.warning("⚠️ Este CSV já foi baixado anteriormente. Evite duplicidade.")
+
+            # Resetar trigger após exibição (opcional)
+            st.session_state[trigger_key] = False
+
 
             # Atualiza contador e mostra aviso
             if download_clicked:
