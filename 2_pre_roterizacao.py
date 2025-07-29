@@ -4434,73 +4434,139 @@ def pagina_cargas_aprovadas():
                         }
                     )
 
-            if st.button(
-                f"✅ Salvar e Fechar Carga {carga}",
-                key=f"salvar_fechar_carga_{carga}"
-                ):
-                try:
-                    # 1. Obter todas as entregas desta carga de 'cargas_aprovadas'
-                    response_fetch = supabase.table("cargas_aprovadas").select("*").eq("numero_carga", carga).execute()
-                    data_to_move = response_fetch.data
+                            # Botão para Retornar à Aprovação de Custos
+                # --- NOVO BLOCO ---
+                col_fechar, col_retornar = st.columns([1,1])
 
-                    if not data_to_move:
-                        st.warning(f"Nenhuma entrega encontrada para a carga {carga} em Cargas Aprovadas para fechar.")
-                        st.rerun() # Recarrega para limpar estado
-                        return
+                with col_fechar:
+                    if st.button(
+                        f"✅ Salvar e Fechar Carga {carga}",
+                        key=f"salvar_fechar_carga_{carga}"
+                        ):
+                        try:
+                            # 1. Obter todas as entregas desta carga de 'cargas_aprovadas'
+                            response_fetch = supabase.table("cargas_aprovadas").select("*").eq("numero_carga", carga).execute()
+                            data_to_move = response_fetch.data
 
-                    df_to_move = pd.DataFrame(data_to_move)
+                            if not data_to_move:
+                                st.warning(f"Nenhuma entrega encontrada para a carga {carga} em Cargas Aprovadas para fechar.")
+                                st.rerun() # Recarrega para limpar estado
+                                return
 
-                    # 2. Adicionar/Atualizar 'motorista', 'placa', 'data_fechamento', 'situacao' e 'fechador_carga_login'
-                    df_to_move["motorista"] = motorista_carga  # Usa valor já carregado da carga
-                    df_to_move["placa"] = placa_carga # Já está em UPPER()
-                    df_to_move["veiculo"] = veiculo_carga # <--- ADICIONE ESTA LINHA
-                    df_to_move["data_fechamento"] = data_hora_brasil_iso() # Data e hora atual do Brasil
-                    df_to_move["situacao"] = "Fechada" # Definir a situação
-                    df_to_move["fechador_carga_login"] = st.session_state.get("username", "Desconhecido") # Quem fechou
+                            df_to_move = pd.DataFrame(data_to_move)
 
-                    # 3. Preparar dados para inserção em 'cargas_fechadas'
-                    date_cols_to_process_for_insert = [
-                        "Previsao de Entrega", "Entrega Programada", "Data de Emissao",
-                        "Data de Autorizacao", "Data do Cancelamento", "Data do Escaneamento",
-                        "Data da Entrega Realizada", "Data da Ultima Ocorrencia",
-                        "Data de inclusao da Ultima Ocorrencia", "Data_Hora_Gerada",
-                        "data_fechamento", "data_aprovacao_custos" # Inclui as novas e existentes
-                    ]
-                    for col_name in date_cols_to_process_for_insert:
-                        if col_name in df_to_move.columns:
-                            df_to_move[col_name] = pd.to_datetime(df_to_move[col_name], errors='coerce')
-                            df_to_move[col_name] = df_to_move[col_name].apply(
-                                lambda x: x.isoformat() if pd.notna(x) else None
-                            )
-                    df_to_move = df_to_move.replace([np.nan, pd.NaT, "", np.inf, -np.inf], None)
+                            # 2. Adicionar/Atualizar 'motorista', 'placa', 'data_fechamento', 'situacao' e 'fechador_carga_login'
+                            df_to_move["motorista"] = motorista_carga  # Usa valor já carregado da carga
+                            df_to_move["placa"] = placa_carga # Já está em UPPER()
+                            df_to_move["veiculo"] = veiculo_carga # <--- ADICIONADO PARA VEICULO
+                            df_to_move["data_fechamento"] = data_hora_brasil_iso() # Data e hora atual do Brasil
+                            df_to_move["situacao"] = "Fechada" # Definir a situação
+                            df_to_move["fechador_carga_login"] = st.session_state.get("username", "Desconhecido") # Quem fechou
 
-                    records_to_insert = df_to_move.to_dict(orient="records")
+                            # 3. Preparar dados para inserção em 'cargas_fechadas'
+                            date_cols_to_process_for_insert = [
+                                "Previsao de Entrega", "Entrega Programada", "Data de Emissao",
+                                "Data de Autorizacao", "Data do Cancelamento", "Data do Escaneamento",
+                                "Data da Entrega Realizada", "Data da Ultima Ocorrencia",
+                                "Data de inclusao da Ultima Ocorrencia", "Data_Hora_Gerada",
+                                "data_fechamento", "data_aprovacao_custos" # Inclui as novas e existentes
+                            ]
+                            for col_name in date_cols_to_process_for_insert:
+                                if col_name in df_to_move.columns:
+                                    df_to_move[col_name] = pd.to_datetime(df_to_move[col_name], errors='coerce')
+                                    df_to_move[col_name] = df_to_move[col_name].apply(
+                                        lambda x: x.isoformat() if pd.notna(x) else None
+                                    )
+                            df_to_move = df_to_move.replace([np.nan, pd.NaT, "", np.inf, -np.inf], None)
 
-                    # 4. Inserir em 'cargas_fechadas'
-                    if records_to_insert:
-                        supabase.table("cargas_fechadas").insert(records_to_insert).execute()
-                        st.success(f"Carga {carga} movida para Cargas Fechadas com sucesso!")
-                    else:
-                        st.warning(f"Não há registros válidos para mover para Cargas Fechadas para a carga {carga}.")
-                        st.rerun() # Não deleta se não inseriu
-                        return 
+                            records_to_insert = df_to_move.to_dict(orient="records")
 
-                    # 5. Deletar da 'cargas_aprovadas' (original)
-                    supabase.table("cargas_aprovadas").delete().eq("numero_carga", carga).execute()
-                    
-                    st.session_state["reload_cargas_aprovadas"] = True # Força recarregamento da página atual
-                    st.session_state["reload_cargas_fechadas"] = True # Força recarregamento da nova página
-                    st.rerun() # Renderiza novamente para mostrar as mudanças
+                            # 4. Inserir em 'cargas_fechadas'
+                            if records_to_insert:
+                                supabase.table("cargas_fechadas").insert(records_to_insert).execute()
+                                st.success(f"Carga {carga} movida para Cargas Fechadas com sucesso!")
+                            else:
+                                st.warning(f"Não há registros válidos para mover para Cargas Fechadas para a carga {carga}.")
+                                st.rerun() # Não deleta se não inseriu
+                                return 
 
-                except Exception as e:
-                    st.error(f"Erro ao salvar e fechar carga {carga}: {e}")
+                            # 5. Deletar da 'cargas_aprovadas' (original)
+                            supabase.table("cargas_aprovadas").delete().eq("numero_carga", carga).execute()
+                            
+                            st.session_state["reload_cargas_aprovadas"] = True # Força recarregamento da página atual
+                            st.session_state["reload_cargas_fechadas"] = True # Força recarregamento da nova página
+                            st.rerun() # Renderiza novamente para mostrar as mudanças
 
-                
-    except Exception as e:
-        st.error("Erro ao carregar cargas aprovadas:")
-        st.exception(e)
+                        except Exception as e:
+                            st.error(f"Erro ao salvar e fechar carga {carga}: {e}")
 
-            
+                with col_retornar: # <<< ESTE É O NOVO BOTÃO E LÓGICA
+                    if st.button(
+                        f"↩️ Retornar à Aprovação de Custos",
+                        key=f"retornar_aprov_custos_{carga}"
+                    ):
+                        try:
+                            with st.spinner(f"Retornando carga {carga} para aprovação de custos..."):
+                                # 1. Obter todas as entregas desta carga de 'cargas_aprovadas'
+                                response_fetch = supabase.table("cargas_aprovadas").select("*").eq("numero_carga", carga).execute()
+                                data_to_move = response_fetch.data
+
+                                if not data_to_move:
+                                    st.warning(f"Nenhuma entrega encontrada para a carga {carga} em Cargas Aprovadas para retornar.")
+                                    st.rerun()
+                                    return
+
+                                df_to_move = pd.DataFrame(data_to_move)
+
+                                # 2. Resetar campos de auditoria de aprovação de custos
+                                # As informações de motorista, placa, veículo e valor_contratacao são MANTIDAS
+                                df_to_move["aprovador_custos_login"] = None
+                                df_to_move["data_aprovacao_custos"] = None
+                                # Garante que 'situacao' e 'fechador_carga_login' (se por algum erro existirem) não sejam levados
+                                df_to_move = df_to_move.drop(columns=["situacao", "fechador_carga_login", "data_fechamento"], errors="ignore")
+
+                                # 3. Preparar dados para inserção em 'aprovacao_custos'
+                                # Reutiliza a lógica de tratamento de datas para Supabase (ISO UTC)
+                                date_cols_for_supabase = [
+                                    "Previsao de Entrega", "Entrega Programada", "Data de Emissao",
+                                    "Data de Autorizacao", "Data do Cancelamento", "Data do Escaneamento",
+                                    "Data da Entrega Realizada", "Data da Ultima Ocorrencia",
+                                    "Data de inclusao da Ultima Ocorrencia", "Data_Hora_Gerada"
+                                ]
+                                for col_name in date_cols_for_supabase:
+                                    if col_name in df_to_move.columns:
+                                        df_to_move[col_name] = pd.to_datetime(df_to_move[col_name], errors='coerce')
+                                        df_to_move[col_name] = df_to_move[col_name].apply(tratar_data_para_utc)
+                                
+                                df_to_move = df_to_move.replace([np.nan, pd.NaT, "", np.inf, -np.inf], None)
+
+                                records_to_insert = df_to_move.to_dict(orient="records")
+
+                                # 4. Inserir em 'aprovacao_custos'
+                                if records_to_insert:
+                                    supabase.table("aprovacao_custos").insert(records_to_insert).execute()
+                                    st.success(f"Carga {carga} retornada para Aprovação de Custos com sucesso!")
+                                else:
+                                    st.warning(f"Não há registros válidos para mover para Aprovação de Custos para a carga {carga}.")
+                                    st.rerun()
+                                    return
+
+                                # 5. Deletar da 'cargas_aprovadas'
+                                supabase.table("cargas_aprovadas").delete().eq("numero_carga", carga).execute()
+                                
+                                # Forçar recarregamento das páginas afetadas
+                                st.session_state["reload_cargas_aprovadas"] = True
+                                st.session_state["reload_aprovacao_custos"] = True
+                                
+                                st.rerun()
+
+                        except Exception as e:
+                            st.error(f"Erro ao retornar carga {carga} para aprovação de custos: {e}")
+                # --- FIM DO NOVO BLOCO ---
+
+    except Exception as e: # <--- ADICIONE ESTE BLOCO (se ele ainda não estiver lá)
+            st.error("Erro ao carregar cargas aprovadas:")
+            st.exception(e)
 # ==============================================================================
 # Função pagina_cargas_fechadas() - com os ajustes aplicados
 # ==============================================================================
@@ -5015,9 +5081,6 @@ def pagina_cargas_fechadas():
     except Exception as e:
         st.error("Erro ao carregar cargas fechadas:")
         st.exception(e)
-
-
-
 
 
 

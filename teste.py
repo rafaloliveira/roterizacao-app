@@ -4695,11 +4695,20 @@ def pagina_cargas_fechadas():
                 cor_situacao = "gray"
 
 
+            
             st.markdown(f"""
             <div style="margin-top:20px;padding:10px;background:#e8f0fe;border-left:4px solid #34a853;border-radius:6px;display:inline-block;max-width:100%;">
                 <strong>Carga:</strong> {carga}
             </div>
             """, unsafe_allow_html=True)
+
+            col1_badges, col2_placeholder = st.columns([5, 1])
+            with col1_badges:
+                csv_downloaded_display_date = None
+                if f"csv_downloaded_{carga}" in st.session_state:
+                    csv_downloaded_display_date = st.session_state[f"csv_downloaded_{carga}"]
+                elif "csv_downloaded_at" in df_carga.columns and pd.notna(df_carga["csv_downloaded_at"].iloc[0]):
+                    csv_downloaded_display_date = formatar_data_hora_br(df_carga["csv_downloaded_at"].iloc[0])
 
             col1_badges, col2_placeholder = st.columns([5, 1])
             with col1_badges:
@@ -4722,6 +4731,7 @@ def pagina_cargas_fechadas():
                         {badge(f'Fechado por: {fechador_carga_login}')}
                         {badge(f'Fechada em: {formatar_data_hora_br(data_fechamento_carga)}') if data_fechamento_carga else ''}
                         {badge(f'Situação: {situacao_carga}')}
+                        {badge(f'CSV baixado em: {csv_downloaded_display_date}', background_color="#6c757d", text_color="white") if csv_downloaded_display_date else ""}
                     </div>
                     """,
                     unsafe_allow_html=True
@@ -4796,17 +4806,45 @@ def pagina_cargas_fechadas():
 
                         # Escreve CSV com BOM e separador ";"
                         df_chaves.to_csv(output, index=False, encoding='utf-8-sig', sep=';')
+                        csv_data = output.getvalue()
 
-                        st.download_button(
-                            label="📥 CSV",
-                            data=output.getvalue(),
-                            file_name=f"carga_encerrada_{carga}_chaves.csv",
-                            mime="text/csv",
-                            key=f"download_csv_chaves_carga_{carga}"
-                        )
+                        # Botão de ação para salvar o estado
+                        if st.button(f"📥 Gerar CSV da Carga {carga}", key=f"btn_csv_{carga}"):
+                            data_csv_download = datetime.utcnow().isoformat()
+
+                            try:
+                                # Salva no banco Supabase
+                                supabase.table("cargas_fechadas").update({
+                                    "csv_downloaded_at": data_csv_download
+                                }).eq("numero_carga", carga).execute()
+
+                                # Atualiza o badge local com a nova data
+                                st.session_state[f"csv_downloaded_{carga}"] = formatar_data_hora_br(pd.to_datetime(data_csv_download))
+
+                                # Limpa cache local para forçar recarregamento (opcional)
+                                st.session_state.pop("df_cargas_fechadas_cache", None)
+
+                                st.success(f"CSV baixado e registrado com sucesso para a carga {carga}.")
+                            except Exception as e:
+                                st.error(f"❌ Erro ao salvar csv_downloaded_at no banco: {e}")
+
+
+
+                        # Se o estado estiver salvo, mostra o botão de download
+                        if f"csv_downloaded_{carga}" in st.session_state:
+                            st.download_button(
+                                label="⬇️ Clique para baixar o CSV",
+                                data=csv_data,
+                                file_name=f"carga_encerrada_{carga}_chaves.csv",
+                                mime="text/csv",
+                                key=f"download_csv_chaves_carga_{carga}"
+                            )
+
+                            badge_data = badge(f"CSV baixado em: {st.session_state[f'csv_downloaded_{carga}']}")
 
                     except Exception as e:
                         st.error(f"❌ Erro ao gerar CSV da carga {carga}: {e}")
+
 
 
             with st.expander("🔽 Ver entregas da carga fechada", expanded=True):
@@ -4984,33 +5022,13 @@ def pagina_cargas_fechadas():
             # Gera CSV em UTF-8
             csv_content_geral = df_csv_geral.to_csv(index=False, sep=';', encoding='utf-8')
 
-
-
-            download_key = "download_csv_geral"
-            count_key = f"{download_key}_count"
-
-            if count_key not in st.session_state:
-                st.session_state[count_key] = 0
-
-            button_label = "⬇️ Baixar CSV Geral de Cargas Fechadas"
-            if st.session_state[count_key] > 0:
-                button_label = "⚠️ Baixar Novamente (Já foi baixado)"
-
-            if st.download_button(
-                label=button_label,
+            st.download_button(
+                label="⬇️ Baixar CSV Geral de Cargas Fechadas",
                 data=csv_content_geral,
                 file_name="cargas_fechadas_chaves.csv",
                 mime="text/csv",
-                key=download_key
-            ):
-                st.session_state[count_key] += 1
-                if st.session_state[count_key] > 1:
-                    st.warning("⚠️ Você já fez o download deste CSV anteriormente.")
-
-
-
-
-
+                key="download_csv_geral"
+            )
         except Exception as e:
             st.warning("⚠️ Não foi possível gerar o CSV geral.")
             st.exception(e)
