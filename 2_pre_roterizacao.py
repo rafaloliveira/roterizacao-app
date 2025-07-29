@@ -3249,18 +3249,43 @@ def pagina_cargas_geradas():
 
             col1, col2 = st.columns([5, 1])
             with col1:
+                # Pré-calcula o HTML de cada badge individualmente para evitar problemas na f-string multi-linha
+                badge_entregas = badge(f'{len(df_carga_raw)} entregas')
+                badge_peso_calc = badge(f'{formatar_brasileiro(df_carga_raw["Peso Calculado em Kg"].sum())} kg calc')
+                badge_peso_real = badge(f'{formatar_brasileiro(df_carga_raw["Peso Real em Kg"].sum())} kg real')
+                badge_valor_frete = badge(f'Valor frete: R$ {formatar_brasileiro(total_frete_carga)}') # Use R\$ aqui se for a intenção
+                badge_cubagem = badge(f'{formatar_brasileiro(df_carga_raw["Cubagem em m³"].sum())} m³')
+                badge_volumes = badge(f'{int(df_carga_raw["Quantidade de Volumes"].sum())} volumes')
+                badge_motorista = badge(f'Motorista: {info_motorista}')
+                badge_placa = badge(f'Placa: {info_placa}')
+                badge_valor_contratacao = badge(f'Valor da Contratação: R$ {info_valor_contratacao}') # Use R\$ aqui se for a intenção
+
+                # Lógica para determinar a data de download do PDF para o badge
+                pdf_downloaded_display_date = None
+                if f"pdf_downloaded_{carga}" in st.session_state:
+                    pdf_downloaded_display_date = st.session_state[f"pdf_downloaded_{carga}"]
+                elif "pdf_downloaded_at" in df_carga_raw.columns and pd.notna(df_carga_raw["pdf_downloaded_at"].iloc[0]):
+                    pdf_downloaded_display_date = formatar_data_hora_br(df_carga_raw["pdf_downloaded_at"].iloc[0])
+
+                # Pré-renderiza o HTML do badge do PDF se houver uma data, senão uma string vazia
+                pdf_badge_html_fragment = ""
+                if pdf_downloaded_display_date:
+                    pdf_badge_html_fragment = badge(f'PDF baixado em: {pdf_downloaded_display_date}', background_color="#6c757d", text_color="white")
+
+                # Inclui todas as variáveis de badge na f-string principal
                 st.markdown(
                     f"""
                     <div style='display: flex; flex-wrap: wrap; gap: 8px;'>
-                        {badge(f'{len(df_carga_raw)} entregas')}
-                        {badge(f'{formatar_brasileiro(df_carga_raw["Peso Calculado em Kg"].sum())} kg calc')}
-                        {badge(f'{formatar_brasileiro(df_carga_raw["Peso Real em Kg"].sum())} kg real')}
-                        {badge(f'Valor frete: R$ {formatar_brasileiro(total_frete_carga)}')}
-                        {badge(f'{formatar_brasileiro(df_carga_raw["Cubagem em m³"].sum())} m³')}
-                        {badge(f'{int(df_carga_raw["Quantidade de Volumes"].sum())} volumes')}
-                        {badge(f'Motorista: {info_motorista}')}
-                        {badge(f'Placa: {info_placa}')}
-                        {badge(f'Valor da Contratação: R$ {info_valor_contratacao}')}
+                        {badge_entregas}
+                        {badge_peso_calc}
+                        {badge_peso_real}
+                        {badge_valor_frete}
+                        {badge_cubagem}
+                        {badge_volumes}
+                        {badge_motorista}
+                        {badge_placa}
+                        {badge_valor_contratacao}
+                        {pdf_badge_html_fragment}
                     </div>
                     """,
                     unsafe_allow_html=True
@@ -3287,6 +3312,22 @@ def pagina_cargas_geradas():
                                 valor_contratacao=pdf_valor_contratacao
                             )
 
+
+                            # --- INÍCIO DA ADIÇÃO: Salvar data/hora do download do PDF ---
+                        data_pdf_download = datetime.utcnow().isoformat()
+                        try:
+                            supabase.table("cargas_geradas").update({
+                                "pdf_downloaded_at": data_pdf_download
+                            }).eq("numero_carga", carga).execute()
+                            # Atualiza o session_state para feedback imediato no badge
+                            st.session_state[f"pdf_downloaded_{carga}"] = formatar_data_hora_br(pd.to_datetime(data_pdf_download))
+                            # Força recarregamento dos dados para atualizar o dataframe em memória
+                            st.session_state.pop("df_cargas_cache", None)
+                            st.session_state["reload_cargas_geradas"] = True # Sinaliza para recarregar a página
+                        except Exception as e_db:
+                            st.warning(f"⚠️ Não foi possível registrar o download do PDF no banco de dados: {e_db}")
+                        # --- FIM DA ADIÇÃO ---
+
                         st.success(f"✅ PDF da carga {carga} gerado com sucesso!")
                         # Este botão de download aparecerá SOMENTE após o PDF ser gerado
                         st.download_button(
@@ -3296,6 +3337,8 @@ def pagina_cargas_geradas():
                             mime="application/pdf", # Tipo MIME do arquivo (indica que é um PDF)
                             key=f"download_pdf_final_{carga}" # Chave única para este botão
                         )
+
+                        
                     except Exception as e:
                         # Em caso de erro na geração, exibe uma mensagem clara
                         st.error(f"❌ Erro ao gerar o PDF da carga {carga}: {e}. "
