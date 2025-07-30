@@ -2954,7 +2954,7 @@ def pagina_pre_roterizacao():
                 gridOptions=grid_options,
                 # AJUSTE AQUI: MUDANÇA DE MANUAL PARA SELECTION_CHANGED
                 update_mode=GridUpdateMode.SELECTION_CHANGED, 
-                fit_columns_on_grid_load=False,
+                fit_columns_on_grid_load=True,
                 width="100%",
                 height=400,
                 allow_unsafe_jscode=True,
