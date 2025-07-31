@@ -4634,38 +4634,49 @@ def pagina_cargas_fechadas():
     st.markdown("---")
 
     try:
-        colunas_para_csv = ["Serie_Numero_CTRC",  "Cliente Pagador", "Cliente Destinatario", "Cidade de Entrega",
-        "Bairro do Destinatario", "Previsao de Entrega", "Numero da Nota Fiscal",  "Status",
-        "Entrega Programada", "Peso Real em Kg", "Peso Calculado em Kg", "Valor do Frete",
-        "Rota", "Regiao", "Data de Emissao", "Chave CT-e",
-        "Particularidade", "Codigo da Ultima Ocorrencia", "Cubagem em m³", "Quantidade de Volumes",
-        "valor_contratacao", "numero_carga", "motorista", "placa",
-        "data_fechamento", "situacao", "aprovador_custos_login", "data_aprovacao_custos",
-        "fechador_carga_login"]
+        colunas_para_csv = [
+            "Serie_Numero_CTRC", "Cliente Pagador", "Cliente Destinatario", "Cidade de Entrega",
+            "Bairro do Destinatario", "Previsao de Entrega", "Numero da Nota Fiscal", "Status",
+            "Entrega Programada", "Peso Real em Kg", "Peso Calculado em Kg", "Valor do Frete",
+            "Rota", "Regiao", "Data de Emissao", "Chave CT-e",
+            "Particularidade", "Codigo da Ultima Ocorrencia", "Cubagem em m³", "Quantidade de Volumes",
+            "valor_contratacao", "numero_carga", "motorista", "placa",
+            "data_fechamento", "situacao", "aprovador_custos_login", "data_aprovacao_custos",
+            "fechador_carga_login"
+        ]
+
         df_temp = st.session_state.get("df_cargas_fechadas_cache", pd.DataFrame()).copy()
-        df_csv_geral = df_temp[[col for col in colunas_para_csv if col in df_temp.columns]].copy()
 
-        # Remove espaços extras
-        for col in df_csv_geral.columns:
-            df_csv_geral[col] = df_csv_geral[col].astype(str).str.strip()
+        if not df_temp.empty:
+            # Garante que só pegue as colunas existentes
+            colunas_existentes = [col for col in colunas_para_csv if col in df_temp.columns]
+            df_csv_geral = df_temp[colunas_existentes].copy()
 
-        # Garante que a Chave CT-e tenha os 44 dígitos completos no Excel
-        if "Chave CT-e" in df_csv_geral.columns:
-            df_csv_geral["Chave CT-e"] = df_csv_geral["Chave CT-e"].apply(lambda x: f'="{x}"')
+            # Limpa espaços em branco
+            for col in df_csv_geral.columns:
+                df_csv_geral[col] = df_csv_geral[col].astype(str).str.strip()
 
-        # Gera CSV em UTF-8
-        csv_content_geral = df_csv_geral.to_csv(index=False, sep=';', encoding='utf-8')
+            # Protege a coluna da chave do CT-e para não ser truncada no Excel
+            if "Chave CT-e" in df_csv_geral.columns:
+                df_csv_geral["Chave CT-e"] = df_csv_geral["Chave CT-e"].apply(lambda x: f'="{x}"')
 
-        st.download_button(
-            label="⬇️ Baixar CSV Geral de Cargas Fechadas",
-            data=csv_content_geral,
-            file_name="cargas_fechadas_chaves.csv",
-            mime="text/csv",
-            key="download_csv_geral"
-        )
+            csv_content_geral = df_csv_geral.to_csv(index=False, sep=';', encoding='utf-8')
+
+            st.download_button(
+                label="⬇️ Baixar CSV Geral de Cargas Fechadas",
+                data=csv_content_geral,
+                file_name="cargas_fechadas_completo.csv",
+                mime="text/csv",
+                key="download_csv_geral"
+            )
+        else:
+            st.info("ℹ️ Nenhuma carga fechada disponível no momento para exportação.")
     except Exception as e:
         st.warning("⚠️ Não foi possível gerar o CSV geral.")
         st.exception(e)
+
+
+
 
     try:
         with st.spinner("🔄 Carregando dados para cargas fechadas..."):
