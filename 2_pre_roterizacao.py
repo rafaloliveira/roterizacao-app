@@ -46,7 +46,7 @@ from reportlab.lib.units import inch
 from reportlab.lib import colors
 
 from zoneinfo import ZoneInfo
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, time as datetime_time
 from datetime import datetime, date
 from http.cookies import SimpleCookie
 from st_aggrid.shared import GridUpdateMode
@@ -2930,8 +2930,6 @@ def pagina_pre_roterizacao():
                 df_rota[[col for col in colunas_exibir if col in df_rota.columns]].copy()
             )
 
-            
-
 
             gb = GridOptionsBuilder.from_dataframe(df_formatado)
             gb.configure_default_column(minWidth=140)
@@ -4502,7 +4500,18 @@ def pagina_cargas_aprovadas():
                             df_to_move["motorista"] = motorista_carga  # Usa valor já carregado da carga
                             df_to_move["placa"] = placa_carga # Já está em UPPER()
                             df_to_move["veiculo"] = veiculo_carga # <--- ADICIONADO PARA VEICULO
-                            df_to_move["data_fechamento"] = data_hora_brasil_iso() # Data e hora atual do Brasil
+
+
+
+                            # Get current time in Brazil TZ
+                            brazil_now = datetime.now(FUSO_BRASIL)
+                            # Convert it explicitly to UTC
+                            utc_now = brazil_now.astimezone(timezone.utc)
+                            # Format as ISO string, explicitly indicating it's UTC ('Z' suffix)
+                            df_to_move["data_fechamento"] = utc_now.isoformat(timespec='seconds').replace('+00:00', 'Z')
+
+
+
                             df_to_move["situacao"] = "Fechada" # Definir a situação
                             df_to_move["fechador_carga_login"] = st.session_state.get("username", "Desconhecido") # Quem fechou
 
@@ -4683,26 +4692,35 @@ def pagina_cargas_fechadas():
         st.subheader("🔍Filtrar por Data de Fechamento")
         col_data_inicio, col_data_fim = st.columns(2)
         with col_data_inicio:
-            # Pega a data mínima do DataFrame, garante que seja um objeto date para o date_input
-            min_date_val = df['data_fechamento'].min().date() if not df['data_fechamento'].empty and pd.notna(df['data_fechamento'].min()) else None
-            data_inicio = st.date_input("Data Inicial", value=min_date_val, key="filtro_data_inicio")
+            # Obtém o valor mínimo do DataFrame e o converte para o tipo date (para o date_input)
+            min_val_from_df = df['data_fechamento'].min()
+            if pd.isna(min_val_from_df):
+                default_min_date = None
+            else:
+                # Converte para o fuso horário de Brasília antes de pegar a parte da data
+                default_min_date = min_val_from_df.astimezone(FUSO_BRASIL).date()
+
+            data_inicio = st.date_input("Data Inicial", value=default_min_date, key="filtro_data_inicio")
+            
         with col_data_fim:
-            # Pega a data máxima do DataFrame, garante que seja um objeto date para o date_input
-            max_date_val = df['data_fechamento'].max().date() if not df['data_fechamento'].empty and pd.notna(df['data_fechamento'].max()) else None
-            data_fim = st.date_input("Data Final", value=max_date_val, key="filtro_data_fim")
+            # Obtém o valor máximo do DataFrame e o converte para o tipo date (para o date_input)
+            max_val_from_df = df['data_fechamento'].max()
+            if pd.isna(max_val_from_df):
+                default_max_date = None
+            else:
+                # Converte para o fuso horário de Brasília antes de pegar a parte da data
+                default_max_date = max_val_from_df.astimezone(FUSO_BRASIL).date()
+            
+            data_fim = st.date_input("Data Final", value=default_max_date, key="filtro_data_fim")
+
+
 
         # Aplica a filtragem por data
         df_filtrado = df.copy()
-        if data_inicio:
-            # Converte data_inicio (datetime.date) para um Timestamp timezone-aware (UTC)
-            start_of_day_utc = pd.Timestamp(data_inicio, tz='UTC')
-            df_filtrado = df_filtrado[df_filtrado['data_fechamento'] >= start_of_day_utc]
+       
 
-        if data_fim:
-            # Converte data_fim (datetime.date) para um Timestamp timezone-aware (UTC)
-            # e define-o para o final do dia (23:59:59.999...) em UTC
-            end_of_day_utc = pd.Timestamp(data_fim, tz='UTC') + pd.Timedelta(days=1) - pd.Timedelta(microseconds=1)
-            df_filtrado = df_filtrado[df_filtrado['data_fechamento'] <= end_of_day_utc]
+
+
         
         # Verifica se o DataFrame filtrado está vazio
         if df_filtrado.empty:
