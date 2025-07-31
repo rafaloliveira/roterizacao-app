@@ -4634,7 +4634,7 @@ def pagina_cargas_fechadas():
                 df = pd.DataFrame(dados)
 
                 # --- INÍCIO DO TRECHO DE DEBUG ---
-                st.write(f"DEBUG: Número de registros retornados pelo Supabase (len(dados)): {len(dados)}")
+                #st.write(f"DEBUG: Número de registros retornados pelo Supabase (len(dados)): {len(dados)}")
                 # --- FIM DO TRECHO DE DEBUG ---
 
                 # --- Converte colunas relevantes para datetime UTC (sem format forçado) ---
@@ -4722,7 +4722,21 @@ def pagina_cargas_fechadas():
         # Aplica a filtragem por data
         df_filtrado = df.copy()
        
+         # >>> INÍCIO DO TRECHO A SER DESCOMENTADO <<<
+        if data_inicio:
+            # Cria o início do dia no fuso horário de Brasília (datetime.combine com time.min)
+            local_start_of_day = datetime.combine(data_inicio, datetime_time.min).astimezone(FUSO_BRASIL)
+            # Converte para UTC para comparação com os dados armazenados
+            filter_start_utc = local_start_of_day.astimezone(timezone.utc)
+            df_filtrado = df_filtrado[df_filtrado['data_fechamento'] >= filter_start_utc]
 
+        if data_fim:
+            # Cria o final do dia no fuso horário de Brasília (datetime.combine com time.max)
+            local_end_of_day = datetime.combine(data_fim, datetime_time.max).astimezone(FUSO_BRASIL)
+            # Converte para UTC para comparação com os dados armazenados
+            filter_end_utc = local_end_of_day.astimezone(timezone.utc)
+            df_filtrado = df_filtrado[df_filtrado['data_fechamento'] <= filter_end_utc]
+        # >>> FIM DO TRECHO A SER DESCOMENTADO <<<
 
 
         
