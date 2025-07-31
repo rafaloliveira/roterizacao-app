@@ -1896,6 +1896,7 @@ def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, veiculo, valor_f
 ##########################################
 def pagina_confirmar_producao():
     st.markdown("## Confirmar Produção")
+    st.markdown("---")
 
     # Carregando entregas diretamente da tabela 'confirmadas_producao'
     with st.spinner("🔄 Carregando entregas para confirmar produção..."):
@@ -2208,6 +2209,7 @@ def pagina_confirmar_producao():
 
 def pagina_aprovacao_diretoria():
     st.markdown("## Aprovação Produção")
+    st.markdown("---")
 
     # --- INÍCIO DO BLOCO DE CARREGAMENTO DE DADOS (MOVIDO PARA O TOPO) ---
     try:
@@ -2591,6 +2593,7 @@ def pagina_aprovacao_diretoria():
 # Função completa consolidada com carregamento, métricas, grids e ações de carga
 def pagina_pre_roterizacao():
     st.markdown("## Pré-Roteirização")
+    st.markdown("---")
 
     # --- Bloco de criação de carga avulsa ---
     if "nova_carga_em_criacao" not in st.session_state:
@@ -3091,6 +3094,7 @@ def pagina_pre_roterizacao():
 # ==============================================================================
 def pagina_cargas_geradas():
     st.markdown("## Cargas Geradas")
+    st.markdown("---")
 
     # Define os limites de custo por região aqui, pois o cálculo será feito nesta página.
     MAX_COST_PER_REGION = {
@@ -3703,6 +3707,7 @@ def pagina_cargas_geradas():
 # ==============================================================================
 def pagina_aprovacao_custos():
     st.markdown("## Aprovação de Custos")
+    st.markdown("---")
 
     MAX_COST_PER_REGION = {
         'INTERIOR 1': 0.35,
@@ -4167,6 +4172,7 @@ def pagina_aprovacao_custos():
 # ==============================================================================
 def pagina_cargas_aprovadas():
     st.markdown("## Cargas Aprovadas")
+    st.markdown("---")
 
     try:
         with st.spinner("🔄 Carregando dados para cargas aprovadas..."):
