@@ -4745,6 +4745,16 @@ def pagina_cargas_fechadas():
             st.info("Nenhuma carga encontrada para o período selecionado.")
             return # Sai da função se não houver dados para exibir
 
+         # === MUDANÇA AQUI: USE df_filtrado PARA AS MÉTRICAS DO TOPO ===
+        col1, col2, col_download = st.columns([1, 1, 8])
+        with col1:
+            st.metric("Total de Cargas Fechadas", df_filtrado["numero_carga"].nunique() if "numero_carga" in df_filtrado.columns else 0)
+        with col2:
+            st.metric("Total de Entregas Fechadas", len(df_filtrado)) # AQUI MUDOU
+        # === FIM DA MUDANÇA ===
+
+        
+
         # --- Definição dos Custos Máximos por Região (para exibição) ---
         MAX_COST_PER_REGION = {
             'INTERIOR 1': 0.35,  # 35%
