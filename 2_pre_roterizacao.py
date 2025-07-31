@@ -4683,14 +4683,9 @@ def pagina_cargas_fechadas():
         if 'fechador_carga_login' in df.columns:
             df['fechador_carga_login'] = df['fechador_carga_login'].astype(str).str.strip().replace('nan', 'Desconhecido')
 
-        # Exibição de métricas gerais antes da filtragem por data
-        col1, col2, col_download = st.columns([1, 1, 8])
-        with col1:
-            st.metric("Total de Cargas Fechadas", df["numero_carga"].nunique() if "numero_carga" in df.columns else 0)
-        with col2:
-            st.metric("Total de Entregas Fechadas", len(df))
+        
 
-        st.markdown("---") # Separador visual para os filtros
+        
 
         # --- Filtro por Data de Fechamento ---
         st.subheader("🔍Filtrar por Data de Fechamento")
@@ -4744,6 +4739,8 @@ def pagina_cargas_fechadas():
         if df_filtrado.empty:
             st.info("Nenhuma carga encontrada para o período selecionado.")
             return # Sai da função se não houver dados para exibir
+        
+
 
          # === MUDANÇA AQUI: USE df_filtrado PARA AS MÉTRICAS DO TOPO ===
         col1, col2, col_download = st.columns([1, 1, 8])
@@ -4751,6 +4748,8 @@ def pagina_cargas_fechadas():
             st.metric("Total de Cargas Fechadas", df_filtrado["numero_carga"].nunique() if "numero_carga" in df_filtrado.columns else 0)
         with col2:
             st.metric("Total de Entregas Fechadas", len(df_filtrado)) # AQUI MUDOU
+
+        st.markdown("---") # Separador visual para os filtros
         # === FIM DA MUDANÇA ===
 
         
