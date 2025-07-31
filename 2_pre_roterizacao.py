@@ -4633,6 +4633,10 @@ def pagina_cargas_fechadas():
                 dados = supabase.table("cargas_fechadas").select("*").limit(50000).execute().data
                 df = pd.DataFrame(dados)
 
+                # --- INÍCIO DO TRECHO DE DEBUG ---
+                st.write(f"DEBUG: Número de registros retornados pelo Supabase (len(dados)): {len(dados)}")
+                # --- FIM DO TRECHO DE DEBUG ---
+
                 # --- Converte colunas relevantes para datetime UTC (sem format forçado) ---
                 for col_name in GLOBAL_DATE_DISPLAY_COLUMNS:
                     if col_name in df.columns:
