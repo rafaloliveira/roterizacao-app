@@ -4625,12 +4625,17 @@ def pagina_cargas_aprovadas():
 
 def pagina_cargas_fechadas():
     st.markdown("## Cargas Encerradas")
-
-            # --- Botão Geral de Download CSV para todas as cargas filtradas ---
-    st.markdown("### 📥 Download Geral de Chaves das Cargas Fechadas no Período")
+    st.markdown("---")
 
     try:
-        colunas_para_csv = ["Chave CT-e", "Serie_Numero_CTRC"]
+        colunas_para_csv = ["Serie_Numero_CTRC",  "Cliente Pagador", "Cliente Destinatario", "Cidade de Entrega",
+        "Bairro do Destinatario", "Previsao de Entrega", "Numero da Nota Fiscal",  "Status",
+        "Entrega Programada", "Peso Real em Kg", "Peso Calculado em Kg", "Valor do Frete",
+        "Rota", "Regiao", "Data de Emissao", "Chave CT-e",
+        "Particularidade", "Codigo da Ultima Ocorrencia", "Cubagem em m³", "Quantidade de Volumes",
+        "valor_contratacao", "numero_carga", "motorista", "placa",
+        "data_fechamento", "situacao", "aprovador_custos_login", "data_aprovacao_custos",
+        "fechador_carga_login"]
         df_temp = st.session_state.get("df_cargas_fechadas_cache", pd.DataFrame()).copy()
         df_csv_geral = df_temp[[col for col in colunas_para_csv if col in df_temp.columns]].copy()
 
@@ -4946,6 +4951,9 @@ def pagina_cargas_fechadas():
                         for col in df_carga.select_dtypes(include=['datetimetz']).columns:
                             df_carga[col] = df_carga[col].dt.tz_localize(None)
 
+
+
+
                         colunas_chaves = ["Chave CT-e", "Serie_Numero_CTRC"]
                         colunas_existentes = [col for col in colunas_chaves if col in df_carga.columns]
 
@@ -4972,7 +4980,7 @@ def pagina_cargas_fechadas():
                         csv_data = output.getvalue()
 
                         # Botão de ação para salvar o estado
-                        if st.button(f"📥 Gerar CSV da Carga {carga}", key=f"btn_csv_{carga}"):
+                        if st.button(f"📥 Gerar CSV SSW {carga}", key=f"btn_csv_{carga}"):
                             data_csv_download = datetime.utcnow().isoformat()
 
                             try:
@@ -4998,12 +5006,14 @@ def pagina_cargas_fechadas():
                             st.download_button(
                                 label="⬇️ Clique para baixar o CSV",
                                 data=csv_data,
-                                file_name=f"carga_encerrada_{carga}_chaves.csv",
+                                file_name=f"carga_encerrada_{carga}.csv",
                                 mime="text/csv",
                                 key=f"download_csv_chaves_carga_{carga}"
                             )
+                            
 
                             badge_data = badge(f"CSV baixado em: {st.session_state[f'csv_downloaded_{carga}']}")
+                            st.rerun()
 
                     except Exception as e:
                         st.error(f"❌ Erro ao gerar CSV da carga {carga}: {e}")
