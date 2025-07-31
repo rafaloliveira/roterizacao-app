@@ -4626,6 +4626,36 @@ def pagina_cargas_aprovadas():
 def pagina_cargas_fechadas():
     st.markdown("## Cargas Encerradas")
 
+            # --- Botão Geral de Download CSV para todas as cargas filtradas ---
+    st.markdown("### 📥 Download Geral de Chaves das Cargas Fechadas no Período")
+
+    try:
+        colunas_para_csv = ["Chave CT-e", "Serie_Numero_CTRC"]
+        df_temp = st.session_state.get("df_cargas_fechadas_cache", pd.DataFrame()).copy()
+        df_csv_geral = df_temp[[col for col in colunas_para_csv if col in df_temp.columns]].copy()
+
+        # Remove espaços extras
+        for col in df_csv_geral.columns:
+            df_csv_geral[col] = df_csv_geral[col].astype(str).str.strip()
+
+        # Garante que a Chave CT-e tenha os 44 dígitos completos no Excel
+        if "Chave CT-e" in df_csv_geral.columns:
+            df_csv_geral["Chave CT-e"] = df_csv_geral["Chave CT-e"].apply(lambda x: f'="{x}"')
+
+        # Gera CSV em UTF-8
+        csv_content_geral = df_csv_geral.to_csv(index=False, sep=';', encoding='utf-8')
+
+        st.download_button(
+            label="⬇️ Baixar CSV Geral de Cargas Fechadas",
+            data=csv_content_geral,
+            file_name="cargas_fechadas_chaves.csv",
+            mime="text/csv",
+            key="download_csv_geral"
+        )
+    except Exception as e:
+        st.warning("⚠️ Não foi possível gerar o CSV geral.")
+        st.exception(e)
+
     try:
         with st.spinner("🔄 Carregando dados para cargas fechadas..."):
             recarregar = st.session_state.pop("reload_cargas_fechadas", False)
@@ -5137,34 +5167,7 @@ def pagina_cargas_fechadas():
                 # Gera CSV em UTF-8 sem BOM
                 csv_content = df_csv.to_csv(index=False, sep=';', encoding='utf-8')
 
-                # --- Botão Geral de Download CSV para todas as cargas filtradas ---
-        st.markdown("### 📥 Download Geral de Chaves das Cargas Fechadas no Período")
-
-        try:
-            colunas_para_csv = ["Chave CT-e", "Serie_Numero_CTRC"]
-            df_csv_geral = df_filtrado[[col for col in colunas_para_csv if col in df_filtrado.columns]].copy()
-
-            # Remove espaços extras
-            for col in df_csv_geral.columns:
-                df_csv_geral[col] = df_csv_geral[col].astype(str).str.strip()
-
-            # Garante que a Chave CT-e tenha os 44 dígitos completos no Excel
-            if "Chave CT-e" in df_csv_geral.columns:
-                df_csv_geral["Chave CT-e"] = df_csv_geral["Chave CT-e"].apply(lambda x: f'="{x}"')
-
-            # Gera CSV em UTF-8
-            csv_content_geral = df_csv_geral.to_csv(index=False, sep=';', encoding='utf-8')
-
-            st.download_button(
-                label="⬇️ Baixar CSV Geral de Cargas Fechadas",
-                data=csv_content_geral,
-                file_name="cargas_fechadas_chaves.csv",
-                mime="text/csv",
-                key="download_csv_geral"
-            )
-        except Exception as e:
-            st.warning("⚠️ Não foi possível gerar o CSV geral.")
-            st.exception(e)
+        
 
     except Exception as e:
         st.error("Erro ao carregar cargas fechadas:")
