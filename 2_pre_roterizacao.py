@@ -5019,7 +5019,7 @@ def pagina_cargas_fechadas():
                             
 
                             badge_data = badge(f"CSV baixado em: {st.session_state[f'csv_downloaded_{carga}']}")
-                            st.rerun()
+                            
 
                     except Exception as e:
                         st.error(f"❌ Erro ao gerar CSV da carga {carga}: {e}")
