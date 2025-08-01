@@ -4661,7 +4661,7 @@ def pagina_cargas_fechadas():
         st.download_button(
             label="⬇️ Baixar CSV Geral de Cargas Fechadas",
             data=csv_content_geral,
-            file_name="cargas_fechadas_chaves.csv",
+            file_name="geral_cargas_fechadas_chaves.csv",
             mime="text/csv",
             key="download_csv_geral"
         )
@@ -4733,7 +4733,7 @@ def pagina_cargas_fechadas():
 
         # --- Filtro por Data de Fechamento ---
         st.subheader("🔍Filtrar por Data de Fechamento")
-        col_data_inicio, col_data_fim = st.columns(2)
+        col_data_inicio, col_data_fim = st.columns(1 , 1 )
         with col_data_inicio:
             # Obtém o valor mínimo do DataFrame e o converte para o tipo date (para o date_input)
             min_val_from_df = df['data_fechamento'].min()
