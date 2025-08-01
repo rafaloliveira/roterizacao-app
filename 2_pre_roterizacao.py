@@ -4634,20 +4634,8 @@ def pagina_cargas_fechadas():
     st.markdown("---")
 
     try:
-        colunas_para_csv = [
-        "Serie_Numero_CTRC", "Cliente Pagador", "Cliente Destinatario", "Cidade de Entrega",
-        "Bairro do Destinatario", "Previsao de Entrega", "Numero da Nota Fiscal", "Status",
-        "Entrega Programada", "Peso Real em Kg", "Peso Calculado em Kg", "Valor do Frete",
-        "Rota", "Regiao", "Data de Emissao", "Chave CT-e",
-        "Particularidade", "Codigo da Ultima Ocorrencia", "Cubagem em m³", "Quantidade de Volumes",
-        "valor_contratacao", "numero_carga", "motorista", "placa",
-        "data_fechamento", "situacao", "aprovador_custos_login", "data_aprovacao_custos",
-        "fechador_carga_login"
-    ]
-
-
+        colunas_para_csv = ["Chave CT-e","Serie_Numero_CTRC",]
         df_temp = st.session_state.get("df_cargas_fechadas_cache", pd.DataFrame()).copy()
-
         df_csv_geral = df_temp[[col for col in colunas_para_csv if col in df_temp.columns]].copy()
 
         # Remove espaços extras
@@ -4671,8 +4659,6 @@ def pagina_cargas_fechadas():
     except Exception as e:
         st.warning("⚠️ Não foi possível gerar o CSV geral.")
         st.exception(e)
-
-
         
 
     try:
