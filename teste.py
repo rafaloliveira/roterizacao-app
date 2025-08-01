@@ -4890,30 +4890,7 @@ def pagina_cargas_fechadas():
             df['fechador_carga_login'] = df['fechador_carga_login'].astype(str).str.strip().replace('nan', 'Desconhecido')
 
 
-        # --- Filtro por Data de Fechamento ---
-        st.subheader("🔍Filtrar por Data de Fechamento")
-        col_data_inicio, col_data_fim, _ = st.columns([1, 1, 6])
-        with col_data_inicio:
-            # Obtém o valor mínimo do DataFrame e o converte para o tipo date (para o date_input)
-            min_val_from_df = df['data_fechamento'].min()
-            if pd.isna(min_val_from_df):
-                default_min_date = None
-            else:
-                # Converte para o fuso horário de Brasília antes de pegar a parte da data
-                default_min_date = min_val_from_df.astimezone(FUSO_BRASIL).date()
-
-            data_inicio = st.date_input("Data Inicial", value=default_min_date, key="filtro_data_inicio")
-            
-        with col_data_fim:
-            # Obtém o valor máximo do DataFrame e o converte para o tipo date (para o date_input)
-            max_val_from_df = df['data_fechamento'].max()
-            if pd.isna(max_val_from_df):
-                default_max_date = None
-            else:
-                # Converte para o fuso horário de Brasília antes de pegar a parte da data
-                default_max_date = max_val_from_df.astimezone(FUSO_BRASIL).date()
-            
-            data_fim = st.date_input("Data Final", value=default_max_date, key="filtro_data_fim")
+       
 
 
 
@@ -4921,21 +4898,7 @@ def pagina_cargas_fechadas():
         df_filtrado = df.copy()
        
          # >>> INÍCIO DO TRECHO A SER DESCOMENTADO <<<
-        if data_inicio:
-            # Cria o início do dia no fuso horário de Brasília (datetime.combine com time.min)
-            local_start_of_day = datetime.combine(data_inicio, datetime_time.min).astimezone(FUSO_BRASIL)
-            # Converte para UTC para comparação com os dados armazenados
-            filter_start_utc = local_start_of_day.astimezone(timezone.utc)
-            df_filtrado = df_filtrado[df_filtrado['data_fechamento'] >= filter_start_utc]
-
-        if data_fim:
-            # Cria o final do dia no fuso horário de Brasília (datetime.combine com time.max)
-            local_end_of_day = datetime.combine(data_fim, datetime_time.max).astimezone(FUSO_BRASIL)
-            # Converte para UTC para comparação com os dados armazenados
-            filter_end_utc = local_end_of_day.astimezone(timezone.utc)
-            df_filtrado = df_filtrado[df_filtrado['data_fechamento'] <= filter_end_utc]
-        # >>> FIM DO TRECHO A SER DESCOMENTADO <<<
-
+        
 
         
         # Verifica se o DataFrame filtrado está vazio

@@ -4509,12 +4509,7 @@ def pagina_cargas_aprovadas():
 
 
 
-                            # Get current time in Brazil TZ
-                            brazil_now = datetime.now(FUSO_BRASIL)
-                            # Convert it explicitly to UTC
-                            utc_now = brazil_now.astimezone(timezone.utc)
-                            # Format as ISO string, explicitly indicating it's UTC ('Z' suffix)
-                            df_to_move["data_fechamento"] = utc_now.isoformat(timespec='seconds').replace('+00:00', 'Z')
+                            df_to_move["data_fechamento"] = data_hora_brasil_iso()
 
 
 
