@@ -4677,10 +4677,6 @@ def pagina_cargas_fechadas():
                 dados = supabase.table("cargas_fechadas").select("*").limit(50000).execute().data
                 df = pd.DataFrame(dados)
 
-                # --- INÍCIO DO TRECHO DE DEBUG ---
-                #st.write(f"DEBUG: Número de registros retornados pelo Supabase (len(dados)): {len(dados)}")
-                # --- FIM DO TRECHO DE DEBUG ---
-
                 # --- Converte colunas relevantes para datetime UTC (sem format forçado) ---
                 for col_name in GLOBAL_DATE_DISPLAY_COLUMNS:
                     if col_name in df.columns:
@@ -4727,13 +4723,10 @@ def pagina_cargas_fechadas():
         if 'fechador_carga_login' in df.columns:
             df['fechador_carga_login'] = df['fechador_carga_login'].astype(str).str.strip().replace('nan', 'Desconhecido')
 
-        
-
-        
 
         # --- Filtro por Data de Fechamento ---
         st.subheader("🔍Filtrar por Data de Fechamento")
-        col_data_inicio, col_data_fim = st.columns(2)
+        col_data_inicio, col_data_fim, _ = st.columns([1, 1, 6])
         with col_data_inicio:
             # Obtém o valor mínimo do DataFrame e o converte para o tipo date (para o date_input)
             min_val_from_df = df['data_fechamento'].min()
