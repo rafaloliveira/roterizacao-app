@@ -4763,20 +4763,56 @@ def pagina_cargas_aprovadas():
 
 def pagina_cargas_fechadas():
     st.markdown("## Cargas Encerradas")
+    st.markdown("---")
+
+    try:
+        colunas_para_csv = ["Serie_Numero_CTRC", "Cliente Pagador", "Cliente Destinatario", "Cidade de Entrega",
+            "Bairro do Destinatario", "Previsao de Entrega", "Numero da Nota Fiscal", "Status",
+            "Entrega Programada", "Peso Real em Kg", "Peso Calculado em Kg", "Valor do Frete",
+            "Rota", "Regiao", "Data de Emissao", "Chave CT-e",
+            "Particularidade", "Codigo da Ultima Ocorrencia", "Cubagem em m³", "Quantidade de Volumes",
+            "valor_contratacao", "numero_carga", "motorista", "placa",
+            "data_fechamento", "situacao", "aprovador_custos_login", "data_aprovacao_custos",
+            "fechador_carga_login"
+    ]
+        
+        df_temp = st.session_state.get("df_cargas_fechadas_cache", pd.DataFrame()).copy()
+        df_csv_geral = df_temp[[col for col in colunas_para_csv if col in df_temp.columns]].copy()
+
+        # Remove espaços extras
+        for col in df_csv_geral.columns:
+            df_csv_geral[col] = df_csv_geral[col].astype(str).str.strip()
+
+        # Garante que a Chave CT-e tenha os 44 dígitos completos no Excel
+        if "Chave CT-e" in df_csv_geral.columns:
+            df_csv_geral["Chave CT-e"] = df_csv_geral["Chave CT-e"].apply(lambda x: f'="{x}"')
+
+        # Gera CSV em UTF-8
+        csv_content_geral = df_csv_geral.to_csv(index=False, sep=';', encoding='utf-8')
+
+        st.download_button(
+            label="⬇️ Baixar CSV Geral de Cargas Fechadas",
+            data=csv_content_geral,
+            file_name="geral_cargas_fechadas_chaves.csv",
+            mime="text/csv",
+            key="download_csv_geral"
+        )
+    except Exception as e:
+        st.warning("⚠️ Não foi possível gerar o CSV geral.")
+        st.exception(e)
+        
 
     try:
         with st.spinner("🔄 Carregando dados para cargas fechadas..."):
             recarregar = st.session_state.pop("reload_cargas_fechadas", False)
             if recarregar or "df_cargas_fechadas_cache" not in st.session_state:
-                dados = supabase.table("cargas_fechadas").select("*").execute().data
+                dados = supabase.table("cargas_fechadas").select("*").limit(50000).execute().data
                 df = pd.DataFrame(dados)
 
                 # --- Converte colunas relevantes para datetime UTC (sem format forçado) ---
-                for col_name in [c for c in GLOBAL_DATE_DISPLAY_COLUMNS if c in df.columns]:
-                    df[col_name] = pd.to_datetime(df[col_name], errors='coerce', utc=True)
-
-                for col_name in [c for c in GLOBAL_DB_DATE_COLUMNS if c in df.columns]:
-                    df[col_name] = pd.to_datetime(df[col_name], errors='coerce')
+                for col_name in GLOBAL_DATE_DISPLAY_COLUMNS:
+                    if col_name in df.columns:
+                        df[col_name] = pd.to_datetime(df[col_name], errors='coerce', utc=True)
 
                 # --- Formata Entrega Programada e Previsao de Entrega para dd-mm-aaaa ---
                 for col in ['Entrega Programada', 'Previsao de Entrega']:
@@ -4819,21 +4855,10 @@ def pagina_cargas_fechadas():
         if 'fechador_carga_login' in df.columns:
             df['fechador_carga_login'] = df['fechador_carga_login'].astype(str).str.strip().replace('nan', 'Desconhecido')
 
-        # Exibição de métricas gerais antes da filtragem por data
-        col1, col2, col_download = st.columns([1, 1, 8])
-        with col1:
-            st.metric("Total de Cargas Fechadas", df["numero_carga"].nunique() if "numero_carga" in df.columns else 0)
-        with col2:
-            st.metric("Total de Entregas Fechadas", len(df))
-
-        st.markdown("---") # Separador visual para os filtros
-
-
-
 
         # --- Filtro por Data de Fechamento ---
         st.subheader("🔍Filtrar por Data de Fechamento")
-        col_data_inicio, col_data_fim = st.columns(2)
+        col_data_inicio, col_data_fim, _ = st.columns([1, 1, 6])
         with col_data_inicio:
             # Obtém o valor mínimo do DataFrame e o converte para o tipo date (para o date_input)
             min_val_from_df = df['data_fechamento'].min()
@@ -4856,8 +4881,12 @@ def pagina_cargas_fechadas():
             
             data_fim = st.date_input("Data Final", value=default_max_date, key="filtro_data_fim")
 
+
+
         # Aplica a filtragem por data
         df_filtrado = df.copy()
+       
+         # >>> INÍCIO DO TRECHO A SER DESCOMENTADO <<<
         if data_inicio:
             # Cria o início do dia no fuso horário de Brasília (datetime.combine com time.min)
             local_start_of_day = datetime.combine(data_inicio, datetime_time.min).astimezone(FUSO_BRASIL)
@@ -4871,6 +4900,7 @@ def pagina_cargas_fechadas():
             # Converte para UTC para comparação com os dados armazenados
             filter_end_utc = local_end_of_day.astimezone(timezone.utc)
             df_filtrado = df_filtrado[df_filtrado['data_fechamento'] <= filter_end_utc]
+        # >>> FIM DO TRECHO A SER DESCOMENTADO <<<
 
 
         
@@ -4878,6 +4908,20 @@ def pagina_cargas_fechadas():
         if df_filtrado.empty:
             st.info("Nenhuma carga encontrada para o período selecionado.")
             return # Sai da função se não houver dados para exibir
+        
+
+
+         # === MUDANÇA AQUI: USE df_filtrado PARA AS MÉTRICAS DO TOPO ===
+        col1, col2, col_download = st.columns([1, 1, 8])
+        with col1:
+            st.metric("Total de Cargas Fechadas", df_filtrado["numero_carga"].nunique() if "numero_carga" in df_filtrado.columns else 0)
+        with col2:
+            st.metric("Total de Entregas Fechadas", len(df_filtrado)) # AQUI MUDOU
+
+        st.markdown("---") # Separador visual para os filtros
+        # === FIM DA MUDANÇA ===
+
+        
 
         # --- Definição dos Custos Máximos por Região (para exibição) ---
         MAX_COST_PER_REGION = {
@@ -5041,6 +5085,9 @@ def pagina_cargas_fechadas():
                         for col in df_carga.select_dtypes(include=['datetimetz']).columns:
                             df_carga[col] = df_carga[col].dt.tz_localize(None)
 
+
+
+
                         colunas_chaves = ["Chave CT-e", "Serie_Numero_CTRC"]
                         colunas_existentes = [col for col in colunas_chaves if col in df_carga.columns]
 
@@ -5067,7 +5114,7 @@ def pagina_cargas_fechadas():
                         csv_data = output.getvalue()
 
                         # Botão de ação para salvar o estado
-                        if st.button(f"📥 Gerar CSV da Carga {carga}", key=f"btn_csv_{carga}"):
+                        if st.button(f"📥 Gerar CSV SSW {carga}", key=f"btn_csv_{carga}"):
                             data_csv_download = datetime.utcnow().isoformat()
 
                             try:
@@ -5093,12 +5140,14 @@ def pagina_cargas_fechadas():
                             st.download_button(
                                 label="⬇️ Clique para baixar o CSV",
                                 data=csv_data,
-                                file_name=f"carga_encerrada_{carga}_chaves.csv",
+                                file_name=f"carga_encerrada_{carga}.csv",
                                 mime="text/csv",
                                 key=f"download_csv_chaves_carga_{carga}"
                             )
+                            
 
                             badge_data = badge(f"CSV baixado em: {st.session_state[f'csv_downloaded_{carga}']}")
+                            
 
                     except Exception as e:
                         st.error(f"❌ Erro ao gerar CSV da carga {carga}: {e}")
@@ -5262,34 +5311,7 @@ def pagina_cargas_fechadas():
                 # Gera CSV em UTF-8 sem BOM
                 csv_content = df_csv.to_csv(index=False, sep=';', encoding='utf-8')
 
-                # --- Botão Geral de Download CSV para todas as cargas filtradas ---
-        st.markdown("### 📥 Download Geral de Chaves das Cargas Fechadas no Período")
-
-        try:
-            colunas_para_csv = ["Chave CT-e", "Serie_Numero_CTRC"]
-            df_csv_geral = df_filtrado[[col for col in colunas_para_csv if col in df_filtrado.columns]].copy()
-
-            # Remove espaços extras
-            for col in df_csv_geral.columns:
-                df_csv_geral[col] = df_csv_geral[col].astype(str).str.strip()
-
-            # Garante que a Chave CT-e tenha os 44 dígitos completos no Excel
-            if "Chave CT-e" in df_csv_geral.columns:
-                df_csv_geral["Chave CT-e"] = df_csv_geral["Chave CT-e"].apply(lambda x: f'="{x}"')
-
-            # Gera CSV em UTF-8
-            csv_content_geral = df_csv_geral.to_csv(index=False, sep=';', encoding='utf-8')
-
-            st.download_button(
-                label="⬇️ Baixar CSV Geral de Cargas Fechadas",
-                data=csv_content_geral,
-                file_name="cargas_fechadas_chaves.csv",
-                mime="text/csv",
-                key="download_csv_geral"
-            )
-        except Exception as e:
-            st.warning("⚠️ Não foi possível gerar o CSV geral.")
-            st.exception(e)
+        
 
     except Exception as e:
         st.error("Erro ao carregar cargas fechadas:")

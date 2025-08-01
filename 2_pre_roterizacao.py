@@ -4628,7 +4628,6 @@ def pagina_cargas_aprovadas():
 # ==============================================================================
 # Função pagina_cargas_fechadas() - com os ajustes aplicados
 # ==============================================================================
-
 def pagina_cargas_fechadas():
     st.markdown("## Cargas Encerradas")
     st.markdown("---")
@@ -4753,7 +4752,10 @@ def pagina_cargas_fechadas():
 
         # Aplica a filtragem por data
         df_filtrado = df.copy()
-       
+
+        if filtro_numero_carga:
+            df_filtrado = df_filtrado[df_filtrado['numero_carga'].astype(str) == filtro_numero_carga]
+
          # >>> INÍCIO DO TRECHO A SER DESCOMENTADO <<<
         if data_inicio:
             # Cria o início do dia no fuso horário de Brasília (datetime.combine com time.min)
@@ -4770,7 +4772,9 @@ def pagina_cargas_fechadas():
             df_filtrado = df_filtrado[df_filtrado['data_fechamento'] <= filter_end_utc]
         # >>> FIM DO TRECHO A SER DESCOMENTADO <<<
 
-
+        with filtro_numero_carga:
+            opcoes_carga = sorted(df["numero_carga"].dropna().astype(str).unique())
+            filtro_numero_carga = st.selectbox("🔎 Número da Carga", options=[""] + opcoes_carga, key="filtro_numero_carga")
         
         # Verifica se o DataFrame filtrado está vazio
         if df_filtrado.empty:
