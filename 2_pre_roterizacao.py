@@ -4674,7 +4674,7 @@ def pagina_cargas_fechadas():
         with st.spinner("🔄 Carregando dados para cargas fechadas..."):
             recarregar = st.session_state.pop("reload_cargas_fechadas", False)
             if recarregar or "df_cargas_fechadas_cache" not in st.session_state:
-                st.info(f"🔍 Total de registros carregados: {len(dados)}")
+                
                 dados = supabase.table("cargas_fechadas").select("*").range(0, 49998).execute().data
                 df = pd.DataFrame(dados)
 
