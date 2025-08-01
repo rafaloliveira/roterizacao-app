@@ -4733,7 +4733,7 @@ def pagina_cargas_fechadas():
 
         # --- Filtro por Data de Fechamento ---
         st.subheader("🔍Filtrar por Data de Fechamento")
-        col_data_inicio, col_data_fim = st.columns(2,1)
+        col_data_inicio, col_data_fim = st.columns(2)
         with col_data_inicio:
             # Obtém o valor mínimo do DataFrame e o converte para o tipo date (para o date_input)
             min_val_from_df = df['data_fechamento'].min()
