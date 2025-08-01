@@ -4674,7 +4674,8 @@ def pagina_cargas_fechadas():
         with st.spinner("🔄 Carregando dados para cargas fechadas..."):
             recarregar = st.session_state.pop("reload_cargas_fechadas", False)
             if recarregar or "df_cargas_fechadas_cache" not in st.session_state:
-                dados = supabase.table("cargas_fechadas").select("*").limit(49999).execute().data
+                st.info(f"🔍 Total de registros carregados: {len(dados)}")
+                dados = supabase.table("cargas_fechadas").select("*").range(0, 49998).execute().data
                 df = pd.DataFrame(dados)
 
                 # --- INÍCIO DO TRECHO DE DEBUG ---
@@ -4730,6 +4731,7 @@ def pagina_cargas_fechadas():
 
         # --- Filtro por Data de Fechamento ---
         st.subheader("🔍Filtrar por Data de Fechamento")
+
         col_data_inicio, col_data_fim, _ = st.columns([1, 1, 6])
         with col_data_inicio:
             # Obtém o valor mínimo do DataFrame e o converte para o tipo date (para o date_input)
