@@ -4628,6 +4628,7 @@ def pagina_cargas_aprovadas():
 # ==============================================================================
 # Função pagina_cargas_fechadas() - com os ajustes aplicados
 # ==============================================================================
+
 def pagina_cargas_fechadas():
     st.markdown("## Cargas Encerradas")
     st.markdown("---")
@@ -4675,6 +4676,10 @@ def pagina_cargas_fechadas():
             if recarregar or "df_cargas_fechadas_cache" not in st.session_state:
                 dados = supabase.table("cargas_fechadas").select("*").limit(50000).execute().data
                 df = pd.DataFrame(dados)
+
+                # --- INÍCIO DO TRECHO DE DEBUG ---
+                #st.write(f"DEBUG: Número de registros retornados pelo Supabase (len(dados)): {len(dados)}")
+                # --- FIM DO TRECHO DE DEBUG ---
 
                 # --- Converte colunas relevantes para datetime UTC (sem format forçado) ---
                 for col_name in GLOBAL_DATE_DISPLAY_COLUMNS:
@@ -4725,7 +4730,7 @@ def pagina_cargas_fechadas():
 
         # --- Filtro por Data de Fechamento ---
         st.subheader("🔍Filtrar por Data de Fechamento")
-        col_data_inicio, col_data_fim, _ = st.columns([1, 1, 6])
+        col_data_inicio, col_data_fim = st.columns(2)
         with col_data_inicio:
             # Obtém o valor mínimo do DataFrame e o converte para o tipo date (para o date_input)
             min_val_from_df = df['data_fechamento'].min()
@@ -4752,10 +4757,7 @@ def pagina_cargas_fechadas():
 
         # Aplica a filtragem por data
         df_filtrado = df.copy()
-
-        if filtro_numero_carga:
-            df_filtrado = df_filtrado[df_filtrado['numero_carga'].astype(str) == filtro_numero_carga]
-
+       
          # >>> INÍCIO DO TRECHO A SER DESCOMENTADO <<<
         if data_inicio:
             # Cria o início do dia no fuso horário de Brasília (datetime.combine com time.min)
@@ -4772,9 +4774,7 @@ def pagina_cargas_fechadas():
             df_filtrado = df_filtrado[df_filtrado['data_fechamento'] <= filter_end_utc]
         # >>> FIM DO TRECHO A SER DESCOMENTADO <<<
 
-        with filtro_numero_carga:
-            opcoes_carga = sorted(df["numero_carga"].dropna().astype(str).unique())
-            filtro_numero_carga = st.selectbox("🔎 Número da Carga", options=[""] + opcoes_carga, key="filtro_numero_carga")
+
         
         # Verifica se o DataFrame filtrado está vazio
         if df_filtrado.empty:
