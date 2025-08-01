@@ -63,6 +63,80 @@ from st_aggrid.shared import JsCode
 from decimal import Decimal, ROUND_HALF_UP, getcontext
 
 
+# --- Definições de Constantes Globais para Pylance (Adicione no topo do arquivo) ---
+
+# Formato de exibição de data e hora no padrão brasileiro (completo com horas, minutos, segundos)
+DATE_DISPLAY_FORMAT_STRING = '%d-%m-%Y %H:%M:%S'
+
+# Formato de exibição de data APENAS (sem hora) no padrão brasileiro (DD/MM/YYYY)
+DATE_ONLY_DISPLAY_FORMAT_STRING_BR = '%d/%m/%Y'
+
+# Lista de colunas que DEVEM ser exibidas COM HORA.
+GLOBAL_DATE_DISPLAY_COLUMNS = [
+    "Data de Autorizacao", "Data de inclusao da Ultima Ocorrencia",
+    "Data da Ultima Ocorrencia", "Data da Entrega Realizada", "Data do Cancelamento", "Data do Escaneamento",
+    "Data_Hora_Gerada", "data_fechamento", "data_aprovacao_custos"
+]
+
+# Lista de colunas de data que devem ser exibidas APENAS como data (DD/MM/YYYY), sem hora.
+GLOBAL_DATE_COLUMNS_DISPLAY_ONLY_DATE = [
+    "Previsao de Entrega",
+    "Entrega Programada",
+    "Data de Emissao"
+]
+
+# Lista de colunas que devem ser salvas como tipo DATE (AAAA-MM-DD) no Supabase.
+GLOBAL_DB_DATE_COLS = ["Previsao de Entrega", "Entrega Programada", "Data de Emissao","Data da Ultima Ocorrencia"]
+
+# Lista de colunas que devem ser salvas como tipo TIMESTAMP WITH TIME ZONE (ISO 8601) no Supabase.
+GLOBAL_DB_TIMESTAMP_COLS = [
+    "Data de Autorizacao", "Data de inclusao da Ultima Ocorrencia",
+    "Data da Ultima Ocorrencia", "Data da Entrega Realizada", "Data do Cancelamento",
+    "Data do Escaneamento", "Data_Hora_Gerada", "data_fechamento", "data_aprovacao_custos"
+]
+# --- Fim das Definições de Constantes Globais ---
+
+
+colunas_texto = [
+    "Unnamed", "Serie/Numero CT-e", "Numero da Nota Fiscal",
+    "Codigo da Ultima Ocorrencia", "Quantidade de Dias de Atraso",
+    "CEP de Entrega","CEP do Destinatario","CEP do Remetente"
+]
+
+colunas_numero = [
+    "Adicional de Frete", "Cubagem em m³", "Frete Peso", "Frete Valor",
+    "Peso Calculado em Kg", "Peso Real em Kg", "Quantidade de Volumes",
+    "TDA", "TDE", "Valor da Mercadoria", "Valor do Frete",
+    "Valor do ICMS", "Valor do ISS"
+]
+
+colunas_data = [
+    "Data da Ultima Ocorrencia", "Data de inclusao da Ultima Ocorrencia",
+        "Previsao de Entrega",
+    "Data de Emissao", "Data de Autorizacao", "Data do Cancelamento", "Data do Escaneamento",
+    "Data da Entrega Realizada"
+]
+
+def corrigir_tipos(df):
+    # Definições dos tipos conforme seu mapeamento
+    
+    # Converter para texto (string)
+    for col in colunas_texto:
+        if col in df.columns:
+            df[col] = df[col].astype(str).replace({'nan': None, 'NaT': None})
+
+    # Converter para numérico
+    for col in colunas_numero:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors='coerce')
+
+    # Converter para datetime
+    for col in colunas_data:
+        if col in df.columns:
+            df[col] = pd.to_datetime(df[col], errors='coerce', dayfirst=True)
+
+    return df
+#------------------------------------------------------------------------------------
 
 def aplicar_zoom_personalizado(percent=85):
     escala = percent / 100
@@ -568,6 +642,7 @@ def load_and_prepare_data(uploaded_file):
         seen = set()
         final_columns = []
         for col in supabase_columns:
+
             if col in df.columns and col not in seen:
                 final_columns.append(col)
                 seen.add(col)
@@ -587,8 +662,12 @@ def load_and_prepare_data(uploaded_file):
 
         for col in date_columns:
             if col in df.columns:
-                df[col] = pd.to_datetime(df[col], format='%d-%m-%Y', errors='coerce')
-                df[col] = pd.to_datetime(df[col], dayfirst=True, errors='coerce') 
+                # Tenta parsear com dayfirst=True para formatos comuns (DD/MM/YYYY, DD-MM-YYYY)
+                df[col] = pd.to_datetime(df[col], dayfirst=True, errors='coerce')
+                # Se ainda houver valores NaT (não parseados), tenta uma conversão mais geral (sem dayfirst=True)
+                # para capturar outros formatos menos comuns, mas sempre antes de formatar para o BD.
+                if df[col].isnull().any(): # Verifica se ainda há nulos após a primeira tentativa de parse
+                    df[col] = pd.to_datetime(df[col], errors='coerce')
                 df[col] = df[col].apply(lambda x: x.strftime('%Y-%m-%d') if pd.notnull(x) else None)
 
 
@@ -1162,65 +1241,23 @@ def pagina_sincronizacao():
 
 
 #___________________________________________________________________________________
-def corrigir_tipos(df):
-    # Definições dos tipos conforme seu mapeamento
-    colunas_texto = [
-        "Unnamed", "Serie/Numero CT-e", "Numero da Nota Fiscal",
-        "Codigo da Ultima Ocorrencia", "Quantidade de Dias de Atraso",
-        "CEP de Entrega","CEP do Destinatario","CEP do Remetente"
-    ]
 
-    colunas_numero = [
-        "Adicional de Frete", "Cubagem em m³", "Frete Peso", "Frete Valor",
-        "Peso Calculado em Kg", "Peso Real em Kg", "Quantidade de Volumes",
-        "TDA", "TDE", "Valor da Mercadoria", "Valor do Frete",
-        "Valor do ICMS", "Valor do ISS"
-    ]
-
-    colunas_data = [
-        "Data da Ultima Ocorrencia", "Data de inclusao da Ultima Ocorrencia",
-         "Previsao de Entrega",
-        "Data de Emissao", "Data de Autorizacao", "Data do Cancelamento", "Data do Escaneamento",
-        "Data da Entrega Realizada"
-    ]
-
-    # Converter para texto (string)
-    for col in colunas_texto:
-        if col in df.columns:
-            df[col] = df[col].astype(str).replace({'nan': None, 'NaT': None})
-
-    # Converter para numérico
-    for col in colunas_numero:
-        if col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors='coerce')
-
-    # Converter para datetime
-    for col in colunas_data:
-        if col in df.columns:
-            df[col] = pd.to_datetime(df[col], errors='coerce', dayfirst=True)
-
-    return df
 
 
 #_______________________________________________________________________________________________________
 def inserir_em_lote(nome_tabela, df, lote=100, tentativas=3, pausa=0.2):
-    # Defina as colunas de data do jeito que você já conhece
-    colunas_data = [
-        "Data da Ultima Ocorrencia", "Data de inclusao da Ultima Ocorrencia",
-        "Entrega Programada", "Previsao de Entrega",
-        "Data de Emissao", "Data de Autorizacao", "Data do Cancelamento",
-        "Data do Escaneamento", "Data da Entrega Realizada"
-    ]
+    # ATENÇÃO: Nenhuma definição de 'colunas_data = [...]' deve existir aqui dentro.
+    # Ela deve ser uma variável global definida no topo do seu script.
 
     for col in df.columns:
         # Formatar para string só se for coluna de data e coluna existir no df
-        if col in colunas_data:
+        if col in colunas_data: # Esta linha usa a 'colunas_data' GLOBAL
             try:
-                df[col] = pd.to_datetime(df[col], errors='coerce')
+                df[col] = pd.to_datetime(df[col], dayfirst=True, errors='coerce')
                 df[col] = df[col].dt.strftime('%Y-%m-%d')
             except Exception:
                 pass
-
+    # ...
     # st.write("[DEBUG] Quantidade de NaNs por coluna (antes do applymap):", df.isna().sum()) # REMOVIDO
 
     def limpar_valores(obj):
@@ -1619,7 +1656,7 @@ def apply_brazilian_date_only_format_for_display(df_to_format, date_cols):
 #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 def apply_brazilian_date_format_for_display(df_to_format):
     # Combina todas as colunas de data relevantes em uma única lista para processamento
-    all_date_cols_in_df = list(set(GLOBAL_DATE_DISPLAY_COLUMNS + GLOBAL_DB_DATE_COLUMNS + GLOBAL_DATE_COLUMNS_DISPLAY_ONLY_DATE))
+    all_date_cols_in_df = list(set(GLOBAL_DATE_DISPLAY_COLUMNS + GLOBAL_DB_DATE_COLS + GLOBAL_DATE_COLUMNS_DISPLAY_ONLY_DATE))
     
     for col in all_date_cols_in_df:
         if col not in df_to_format.columns:
@@ -1657,22 +1694,25 @@ def apply_brazilian_date_format_for_display(df_to_format):
 
 
 def _prepare_df_for_supabase_insert(df_to_process):
-    """
-    Prepara um DataFrame para inserção/atualização no Supabase, formatando colunas
-    de data/hora de acordo com os tipos esperados (DATE ou TIMESTAMP WITH TIME ZONE).
-    Valores NaN, NaT, inf/-inf e strings vazias são convertidos para None.
-    """
     df_copy = df_to_process.copy()
     for col in df_copy.columns:
-        if col in GLOBAL_DB_DATE_COLS: # Formatar como YYYY-MM-DD para colunas DATE
-            # Converte para datetime primeiro, depois para string YYYY-MM-DD
-            df_copy[col] = pd.to_datetime(df_copy[col], errors='coerce').dt.strftime('%Y-%m-%d')
-        elif col in GLOBAL_DB_TIMESTAMP_COLS: # Usar tratar_data_para_utc para TIMESTAMP
+        if col in GLOBAL_DB_DATE_COLS:
+            # Primeiro, converte a coluna para o tipo datetime, forçando erros para NaT
+            df_copy[col] = pd.to_datetime(df_copy[col], dayfirst=True, errors='coerce')
+            
+            # Em seguida, aplique a formatação usando .apply() para garantir que strftime()
+            # seja chamado apenas em objetos de data/hora válidos (NaT são tratados como None)
+            df_copy[col] = df_copy[col].apply(
+                lambda x: x.strftime('%Y-%m-%d') if pd.notna(x) else None
+            )
+
+        elif col in GLOBAL_DB_TIMESTAMP_COLS:
+            # Para TIMESTAMP_COLS, garanta que seja datetime antes de aplicar tratar_data_para_utc
+            df_copy[col] = pd.to_datetime(df_copy[col], errors='coerce') # use errors='coerce' aqui também
             df_copy[col] = df_copy[col].apply(tratar_data_para_utc)
     
     # Substitui NaN, NaT, inf/-inf e strings vazias por None para Supabase
     return df_copy.replace([np.nan, pd.NaT, np.inf, -np.inf, ""], None)
-
 
 
 
@@ -2259,9 +2299,6 @@ def pagina_aprovacao_diretoria():
                 registros = df_aprovar.to_dict(orient="records")
 
 
-                
-
-
                 registros = [r for r in registros if r.get("Serie_Numero_CTRC")]
 
                 if registros:
@@ -2479,25 +2516,25 @@ def pagina_aprovacao_diretoria():
                                                 errors='coerce'
                                             )
 
-                                    for col_name in df_aprovar.columns:
-                                        if col_name in GLOBAL_DATE_DISPLAY_COLUMNS or \
-                                           pd.api.types.is_datetime64_any_dtype(df_aprovar[col_name]):
-                                            df_aprovar[col_name] = df_aprovar[col_name].apply(
-                                                lambda x: x.strftime("%Y-%m-%d %H:%M:%S") if pd.notna(x) else None
-                                            )
-                                        elif df_aprovar[col_name].dtype == 'object':
-                                            df_aprovar[col_name] = df_aprovar[col_name].apply(
-                                                lambda x: x.strftime("%Y-%m-%d %H:%M:%S") if isinstance(x, (pd.Timestamp, datetime)) else x
-                                            )
-
-                                    df_aprovar = df_aprovar.replace([np.nan, np.inf, -np.inf, ""], None)
+                                    df_aprovar = _prepare_df_for_supabase_insert(df_aprovar)
                                     # --- FIM DO TRATAMENTO ---
 
                                     registros_para_pre_roterizacao = df_aprovar.to_dict(orient="records")
+
+
+
                                     registros_para_pre_roterizacao = [r for r in registros_para_pre_roterizacao if r.get("Serie_Numero_CTRC")]
 
                                     if registros_para_pre_roterizacao:
+                                        st.write("DEBUG: DataFrame prestes a ser inserido no Supabase:")
+                                        st.write(df_aprovar) # Ou df_rejeitar, dependendo do caminho (aprovar ou rejeitar)
+                                        st.write("DEBUG: Tipos de dados:")
+                                        st.write(df_aprovar.dtypes)
                                         supabase.table("pre_roterizacao").insert(registros_para_pre_roterizacao).execute()
+
+
+
+
                                         # 🔄 Acumula aprovadas na sessão
                                         df_aprovadas_sessao = pd.DataFrame(registros_para_pre_roterizacao)
                                         if "df_aprovadas_diretoria" in st.session_state:
@@ -2540,29 +2577,7 @@ def pagina_aprovacao_diretoria():
                                     df_rejeitar = pd.DataFrame(selecionadas)
                                     df_rejeitar = df_rejeitar.drop(columns=["_selectedRowNodeInfo"], errors="ignore")
 
-                                    # *** INTEGRIDADE DE DADOS: GARANTIR QUE DATAS VAZIAS PERMANEÇAM VAZIAS ***
-                                    # Este bloco garante que os tipos de dados estejam corretos para o Supabase
-                                    # e que valores vazios no grid (vindos como string) sejam None no banco.
-                                    for col_name in GLOBAL_DATE_DISPLAY_COLUMNS:
-                                        if col_name in df_rejeitar.columns:
-                                            df_rejeitar[col_name] = pd.to_datetime(
-                                                df_rejeitar[col_name],
-                                                format=DATE_DISPLAY_FORMAT_STRING,
-                                                errors='coerce'
-                                            )
-
-                                    for col_name in df_rejeitar.columns:
-                                        if col_name in GLOBAL_DATE_DISPLAY_COLUMNS or \
-                                           pd.api.types.is_datetime64_any_dtype(df_rejeitar[col_name]):
-                                            df_rejeitar[col_name] = df_rejeitar[col_name].apply(
-                                                lambda x: x.strftime("%Y-%m-%d %H:%M:%S") if pd.notna(x) else None
-                                            )
-                                        elif df_rejeitar[col_name].dtype == 'object':
-                                            df_rejeitar[col_name] = df_rejeitar[col_name].apply(
-                                                lambda x: x.strftime("%Y-%m-%d %H:%M:%S") if isinstance(x, (pd.Timestamp, datetime)) else x
-                                            )
-
-                                    df_rejeitar = df_rejeitar.replace([np.nan, np.inf, -np.inf, ""], None)
+                                    df_rejeitar = _prepare_df_for_supabase_insert(df_rejeitar)
                                     # *** FIM DA INTEGRIDADE DE DADOS ***
 
                                     registros_para_confirmar_producao = df_rejeitar.to_dict(orient="records")
@@ -3186,13 +3201,7 @@ def pagina_cargas_geradas():
 
             df_display = df.copy()
 
-            # ✅ FORMATAÇÃO DAS DATAS COMO NA PÁGINA DA DIRETORIA
-            for col_name in ["Previsao de Entrega", "Entrega Programada"]:
-                if col_name in df_display.columns:
-                    df_display[col_name] = df_display[col_name].apply(
-                        lambda x: x.strftime("%d-%m-%Y") if pd.notna(x) else ""
-                    )
-            df_display = df_display.replace([np.nan, None], "")
+           
 
             if "valor_contratacao" in df_display.columns:
                 df_display["valor_contratacao"] = pd.to_numeric(df_display["valor_contratacao"], errors="coerce").fillna(0.0)
@@ -3583,13 +3592,8 @@ def pagina_cargas_geradas():
                                         # ---
                                     ], errors="ignore")
 
-                                    # Converte datas para o formato ISO UTC para inserção no Supabase
-                                    for col_name in GLOBAL_DATE_DISPLAY_COLUMNS:
-                                        if col_name in df_para_retornar.columns:
-                                            df_para_retornar[col_name] = df_para_retornar[col_name].apply(tratar_data_para_utc)
+                                    df_para_retornar = _prepare_df_for_supabase_insert(df_para_retornar)
 
-                                    # Substitui NaNs e outros por None para o Supabase
-                                    df_para_retornar = df_para_retornar.replace([np.nan, pd.NaT, np.inf, -np.inf, ""], None)
 
                                     registros_para_inserir = df_para_retornar.to_dict(orient="records")
 
@@ -3619,7 +3623,7 @@ def pagina_cargas_geradas():
                                         try:
                                             delete_response = supabase.table("cargas_geradas").delete().in_("Serie_Numero_CTRC", ctrcs_a_remover_do_grid).execute()
 
-                                            if delete_response.data:
+                                            if hasattr(delete_response, 'data') and delete_response.data:
                                                 deleted_count = len(delete_response.data)
                                                 st.success(f"DEBUG: Deleção em 'cargas_geradas' na Tentativa {tentativa+1} bem-sucedida! {deleted_count} registros realmente deletados.")
                                                 delete_success = True
@@ -3811,8 +3815,8 @@ def pagina_cargas_geradas():
 
 
     except Exception as e:
-        st.error(f"❌ Erro geral inesperado ao retirar entregas da carga: {e}")
-        st.warning("A operação pode ter sido interrompida. Por favor, verifique a situação das entregas nas tabelas 'Rotas Confirmadas' e 'Cargas Geradas'.")
+        st.error(f"❌ Não é permitido seleção individual de entregas: {e}")
+        st.warning("Marcar todas para seleção da Carga.")
 
 # ==============================================================================
 # FUNÇÃO: pagina_aprovacao_custos() - ATUALIZADA
@@ -3937,69 +3941,51 @@ def pagina_aprovacao_custos():
             if df_carga.empty:
                 continue
 
+            # --- 1. Extração de informações da Carga (para os badges e cálculos) ---
             valor_contratacao_carga_existente = df_carga["valor_contratacao"].iloc[0] if "valor_contratacao" in df_carga.columns and not df_carga["valor_contratacao"].isnull().all() else 0.0
-            
-            # --- Cálculos de Rentabilidade e Custo por Região ---
-            total_frete_carga = df_carga["Valor do Frete"].sum()
-
             motorista_ = df_carga["motorista"].iloc[0] if "motorista" in df_carga.columns and not df_carga["motorista"].isnull().all() else "–"
             placa_veiculo = df_carga["placa"].iloc[0] if "placa" in df_carga.columns and not df_carga["placa"].isnull().all() else "–"
             veiculo = df_carga["veiculo"].iloc[0] if "veiculo" in df_carga.columns and not df_carga["veiculo"].isnull().all() else "–"
 
-            
-            
-            
+            # --- 2. Cálculos de Rentabilidade e Custo por Região (onde situacao_custo_regional é definida) ---
+            total_frete_carga = df_carga["Valor do Frete"].sum()
+
             rentabilidade_percentual = 0.0
-            situacao_custo_regional = "N/A"
+            situacao_custo_regional = "N/A" # Inicialização segura para 'situacao_custo_regional'
             cor_situacao = "gray"
 
+            getcontext().prec = 6 # Garante precisão para cálculos decimais
+
             if total_frete_carga > 0:
-                rentabilidade_percentual = ((total_frete_carga - valor_contratacao_carga_existente) / total_frete_carga) * 100
-                percentual_custo = 100 - rentabilidade_percentual
-                cor_custo = "#ffc107" if percentual_custo <= 100 else "#dc3545"
-                cor_texto_custo = "black" if percentual_custo <= 100 else "white"
-                # Determinar a região dominante da carga
-                dominant_region = 'NÃO DEFINIDA'
-                if 'Regiao' in df_carga.columns and not df_carga['Regiao'].empty:
-                    # Filtra 'NÃO DEFINIDA' para o cálculo da região dominante se outras regiões existirem
-                    regions_to_consider = df_carga['Regiao'][df_carga['Regiao'] != 'NÃO DEFINIDA']
-                    if not regions_to_consider.empty:
-                        dominant_region = regions_to_consider.value_counts().idxmax()
-                    elif not df_carga['Regiao'].empty: # Se todas forem 'NÃO DEFINIDA', pega a primeira
-                        dominant_region = df_carga['Regiao'].iloc[0]
+                try:
+                    custo = Decimal(str(valor_contratacao_carga_existente))
+                    frete = Decimal(str(total_frete_carga))
+                    custo_receita_ratio = (custo / frete).quantize(Decimal('0.0001'), rounding=ROUND_HALF_UP)
 
-                # DEBUG: Verificar região
-                #st.write(f"- Região Dominante: {dominant_region}")
-                
-                max_cost_allowed = MAX_COST_PER_REGION.get(dominant_region, None)
-                
-                # DEBUG: Verificar limite
-                #st.write(f"- Limite da Região: {max_cost_allowed}")
+                    dominant_region = 'NÃO DEFINIDA'
+                    if 'Regiao' in df_carga.columns and not df_carga['Regiao'].empty:
+                        regions_to_consider = df_carga['Regiao'][df_carga['Regiao'] != 'NÃO DEFINIDA']
+                        if not regions_to_consider.empty:
+                            dominant_region = regions_to_consider.value_counts().idxmax()
+                        elif not df_carga['Regiao'].empty:
+                            dominant_region = df_carga['Regiao'].iloc[0]
 
-                if max_cost_allowed is not None:
-                    custo_receita_ratio = (valor_contratacao_carga_existente / total_frete_carga)
-                    
-                    # 🚀 INÍCIO DO AJUSTE 🚀
-                    # Arredonda o ratio calculado para 4 casas decimais para precisão na comparação
-                    custo_receita_ratio = round(custo_receita_ratio, 4)
-                    # Arredonda o limite permitido para 4 casas decimais para consistência na comparação
-                    max_cost_allowed = round(max_cost_allowed, 4)
-                    # 🚀 FIM DO AJUSTE 🚀
-                    
-                    # DEBUG: Verificar cálculo
-                    #st.write(f"- Ratio Calculado: {custo_receita_ratio:.4f} ({custo_receita_ratio*100:.2f}%)")
-                    #st.write(f"- Limite Permitido: {max_cost_allowed:.4f} ({max_cost_allowed*100:.2f}%)")
-                    #st.write(f"- Comparação: {custo_receita_ratio:.4f} <= {max_cost_allowed:.4f} = {custo_receita_ratio <= max_cost_allowed}")
-                    
+                    max_cost_allowed = Decimal(str(MAX_COST_PER_REGION.get(dominant_region, 0)))
+
                     if custo_receita_ratio <= max_cost_allowed:
-                        situacao_custo_regional = f"Dentro do Limite ({max_cost_allowed*100:.0f}%)"
-                        cor_situacao = "#28a745" # Verde
+                        situacao_custo_regional = f"Dentro do Limite ({(max_cost_allowed * 100):.0f}%)"
+                        cor_situacao = "#28a745"  # Verde
                     else:
-                        situacao_custo_regional = f"Acima do Limite ({max_cost_allowed*100:.0f}%)"
-                        cor_situacao = "#dc3545" # Vermelho
-                else:
-                    situacao_custo_regional = f"Região '{dominant_region}' sem limite definido"
-                    cor_situacao = "orange"
+                        situacao_custo_regional = f"Acima do Limite ({(max_cost_allowed * 100):.0f}%)"
+                        cor_situacao = "#dc3545"  # Vermelho
+
+                    rentabilidade_percentual = ((frete - custo) / frete * 100).quantize(Decimal('0.01'))
+                
+                except Exception as e:
+                    situacao_custo_regional = f"Erro no cálculo: {e}"
+                    cor_situacao = "gray"
+                    rentabilidade_percentual = 0.0
+
             else:
                 rentabilidade_percentual = 0.0
                 if valor_contratacao_carga_existente > 0:
@@ -4009,19 +3995,32 @@ def pagina_aprovacao_custos():
                     situacao_custo_regional = "Frete total zero, Contratação zero"
                     cor_situacao = "gray"
 
+            # --- 3. Inicialização de Variáveis de Estado da Justificativa (AGORA DEPOIS QUE situacao_custo_regional É GARANTIDA) ---
+            justificativa_necessaria = False
+            if "Acima do Limite" in situacao_custo_regional or "Contratacao > 0" in situacao_custo_regional:
+                justificativa_necessaria = True
 
-            # Obter rota predominante
+            just_key_session = f"justificativa_aprov_custo_{carga}"
+            confirm_justify_key_session = f"confirm_justify_aprov_custo_{carga}"
+
+            if just_key_session not in st.session_state:
+                st.session_state[just_key_session] = ""
+            if confirm_justify_key_session not in st.session_state:
+                st.session_state[confirm_justify_key_session] = False
+
+            # --- 4. Exibição de Informações da Carga (Badges) ---
+            # Obter rota predominante (pode ser usado nos badges também)
+                        # --- 4. Exibição de Informações da Carga (Badges) ---
+            # Obter rota predominante (pode ser usado nos badges também)
             rota_dominante = "–"
             if "Rota" in df_carga.columns and not df_carga["Rota"].isnull().all():
                 rota_dominante = df_carga["Rota"].value_counts().idxmax()
 
-            # Exibir Carga + Rota
             st.markdown(f"""
             <div style="margin-top:20px;padding:10px;background:#e8f0fe;border-left:4px solid #f9ab00;border-radius:6px;display:inline-block;max-width:100%;">
                 <strong>Carga:</strong> {carga} &nbsp;&nbsp;|&nbsp;&nbsp; <strong>Rota Predominante:</strong> {rota_dominante}
             </div>
             """, unsafe_allow_html=True)
-
 
             col1_badges, col2_placeholder = st.columns([5, 1])
             with col1_badges:
@@ -4034,24 +4033,56 @@ def pagina_aprovacao_custos():
                         {badge(f'Valor frete: R$ {formatar_brasileiro(total_frete_carga)}')}
                         {badge(f'{formatar_brasileiro(df_carga["Cubagem em m³"].sum())} m³')}
                         {badge(f'{int(df_carga["Quantidade de Volumes"].sum())} volumes')}
-                        {badge(f'Rentabilidade: {rentabilidade_percentual:.2f}%', background_color=("#28a745" if rentabilidade_percentual >= 0 else "#dc3545"), text_color="white")}
-                        {badge(f'Custo: {percentual_custo:.2f}%', background_color=cor_custo, text_color=cor_texto_custo)}
-                        {badge(f'Situação Custo: {situacao_custo_regional}', background_color=cor_situacao, text_color='white')}
+                        {badge(f'Valor Contratação: R$ {formatar_brasileiro(valor_contratacao_carga_existente)}')}
                         {badge(f'Motorista: {motorista_}')}
                         {badge(f'Placa: {placa_veiculo}')}
                         {badge(f'Veículo: {veiculo}')}
-                        {badge(f'Valor contratação: R$ {formatar_brasileiro(valor_contratacao_carga_existente)}')}
-
+                        {badge(f'Rentabilidade: {rentabilidade_percentual:.2f}%')}
+                        {badge(f'Situação Custo: {situacao_custo_regional}', background_color=cor_situacao, text_color='white')}
                     </div>
                     """,
                     unsafe_allow_html=True
                 )
-                
-            with st.expander("🔽 Ver entregas da carga para Aprovação de Custos", expanded=True):
-                
 
+
+
+            # Fim do col1_badges
+
+            with col2_placeholder: # Coluna para o PDF
+                # ... (código existente do PDF) ...
+                if st.button("📥 PDF", key=f"pdf_{carga}"):
+                    try:
+                        with st.spinner(f"Gerando PDF para a carga {carga}... Por favor, aguarde..."):
+                            pdf_motorista = motorista_ if motorista_ != "-" else ""
+                            pdf_placa = placa_veiculo if placa_veiculo != "-" else ""
+                            pdf_veiculo = veiculo if veiculo != "-" else ""
+                            pdf_valor_contratacao = valor_contratacao_carga_existente
+
+                            buffer_pdf = gerar_pdf_carga(
+                                df_entregas=df_carga.copy(),
+                                carga=carga,
+                                rota=rota_dominante,
+                                motorista=pdf_motorista,
+                                placa=pdf_placa,
+                                veiculo=pdf_veiculo,
+                                valor_frete=total_frete_carga,
+                                valor_contratacao=pdf_valor_contratacao
+                            )
+
+                        st.success(f"✅ PDF da carga {carga} gerado com sucesso!")
+                        st.download_button(
+                            label="📥 Baixar PDF da Carga",
+                            data=buffer_pdf,
+                            file_name=f"carga_{carga}.pdf",
+                            mime="application/pdf",
+                            key=f"download_pdf_final_{carga}"
+                        )
+                    except Exception as e:
+                        st.error(f"❌ Erro ao gerar o PDF da carga {carga}: {e}")
+
+            # --- 5. AgGrid para ver entregas da carga ---
+            with st.expander("🔽 Ver entregas da carga para Aprovação de Custos", expanded=True):
                 with st.spinner("Formatando entregas da carga para aprovação..."):
-                    # Define formatter for numeric values
                     formatter = JsCode("""
                         function(params) {
                             if (!params.value && params.value !== 0) return '';
@@ -4062,7 +4093,6 @@ def pagina_aprovacao_custos():
                         }
                     """)
 
-                    # NOVO: Formatter para exibir APENAS a parte da data (dd-mm-aaaa)
                     date_only_formatter = JsCode("""
                         function(params) {
                             if (params.value === null || typeof params.value === 'undefined' || params.value === '') return '';
@@ -4104,12 +4134,9 @@ def pagina_aprovacao_custos():
                         if col in df_formatado.columns:
                             gb.configure_column(col, type=["numericColumn"], valueFormatter=formatter)
 
-                    # --- NOVO: Configuração para colunas de data que devem ser APENAS dd-mm-aaaa ---
-                    for col in ['Previsao de Entrega', 'Entrega Programada']: # Adicione outras colunas de data se quiser que sejam APENAS data
+                    for col in ['Previsao de Entrega', 'Entrega Programada']:
                         if col in df_formatado.columns:
                             gb.configure_column(col, valueFormatter=date_only_formatter)
-                    # --- Fim da Configuração de colunas de data ---
-
 
                     grid_options = gb.build()
                     grid_key_id = f"grid_aprovacao_custos_{carga}"
@@ -4140,73 +4167,108 @@ def pagina_aprovacao_custos():
                     }
                 )
 
-                # Remove a necessidade de checkbox "marcar todas" e considera todas automaticamente selecionadas
                 selecionadas = df_formatado[df_formatado["Serie_Numero_CTRC"].notna()].copy().to_dict(orient="records")
 
                 if selecionadas:
                     st.markdown(f"**📦 Entregas selecionadas:** {len(selecionadas)}")
-                    # --- REMOVIDO: CAMPO DE ENTRADA E SUGESTÃO ---
-                    # Não há campo para preencher valor de contratação nem mostrar sugestão nesta página.
 
+            # --- 6. Botões de Aprovação e Rejeição (com lógica de Justificativa) ---
             col_aprovar, col_rejeitar = st.columns(2)
+
             with col_aprovar:
-                if st.button(
+                btn_approve_clicked = st.button(
                     f"✅ Aprovar Carga {carga}",
                     key=f"aprovar_carga_{carga}",
-                    disabled=not is_user_aprovador
-                ):
-                    try:
-                        with st.spinner("✅ Aprovando entregas e movendo para Cargas Aprovadas..."):
-                            df_aprovar = pd.DataFrame(selecionadas)
+                    # O botão fica habilitado se o usuário for aprovador E (se a justificativa for necessária, que ela já tenha sido 'confirmada')
+                    disabled=not is_user_aprovador or (justificativa_necessaria and not st.session_state[confirm_justify_key_session])
+                )
 
-                            df_aprovar = df_aprovar.drop(columns=["_selectedRowNodeInfo"], errors="ignore")
+                # Lógica ao clicar no botão de aprovar
+                if btn_approve_clicked:
+                    # Se a justificativa é necessária E o processo de justificativa não foi iniciado/confirmado ainda
+                    if justificativa_necessaria and not st.session_state[confirm_justify_key_session]:
+                        st.session_state[confirm_justify_key_session] = True # Ativa o modo de justificativa
+                        st.session_state[just_key_session] = "" # Limpa o campo para o usuário preencher
+                        st.rerun() # Força um rerun para exibir o campo de justificativa
+                    else:
+                        # Se não precisa de justificativa OU se a justificativa já foi confirmada
+                        try:
+                            with st.spinner("✅ Aprovando entregas e movendo para Cargas Aprovadas..."):
+                                df_aprovar = pd.DataFrame(selecionadas)
+                                df_aprovar = df_aprovar.drop(columns=["_selectedRowNodeInfo"], errors="ignore")
                             
-                            df_aprovar["numero_carga"] = carga
-                            df_aprovar["valor_contratacao"] = valor_contratacao_carga_existente # Usa o valor existente da carga
+                                df_aprovar["numero_carga"] = carga
+                                df_aprovar["valor_contratacao"] = valor_contratacao_carga_existente
+                                df_aprovar["motorista"] = motorista_ # Usando as variáveis já extraídas
+                                df_aprovar["placa"] = placa_veiculo # Usando as variáveis já extraídas
+                                df_aprovar["veiculo"] = veiculo # Usando as variáveis já extraídas
+                                df_aprovar["aprovador_custos_login"] = st.session_state.get("username", "Desconhecido")
+                                df_aprovar["data_aprovacao_custos"] = data_hora_brasil_iso()
 
-                            df_aprovar["motorista"] = motorista_ # CORREÇÃO AQUI
-                            df_aprovar["placa"] = placa_veiculo  # CORREÇÃO AQUI
-                            df_aprovar["veiculo"] = veiculo
-                            
-                            df_aprovar["aprovador_custos_login"] = st.session_state.get("username", "Desconhecido")
-                            df_aprovar["data_aprovacao_custos"] = data_hora_brasil_iso()
+                                # --- NOVO: Adiciona a justificativa ao DataFrame ANTES DE PREPARAR PARA SUPABASE ---
+                                df_aprovar["justificativa_aprovacao_custo"] = st.session_state[just_key_session].strip() if justificativa_necessaria and st.session_state[just_key_session].strip() else None
 
-                            date_cols_to_process = [
-                                "Previsao de Entrega", "Entrega Programada", "Data de Emissao",
-                                "Data de Autorizacao", "Data do Cancelamento", "Data do Escaneamento",
-                                "Data da Entrega Realizada", "Data da Ultima Ocorrencia",
-                                "Data de inclusao da Ultima Ocorrencia", "Data_Hora_Gerada",
-                                "data_aprovacao_custos"
-                            ]
-                            for col_name in date_cols_to_process:
-                                if col_name in df_aprovar.columns:
-                                    df_aprovar[col_name] = pd.to_datetime(df_aprovar[col_name], errors='coerce')
-                                    df_aprovar[col_name] = df_aprovar[col_name].apply(
-                                        lambda x: x.isoformat() if pd.notna(x) else None
-                                    )
+                                # Prepara o DataFrame para inserção no Supabase (Datas e nulos)
+                                df_aprovar = _prepare_df_for_supabase_insert(df_aprovar)
 
-                            df_aprovar = df_aprovar.replace([np.nan, pd.NaT, "", np.inf, -np.inf], None)
+                                registros_para_cargas_aprovadas = df_aprovar.to_dict(orient="records")
+                                registros_para_cargas_aprovadas = [r for r in registros_para_cargas_aprovadas if r.get("Serie_Numero_CTRC")]
 
-                            registros_para_cargas_aprovadas = df_aprovar.to_dict(orient="records")
-                            registros_para_cargas_aprovadas = [r for r in registros_para_cargas_aprovadas if r.get("Serie_Numero_CTRC")]
+                                if registros_para_cargas_aprovadas:
+                                    supabase.table("cargas_aprovadas").insert(registros_para_cargas_aprovadas).execute()
 
-                            if registros_para_cargas_aprovadas:
-                                supabase.table("cargas_aprovadas").insert(registros_para_cargas_aprovadas).execute()
+                                    chaves_aprovadas = [r.get("Serie_Numero_CTRC") for r in registros_para_cargas_aprovadas if r.get("Serie_Numero_CTRC")]
+                                    if chaves_aprovadas:
+                                        supabase.table("aprovacao_custos").delete().in_("Serie_Numero_CTRC", chaves_aprovadas).execute()
 
-                            chaves_aprovadas = [r.get("Serie_Numero_CTRC") for r in registros_para_cargas_aprovadas if r.get("Serie_Numero_CTRC")]
-                            if chaves_aprovadas:
-                                supabase.table("aprovacao_custos").delete().in_("Serie_Numero_CTRC", chaves_aprovadas).execute()
+                                st.success(f"✅ {len(registros_para_cargas_aprovadas)} entregas da carga {carga} aprovadas e movidas para Cargas Aprovadas.")
+                                
+                                # --- NOVO: Limpa os estados da sessão específicos para esta carga após a aprovação bem-sucedida ---
+                                st.session_state.pop(just_key_session, None)
+                                st.session_state.pop(confirm_justify_key_session, None)
 
-                            st.success(f"✅ {len(registros_para_cargas_aprovadas)} entregas da carga {carga} aprovadas e movidas para Cargas Aprovadas.")
-                            st.session_state["reload_aprovacao_custos"] = True
-                            st.session_state["reload_cargas_aprovadas"] = True
-                            st.session_state.pop(grid_key, None)
-                            #st.session_state.pop(checkbox_key, None)
+                                # Limpa os caches e estados da sessão para forçar a recarga dos dados e dos grids
+                                st.session_state["reload_aprovacao_custos"] = True
+                                st.session_state["reload_cargas_aprovadas"] = True
+                                st.session_state.pop(grid_key, None)
 
-                            st.rerun()
+                                st.rerun()
 
-                    except Exception as e:
-                        st.error(f"❌ Erro ao aprovar carga: {e}")
+
+
+                        except Exception as e:
+                            st.error(f"❌ Erro ao aprovar carga: {e}")
+
+            # --- 7. Campo de Justificativa (aparece condicionalmente) ---
+            if justificativa_necessaria and st.session_state[confirm_justify_key_session]:
+                st.warning("⚠️ Custo da carga acima do limite. Por favor, justifique a aprovação.")
+                
+                st.session_state[just_key_session] = st.text_area(
+                    f"Justificativa para aprovação da Carga {carga}:",
+                    value=st.session_state[just_key_session],
+                    key=f"justificativa_area_{carga}",
+                    height=100
+                )
+                
+                col_justify_actions = st.columns(2)
+                with col_justify_actions[0]:
+                    if st.button(
+                        "Confirmar Justificativa",
+                        key=f"confirmar_justificativa_{carga}",
+                        disabled=not st.session_state[just_key_session].strip()
+                    ):
+                        st.session_state[confirm_justify_key_session] = True 
+                        st.success("Justificativa registrada. Clique novamente em '✅ Aprovar Carga' para finalizar.")
+                        st.rerun()
+
+                with col_justify_actions[1]:
+                    if st.button("Cancelar Aprovação", key=f"cancelar_justificativa_{carga}"):
+                        st.session_state[confirm_justify_key_session] = False 
+                        st.session_state[just_key_session] = "" 
+                        st.rerun()
+
+                # O bloco `with col_rejeitar:` continua normalmente aqui
+               
 
             with col_rejeitar:
                 # Gerencia o estado de confirmação da rejeição para esta carga específica
@@ -4248,35 +4310,19 @@ def pagina_aprovacao_custos():
                                     if 'numero_carga' in df_rejeitar.columns:
                                         df_rejeitar['numero_carga'] = df_rejeitar['numero_carga'].astype(str).replace('nan', '')
 
-                                    # 2. Limpa o motivo da rejeição (como já havíamos ajustado)
-                                    if "motivo_rejeicao" in df_rejeitar.columns:
-                                        df_rejeitar["motivo_rejeicao"] = motivo_rejeicao.strip() if motivo_rejeicao.strip() else None
-
-
-                                    for col_name in GLOBAL_DATE_DISPLAY_COLUMNS:
-                                            if col_name in df_rejeitar.columns:
-                                                df_rejeitar[col_name] = df_rejeitar[col_name].apply(tratar_data_para_utc)
+                                     # 1. Garante que numero_carga seja string e limpa potenciais 'nan'
+                                    if 'numero_carga' in df_rejeitar.columns:
+                                        df_rejeitar['numero_carga'] = df_rejeitar['numero_carga'].astype(str).replace('nan', '')
 
                                     # >>> NOVO: Adiciona o motivo da rejeição ao DataFrame <<<
                                     df_rejeitar["motivo_rejeicao"] = motivo_rejeicao.strip() if motivo_rejeicao.strip() else None
 
-                                    # --- Seu código existente para tratamento de datas e nulidades ---
-                                    date_cols_to_process = [
-                                        "Previsao de Entrega", "Entrega Programada", "Data de Emissao",
-                                        "Data de Autorizacao", "Data do Cancelamento", "Data do Escaneamento",
-                                        "Data da Entrega Realizada", "Data da Ultima Ocorrencia",
-                                        "Data de inclusao da Ultima Ocorrencia", "Data_Hora_Gerada"
-                                    ]
-                                    for col_name in date_cols_to_process:
-                                        if col_name in df_rejeitar.columns:
-                                            df_rejeitar[col_name] = pd.to_datetime(df_rejeitar[col_name], errors='coerce')
-                                            df_rejeitar[col_name] = df_rejeitar[col_name].apply(
-                                                lambda x: x.isoformat() if pd.notna(x) else None
-                                            )
-                                    df_rejeitar = df_rejeitar.replace([np.nan, pd.NaT, "", np.inf, -np.inf], None)
-                                    # --- Fim do código existente ---
+                                    # ✅ CHAME A FUNÇÃO UNIFICADA DE PREPARAÇÃO DE DATAS
+                                    # Esta linha já faz todo o trabalho de formatação e tratamento de nulos
+                                    df_rejeitar = _prepare_df_for_supabase_insert(df_rejeitar)
 
                                     registros_para_cargas_geradas = df_rejeitar.to_dict(orient="records")
+
                                     registros_para_cargas_geradas = [r for r in registros_para_cargas_geradas if r.get("Serie_Numero_CTRC")]
 
                                     if registros_para_cargas_geradas:
@@ -4310,9 +4356,6 @@ def pagina_aprovacao_custos():
                         if st.button("Cancelar", key=f"cancelar_rejeicao_{carga}"):
                             st.session_state[rejeitar_confirm_key] = False # Sai do modo de confirmação
                             st.rerun() # Força rerun para ocultar campo e reabilitar botão
-
-
-
 
 
     except Exception as e:
@@ -4714,22 +4757,9 @@ def pagina_cargas_aprovadas():
                                 df_to_move["data_aprovacao_custos"] = None
                                 # Garante que 'situacao' e 'fechador_carga_login' (se por algum erro existirem) não sejam levados
                                 df_to_move = df_to_move.drop(columns=["situacao", "fechador_carga_login", "data_fechamento"], errors="ignore")
-
                                 # 3. Preparar dados para inserção em 'aprovacao_custos'
-                                # Reutiliza a lógica de tratamento de datas para Supabase (ISO UTC)
-                                date_cols_for_supabase = [
-                                    "Previsao de Entrega", "Entrega Programada", "Data de Emissao",
-                                    "Data de Autorizacao", "Data do Cancelamento", "Data do Escaneamento",
-                                    "Data da Entrega Realizada", "Data da Ultima Ocorrencia",
-                                    "Data de inclusao da Ultima Ocorrencia", "Data_Hora_Gerada"
-                                ]
-                                for col_name in date_cols_for_supabase:
-                                    if col_name in df_to_move.columns:
-                                        df_to_move[col_name] = pd.to_datetime(df_to_move[col_name], errors='coerce')
-                                        df_to_move[col_name] = df_to_move[col_name].apply(tratar_data_para_utc)
-                                
-                                df_to_move = df_to_move.replace([np.nan, pd.NaT, "", np.inf, -np.inf], None)
-
+                                # ✅ CHAME A FUNÇÃO UNIFICADA DE PREPARAÇÃO DE DADOS
+                                # Esta linha já faz todo o trabalho de formatação e tratamento de nulos
                                 records_to_insert = df_to_move.to_dict(orient="records")
 
                                 # 4. Inserir em 'aprovacao_custos'
@@ -4806,7 +4836,7 @@ def pagina_cargas_fechadas():
         with st.spinner("🔄 Carregando dados para cargas fechadas..."):
             recarregar = st.session_state.pop("reload_cargas_fechadas", False)
             if recarregar or "df_cargas_fechadas_cache" not in st.session_state:
-                dados = supabase.table("cargas_fechadas").select("*").limit(50000).execute().data
+                dados = supabase.table("cargas_fechadas").select("*").limit().execute().data
                 df = pd.DataFrame(dados)
 
                 # --- Converte colunas relevantes para datetime UTC (sem format forçado) ---
@@ -4817,7 +4847,11 @@ def pagina_cargas_fechadas():
                 # --- Formata Entrega Programada e Previsao de Entrega para dd-mm-aaaa ---
                 for col in ['Entrega Programada', 'Previsao de Entrega']:
                     if col in df.columns:
-                        df[col] = df[col].dt.tz_localize(None).dt.strftime('%d-%m-%Y')
+                        # Primeiro, garanta que a coluna é um objeto datetime.
+                        # Como são tipos DATE no Supabase (YYYY-MM-DD), pd.to_datetime padrão é suficiente.
+                        df[col] = pd.to_datetime(df[col], errors='coerce') 
+                        # Agora, use o acessor .dt para formatar
+                        df[col] = df[col].dt.strftime('%d-%m-%Y')
 
 
                 # --- End ---
