@@ -1179,7 +1179,7 @@ def corrigir_tipos(df):
 
     colunas_data = [
         "Data da Ultima Ocorrencia", "Data de inclusao da Ultima Ocorrencia",
-         "Previsao de Entrega",
+         "Previsao de Entrega","Entrega Programada",
         "Data de Emissao", "Data de Autorizacao", "Data do Cancelamento", "Data do Escaneamento",
         "Data da Entrega Realizada"
     ]
