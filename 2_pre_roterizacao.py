@@ -4125,7 +4125,7 @@ def pagina_aprovacao_custos():
                         situacao_custo_regional = f"Dentro do Limite ({(max_cost_allowed * 100):.0f}%)"
                         cor_situacao = "#28a745"  # Verde
                     else:
-                        situacao_custo_regional = f"Acima do Limite ({(max_cost_allowed * 100):.0f}%)"
+                        situacao_custo_regional = f"Acima do Limite Região ({(max_cost_allowed * 100):.0f}%)"
                         cor_situacao = "#dc3545"  # Vermelho
 
                     rentabilidade_percentual = ((frete - custo) / frete * 100).quantize(Decimal('0.01'))
@@ -4176,7 +4176,7 @@ def pagina_aprovacao_custos():
 
             # --- 3. Inicialização de Variáveis de Estado da Justificativa (AGORA DEPOIS QUE situacao_custo_regional É GARANTIDA) ---
             justificativa_necessaria = False
-            if "Acima do Limite" in situacao_custo_regional or "Contratacao > 0" in situacao_custo_regional:
+            if "Acima do Limite Região" in situacao_custo_regional or "Contratacao > 0" in situacao_custo_regional:
                 justificativa_necessaria = True
 
             # VARIÁVEIS DE SESSÃO PARA JUSTIFICATIVA DE REJEIÇÃO
@@ -4402,7 +4402,7 @@ def pagina_aprovacao_custos():
 
             # --- Bloco de Justificativa para APROVAÇÃO (aparece condicionalmente) ---
             if justificativa_necessaria and st.session_state.get(confirm_justify_key_session_aprov, False):
-                st.warning("⚠️ Custo da carga acima do limite. Por favor, justifique a aprovação.")
+                st.warning("⚠️ Custo da carga Acima do Limite Região. Por favor, justifique a aprovação.")
                 
                 # O campo de texto da justificativa
                 st.session_state[just_key_session_aprov] = st.text_area(
@@ -4687,7 +4687,7 @@ def pagina_cargas_aprovadas():
                         situacao_custo_regional = f"Dentro do Limite ({(max_cost_allowed * 100):.0f}%)"
                         cor_situacao = "#31e634"  # Verde
                     else:
-                        situacao_custo_regional = f"Acima do Limite ({(max_cost_allowed * 100):.0f}%)"
+                        situacao_custo_regional = f"Acima do Limite Região ({(max_cost_allowed * 100):.0f}%)"
                         cor_situacao = "#dc3545"  # Vermelho
 
                     rentabilidade_percentual = ((frete - custo) / frete * 100).quantize(Decimal('0.01'))
@@ -5312,7 +5312,7 @@ def pagina_cargas_fechadas():
                     situacao_custo_regional = f"Dentro do Limite ({Decimal(str(max_cost_allowed))*100:.0f}%)"
                     cor_situacao = "#28a745"
                 else:
-                    situacao_custo_regional = f"Acima do Limite ({Decimal(str(max_cost_allowed))*100:.0f}%)"
+                    situacao_custo_regional = f"Acima do Limite Região ({Decimal(str(max_cost_allowed))*100:.0f}%)"
                     cor_situacao = "#dc3545"
             else:
                 situacao_custo_regional = f"Região '{dominant_region}' sem limite definido"
