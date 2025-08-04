@@ -1174,7 +1174,7 @@ if "_qtd_pre_roterizacao" not in st.session_state:
 
 def pagina_sincronizacao():
     # Criar layout com colunas - conteúdo principal à esquerda, espaço menor à direita
-    col_main, col_spacer = st.columns([3, 1])  # 80% esquerda, 20% direita
+    col_main, col_spacer = st.columns([5, 1])  # 80% esquerda, 20% direita
     
     with col_main:
         st.title("🔄 Sincronização de Dados")
