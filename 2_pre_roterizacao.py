@@ -1173,166 +1173,159 @@ if "_qtd_pre_roterizacao" not in st.session_state:
     st.session_state._qtd_pre_roterizacao = 0
 
 def pagina_sincronizacao():
-    # Criar layout com colunas - conteúdo principal à esquerda, espaço menor à direita
-    col_main, col_spacer = st.columns([5, 1])  # 80% esquerda, 20% direita
-    
-    with col_main:
-        st.title("🔄 Sincronização de Dados")
+    st.title("🔄 Sincronização de Dados")
 
-        ultima_data, ultimo_usuario = recuperar_hora_sincronizacao()
-        if ultima_data:
-            st.markdown(f"🕒 Última sincronização registrada: **{ultima_data}** por **{ultimo_usuario}**")
-        else:
-            st.markdown("🕒 Última sincronização: **ainda não realizada**")
+    ultima_data, ultimo_usuario = recuperar_hora_sincronizacao()
+    if ultima_data:
+        st.markdown(f"🕒 Última sincronização registrada: **{ultima_data}** por **{ultimo_usuario}**")
+    else:
+        st.markdown("🕒 Última sincronização: **ainda não realizada**")
 
-        if st.session_state._sync_success_message_displayed:
-            st.success("✅ Sincronização finalizada com sucesso!")
-            st.balloons()
-            st.markdown(f"📦 Entregas em **Confirmar Produção**: **{st.session_state._qtd_confirmadas}**")
-            st.markdown(f"🗂️ Entregas em **Pré-Roteirização**: **{st.session_state._qtd_pre_roterizacao}**")
-            st.session_state._sync_success_message_displayed = False
-            st.session_state._qtd_confirmadas = 0
-            st.session_state._qtd_pre_roterizacao = 0
+    if st.session_state._sync_success_message_displayed:
+        st.success("✅ Sincronização finalizada com sucesso!")
+        st.balloons()
+        st.markdown(f"📦 Entregas em **Confirmar Produção**: **{st.session_state._qtd_confirmadas}**")
+        st.markdown(f"🗂️ Entregas em **Pré-Roteirização**: **{st.session_state._qtd_pre_roterizacao}**")
+        st.session_state._sync_success_message_displayed = False
+        st.session_state._qtd_confirmadas = 0
+        st.session_state._qtd_pre_roterizacao = 0
 
-        st.markdown("### 1. Carregar Planilha Excel")
-            
-        arquivo_excel = st.file_uploader(
-            "Selecione a planilha da fBaseroter:", 
-            type=["xlsx"], 
-            key=f"sync_file_uploader_{st.session_state.file_uploader_key}"
-        )
+    st.markdown("### 1. Carregar Planilha Excel")
+        
+    arquivo_excel = st.file_uploader(
+        "Selecione a planilha da fBaseroter:", 
+        type=["xlsx"], 
+        key=f"sync_file_uploader_{st.session_state.file_uploader_key}"
+    )
 
-        current_file_hash = None
-        if arquivo_excel:
-            current_file_hash = hashlib.md5(arquivo_excel.getvalue()).hexdigest()
+    current_file_hash = None
+    if arquivo_excel:
+        current_file_hash = hashlib.md5(arquivo_excel.getvalue()).hexdigest()
 
-        if current_file_hash != st.session_state.uploaded_sync_file_hash:
-            st.session_state.uploaded_sync_file_hash = current_file_hash
-            st.session_state.sync_triggered = False
-            st.session_state.df_for_sync_cache = None
+    if current_file_hash != st.session_state.uploaded_sync_file_hash:
+        st.session_state.uploaded_sync_file_hash = current_file_hash
+        st.session_state.sync_triggered = False
+        st.session_state.df_for_sync_cache = None
 
-        if arquivo_excel:
-            try:
-                if st.session_state.df_for_sync_cache is None:
-                    df_raw = pd.read_excel(arquivo_excel)
-                    df_raw.columns = df_raw.columns.str.strip()
-                    st.session_state.df_for_sync_cache = df_raw
+    if arquivo_excel:
+        try:
+            if st.session_state.df_for_sync_cache is None:
+                df_raw = pd.read_excel(arquivo_excel)
+                df_raw.columns = df_raw.columns.str.strip()
+                st.session_state.df_for_sync_cache = df_raw
 
-                st.success(f"Arquivo '{arquivo_excel.name}' carregado com sucesso!")
-                st.write("Clique em 'Iniciar Sincronização' para começar o processo.")
+            st.success(f"Arquivo '{arquivo_excel.name}' carregado com sucesso!")
+            st.write("Clique em 'Iniciar Sincronização' para começar o processo.")
 
-                if st.button("🚀 Iniciar Sincronização", key="start_sync_button", disabled=st.session_state.sync_triggered):
-                    st.session_state.sync_triggered = True
-                    st.rerun()
-
-            except Exception as e:
-                st.error(f"Erro ao ler o arquivo Excel: {e}")
-                st.session_state.uploaded_sync_file_hash = None
-                st.session_state.sync_triggered = False
-                st.session_state.df_for_sync_cache = None
-
-        elif not arquivo_excel and st.session_state.uploaded_sync_file_hash:
-            st.session_state.uploaded_sync_file_hash = None
-            st.session_state.df_for_sync_cache = None
-            st.session_state.sync_triggered = False
-            st.info("Nenhum arquivo carregado. Faça o upload de um novo arquivo Excel para sincronizar.")
-            return
-        else:
-            st.info("Aguardando o upload de um arquivo Excel para iniciar a sincronização.")
-            return
-
-        if st.session_state.sync_triggered:
-            st.markdown("---")
-            progress_bar = st.progress(0)
-            
-            try:
-                progress_bar.progress(10)
-
-                df_to_process = st.session_state.df_for_sync_cache.copy()
-
-                colunas_para_remover = ['Capa de Canhoto de NF', 'Unnamed: 70']
-                colunas_existentes_para_remover = [col for col in colunas_para_remover if col in df_to_process.columns]
-                if colunas_existentes_para_remover:
-                    df_to_process.drop(columns=colunas_existentes_para_remover, inplace=True)
-
-                renomear_colunas = {
-                    'Cubagem em m3': 'Cubagem em m³',
-                    'Serie/Numero CTRC': 'Serie_Numero_CTRC'
-                }
-                colunas_renomeadas = {k: v for k, v in renomear_colunas.items() if k in df_to_process.columns}
-                if colunas_renomeadas:
-                    df_to_process.rename(columns=colunas_renomeadas, inplace=True)
-                
-                df_to_process = corrigir_tipos(df_to_process)
-                df_to_process = _prepare_df_for_supabase_insert(df_to_process)
-
-                supabase.table("fBaseroter").delete().neq("Serie_Numero_CTRC", "").execute()
-                inserir_em_lote("fBaseroter", df_to_process)
-
-                progress_bar.progress(30)
-                progress_bar.progress(50)
-                limpar_tabelas_relacionadas()
-                progress_bar.progress(70)
-                progress_bar.progress(90)
-                aplicar_regras_e_preencher_tabelas()
-                progress_bar.progress(95)
-
-                st.session_state["reload_confirmadas_producao"] = True
-                st.session_state.pop("df_confirmadas_cache", None)
-
-                st.session_state["reload_aprovacao_diretoria"] = True 
-                st.session_state["reload_pre_roterizacao"] = True
-                st.session_state.pop("df_pre_roterizacao_cache", None)
-                st.session_state.pop("dados_confirmados_cache", None) 
-                st.session_state["reload_rotas_confirmadas"] = True
-                st.session_state.pop("df_rotas_confirmadas_cache", None)
-                st.session_state["reload_cargas_geradas"] = True
-                st.session_state.pop("df_cargas_cache", None)
-                st.session_state["reload_aprovacao_custos"] = True
-                st.session_state.pop("df_aprovacao_custos_cache", None)
-                st.session_state["reload_cargas_aprovadas"] = True
-                st.session_state.pop("df_cargas_aprovadas_cache", None)
-
-                progress_bar.progress(100)
-
-                try:
-                    qtd_confirmadas = len(supabase.table("confirmadas_producao").select("Serie_Numero_CTRC").execute().data or [])
-                    qtd_pre_roterizacao = len(supabase.table("pre_roterizacao").select("Serie_Numero_CTRC").execute().data or [])
-
-                    st.session_state._sync_success_message_displayed = True
-                    st.session_state._qtd_confirmadas = qtd_confirmadas
-                    st.session_state._qtd_pre_roterizacao = qtd_pre_roterizacao
-
-                except Exception as e:
-                    st.error("⚠️ Sincronização concluída, mas houve erro ao consultar os totais.")
-                    st.exception(e)
-
-                salvar_hora_sincronizacao()
-
-                st.session_state.sync_triggered = False
-                st.session_state.uploaded_sync_file_hash = None
-                st.session_state.df_for_sync_cache = None
-                st.session_state.file_uploader_key += 1
+            if st.button("🚀 Iniciar Sincronização", key="start_sync_button", disabled=st.session_state.sync_triggered):
+                st.session_state.sync_triggered = True
                 st.rerun()
 
+        except Exception as e:
+            st.error(f"Erro ao ler o arquivo Excel: {e}")
+            st.session_state.uploaded_sync_file_hash = None
+            st.session_state.sync_triggered = False
+            st.session_state.df_for_sync_cache = None
+
+    elif not arquivo_excel and st.session_state.uploaded_sync_file_hash:
+        st.session_state.uploaded_sync_file_hash = None
+        st.session_state.df_for_sync_cache = None
+        st.session_state.sync_triggered = False
+        st.info("Nenhum arquivo carregado. Faça o upload de um novo arquivo Excel para sincronizar.")
+        return
+    else:
+        st.info("Aguardando o upload de um arquivo Excel para iniciar a sincronização.")
+        return
+
+    if st.session_state.sync_triggered:
+        st.markdown("---")
+        progress_bar = st.progress(0)
+        
+        try:
+            progress_bar.progress(10)
+
+            df_to_process = st.session_state.df_for_sync_cache.copy()
+
+            colunas_para_remover = ['Capa de Canhoto de NF', 'Unnamed: 70']
+            colunas_existentes_para_remover = [col for col in colunas_para_remover if col in df_to_process.columns]
+            if colunas_existentes_para_remover:
+                df_to_process.drop(columns=colunas_existentes_para_remover, inplace=True)
+
+            renomear_colunas = {
+                'Cubagem em m3': 'Cubagem em m³',
+                'Serie/Numero CTRC': 'Serie_Numero_CTRC'
+            }
+            colunas_renomeadas = {k: v for k, v in renomear_colunas.items() if k in df_to_process.columns}
+            if colunas_renomeadas:
+                df_to_process.rename(columns=colunas_renomeadas, inplace=True)
+            
+            df_to_process = corrigir_tipos(df_to_process)
+            df_to_process = _prepare_df_for_supabase_insert(df_to_process)
+
+            supabase.table("fBaseroter").delete().neq("Serie_Numero_CTRC", "").execute()
+            inserir_em_lote("fBaseroter", df_to_process)
+
+            progress_bar.progress(30)
+            progress_bar.progress(50)
+            limpar_tabelas_relacionadas()
+            progress_bar.progress(70)
+            progress_bar.progress(90)
+            aplicar_regras_e_preencher_tabelas()
+            progress_bar.progress(95)
+
+            st.session_state["reload_confirmadas_producao"] = True
+            st.session_state.pop("df_confirmadas_cache", None)
+
+            st.session_state["reload_aprovacao_diretoria"] = True 
+            st.session_state["reload_pre_roterizacao"] = True
+            st.session_state.pop("df_pre_roterizacao_cache", None)
+            st.session_state.pop("dados_confirmados_cache", None) 
+            st.session_state["reload_rotas_confirmadas"] = True
+            st.session_state.pop("df_rotas_confirmadas_cache", None)
+            st.session_state["reload_cargas_geradas"] = True
+            st.session_state.pop("df_cargas_cache", None)
+            st.session_state["reload_aprovacao_custos"] = True
+            st.session_state.pop("df_aprovacao_custos_cache", None)
+            st.session_state["reload_cargas_aprovadas"] = True
+            st.session_state.pop("df_cargas_aprovadas_cache", None)
+
+            progress_bar.progress(100)
+
+            try:
+                qtd_confirmadas = len(supabase.table("confirmadas_producao").select("Serie_Numero_CTRC").execute().data or [])
+                qtd_pre_roterizacao = len(supabase.table("pre_roterizacao").select("Serie_Numero_CTRC").execute().data or [])
+
+                st.session_state._sync_success_message_displayed = True
+                st.session_state._qtd_confirmadas = qtd_confirmadas
+                st.session_state._qtd_pre_roterizacao = qtd_pre_roterizacao
+
             except Exception as e:
-                st.error(f"❌ Ocorreu um erro crítico durante a sincronização: {e}")
+                st.error("⚠️ Sincronização concluída, mas houve erro ao consultar os totais.")
                 st.exception(e)
 
-                st.session_state.sync_triggered = False
-                st.session_state.uploaded_sync_file_hash = None
-                st.session_state.df_for_sync_cache = None
-                st.session_state.file_uploader_key += 1
-                
-                salvar_hora_sincronizacao()
-                time.sleep(3)
-                st.rerun()
+            salvar_hora_sincronizacao()
 
-    # Coluna direita (espaçador) - pode ficar vazia ou com conteúdo opcional
-    with col_spacer:
-        # Esta coluna fica vazia para criar espaço à direita
-        # Ou você pode adicionar conteúdo secundário aqui se desejar
-        pass
+            st.session_state.sync_triggered = False
+            st.session_state.uploaded_sync_file_hash = None
+            st.session_state.df_for_sync_cache = None
+            st.session_state.file_uploader_key += 1
+            st.rerun()
+
+        except Exception as e:
+            st.error(f"❌ Ocorreu um erro crítico durante a sincronização: {e}")
+            st.exception(e)
+
+            st.session_state.sync_triggered = False
+            st.session_state.uploaded_sync_file_hash = None
+            st.session_state.df_for_sync_cache = None
+            st.session_state.file_uploader_key += 1
+            
+            salvar_hora_sincronizacao()
+            time.sleep(3)
+            st.rerun()
+
+
+
 #___________________________________________________________________________________
 def inserir_em_lote(nome_tabela, df, lote=100, tentativas=3, pausa=0.2):
     # ATENÇÃO: Nenhuma definição de 'colunas_data = [...]' deve existir aqui dentro.
@@ -2331,7 +2324,6 @@ def pagina_confirmar_producao():
                     f"<span style='font-weight:bold;'>📏 Peso Calculado:</span> {formatar_brasileiro(peso_calc_sel)} kg",
                     unsafe_allow_html=True
                 )
-
 
                 # Botão para confirmar produção
                 if not selecionadas.empty:
