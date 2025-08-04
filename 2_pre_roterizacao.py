@@ -1869,25 +1869,18 @@ def formatar_brasileiro(valor):
 
 ############################## Gerar PDF ########################################################
 
-def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, veiculo, valor_frete, valor_contratacao, for_print=False):
+def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, veiculo, valor_frete, valor_contratacao, valor_sugerido_contratacao=None, for_print=False):
     buffer = BytesIO()
 
-    # Confirme que este é o caminho EXATO para o seu logo.png
     image_path = r"C:\Users\Rafael\Roteriza\Scripts\logo.png" 
-    img_width = 1.0 * inch # Largura desejada para o logo
-    img_height = 0.75 * inch # Altura desejada para o logo
+    img_width = 1.0 * inch
+    img_height = 0.75 * inch
 
     def draw_image_on_page(canvas_obj, doc):
         page_width, page_height = landscape(letter)
         
-        # --- ALTERAÇÃO PRINCIPAL AQUI: Usar as margens do documento ---
-        # x_pos: Alinha com a margem esquerda do documento
         x_pos = doc.leftMargin 
         
-        # y_pos: Calcula a posição Y para que o topo da imagem esteja alinhado
-        # com a margem superior do documento.
-        # page_height - doc.topMargin é a posição da margem superior.
-        # Subtraímos img_height para obter a posição inferior da imagem.
         y_pos = page_height - img_height - doc.topMargin
         try:
             canvas_obj.drawImage(image_path, x_pos, y_pos, width=img_width, height=img_height, preserveAspectRatio=True)
@@ -1897,11 +1890,11 @@ def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, veiculo, valor_f
     doc = SimpleDocTemplate(
         buffer,
         pagesize=landscape(letter),
-        rightMargin=inch / 2, # 0.5 polegadas
-        leftMargin=inch / 2, # Aumentei um pouco para 0.5 para dar espaço à imagem
-        topMargin=inch / 2,  # 0.5 polegadas
+        rightMargin=inch / 2, 
+        leftMargin=inch / 2, 
+        topMargin=inch / 2,  
         bottomMargin=inch / 2,
-        onPage=draw_image_on_page # Continua chamando a função para desenhar em cada página
+        onPage=draw_image_on_page 
     )
     styles = getSampleStyleSheet()
     h1 = styles['h1']
@@ -1928,10 +1921,8 @@ def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, veiculo, valor_f
 
     elements = []
 
-       # --- ADICIONE ESTA LINHA AQUI! (Espaço para o logo) ---
-    elements.append(Spacer(1, 0.75 * inch)) # Ajuste 0.75 conforme necessário para o tamanho do seu logo
+    elements.append(Spacer(1, 0.75 * inch))
 
-    # --- Cabeçalho da Carga ---
     elements.append(Paragraph(f"Detalhes da Carga: <font color='#1A73E8'><b>{carga}</b></font>", h1))
     elements.append(Spacer(1, 0.2 * inch))
 
@@ -1940,22 +1931,15 @@ def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, veiculo, valor_f
             Paragraph(f"<b>Rota:</b> {rota}", styles['CustomNormal']),
             Paragraph(f"<b>Motorista:</b> {motorista if motorista and motorista.strip() else '<i>Não Informado</i>'}", styles['CustomNormal']),
             Paragraph(f"<b>Placa:</b> {placa if placa and placa.strip() else '<i>Não Informada</i>'}", styles['CustomNormal']),
+            "" 
         ],
         [
             Paragraph(f"<b>Tipo de Veículo:</b> {veiculo if veiculo and veiculo.strip() else '<i>Não Informado</i>'}", styles['CustomNormal']),
             Paragraph(f"<b>Valor de Contratação:</b> R$ {formatar_brasileiro(valor_contratacao)}", styles['CustomNormal']),
-            Paragraph(f"<b>Valor Total do Frete:</b> R$ {formatar_brasileiro(valor_frete)}", styles['CustomNormal']),
-            ""
+            Paragraph(f"<b>Valor Sugerido:</b> R$ {formatar_brasileiro(valor_sugerido_contratacao)}" if (valor_sugerido_contratacao is not None and not for_print) else "", styles['CustomNormal']),
+            Paragraph(f"<b>Valor Total do Frete:</b> R$ {formatar_brasileiro(valor_frete)}" if not for_print else "", styles['CustomNormal'])
         ]
     ]
-
-        # Adiciona o Valor Total do Frete APENAS se não for o PDF de impressão
-    if not for_print:
-        # Aumenta a lista da segunda linha (índice 1) para incluir o Valor Total do Frete
-        info_data[1][2] = Paragraph(f"<b>Valor Total do Frete:</b> R$ {formatar_brasileiro(valor_frete)}", styles['CustomNormal'])
-    else:
-        # Se for para impressão, garante que o terceiro item da segunda linha esteja vazio ou como um traço
-        info_data[1][2] = "" # ou "-" para preencher o espaço, se preferir
 
     info_table = Table(info_data)
     info_table.setStyle(TableStyle([
@@ -1966,7 +1950,6 @@ def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, veiculo, valor_f
     ]))
     elements.append(info_table)
 
-    # --- Cálculo Totais ---
     df_entregas["Peso Real em Kg"] = pd.to_numeric(df_entregas.get("Peso Real em Kg", 0), errors="coerce").fillna(0)
     df_entregas["Cubagem em m³"] = pd.to_numeric(df_entregas.get("Cubagem em m³", 0), errors="coerce").fillna(0)
 
@@ -1995,7 +1978,6 @@ def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, veiculo, valor_f
     ]))
     elements.append(resumo_table)
 
-    # --- Tabela de Entregas ---
     elements.append(Spacer(1, 0.3 * inch))
     elements.append(Paragraph("<b>Entregas Associadas:</b>", styles['h2']))
     elements.append(Spacer(1, 0.1 * inch))
@@ -2014,13 +1996,16 @@ def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, veiculo, valor_f
         "Cubagem em m³": "Cubagem<br/>(m³)",
         "Serie_Numero_CTRC": "Série/Nº<br/>CTRC"
     }
+    cols_header_map["Valor do Frete"] = "Valor do<br/>Frete" 
+    
 
     requested_order_keys = [
         "Numero da Nota Fiscal", "Cliente Pagador", "Cidade de Entrega", "Quantidade de Volumes",
         "Cliente Destinatario", "Bairro do Destinatario", "Previsao de Entrega",
-        "Entrega Programada", "Peso Calculado em Kg", "Peso Real em Kg", "Cubagem em m³","Serie_Numero_CTRC"
+        "Entrega Programada", "Peso Calculado em Kg", "Peso Real em Kg", "Cubagem em m³",
+        "Serie_Numero_CTRC"
     ]
-
+    requested_order_keys.insert(requested_order_keys.index("Cubagem em m³") + 1, "Valor do Frete") 
     df_filtrado = df_entregas[[col for col in requested_order_keys if col in df_entregas.columns]].copy()
 
     header_row = []
@@ -2053,10 +2038,21 @@ def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, veiculo, valor_f
         elements.append(Paragraph("<i>Nenhuma entrega detalhada disponível para esta carga.</i>", styles['CustomNormal']))
     else:
         col_widths = [
-            0.8 * inch, 1.0 * inch, 1.1 * inch, 0.7 * inch, 0.9 * inch,
-            0.7 * inch, 0.9 * inch, 0.7 * inch, 0.8 * inch, 0.8 * inch, 0.7 * inch,
-            0.9 * inch 
-        ]
+            0.7 * inch, 
+            1.0 * inch, 
+            1.1 * inch, 
+            0.6 * inch, 
+            0.9 * inch, 
+            0.7 * inch, 
+            0.7 * inch, 
+            0.7 * inch, 
+            0.7 * inch, 
+            0.7 * inch, 
+            0.6 * inch, 
+            0.7 * inch, 
+            0.9 * inch  
+        ] 
+
         table = Table(dados_tabela, colWidths=col_widths, hAlign='LEFT')
         table.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#EFEFEF')),
@@ -3467,7 +3463,7 @@ def pagina_cargas_geradas():
                     cor_badge_custo = "#dc3545"  # Vermelho - acima da meta (acima de 50%)
                     cor_texto_custo = "white"
             elif info_valor_contratacao_raw > 0:
-                percentual_custo_texto = "Frete R\$ 0"
+                percentual_custo_texto = "Frete R$ 0"
                 cor_badge_custo = "#6c757d"
             elif total_frete_carga > 0:
                 percentual_custo_texto = "Sem contratação"
@@ -3565,7 +3561,8 @@ def pagina_cargas_geradas():
                                     placa=pdf_placa,
                                     veiculo=pdf_veiculo, 
                                     valor_frete=total_frete_carga,
-                                    valor_contratacao=pdf_valor_contratacao
+                                    valor_contratacao=pdf_valor_contratacao,
+                                    valor_sugerido_contratacao=valor_sugerido_contratacao
                                 )
 
                             data_pdf_download = datetime.now(timezone.utc).isoformat()
@@ -4163,7 +4160,7 @@ def pagina_aprovacao_custos():
                     situacao_custo_regional = "Frete total zero, Contratação > 0"
                     cor_situacao = "#dc3545"
                     # Tratamento para frete zero com contratação
-                    percentual_custo_texto = "Frete R\$ 0"
+                    percentual_custo_texto = "Frete R$ 0"
                     cor_badge_custo = "#6c757d"
                     cor_texto_custo = "white"
                 else:
@@ -4230,6 +4227,16 @@ def pagina_aprovacao_custos():
                     """,
                     unsafe_allow_html=True
                 )
+
+
+            valor_sugerido_contratacao_aprov_custos = 0.0 # Inicializar
+            if total_frete_carga > 0 and dominant_region != 'NÃO DEFINIDA': # 'dominant_region' e 'total_frete_carga' já devem estar no escopo
+                max_cost_allowed_aprov_custos = MAX_COST_PER_REGION.get(dominant_region, None)
+                if max_cost_allowed_aprov_custos is not None:
+                    valor_sugerido_contratacao_aprov_custos = total_frete_carga * max_cost_allowed_aprov_custos
+                    valor_sugerido_contratacao_aprov_custos = round(valor_sugerido_contratacao_aprov_custos, 2)
+                    valor_sugerido_contratacao_aprov_custos = max(0.0, valor_sugerido_contratacao_aprov_custos)
+                # FIM DO CÁLCULO
 
             with col2_placeholder: # Coluna para o PDF
                 if st.button("📥 PDF", key=f"pdf_{carga}"):
@@ -4725,7 +4732,7 @@ def pagina_cargas_aprovadas():
                 rentabilidade_percentual = 0.0
                 # Tratamento para frete zero
                 if valor_contratacao_carga > 0:
-                    percentual_custo_texto = "Frete R\$ 0"
+                    percentual_custo_texto = "Frete R$ 0"
                     cor_badge_custo = "#6c757d"
                     cor_texto_custo = "white"
                 else:
@@ -5341,10 +5348,10 @@ def pagina_cargas_fechadas():
             all_badges_html_list.append(badge(f'{len(df_carga)} entregas'))
             all_badges_html_list.append(badge(f'{formatar_brasileiro(df_carga["Peso Calculado em Kg"].sum())} kg calc'))
             all_badges_html_list.append(badge(f'{formatar_brasileiro(df_carga["Peso Real em Kg"].sum())} kg real'))
-            all_badges_html_list.append(badge(f'Valor frete: R\$ {formatar_brasileiro(total_frete_carga)}'))
+            all_badges_html_list.append(badge(f'Valor frete: R$ {formatar_brasileiro(total_frete_carga)}'))
             all_badges_html_list.append(badge(f'{formatar_brasileiro(df_carga["Cubagem em m³"].sum())} m³'))
             all_badges_html_list.append(badge(f'{int(df_carga["Quantidade de Volumes"].sum())} volumes'))
-            all_badges_html_list.append(badge(f'Valor Contratação: R\$ {formatar_brasileiro(valor_contratacao_carga)}'))
+            all_badges_html_list.append(badge(f'Valor Contratação: R$ {formatar_brasileiro(valor_contratacao_carga)}'))
             all_badges_html_list.append(badge(f'Motorista: {motorista_carga}'))
             all_badges_html_list.append(badge(f'Placa: {placa_carga}'))
             all_badges_html_list.append(badge(f'Veículo: {veiculo_carga}'))
@@ -5416,24 +5423,10 @@ def pagina_cargas_fechadas():
 
             with col_excel:
                 try:
-                    import io
-                    output = io.StringIO()
-
-                    for col in df_carga.select_dtypes(include=['datetimetz']).columns:
-                        df_carga[col] = df_carga[col].dt.tz_localize(None)
-
-                    cols_as_text = ["Chave CT-e", "Serie_Numero_CTRC"]
-                    df_csv_export = df_carga.copy()
-
-                    for col in df_csv_export.columns:
-                        if col in cols_as_text:
-                            df_csv_export[col] = df_csv_export[col].astype(str).str.strip().apply(lambda x: f"'{x}'" if x else '')
-                        elif isinstance(df_csv_export[col].dtype, pd.DatetimeTZDtype) or pd.api.types.is_datetime64_any_dtype(df_csv_export[col]):
-                            df_csv_export[col] = df_csv_export[col].dt.strftime('%Y-%m-%d %H:%M:%S').fillna('')
-                        else:
-                            df_csv_export[col] = df_csv_export[col].astype(str).str.strip()
-
-                    csv_content = df_csv_export.to_csv(index=False, sep=';', encoding='utf-8-sig')
+                    df_chaves_cte = df_carga[['Chave CT-e']].copy()
+                    df_chaves_cte['Chave CT-e'] = df_chaves_cte['Chave CT-e'].astype(str).apply(lambda x: '="' + re.sub(r'\D', '', x) + '"')
+                    
+                    csv_content = df_chaves_cte.to_csv(index=False, sep=';', encoding='utf-8-sig')
 
                     if st.button(f"📥 Gerar CSV SSW {carga}", key=f"btn_csv_{carga}"):
                         data_csv_download = datetime.now(timezone.utc).isoformat()
@@ -5455,7 +5448,20 @@ def pagina_cargas_fechadas():
                         st.download_button(
                             label="⬇️ Clique para baixar o CSV",
                             data=csv_content,
-                            file_name=f"carga_encerrada_{carga}.csv",
+                            file_name=f"chaves_ct_e_carga_encerrada_{carga}.csv",
+                            mime="text/csv",
+                            key=f"download_csv_chaves_carga_{carga}"
+                        )
+
+                except Exception as e:
+                    st.error(f"❌ Erro ao gerar CSV da carga {carga}: {e}")
+
+
+                    if f"csv_downloaded_{carga}" in st.session_state:
+                        st.download_button(
+                            label="⬇️ Clique para baixar o CSV",
+                            data=csv_content,
+                            file_name=f"chaves_ct_e_carga_encerrada_{carga}.csv",
                             mime="text/csv",
                             key=f"download_csv_chaves_carga_{carga}"
                         )
