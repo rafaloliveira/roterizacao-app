@@ -5423,22 +5423,21 @@ def pagina_cargas_fechadas():
 
             with col_excel:
                 try:
-                    # Seleciona ambas as colunas para o DataFrame que será exportado
+                    if 'Serie_Numero_CTRC' not in df_carga.columns:
+                        st.error(f"Coluna 'Serie_Numero_CTRC' NÃO ENCONTRADA em df_carga para a carga {carga}. Verifique a origem dos dados no Supabase ou no carregamento inicial.")
+                        return 
+                    
                     df_export = df_carga[['Chave CT-e', 'Serie_Numero_CTRC']].copy()
 
-                    # Formata Chave CT-e: remove não-dígitos e envolve em ="", para Excel interpretar como texto
                     df_export['Chave CT-e'] = df_export['Chave CT-e'].astype(str).apply(lambda x: '="' + re.sub(r'\D', '', x) + '"')
                     
-                    # Formata Serie_Numero_CTRC: converte para string e envolve em ="", para Excel interpretar como texto
-                    # Garante que valores nulos (NaN) também sejam tratados como string vazia
-                    if 'Serie_Numero_CTRC' in df_export.columns:
-                        df_export['Serie_Numero_CTRC'] = df_export['Serie_Numero_CTRC'].apply(
-                            lambda x: '="' + str(x) + '"' if pd.notna(x) else '=""'
-                        )
+                    df_export['Serie_Numero_CTRC'] = df_export['Serie_Numero_CTRC'].apply(
+                        lambda x: '="' + str(x) + '"' if pd.notna(x) else '=""'
+                    )
                     
                     csv_content = df_export.to_csv(index=False, sep=';', encoding='utf-8-sig')
 
-                    if st.button(f"📥 Gerar CSV SSW {carga}", key=f"btn_csv_{carga}"):
+                    if st.button(f" ⬇📥 Gerar CSV SSW {carga}", key=f"btn_csv_{carga}"):
                         data_csv_download = datetime.now(timezone.utc).isoformat()
 
                         try:
@@ -5454,8 +5453,21 @@ def pagina_cargas_fechadas():
                         except Exception as e:
                             st.error(f"❌ Erro ao salvar csv_downloaded_at no banco: {e}")
 
+                    if f"csv_downloaded_{carga}" in st.session_state:
+                        st.download_button(
+                            label="⬇️ Clique para baixar o CSV",
+                            data=csv_content,
+                            file_name=f"chaves_e_series_carga_encerrada_{carga}.csv",
+                            mime="text/csv",
+                            key=f"download_csv_chaves_carga_{carga}"
+                        )
 
-                            
+                except Exception as e:
+                    st.error(f"❌ Erro ao gerar CSV da carga {carga}: {e}")
+
+
+
+
 
                     if f"csv_downloaded_{carga}" in st.session_state:
                         st.download_button(
