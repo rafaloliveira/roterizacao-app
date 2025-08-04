@@ -3442,6 +3442,39 @@ def pagina_cargas_geradas():
                 valor_sugerido_contratacao = round(valor_sugerido_contratacao, 2)
                 valor_sugerido_contratacao = max(0.0, valor_sugerido_contratacao)
 
+
+            # --- CÁLCULO DO PERCENTUAL DE CUSTO ---
+            percentual_custo = 0.0
+            percentual_custo_texto = "N/A"
+            cor_badge_custo = "#6c757d"  # Cinza padrão
+            cor_texto_custo = "white"
+
+            if total_frete_carga > 0 and info_valor_contratacao_raw > 0:
+                percentual_custo = (info_valor_contratacao_raw / total_frete_carga) * 100
+                percentual_custo_texto = f"{percentual_custo:.1f}%"
+                
+                # Determinar a cor do badge baseado nos novos limites fixos
+                if percentual_custo <= 35.0:
+                    cor_badge_custo = "#28a745"  # Verde - dentro da meta (até 35%)
+                    cor_texto_custo = "white"
+                elif percentual_custo <= 45.0:
+                    cor_badge_custo = "#ffc107"  # Amarelo - aceitável (35.1% a 45%)
+                    cor_texto_custo = "black"
+                elif percentual_custo <= 50.0:
+                    cor_badge_custo = "#fd7e14"  # Laranja - próximo ao limite (45.1% a 50%)
+                    cor_texto_custo = "white"
+                else:
+                    cor_badge_custo = "#dc3545"  # Vermelho - acima da meta (acima de 50%)
+                    cor_texto_custo = "white"
+            elif info_valor_contratacao_raw > 0:
+                percentual_custo_texto = "Frete R\$ 0"
+                cor_badge_custo = "#6c757d"
+            elif total_frete_carga > 0:
+                percentual_custo_texto = "Sem contratação"
+                cor_badge_custo = "#6c757d"
+
+
+
             st.markdown(f"""
             <div style="margin-top:20px;padding:10px;background:#e8f0fe;border-left:4px solid #34a853;border-radius:6px;display:inline-block;max-width:100%;">
                 <strong>Carga:</strong> {carga} &nbsp; | &nbsp;
@@ -3463,6 +3496,7 @@ def pagina_cargas_geradas():
                 badge_motorista = badge(f'Motorista: {info_motorista}')
                 badge_placa = badge(f'Placa: {info_placa}')
                 badge_valor_contratacao_badge = badge(f'Valor da Contratação: R$ {info_valor_contratacao}') # Use a variável formatada para o badge
+                badge_percentual_custo = badge(f'Custo: {percentual_custo_texto}', background_color=cor_badge_custo, text_color=cor_texto_custo)
 
                 # Lógica para determinar a data de download do PDF Completo para o badge
                 pdf_downloaded_display_date = None
@@ -3493,7 +3527,8 @@ def pagina_cargas_geradas():
                     badge_motorista,
                     badge_placa,
                     badge_valor_contratacao_badge, # Use o badge com o valor formatado
-                    pdf_badge_html_fragment
+                    pdf_badge_html_fragment,
+                    badge_percentual_custo
                 ]
 
                 if badge_motivo_rejeicao:
@@ -4947,7 +4982,7 @@ def pagina_cargas_fechadas():
                                  (st.session_state.get("df_cargas_fechadas_cache") is not None and st.session_state["df_cargas_fechadas_cache"].empty)
 
     try:
-        with st.spinner("�� Carregando dados para cargas fechadas..."):
+        with st.spinner("🔄 Carregando dados para cargas fechadas..."):
             if should_reload_from_supabase:
                 dados = supabase.table("cargas_fechadas").select("*").execute().data
 
