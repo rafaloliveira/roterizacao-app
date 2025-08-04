@@ -2332,7 +2332,6 @@ def pagina_confirmar_producao():
                     unsafe_allow_html=True
                 )
 
-                st.markdown("---")
 
                 # Botão para confirmar produção
                 if not selecionadas.empty:
