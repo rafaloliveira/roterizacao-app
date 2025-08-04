@@ -4691,16 +4691,49 @@ def pagina_cargas_aprovadas():
                         cor_situacao = "#dc3545"  # Vermelho
 
                     rentabilidade_percentual = ((frete - custo) / frete * 100).quantize(Decimal('0.01'))
+
+                     # --- CÁLCULO DO PERCENTUAL DE CUSTO PARA BADGE ---
+                    percentual_custo = float((custo / frete * 100).quantize(Decimal('0.1')))
+                    percentual_custo_texto = f"{percentual_custo:.1f}%"
+                    
+                    # Determinar a cor do badge baseado nos limites fixos
+                    if percentual_custo <= 35.0:
+                        cor_badge_custo = "#28a745"  # Verde - dentro da meta (até 35%)
+                        cor_texto_custo = "white"
+                    elif percentual_custo <= 45.0:
+                        cor_badge_custo = "#ffc107"  # Amarelo - aceitável (35.1% a 45%)
+                        cor_texto_custo = "black"
+                    elif percentual_custo <= 50.0:
+                        cor_badge_custo = "#fd7e14"  # Laranja - próximo ao limite (45.1% a 50%)
+                        cor_texto_custo = "white"
+                    else:
+                        cor_badge_custo = "#dc3545"  # Vermelho - acima da meta (acima de 50%)
+                        cor_texto_custo = "white"
                 
                 except Exception as e:
                     situacao_custo_regional = f"Erro no cálculo: {e}"
                     cor_situacao = "gray"
                     rentabilidade_percentual = 0.0
+                    # Tratamento para caso de erro no cálculo do badge
+                    percentual_custo_texto = "Erro no cálculo"
+                    cor_badge_custo = "#6c757d"
+                    cor_texto_custo = "white"
 
             else:
                 situacao_custo_regional = "Total do Frete zero, cálculo impossível."
                 cor_situacao = "gray"
                 rentabilidade_percentual = 0.0
+                # Tratamento para frete zero
+                if valor_contratacao_carga > 0:
+                    percentual_custo_texto = "Frete R\$ 0"
+                    cor_badge_custo = "#6c757d"
+                    cor_texto_custo = "white"
+                else:
+                    percentual_custo_texto = "Sem dados"
+                    cor_badge_custo = "#6c757d"
+                    cor_texto_custo = "white"
+                
+   
 
             st.markdown(f"""
             <div style="margin-top:20px;padding:10px;background:#e8f0fe;border-left:4px solid #34a853;border-radius:6px;display:inline-block;max-width:100%;">
@@ -4724,6 +4757,7 @@ def pagina_cargas_aprovadas():
                         {badge(f'Motorista: {motorista_carga}')}
                         {badge(f'Placa: {placa_carga}')}
                         {badge(f'Veículo: {veiculo_carga}')}
+                        {badge(f'Custo: {percentual_custo_texto}', background_color=cor_badge_custo, text_color=cor_texto_custo)}
                         {badge(f'Rentabilidade: {rentabilidade_percentual:.2f}%')}
                         {badge(f'Situação Custo: {situacao_custo_regional}', background_color=cor_situacao, text_color='white')}
                         {badge(f'Aprovado por: {aprovador_custos_login}')}
