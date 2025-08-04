@@ -4098,6 +4098,11 @@ def pagina_aprovacao_custos():
             situacao_custo_regional = "N/A" # Inicialização segura para 'situacao_custo_regional'
             cor_situacao = "gray"
 
+            # Inicialização das variáveis do badge de custo
+            percentual_custo_texto = "N/A"
+            cor_badge_custo = "#6c757d"  # Cinza padrão
+            cor_texto_custo = "white"
+
             getcontext().prec = 6 # Garante precisão para cálculos decimais
 
             if total_frete_carga > 0:
@@ -4124,20 +4129,50 @@ def pagina_aprovacao_custos():
                         cor_situacao = "#dc3545"  # Vermelho
 
                     rentabilidade_percentual = ((frete - custo) / frete * 100).quantize(Decimal('0.01'))
-                
+
+                    # --- CÁLCULO DO PERCENTUAL DE CUSTO PARA BADGE ---
+                    percentual_custo = float((custo / frete * 100).quantize(Decimal('0.1')))
+                    percentual_custo_texto = f"{percentual_custo:.1f}%"
+                    
+                    # Determinar a cor do badge baseado nos limites fixos
+                    if percentual_custo <= 35.0:
+                        cor_badge_custo = "#28a745"  # Verde - dentro da meta (até 35%)
+                        cor_texto_custo = "white"
+                    elif percentual_custo <= 45.0:
+                        cor_badge_custo = "#ffc107"  # Amarelo - aceitável (35.1% a 45%)
+                        cor_texto_custo = "black"
+                    elif percentual_custo <= 50.0:
+                        cor_badge_custo = "#fd7e14"  # Laranja - próximo ao limite (45.1% a 50%)
+                        cor_texto_custo = "white"
+                    else:
+                        cor_badge_custo = "#dc3545"  # Vermelho - acima da meta (acima de 50%)
+                        cor_texto_custo = "white"
+
                 except Exception as e:
                     situacao_custo_regional = f"Erro no cálculo: {e}"
                     cor_situacao = "gray"
                     rentabilidade_percentual = 0.0
+                    # Tratamento para caso de erro no cálculo do badge
+                    percentual_custo_texto = "Erro no cálculo"
+                    cor_badge_custo = "#6c757d"
+                    cor_texto_custo = "white"
 
             else:
                 rentabilidade_percentual = 0.0
                 if valor_contratacao_carga_existente > 0:
                     situacao_custo_regional = "Frete total zero, Contratação > 0"
                     cor_situacao = "#dc3545"
+                    # Tratamento para frete zero com contratação
+                    percentual_custo_texto = "Frete R\$ 0"
+                    cor_badge_custo = "#6c757d"
+                    cor_texto_custo = "white"
                 else:
                     situacao_custo_regional = "Frete total zero, Contratação zero"
                     cor_situacao = "gray"
+                    # Tratamento para ambos zero
+                    percentual_custo_texto = "Sem dados"
+                    cor_badge_custo = "#6c757d"
+                    cor_texto_custo = "white"
 
             # --- 3. Inicialização de Variáveis de Estado da Justificativa (AGORA DEPOIS QUE situacao_custo_regional É GARANTIDA) ---
             justificativa_necessaria = False
@@ -4161,7 +4196,6 @@ def pagina_aprovacao_custos():
                 st.session_state[just_key_session_aprov] = ""
             if confirm_justify_key_session_aprov not in st.session_state:
                 st.session_state[confirm_justify_key_session_aprov] = False
-
 
             # --- 4. Exibição de Informações da Carga (Badges) ---
             rota_dominante = "–"
@@ -4189,6 +4223,7 @@ def pagina_aprovacao_custos():
                         {badge(f'Motorista: {motorista_}')}
                         {badge(f'Placa: {placa_veiculo}')}
                         {badge(f'Veículo: {veiculo}')}
+                        {badge(f'Custo: {percentual_custo_texto}', background_color=cor_badge_custo, text_color=cor_texto_custo)}
                         {badge(f'Rentabilidade: {rentabilidade_percentual:.2f}%')}
                         {badge(f'Situação Custo: {situacao_custo_regional}', background_color=cor_situacao, text_color='white')}
                     </div>
