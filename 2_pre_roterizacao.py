@@ -1890,7 +1890,7 @@ def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, veiculo, valor_f
     df_entregas_formatted_for_pdf = apply_brazilian_date_format_for_display(df_entregas.copy())
     # ------------------------------------------------------------------
 
-    image_path = r"C:\Users\Rafael\Roteriza\Scripts\logo.png"
+    #image_path = r"C:\Users\Rafael\Roteriza\Scripts\logo.png"
     img_width = 1.0 * inch
     img_height = 0.75 * inch
 
