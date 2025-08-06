@@ -1890,7 +1890,7 @@ def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, veiculo, valor_f
     df_entregas_formatted_for_pdf = apply_brazilian_date_format_for_display(df_entregas.copy())
     # ------------------------------------------------------------------
 
-    #image_path = r"C:\Users\Rafael\Roteriza\Scripts\logo.png"
+    image_path = r"C:\Users\Rafael\Roteriza\Scripts\logo.png"
     img_width = 1.0 * inch
     img_height = 0.75 * inch
 
@@ -6001,7 +6001,7 @@ login()  # Garante que o usuário esteja logado
 
 # Mostra welcome + botão sair no topo da página principal
 if st.session_state.get("login", False):
-    image_path = "assets/Logo FA.png" 
+    image_path = "assets/logo_fundo_branco.jpg" 
 
     col_welcome_text, col_image_display, col_logout_button = st.columns([2, 2, 1])
 

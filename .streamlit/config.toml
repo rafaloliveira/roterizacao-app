@@ -1,0 +1,8 @@
+[theme]
+base="dark"
+# Você também pode personalizar cores específicas se desejar, mas para apenas dark/light, 'base' é suficiente.
+# primaryColor="#F63366"  # Exemplo de cor primária
+# backgroundColor="#0E1117" # Exemplo de cor de fundo (para dark, geralmente não precisa mudar)
+# secondaryBackgroundColor="#262730" # Exemplo de cor de fundo secundária
+# textColor="#FAFAFA" # Exemplo de cor de texto
+# font="sans serif" # "sans serif", "serif" ou "monospace"
