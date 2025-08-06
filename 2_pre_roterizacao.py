@@ -55,7 +55,7 @@ from decimal import Decimal, ROUND_HALF_UP, getcontext
 
 
 # --- Definições de Constantes Globais para Pylance (Adicione no topo do arquivo) ---
-locale.setlocale(locale.LC_ALL, 'pt_BR.UTF-8')
+#locale.setlocale(locale.LC_ALL, 'pt_BR.UTF-8')
 FUSO_BRASIL = ZoneInfo("America/Sao_Paulo")
 # Formato de exibição de data e hora no padrão brasileiro (completo com horas, minutos, segundos)
 DATE_DISPLAY_FORMAT_STRING = '%d/%m/%Y %H:%M'
@@ -65,7 +65,7 @@ DATE_ONLY_DISPLAY_FORMAT_STRING_BR = '%d/%m/%Y'
 
 
 
-locale.setlocale(locale.LC_ALL, 'pt_BR.UTF-8')
+#locale.setlocale(locale.LC_ALL, 'pt_BR.UTF-8')
 
 DATE_DISPLAY_FORMAT_STRING = "%d/%m/%Y %H:%M"
 DATE_ONLY_DISPLAY_FORMAT_STRING_BR = '%d/%m/%Y'
