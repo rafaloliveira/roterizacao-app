@@ -6001,7 +6001,7 @@ login()  # Garante que o usuário esteja logado
 
 # Mostra welcome + botão sair no topo da página principal
 if st.session_state.get("login", False):
-    image_path = r"C:\Users\Rafael\OneDrive\Área de Trabalho\Logo FA.png"
+    image_path = r"C:\Users\Rafael\Roteriza\Scripts\Logo FA.png"
 
     col_welcome_text, col_image_display, col_logout_button = st.columns([2, 2, 1])
 
