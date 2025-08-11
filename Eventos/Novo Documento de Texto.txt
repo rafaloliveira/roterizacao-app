@@ -1,0 +1,52 @@
+Precisamos criar uma página web que organize as notas por rotas.
+Vamos começar integrando as informações e criando merge entre as tabelas.
+Temos a tabela chamada fBaseroter onde há grande parte da informações. 
+
+
+O comportamento para obter as informações relacionadas deve ser semelhante ao relacionamento que há em um BI por exemplo.
+
+Temos a que deve integrar informações à fBaseroter através do CNPJ, ou seja Coluna CNPJ Cliente_Entrega_Agendada com CNPJ Destinatario da fBaseroter.
+A tabela Cliente_Entrega_Agendada coluna CNPJ com tabela fBaseroter coluna CNPJ Destinatario
+A tabela Micro_Regiao_por_data_embarque coluna CIDADE DESTINO com tabela fBaseroter coluna Cidade de Entrega.
+A tabela Particularidades coluna CNPJ  com tabela fBaseroter coluna CNPJ Destinatario.
+
+E para criar as rotas de Porto alegre.
+Devemos relacionar coluna Bairro do Destinatario tabela RotasPortoAlegre com coluna Bairro do Destinatario da tabela fBaseroter.
+
+Para Criar as demais rotas.
+Devemos relacionar coluna Bairro do Destinatario tabela Rotas com coluna Bairro do Destinatario da tabela fBaseroter.
+
+Para cada Cidade de Entrega na fBaseroter existe uma rota definida nas planilhas de Rotas e RotasPortoAlegre, nas Rotas e RotasPortoAlegre tem a coluna Cidade de Entrega que indica a rota por cidade. Assim saberemos as entregas por rota que é o que queremos
+
+A expectativa tendo essas informações a disposição, é criar as tabelas de rotas de forma que seja fácil manuseio e que possa ser manipulado por parte do usuário podendo criar novas rotas ou modificar as que forem criadas pelo sistema.
+A ideia é ter um layout que tenha as colunas mostrando suas informações, colunas de:
+
+Indice para contar a quantidade de notas por rota gerado
+CTRC 
+Cliente Pagador(que será identificado no layout como Expedidor)
+Chave CT-e( da respectiva entrega)
+Cliente Destinatario(Destinatário)
+Cidade de Entrega
+Bairro do Destinatario
+Previsao de Entrega(Lead Time)
+Numero da Nota Fiscal
+Status da entrega( que virá a informar se a nota é ou não agendada que vem do relacionamento citado acima Cliente_Entrega_Agendada coluna CNPJ com tabela fBaseroter coluna CNPJ Destinatario)
+Entrega Programada( a data que foi agendada)
+Particularidade( que virá do relacionamento de Particularidades coluna CNPJ com tabela fBaseroter coluna Cidade de Entrega).
+Codigo da Ultima Ocorrencia 
+Peso Calculado em Kg - deve haver o total em cada Rota criada
+Peso Real em Kg - deve haver o total em cada Rota criada
+Cubagem em m3 - deve haver o total em cada Rota criada
+Quantidade de Volumes - deve haver o total em cada Rota criada
+Valor do Frete - deve haver o total em cada Rota criada
+
+Para cada rota existe uma carga, deve ser gerado um número de carga.
+O usuário deve visualizar as rotas criadas, deve poder remover e adicionar notas na rota a partir da chave do Chave CT-e ou Serie/Numero CTRC, quando usuário digitar um destes itens as demais informações deverão ser prrenchida automaticamente	
+
+ 
+
+
+
+
+
+

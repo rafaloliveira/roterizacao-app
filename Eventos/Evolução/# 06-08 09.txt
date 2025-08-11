@@ -1,4 +1,8 @@
-# 06-08 em produção após ajuste de cores logo
+#04-08 05
+
+
+# teste enviado para produção 04-08
+
 
 
 
@@ -204,7 +208,7 @@ def _aprovar_carga_custos(selecionadas_para_aprovar, df_carga_original, carga_nu
         justificativa_final = st.session_state.get(just_key_session_aprov_var, "").strip()
 
     df_aprovar["justificativa_aprovacao_custo"] = justificativa_final
-
+    
     # Prepara o DataFrame para inserção no Supabase (Datas e nulos)
     df_aprovar = _prepare_df_for_supabase_insert(df_aprovar)
 
@@ -1453,6 +1457,7 @@ def adicionar_entregas_a_carga(ctrcs_selecionados, numero_carga_destino):
 
 
     df_para_inserir["Data_Hora_Gerada"] = data_hora_brasil_iso()
+    st.write(f"DEBUG: Data_Hora_Gerada antes do save: {df_para_inserir['Data_Hora_Gerada'].iloc[0]}")
     df_para_inserir["numero_carga"] = numero_carga
 
     # APLICAÇÃO DA NOVA FUNÇÃO AUXILIAR PARA FORMATAR DATAS
@@ -1505,7 +1510,7 @@ def adicionar_entregas_a_carga(ctrcs_selecionados, numero_carga_destino):
     st.session_state.pop("df_rotas_confirmadas_cache", None)
     st.session_state.pop("df_cargas_cache", None)
 
-    st.rerun() # Força uma nova execução do script para refletir as mudanças
+    #st.rerun() # Força uma nova execução do script para refletir as mudanças
 
 
 # ------------------------#############-------------------------------------------
@@ -1767,50 +1772,49 @@ def apply_brazilian_date_format_for_display(df_to_format):
             )
     return df_copy
 #--------------------------------------------------------------------------------------------------------------------
+#--------------------------------------------------------------------------------------------------------------------
 def _parse_date_robustly(date_series):
     if not isinstance(date_series, pd.Series):
         date_series = pd.Series(date_series)
 
-    # Inicializa parsed_series explicitamente como datetime64[ns] (naive)
     parsed_series = pd.Series(pd.NaT, index=date_series.index, dtype='datetime64[ns]')
 
-    # Função auxiliar para atualizar a Series e remover o fuso horário se presente
     def update_and_strip_tz(target_series, source_series):
         if not source_series.empty and pd.api.types.is_datetime64_any_dtype(source_series):
-            # Se a Series de origem tiver fuso horário, torna-a naive antes de atualizar
             if source_series.dt.tz is not None:
                 source_series = source_series.dt.tz_localize(None)
             target_series.update(source_series)
 
-    # Tenta parsear com formato brasileiro (dd/mm/yyyy)
-    temp_parsed_br_slash = pd.to_datetime(date_series, format='%d/%m/%Y', errors='coerce')
-    update_and_strip_tz(parsed_series, temp_parsed_br_slash)
+    temp_parsed_direct = pd.to_datetime(date_series, errors='coerce')
+    update_and_strip_tz(parsed_series, temp_parsed_direct)
 
-    # Se ainda houver nulos, tenta formato brasileiro (dd-mm-yyyy)
     if parsed_series.isnull().any():
         needs_reparse = date_series[parsed_series.isnull()]
-        temp_parsed_br_dash = pd.to_datetime(needs_reparse, format='%d-%m-%Y', errors='coerce')
-        update_and_strip_tz(parsed_series, temp_parsed_br_dash)
+        temp_parsed_br_datetime = pd.to_datetime(needs_reparse, format='%d/%m/%Y %H:%M', errors='coerce')
+        update_and_strip_tz(parsed_series, temp_parsed_br_datetime)
 
-    # Se ainda houver nulos, tenta formato ISO (yyyy-mm-dd)
     if parsed_series.isnull().any():
         needs_reparse = date_series[parsed_series.isnull()]
-        temp_parsed_iso_date = pd.to_datetime(needs_reparse, format='%Y-%m-%d', errors='coerce')
-        update_and_strip_tz(parsed_series, temp_parsed_iso_date)
+        temp_parsed_br_slash_date_only = pd.to_datetime(needs_reparse, format='%d/%m/%Y', errors='coerce')
+        update_and_strip_tz(parsed_series, temp_parsed_br_slash_date_only)
 
-    # Se ainda houver nulos, tenta inferir o formato (sem infer_datetime_format=True)
-    if parsed_series.isnull().any():
-        needs_reparse = date_series[parsed_series.isnull()]
-        temp_parsed_infer = pd.to_datetime(needs_reparse, errors='coerce') # infer_datetime_format=True removido
-        update_and_strip_tz(parsed_series, temp_parsed_infer)
-
-    # Se ainda houver nulos, tenta com dayfirst=True
     if parsed_series.isnull().any():
         needs_reparse = date_series[parsed_series.isnull()]
         temp_parsed_dayfirst = pd.to_datetime(needs_reparse, dayfirst=True, errors='coerce')
         update_and_strip_tz(parsed_series, temp_parsed_dayfirst)
-        
+
+    if parsed_series.isnull().any():
+        needs_reparse = date_series[parsed_series.isnull()]
+        temp_parsed_iso_date_only = pd.to_datetime(needs_reparse, format='%Y-%m-%d', errors='coerce')
+        update_and_strip_tz(parsed_series, temp_parsed_iso_date_only)
+
+    if parsed_series.isnull().any():
+        needs_reparse = date_series[parsed_series.isnull()]
+        temp_parsed_generic = pd.to_datetime(needs_reparse, errors='coerce')
+        update_and_strip_tz(parsed_series, temp_parsed_generic)
+
     return parsed_series
+
 
 
 #--------------------------------------------------------------------------------------------------------------
@@ -1824,14 +1828,19 @@ def _prepare_df_for_supabase_insert(df_to_process):
     try:
         for col in df_copy.columns:
             if col in GLOBAL_DB_DATE_COLS:
-                df_copy[col] = _parse_date_robustly(df_copy[col])
+                df_copy[col] = _parse_date_robustly(df_copy[col]).dt.date
                 df_copy[col] = df_copy[col].apply(
-                    lambda x: x.strftime('%Y-%m-%d') if pd.notna(x) else None
+                    lambda x: x.isoformat() if pd.notna(x) else None
                 )
             elif col in GLOBAL_DB_TIMESTAMP_COLS:
-                df_copy[col] = _parse_date_robustly(df_copy[col])
-                df_copy[col] = df_copy[col].apply(tratar_data_para_utc)
-
+                dt_series_naive = _parse_date_robustly(df_copy[col]) # Esta função retorna um datetime "naive"
+                df_copy[col] = dt_series_naive.apply(
+                    lambda x: (
+                        x.tz_localize(FUSO_BRASIL, ambiguous='NaT', nonexistent='NaT') # 1. Localiza o datetime para o fuso horário de Brasília
+                        .tz_convert('UTC') # 2. Converte este datetime (agora consciente do fuso de Brasília) para UTC
+                        .isoformat(timespec='seconds').replace('+00:00', 'Z') if pd.notna(x) else None # 3. Formata o UTC correto para string
+                    )
+                )
         result_df = df_copy.replace([np.nan, pd.NaT, np.inf, -np.inf, ""], None)
         return result_df
 
@@ -2416,7 +2425,7 @@ def pagina_confirmar_producao():
                             st.session_state["reload_aprovacao_diretoria"] = True
 
                             st.success(f"✅ {len(chaves)} entregas do Cliente {cliente_pagador} foram enviadas para a próxima etapa (Aprovação da Diretoria).")
-                            
+                            time.sleep(5)
                             # Força um rerun para atualizar a UI e refletir as mudanças
                             st.rerun()
                         except Exception as e:
@@ -3386,9 +3395,7 @@ def pagina_cargas_geradas():
                     if col_name in df.columns:
                         df[col_name] = _parse_date_robustly(df[col_name])
                         
-                        # Se tiver timezone, remove para compatibilidade com o resto do código
-                         
-                # --- END Comprehensive Date/Timestamp Conversion ---
+                     
 
                 if 'numero_carga' in df.columns: # Garante que numero_carga é string
                     df['numero_carga'] = df['numero_carga'].astype(str)
@@ -4054,7 +4061,23 @@ def pagina_cargas_geradas():
                                     with st.spinner(" Enviando entregas para aprovação de custos..."):
                                         # 'selecionadas' já é um DataFrame, basta copiá-lo
                                         df_aprovar_custos = selecionadas.copy()
+                                        
+                                        if 'Data_Hora_Gerada' in df_aprovar_custos.columns and not df_aprovar_custos.empty:
+                                            st.write(f"DEBUG (CG -> AC - ANTES DE PREPARAR): Data_Hora_Gerada: {df_aprovar_custos['Data_Hora_Gerada'].iloc[0]} (Tipo: {type(df_aprovar_custos['Data_Hora_Gerada'].iloc[0])})")
+                                            st.write(f"DEBUG (CG -> AC - ANTES DE PREPARAR): data_aprovacao_custos (se existir): {df_aprovar_custos['data_aprovacao_custos'].iloc[0] if 'data_aprovacao_custos' in df_aprovar_custos.columns else 'N/A'} (Tipo: {type(df_aprovar_custos['data_aprovacao_custos'].iloc[0]) if 'data_aprovacao_custos' in df_aprovar_custos.columns else 'N/A'})")
+                                        time.sleep(5)
+
+
+
+
+
+
                                         df_aprovar_custos = df_aprovar_custos.drop(columns=["_selectedRowNodeInfo"], errors="ignore")
+
+                                  
+
+
+
 
                                         if "motivo_rejeicao" in df_aprovar_custos.columns:
                                             df_aprovar_custos["motivo_rejeicao"] = None
@@ -4070,32 +4093,6 @@ def pagina_cargas_geradas():
                                         df_aprovar_custos["veiculo"] = veiculo_to_save
                                         df_aprovar_custos["valor_contratacao"] = valor_contratacao
 
-                                        # --- INÍCIO DA CORREÇÃO E DEBUG LOCALIZADO ---
-                                        st.write(f"DEBUG: Antes da reconversão em Cargas Geradas:")
-                                        if "Data_Hora_Gerada" in df_aprovar_custos.columns:
-                                            st.write(f"DEBUG: Data_Hora_Gerada (Tipo): {df_aprovar_custos['Data_Hora_Gerada'].dtype}")
-                                            st.write(f"DEBUG: Data_Hora_Gerada (Primeiro valor): {df_aprovar_custos['Data_Hora_Gerada'].iloc[0] if not df_aprovar_custos.empty else 'DataFrame vazio'}")
-
-                                            # Esta linha é CRÍTICA. Ela diz ao Pandas para interpretar
-                                            # a string como DD/MM/AAAA HH:MM.
-                                            df_aprovar_custos["Data_Hora_Gerada"] = pd.to_datetime(
-                                                df_aprovar_custos["Data_Hora_Gerada"],
-                                                format=DATE_DISPLAY_FORMAT_STRING, # Garante o formato brasileiro
-                                                errors='coerce' # Transforma erros de conversão em NaT
-                                            )
-                                            # Garante que NaT (Not a Time) seja None para o Supabase
-                                            df_aprovar_custos["Data_Hora_Gerada"] = df_aprovar_custos["Data_Hora_Gerada"].apply(
-                                                lambda x: None if pd.isna(x) else x
-                                            )
-
-                                            st.write(f"DEBUG: Após a reconversão em Cargas Geradas:")
-                                            st.write(f"DEBUG: Data_Hora_Gerada (Tipo): {df_aprovar_custos['Data_Hora_Gerada'].dtype}")
-                                            st.write(f"DEBUG: Data_Hora_Gerada (Primeiro valor): {df_aprovar_custos['Data_Hora_Gerada'].iloc[0] if not df_aprovar_custos.empty else 'DataFrame vazio'}")
-                                        else:
-                                            st.write("DEBUG: Coluna 'Data_Hora_Gerada' não encontrada em df_aprovar_custos.")
-
-                                            time.sleep(3)
-                                        # --- FIM DA CORREÇÃO E DEBUG LOCALIZADO ---
                                         # Aplicando a função _prepare_df_for_supabase_insert para datas e nulos
                                         df_aprovar_custos = _prepare_df_for_supabase_insert(df_aprovar_custos)
 
@@ -4167,11 +4164,15 @@ def pagina_aprovacao_custos():
                 df = pd.DataFrame(dados)
 
                 if not df.empty:
-                    # --- NOVO BLOCO: Conversão Robusta de Data/Timestamp ao carregar ---
+                    if 'Data_Hora_Gerada' in df.columns:
+                        df['Data_Hora_Gerada'] = pd.to_datetime(df['Data_Hora_Gerada'], errors='coerce', utc=True)
+
                     for col_name in ALL_COLS_TO_PARSE_AS_DATE_OR_TIMESTAMP:
+                        if col_name == 'Data_Hora_Gerada':
+                            continue
+
                         if col_name in df.columns:
                             df[col_name] = _parse_date_robustly(df[col_name])
-                            # Para colunas de timestamp, ensure it's timezone-aware as UTC then localize for consistency before cache
                             if col_name in GLOBAL_DB_TIMESTAMP_COLS and pd.api.types.is_datetime64_any_dtype(df[col_name]):
                                 df[col_name] = df[col_name].apply(
                                     lambda x: x.tz_localize('UTC', ambiguous='NaT', nonexistent='NaT') if pd.notna(x) and x.tzinfo is None else x
@@ -4270,6 +4271,9 @@ def pagina_aprovacao_custos():
             placa_veiculo = df_carga["placa"].iloc[0] if "placa" in df_carga.columns and not df_carga["placa"].isnull().all() else "–"
             veiculo = df_carga["veiculo"].iloc[0] if "veiculo" in df_carga.columns and not df_carga["veiculo"].isnull().all() else "–"
             info_data_hora_gerada = df_carga["Data_Hora_Gerada"].iloc[0] if "Data_Hora_Gerada" in df_carga.columns and not df_carga.empty else None
+
+            # Este é o DEBUG crucial para o problema do badge
+            st.write(f"DEBUG (AC Badge - LIDO): Data_Hora_Gerada para o badge: {info_data_hora_gerada} (Tipo: {type(info_data_hora_gerada)})")
             
             # --- 2. Cálculos de Rentabilidade e Custo por Região (onde situacao_custo_regional é definida) ---
             total_frete_carga = df_carga["Valor do Frete"].sum()
@@ -4883,6 +4887,7 @@ def pagina_cargas_aprovadas():
             veiculo_carga = df_carga["veiculo"].iloc[0] if "veiculo" in df_carga.columns and not df_carga["veiculo"].isnull().all() else 'Não Informado'
             aprovador_custos_login = df_carga["aprovador_custos_login"].iloc[0] if "aprovador_custos_login" in df_carga.columns and not df_carga["aprovador_custos_login"].isnull().all() else 'Desconhecido'
             data_aprovacao_custos = df_carga["data_aprovacao_custos"].iloc[0] if "data_aprovacao_custos" in df_carga.columns and not df_carga["data_aprovacao_custos"].isnull().all() else None
+            st.write(f"DEBUG (AC Badge - LIDO): data_aprovacao_custos para o badge: {data_aprovacao_custos} (Tipo: {type(data_aprovacao_custos)})")
             justificativa_aprovacao = df_carga["justificativa_aprovacao_custo"].iloc[0] if "justificativa_aprovacao_custo" in df_carga.columns and not df_carga["justificativa_aprovacao_custo"].isnull().all() else ''
             info_data_hora_gerada = df_carga["Data_Hora_Gerada"].iloc[0] if "Data_Hora_Gerada" in df_carga.columns and not df_carga.empty else None
             

@@ -1,0 +1,22 @@
+Tabela Cliente_Entrega_Agendada é da planilha ClienteEntregaAgendada
+colunas CNPJ, Status de Agenda
+
+Tabela Embarque_por_Região é da planilha EmbarqueporRegião
+colunas CIDADE DESTINO,REGIÃO,MICRO REGIÃO,ATENDIDO POR,Dia relação ao entrega prevista
+
+Tabela Particularidades é da planilha Particularidades
+colunas CNPJ,Cliente,Particularidade
+
+
+Tabela Rota é da planilha Rota
+colunas CidadeBairro,UF de Entrega,Cidade de Entrega,Bairro do Destinatario,Rota
+
+Tabela Rotas_PortoAlegre é da planilha RotasPortoAlegre
+colunas CidadeBairro,UF de Entrega,Cidade de Entrega,Bairro do Destinatario,Rota
+
+
+
+
+
+
+Cliente_Entrega_Agendada -COLUNAS > CNPJ, Status de Agenda

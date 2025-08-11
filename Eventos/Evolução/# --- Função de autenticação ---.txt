@@ -1,0 +1,127 @@
+# --- Função de autenticação ---
+def autenticar_usuario(nome_usuario, senha):
+    try:
+        dados_usuario = supabase.table("usuarios").select("*").eq("nome_usuario", nome_usuario).execute()
+
+        if dados_usuario.data:
+            usuario = dados_usuario.data[0]
+            if verificar_senha(senha, usuario["senha_hash"]):
+                return usuario
+        return None
+    except Exception:
+        return None
+
+# Função para hash de senha
+def hash_senha(senha):
+    return bcrypt.hashpw(senha.encode(), bcrypt.gensalt()).decode()
+
+# Função para verificar se a senha fornecida corresponde ao hash
+def verificar_senha(senha_fornecida, senha_hash):
+    return bcrypt.checkpw(senha_fornecida.encode(), senha_hash.encode())
+
+usuario_logado = "admin"  # Exemplo de nome de usuário do admin logado
+dados_usuario = {
+    "nome_usuario": "admin",
+    "senha_hash": "$2b$12$OqjiW19Pjd9.eGnFfmJSrW.TqX/pq6RmPjbsHbuZ56MzeP3dNKuyq"  # Exemplo de senha já hashada (gerada com bcrypt)
+
+def autenticar_usuario(nome_usuario, senha):
+    try:
+        dados = supabase.table("usuarios").select("*").eq("nome_usuario", nome_usuario).execute()
+
+        if dados.data:
+            usuario = dados.data[0]
+            if verificar_senha(senha, usuario["senha_hash"]):
+                st.success("✅ Logado com sucesso!")
+                return usuario
+        st.error("🛑 Usuário ou senha incorretos.")
+        return None
+
+    except Exception as e:
+        st.error("Erro ao autenticar.")
+        return None
+
+
+def login():
+    login_cookie = cookies.get("login")
+    username_cookie = cookies.get("username")
+    is_admin_cookie = cookies.get("is_admin")
+    expiry_time_cookie = cookies.get("expiry_time")
+
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        st.markdown("<h1 style='text-align: center;'>📝 Entregas - Tempo de Permanência </h1>", unsafe_allow_html=True)
+
+    # Se o login já foi feito e o cookie não expirou, configura a sessão
+    if login_cookie and username_cookie and not is_cookie_expired(expiry_time_cookie):
+        st.session_state.login = True
+        st.session_state.username = username_cookie
+        st.session_state.is_admin = is_admin_cookie == "True"
+        st.markdown(f"👋 **Bem-vindo, {st.session_state.username}!**")
+
+        # Opção de logout
+        col1, col2, col3 = st.columns([6, 1, 1])
+        with col3:
+            if st.button("🔒 Sair", key="logout_button"):
+                # Limpa os cookies e faz logout
+                cookies["login"] = ""
+                cookies["username"] = ""
+                cookies["is_admin"] = ""
+                cookies["expiry_time"] = ""
+                cookies.save()  # Salva a remoção dos cookies
+                st.session_state.login = False  # Atualiza a sessão para refletir o logout
+                st.rerun()  # Redireciona para a página inicial
+    else:
+        # Se o usuário não estiver logado, exibe o formulário de login
+        with col2:
+            st.markdown("##### Login")
+            username = st.text_input("Usuário")
+            senha = st.text_input("Senha", type="password")
+
+            if st.button("Entrar", key="login_button"):
+                usuario = autenticar_usuario(username, senha)
+                if usuario:
+                    # Armazena as informações de login nos cookies
+                    cookies["login"] = str(True)
+                    cookies["username"] = usuario["nome_usuario"]
+                    cookies["is_admin"] = str(usuario.get("is_admin", False))
+                    expiry_time = datetime.now(timezone.utc) + timedelta(hours=24)
+                    cookies["expiry_time"] = expiry_time.strftime("%Y-%m-%d %H:%M:%S")
+                    cookies.save()
+                    st.session_state.login = True  # Atualiza a sessão para indicar que o login foi bem-sucedido
+                    st.rerun()  # Recarga a página após login
+
+        st.stop()  # Impede que o código continue sendo executado após login falhar
+
+login()
+
+
+
+
+
+
+
+
+# ========== MODO DE EMERGÊNCIA PARA ADMIN ========== #
+with st.expander("🛠 Modo de Emergência: Atualizar senha do admin"):
+    st.warning("⚠️ Use este modo somente se não conseguir acessar o sistema.")
+    senha_secreta = st.text_input(
+        "Senha de segurança",
+        type="password",
+        help="Senha para habilitar o modo de emergência."
+    )
+
+    if senha_secreta == "emergencia123":
+        st.success("🔓 Acesso autorizado ao modo emergência.")
+        if st.button("🔁 Gerar novo hash e atualizar admin"):
+            try:
+                nova_senha = "admin123"
+                hash_dinamico = bcrypt.hashpw(nova_senha.encode(), bcrypt.gensalt()).decode()
+
+                supabase.table("usuarios").update({
+                    "senha_hash": hash_dinamico
+                }).eq("nome_usuario", "admin").execute()
+
+                st.success("✅ Hash do admin atualizado com sucesso!")
+                st.info("Você pode agora logar com:\n\nUsuário: `admin`\nSenha: `admin123`")
+            except Exception as e:
+                st.error(f"❌ Erro ao atualizar hash: {e}")

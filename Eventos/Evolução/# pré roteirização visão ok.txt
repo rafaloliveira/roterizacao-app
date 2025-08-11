@@ -1,0 +1,304 @@
+import streamlit as st
+import pandas as pd
+import os
+from datetime import datetime
+from supabase import create_client, Client
+from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
+
+st.set_page_config(layout="wide")
+
+# --- Config Supabase ---
+url = "https://xhwotwefiqfwfabenwsi.supabase.co"
+key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhod290d2VmaXFmd2ZhYmVud3NpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDgzNjc4NTMsImV4cCI6MjA2Mzk0Mzg1M30.3E2z-1SaABbCaV_HjQf0Rj8249mnPeGv7YkV4gOGhlg"
+supabase: Client = create_client(url, key)
+
+pasta = r'C:\Users\Rafael\OneDrive\Área de Trabalho\Roteriza'
+arquivos = {
+    'base': 'fBaseroter.xlsx',
+    'agendadas': 'ClienteEntregaAgendada.xlsx',
+    'regioes': 'EmbarqueporRegião.xlsx',
+    'particularidades': 'Particularidades.xlsx',
+    'rotas': 'Rotas.xlsx',
+    'rotas_poa': 'RotasPortoAlegre.xlsx'
+}
+
+@st.cache_data(ttl=600)
+def carregar_planilhas():
+    dados = {}
+    for chave, nome in arquivos.items():
+        caminho = os.path.join(pasta, nome)
+        dados[chave] = pd.read_excel(caminho, dtype=str)
+    return dados
+
+
+def formatar_brasileiro(valor):
+    try:
+        return f"{valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    except:
+        return valor
+    
+@st.cache_data(ttl=600)
+def integrar_dados(dados):
+    base = dados['base']
+    agendadas = dados['agendadas']
+    particularidades = dados['particularidades']
+    rotas = dados['rotas']
+    rotas_poa = dados['rotas_poa']
+
+    base['CNPJ Destinatario'] = base['CNPJ Destinatario'].str.strip()
+    agendadas['CNPJ'] = agendadas['CNPJ'].str.strip()
+    particularidades['CNPJ'] = particularidades['CNPJ'].str.strip()
+
+    base = base.merge(agendadas[['CNPJ', 'Status de Agenda']], how='left', left_on='CNPJ Destinatario', right_on='CNPJ')
+    if 'Status de Agenda' in base.columns:
+        base = base.rename(columns={'Status de Agenda': 'Status'})
+
+    base = base.merge(particularidades[['CNPJ', 'Particularidade']], how='left', left_on='CNPJ Destinatario', right_on='CNPJ')
+
+    base['Cidade de Entrega'] = base['Cidade de Entrega'].str.strip().str.upper()
+    base['Bairro do Destinatario'] = base['Bairro do Destinatario'].str.strip().str.upper()
+    rotas['Cidade de Entrega'] = rotas['Cidade de Entrega'].str.strip().str.upper()
+    rotas_poa['Bairro do Destinatario'] = rotas_poa['Bairro do Destinatario'].str.strip().str.upper()
+
+    rotas_dict = dict(zip(rotas['Cidade de Entrega'], rotas['Rota']))
+    rotas_poa_dict = dict(zip(rotas_poa['Bairro do Destinatario'], rotas_poa['Rota']))
+
+    def definir_rota(row):
+        if row['Cidade de Entrega'] == 'PORTO ALEGRE':
+            return rotas_poa_dict.get(row['Bairro do Destinatario'], '')
+        else:
+            return rotas_dict.get(row['Cidade de Entrega'], '')
+
+    base['Rota'] = base.apply(definir_rota, axis=1)
+
+    colunas_numericas = [
+        'Peso Real em Kg', 'Peso Calculado em Kg', 'Cubagem em m3',
+        'Quantidade de Volumes', 'Valor do Frete'
+    ]
+    for col in colunas_numericas:
+        if col in base.columns:
+            base[col] = (
+                base[col].astype(str)
+                .str.replace('.', '', regex=False)
+                .str.replace(',', '.', regex=False)
+            )
+            base[col] = pd.to_numeric(base[col], errors='coerce')
+
+    base['Indice'] = base.index  # garante índice único para keys
+    return base
+
+def salvar_confirmados(df_confirmados):
+    df_confirmados = df_confirmados.copy()
+    df_confirmados['data_confirmacao'] = datetime.now().isoformat()
+     # ❗️Remove colunas que não existem no Supabase
+    colunas_validas = [
+        'Indice', 'Rota', 'Serie/Numero CTRC', 'CNPJ Destinatario', 'Cliente Destinatario',
+        'Cidade de Entrega', 'Bairro do Destinatario', 'Previsão de Entrega', 'Número da Nota Fiscal',
+        'Status', 'Entrega Programada', 'Particularidade', 'Código da Última Ocorrência',
+        'Peso Calculado em Kg', 'Peso Real em Kg', 'Cubagem em m3', 'Quantidade de Volumes',
+        'Valor do Frete', 'data_confirmacao'
+    ]
+    df_confirmados = df_confirmados[[col for col in colunas_validas if col in df_confirmados.columns]]
+
+
+
+
+    df_confirmados = df_confirmados.where(pd.notnull(df_confirmados), None)
+    data = df_confirmados.to_dict(orient='records')
+    response = supabase.table("rotas_confirmadas").insert(data).execute()
+    return response
+
+from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
+
+def mostrar_rotas(df):
+    st.title("Pré Roterização")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.markdown(f"""
+        <div style="background-color:#1c1c1c; padding:12px; border-radius:8px; margin-bottom:10px;">
+            <strong style="font-size:20px; color:#ffffff;">Total de Rotas: {len(df['Rota'].dropna().unique())}</strong>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with col2:
+        st.markdown(f"""
+        <div style="background-color:#1c1c1c; padding:12px; border-radius:8px; margin-bottom:10px;">
+            <strong style="font-size:20px; color:#ffffff;">Total de Notas: {len(df)}</strong>
+        </div>
+        """, unsafe_allow_html=True)
+
+    todas_rotas = sorted(df['Rota'].dropna().unique())
+    rota_filtrada = st.selectbox("Selecionar rota para exibir (ou deixe em branco para todas):", ["Todas"] + todas_rotas)
+
+    if rota_filtrada == "Todas":
+        rotas = todas_rotas
+    else:
+        rotas = [rota_filtrada]
+
+
+    if not rotas:
+        st.warning("Nenhuma rota encontrada com esse filtro.")
+        return
+
+    for rota in rotas:
+        rota_df = df[df['Rota'] == rota].copy()
+
+        st.markdown(f"""
+        <span style="background-color:#333333; color:#ffffff; padding:6px 12px; border-radius:6px; font-size:18px; font-weight:600;">
+            Rota: {rota}
+        </span>
+        """, unsafe_allow_html=True)
+        st.markdown(f"""
+        - **Notas:** {formatar_brasileiro(len(rota_df))}
+        - **Peso Real:** {formatar_brasileiro(rota_df['Peso Real em Kg'].sum())} kg  
+        - **Peso Calculado:** {formatar_brasileiro(rota_df['Peso Calculado em Kg'].sum())} kg  
+        - **Cubagem:** {formatar_brasileiro(rota_df['Cubagem em m3'].sum())} m³  
+        - **Volumes:** {formatar_brasileiro(rota_df['Quantidade de Volumes'].sum())}  
+        - **Frete:** R$ {formatar_brasileiro(rota_df['Valor do Frete'].sum())}
+        """)
+
+        colunas_sugeridas = [
+    'Indice', 'Serie/Numero CTRC', 'CNPJ Destinatario', 'Cliente Destinatario',
+    'Cidade de Entrega', 'Bairro do Destinatario', 'Previsão de Entrega',
+    'Número da Nota Fiscal', 'Status', 'Entrega Programada',
+    'Particularidade', 'Código da Última Ocorrência', 'Peso Calculado em Kg',
+    'Peso Real em Kg', 'Cubagem em m3', 'Quantidade de Volumes',
+    'Valor do Frete'
+        ]
+        colunas_exibir = [col for col in colunas_sugeridas if col in rota_df.columns]
+
+        rota_df = rota_df.reset_index(drop=True)
+        rota_df['Indice'] = rota_df.index  # index visível e único
+
+        gb = GridOptionsBuilder.from_dataframe(rota_df[colunas_exibir])
+        gb.configure_selection('multiple', use_checkbox=True)
+        gb.configure_pagination(enabled=False)
+        grid_options = gb.build()
+
+        grid_response = AgGrid(
+            rota_df[colunas_exibir],
+            gridOptions=grid_options,
+            update_mode=GridUpdateMode.SELECTION_CHANGED,
+            fit_columns_on_grid_load=False,  # ✅ deixa o grid mais largo
+            height=400,
+            width='100%',
+            key=f"aggrid_{rota}"
+        )
+
+        selecionados = pd.DataFrame(grid_response["selected_rows"])
+
+        if st.button(f"Confirmar Rota {rota}", key=f"botao_confirmar_{rota}"):
+            if not selecionados.empty:
+                df_confirmados = rota_df[rota_df['Indice'].isin(selecionados['Indice'])].copy()
+                salvar_confirmados(df_confirmados)
+                st.success(f"{len(df_confirmados)} entregas confirmadas na rota '{rota}'.")
+                st.experimental_rerun()
+            else:
+                st.warning("Nenhuma entrega selecionada.")  
+
+import time
+
+def main():
+    aba = st.sidebar.radio("Navegação", ["Pré Roterização", "Rotas Confirmadas"])
+
+    if 'atualizar_dados' not in st.session_state:
+        st.session_state.atualizar_dados = False
+
+    if aba == "Pré Roterização":
+        col1, col2 = st.columns([1, 5])  # botão menor, espaço maior ao lado
+
+        with col1:
+            if st.button("🔄 Atualizar Dados"):
+                st.cache_data.clear()
+                st.session_state.atualizar_dados = True
+                st.rerun()
+
+        try:
+            dados = carregar_planilhas()
+            df_integrado = integrar_dados(dados)
+
+            if st.session_state.atualizar_dados:
+                with col2:
+                    sucesso_placeholder = st.empty()
+                    sucesso_placeholder.success("✅ Dados atualizados com sucesso!")
+                    time.sleep(2)
+                    sucesso_placeholder.empty()
+                st.session_state.atualizar_dados = False
+
+            mostrar_rotas(df_integrado)
+
+        except Exception as e:
+            st.error(f"❌ Falha ao carregar as planilhas. Verifique os arquivos.\n\n**Erro:** {str(e)}")
+
+    else:
+        mostrar_rotas_confirmadas()
+
+
+
+
+
+if __name__ == '__main__':
+    main()
+
+
+def mostrar_rotas_confirmadas():
+    st.title("Rotas Confirmadas")
+
+    try:
+        response = supabase.table("rotas_confirmadas").select("*").execute()
+        dados = response.data
+
+        if not dados:
+            st.info("Nenhuma entrega confirmada ainda.")
+            return
+
+        df_confirmadas = pd.DataFrame(dados)
+
+        # Ordenação por colunas relevantes, se existirem
+        ordenar_por = [col for col in ['Rota', 'Previsão de Entrega', 'data_confirmacao'] if col in df_confirmadas.columns]
+        if ordenar_por:
+            df_confirmadas = df_confirmadas.sort_values(by=ordenar_por)
+
+        # Seleciona colunas visíveis automaticamente
+        colunas_sugeridas = [
+            'Indice', 'Rota', 'Serie/Numero CTRC', 'Cliente Destinatario',
+            'Cidade de Entrega', 'Bairro do Destinatario', 'Previsão de Entrega',
+            'Status', 'Particularidade', 'Peso Real em Kg', 'Cubagem em m3',
+            'Quantidade de Volumes', 'Valor do Frete', 'data_confirmacao'
+        ]
+        colunas_exibir = [col for col in colunas_sugeridas if col in df_confirmadas.columns]
+
+        gb = GridOptionsBuilder.from_dataframe(df_confirmadas[colunas_exibir])
+        gb.configure_selection('multiple', use_checkbox=True)
+        grid_options = gb.build()
+
+        grid_response = AgGrid(
+            df_confirmadas[colunas_exibir],
+            gridOptions=grid_options,
+            update_mode=GridUpdateMode.SELECTION_CHANGED,
+            fit_columns_on_grid_load=False,  # permite scroll horizontal
+            height=500,
+            width='100%',
+            key="grid_rotas_confirmadas"
+        )
+
+        selecionados = pd.DataFrame(grid_response['selected_rows'])
+
+        if st.button("Remover das Rotas Confirmadas"):
+            if not selecionados.empty:
+                indices_remover = selecionados['Indice'].tolist()
+
+                for idx in indices_remover:
+                    supabase.table("rotas_confirmadas").delete().eq("Indice", idx).execute()
+
+                st.success(f"{len(indices_remover)} entregas removidas e retornadas para a Pré Roterização.")
+                st.experimental_rerun()
+            else:
+                st.warning("Nenhuma entrega selecionada.")
+
+    except Exception as e:
+        st.error(f"Erro ao carregar rotas confirmadas: {e}")
+
+

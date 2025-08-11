@@ -1,0 +1,181 @@
+Todas as telas da Confirmar Produção em diante as entregas deverão estar listadas dentro de um Gridd com checkbox para multi seleção.
+As entregas poderão estar somente em 2 tabelas; Sincronizar e +1 e não poderão estar duplicadas fora deste critério.
+
+
+Login:
+- Admin pode criar usuários. Tornar outros usuários administradores.
+- Pode criar classe de usuário e enquadrar usuários nas classes de colaborador e aprovadores.
+- Alterar senha própria e dos usuários.
+- Pode criar e gerenciar Classes de usuários.
+Colunas da tabela usuarios:
+id, user_id, nome usuário, senha_hash, is_admin
+___________________________________________________________________________________________________________________________________OK
+
+
+Já possuo conexão com o banco estabelecida. Bibiloteca supabase-py
+Já possuo todas as tabelas criadas como dito antes. 
+As datas que vem do Excel vem no formato dd/mm/yyyy
+
+Sincronizar:
+Importar para tabela fBaseroter o arquivo Excel.
+
+Ao importar os dados para a fBaseroter os dados das tabelas: confirmadas_producao, aprovacao_diretoria, pre_roterizacao, 
+rotas_confirmadas, cargas_geradas, aprovacao_custos deverão ser deletados caso haja dados nelas se não houver avisar.
+
+As tabelas confirmadas_producao e pre_roterizacao tem critérios que devem ser definidos já na Sincronização/importação do Excel a qual são:
+- pre_roterizacao critério data de embarque, todas as entregas com data de embarque anteriores a D+1 devem ser obrigatórias e devem estar na tabela pre_roterizacao.
+- Entrega com Status AGENDADA com Entrega Programada em branco ou nula devem estar na tabela pre_roterizacao e deverão estar destacadas.
+- confirmadas_producao todas as entregas que não se enquadrarem nos critérios da pre_roterizacao devem estar na confirmadas_producao.
+Não pode haver Serie_Numero_CTRC duplicadas nas tabelas.
+
+data de Embarque = tabela Micro_Regiao_por_data_embarque coluna Dia relação ao entrega prevista - tabela fBaseroter coluna Previsao de Entrega.
+Particularidade =  é o merge de tabela Particularidades coluna CNPJ, com tabela fBaseroter coluna CNPJ Destinatario.
+Status = é merge de tabela Clientes_Entrega_Agendada coluna CNPJ, com tabela fBaseroter coluna CNPJ Destinatario.
+Rota:
+Se a Cidade de Entrega for Porto Alegre, ele vai escolher a rota com base no Bairro do Destinatario.
+Se for outra cidade com base na Cidade de Entrega tabela Rotas Cidade de Entrega
+
+
+colunas da tabela fBaseroter:
+Serie_Numero_CTRC, Serie/Numero CT-e,Tipo do Documento,Unidade Emissora, Data de Emissao,Data(data) de Autorizacao,Chave CT-e,Cliente Remetente,
+UF do Remetente,UF do Expedidor,Cliente Pagador,UF do Pagador,Fone do Pagador,Segmento do Pagador,CNPJ Destinatario,Cliente Destinatario,
+Bairro do Destinatario,Setor de Destino,UF do Destinatario,Local de Entrega,Bairro,Cidade de Entrega,UF de Entrega, Unidade Receptora,
+Numero da Nota Fiscal,Peso Real em Kg,Cubagem em m³,Quantidade de Volumes,Valor da Mercadoria,Valor do Frete,Valor do ICMS,Valor do ISS,
+Peso Calculado em Kg,Frete Peso,Frete Valor,TDA,TDE,Adicional de Frete,UF origem da prestacao,Codigo da Ultima Ocorrencia,
+Data de inclusao da Ultima Ocorrencia,Data da Ultima Ocorrencia,Usuario da Ultima Ocorrencia,Unidade da Ultima Ocorrencia,Descricao da Ultima Ocorrencia,
+Latitude da Ultima Ocorrencia,Longitude da Ultima Ocorrencia,Previsao de Entrega(data),Entrega Programada(data),Data da Entrega Realizada,Quantidade de Dias de Atraso,
+Localizacao Atual,Data do Cancelamento,Motivo do Cancelamento,Codigo dos Correios,Numero da Capa de Remessa,Numero do Pacote de Arquivamento,
+Compr. de Entrega Escaneado,Data do Escaneamento,Hora do Escaneamento,Notas Fiscais,Numero dos Pedidos,Chaves NF-es,Volume Cliente/Shipment, Unnamed: 67
+
+Colunas da tabela confirmadas_producao:
+Serie_Numero_CTRC,Cliente Pagador,Chave CT-e,Cliente Destinatario,Cidade de Entrega,Bairro do Destinatario,Previsao de Entrega,Numero da Nota Fiscal,Status,
+Entrega Programada, Particularidade, Codigo da Ultima Ocorrencia,Peso Real em Kg,Peso Calculado em Kg,Cubagem em m³,Quantidade de Volumes,Valor do Frete,Rota
+
+Colunas da tabela pre_roterizacao:
+Serie_Numero_CTRC,Cliente Pagador,Chave CT-e,Cliente Destinatario,Cidade de Entrega,Bairro do Destinatario,Previsao de Entrega,Numero da Nota Fiscal,Status,
+Entrega Programada,Particularidade,Codigo da Ultima Ocorrencia,Peso Real em Kg,Peso Calculado em Kg,Cubagem em m³,Quantidade de Volumes,Valor do Frete,Rota
+__________________________________________________________________________________________________________________________________________________________________OK
+
+Confirmar Produção:
+
+- Deve haver um filtro selectbox para filtrar por cliente.
+- 2 markdow uma ao lado do outro, Total de clientes e Total de Entregas .
+- Visão Geral por Cliente Pagador, peso total em kg, Peso calculado em kg, cubagem em m³, quantidade de volumes, Valor do Frete, Quantidade de Entregas. 
+- Resumo acima do Gridd com total de entregas, peso calculado, peso real, cubagem, quantidade de volumes, valor frete.
+- Deve estar separado Entregas por Cliente Pagador.
+
+- Deve ficar na confirmadas_producao(Confirmar Produção) somente o que restou do que não foi para pre_roterizacao(Pré Roterização).
+- Critérios obrigatórios que iram direto pra pre_roterizacao após a sincronizar: Todas entregas com data de Embarque anteriores a D+1 são obrigatórias na pre_roterizacao.
+Temos a tabela Micro_Regiao_por_data_embarque na coluna Dia relação ao entrega prevista que pode ser usado no merge para determinar a data do embarque.
+- Entregas que estejam com Status AGENDADA e sem Entrega Programada devem estar na pre_roterizacao e devem estar destacadas.
+
+- Se a entrega for confirmada deve sair da confirmadas_producao(Confirmar Produção) ir para a tabela aprovacao_diretoria(página Aprovação Diretoria) atualizando o Gridd 
+a qual as entregas selecionadas foi confirmada.
+
+Colunas da Confirmar Produção:
+id,Serie_Numero_CTRC,Cliente Pagador,Chave CT-e,Cliente Destinatario,Cidade de Entrega,Bairro do Destinatario,Previsao de Entrega,Numero da Nota Fiscal,Status,
+Entrega Programada, Particularidade, Codigo da Ultima Ocorrencia,Peso Real em Kg,Peso Calculado em Kg,Cubagem em m³,Quantidade de Volumes,Valor do Frete,Rota
+
+
+
+__________________________________________________________________________________________________________________________________________________OK
+
+Aprovação Diretoria:
+
+- Deve estar separado por Cliente
+- 2 markdow uma ao lado do outro, Total de clientes e Total de Entregas .
+- Resumo acima do Gridd com total de entregas, peso calculado, peso real, cubagem, quantidade de volumes, valor frete.
+- Deve estar separado Entregas por Cliente Pagador.
+- Somente usuários com classe "aprovador" poderão aprovar entregas nesta etapa.
+- Se aprovar as entregas; deverão sair da aprovacao_diretoria e ir para pre_roterizacao(Página Pré Roterização). 
+
+________________________________________________________________________________________________________________________________________OK
+
+Pré Roterização:
+
+- Deve haver um filtro selectbox para filtrar por Rota.
+- 2 markdow uma ao lado do outro, Total de Rotas e Total de Entregas .
+- Visão Geral das Entregas por Rota, peso total em kg, Peso calculado em kg, cubagem em m³, quantidade de volumes, Valor do Frete, Quantidade de Entregas. 
+- Resumo acima do Gridd com total de entregas, peso calculado, peso real, cubagem, quantidade de volumes, valor frete.
+- Entrega com critério mandatórios deverão ser inseridas na Pré Roterização assim que houver a importação do Excel para o banco.
+Os critérios são os seguintes: Critério Data de embarque; Todas as entregas com data de embarque anteriores a D+1 devem ser obrigatórias na Pré Roterização.
+#Critério valor: Todas as entregas com valore de Frete a partir de R$ 300 deve estar na Pré Roterização.
+Entregas com Status AGENDAR  a qual estiver com a Entrega Programa em branco ou nula deverão estar na Pré Roterização sinalizadas com uma Flag vermelha.
+- Entregas confirmadas devem sair da Pré Roterização e ir para a tabela rotas_confirmadas(Página Rotas Confirmadas).
+Colunas da Pré Roterização:
+id,Serie_Numero_CTRC,Cliente Pagador,Chave CT-e,Cliente Destinatario,Cidade de Entrega,Bairro do Destinatario,Previsao de Entrega,Numero da Nota Fiscal,Status,
+Entrega Programada,Particularidade,Codigo da Ultima Ocorrencia,Peso Real em Kg,Peso Calculado em Kg,Cubagem em m³,Quantidade de Volumes,Valor do Frete,Rota
+
+# obrigatorias → são as entregas que satisfazem ao menos um dos critérios obrigatórios (previsão de entrega antes do D+1, frete ≥ 300 ou status "agendar" com entrega programada vazia).
+
+# restantes → todas as demais entregas que não entram no grupo obrigatório.
+______________________________________________________________________________________________________________________________________________________________OK
+
+Rotas Confirmadas:
+- Vamos gerar cargas
+- Deve haver um filtro selectbox para filtrar por Rota.
+- 2 markdow uma ao lado do outro, Total de Rotas e Total de Entregas .
+- Visão Geral das Entregas por Rota, peso total em kg, Peso calculado em kg, cubagem em m³, quantidade de volumes, Valor do Frete, Quantidade de Entregas. 
+- Resumo acima do Gridd com total de entregas, peso calculado, peso real, cubagem, quantidade de volumes, valor frete.
+
+- Usuário poderá gerar uma Carga a partir da Rota já existente,também poderá acrescentar uma ou mais entregas àquelas Rotas mesmo que seja em uma Rota diferente.
+- Também Deverá haver uma opção para Criar Cargas Avulso(com outras Entregas que já não estejam em Rotas Confirmadas mas que tenham sido confirmadas na def pagina_pre_roterizacao():).
+- Novas cargas poderão ser criadas a partir da Chave CT-e, quando digitar a Chave Ct-e deve ser buscado todas as informações que há na tabela referente 
+aquela entrega instanteneamente para inclusão na Carga.
+- Para cada Carga gerada deve haver um botão de Fechar Carga. Cada Carga fechada deverá gerar uma sequencia numérica . A carga poderá ser editada, 
+retirar entregas( as retiradas devem voltar para Pré Roterização) e adicionar outras.
+- Cargas Geradas deverão sair da Rotas Confirmadas e ir para tabela cargas_geradas(Página Cargas Geradas).
+
+Colunas da Rotas Confirmadas:
+id,Serie_Numero_CTRC,Cliente Pagador,Chave CT-e,Cliente Destinatario,Cidade de Entrega,Bairro do Destinatario,Previsao de Entrega,Numero da Nota Fiscal,Status,
+Entrega Programada,Particularidade,Codigo da Ultima Ocorrencia,Peso Real em Kg,Peso Calculado em Kg,Cubagem em m³,Quantidade de Volumes,Valor do Frete,Rota
+
+
+- Botão Criar Nova carga. 
+Quando criar essa carga ela deve ser gerada com uma sequencia numerica única.
+Cada vez que uma carga for gerada deverá gerar um novo número.
+Dentro desta Nova Carga o usuário adicionará manualmente as entregas que ele deseja que formem
+a carga através da Chave CT-e(colocando essa Chave, deve ser buscado as demais informações da entregas), as entregas que estarão ou na página Pré Roterização ou na 
+Rotas Confirmadas.
+
+Para cada Rota que está na página o usuário também poderá criar uma Carga a partir daquela Rota, selecionando as entregas que ele deseja que componham a Carga.
+
+Após feito isso terá o botão de Gerar carga, que após gerada será enviado para Cargas Geradas ficarão separadas por carga.
+____________________________________________________________________________________________________________________________________________________________________OK
+
+Cargas Geradas:
+
+- Deverá estar separadas por cargas Geradas(De acordo com a sequencia numérica).ok
+- Deve haver um campo obrigatório para o usuário inserir o valor da contratação para as Cargas Geradas(Coluna na cargas_geradas).
+- Deve ter um campo visual que mostre o valor de custo para cada entrega de acordo com a REGIÃO(Micro_Regiao_por_data_embarque).
+- O custo Máximo para cada Região: Interior 1 35%, Interior 2 45%, POA CAPITAL 30%. Deve ser feito o calculo de Rentabilidade em relação o valor da contratação e o valor total frete. Após o usuário deve enviar as cargas para aprovação de custo aprovacao_custos(Página Aprovação Custos).
+Colunas da Cargas Geradas:
+id,Serie_Numero_CTRC,Cliente Pagador,Chave CT-e,Cliente Destinatario,Cidade de Entrega,Bairro do Destinatario,Previsao de Entrega,Numero da Nota Fiscal,Status,
+Entrega Programada,Particularidade,Codigo da Ultima Ocorrencia,Peso Real em Kg,Peso Calculado em Kg,Cubagem em m³,Quantidade de Volumes,Valor do Frete,Rota
+
+______________________________________________________________________________________________________________________________________________________________OK
+
+Aprovação Custos:
+
+- 2 markdow uma ao lado do outro, Total de Cargas e Total de Entregas . ok
+- Visão Geral das Entregas por Rota, peso total em kg, Peso calculado em kg, cubagem em m³, quantidade de volumes, Valor do Frete, Quantidade de Entregas. ok
+- Resumo de Rentabilidade de cada Rota Valor Total de Frete da Carga, Valor da Contratação e a rentabilidade da carga.
+- Deve aparecer por Cargas.
+- Após aprovadas as Cargas deverão sair da Aprovação Custos e ir para Cargas Aprovadas.
+Colunas da Aprovação Custos:
+id,Serie_Numero_CTRC,Cliente Pagador,Chave CT-e,Cliente Destinatario,Cidade de Entrega,Bairro do Destinatario,Previsao de Entrega,Numero da Nota Fiscal,Status,
+Entrega Programada,Particularidade,Codigo da Ultima Ocorrencia,Peso Real em Kg,Peso Calculado em Kg,Cubagem em m³,Quantidade de Volumes,Valor do Frete,Rota
+
+______________________________________________________________________________________________________________________________________________________________OK
+
+Cargas Aprovadas:
+- Deve aparecer por Carga
+- Deve ser Possível extrair um relatório com todas as entregas das Cargas com aprovação de Custos, com alguma colunas especificas.
+- Deve ser Possível imprimir as cargas Aprovadas
+Colunas da Cargas Aprovadas:
+id,Serie_Numero_CTRC,Cliente Pagador,Chave CT-e,Cliente Destinatario,Cidade de Entrega,Bairro do Destinatario,Previsao de Entrega,Numero da Nota Fiscal,Status,
+Entrega Programada,Particularidade,Codigo da Ultima Ocorrencia,Peso Real em Kg,Peso Calculado em Kg,Cubagem em m³,Quantidade de Volumes,Valor do Frete,Rota
+______________________________________________________________________________________________________________________________________________________________OK
+
+
+

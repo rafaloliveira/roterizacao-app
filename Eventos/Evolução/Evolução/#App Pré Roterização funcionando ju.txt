@@ -1,0 +1,259 @@
+#App Pré Roterização funcionando junto com Rotas Confirmadas
+
+
+
+import streamlit as st
+import pandas as pd
+from datetime import datetime
+from supabase import create_client, Client
+from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
+
+st.set_page_config(layout="wide")
+
+# Supabase config
+url = "https://xhwotwefiqfwfabenwsi.supabase.co"
+key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhod290d2VmaXFmd2ZhYmVud3NpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDgzNjc4NTMsImV4cCI6MjA2Mzk0Mzg1M30.3E2z-1SaABbCaV_HjQf0Rj8249mnPeGv7YkV4gOGhlg"
+supabase: Client = create_client(url, key)
+
+def formatar_brasileiro(valor):
+    try:
+        return f"{valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    except:
+        return valor
+
+@st.cache_data(ttl=600)
+def carregar_base_supabase():
+    try:
+        base = pd.DataFrame(supabase.table("fBaseroter").select("*").execute().data)
+        agendadas = pd.DataFrame(supabase.table("Clientes_Entrega_Agendada").select("*").execute().data)
+        particularidades = pd.DataFrame(supabase.table("Particularidades").select("*").execute().data)
+        rotas = pd.DataFrame(supabase.table("Rotas").select("*").execute().data)
+        rotas_poa = pd.DataFrame(supabase.table("RotasPortoAlegre").select("*").execute().data)
+
+        base['CNPJ Destinatario'] = base['CNPJ Destinatario'].astype(str).str.strip()
+
+        if {'CNPJ', 'Status de Agenda'}.issubset(agendadas.columns):
+            agendadas['CNPJ'] = agendadas['CNPJ'].astype(str).str.strip()
+            base = base.merge(
+                agendadas[['CNPJ', 'Status de Agenda']],
+                how='left',
+                left_on='CNPJ Destinatario',
+                right_on='CNPJ'
+            )
+            base = base.rename(columns={'Status de Agenda': 'Status'})
+
+        if {'CNPJ', 'Particularidade'}.issubset(particularidades.columns):
+            particularidades['CNPJ'] = particularidades['CNPJ'].astype(str).str.strip()
+            base = base.merge(
+                particularidades[['CNPJ', 'Particularidade']],
+                how='left',
+                left_on='CNPJ Destinatario',
+                right_on='CNPJ'
+            )
+
+        for col in ['Cidade de Entrega', 'Bairro do Destinatario']:
+            if col in base.columns:
+                base[col] = base[col].astype(str).str.strip().str.upper()
+
+        rotas['Cidade de Entrega'] = rotas['Cidade de Entrega'].astype(str).str.strip().str.upper()
+        rotas['Bairro do Destinatario'] = rotas['Bairro do Destinatario'].astype(str).str.strip().str.upper()
+        rotas_dict = dict(zip(rotas['Cidade de Entrega'], rotas['Rota']))
+
+        rotas_poa['Cidade de Entrega'] = rotas_poa['Cidade de Entrega'].astype(str).str.strip().str.upper()
+        rotas_poa['Bairro do Destinatario'] = rotas_poa['Bairro do Destinatario'].astype(str).str.strip().str.upper()
+        rotas_poa_dict = dict(zip(rotas_poa['Bairro do Destinatario'], rotas_poa['Rota']))
+
+        def definir_rota(row):
+            if row.get('Cidade de Entrega') == 'PORTO ALEGRE':
+                return rotas_poa_dict.get(row.get('Bairro do Destinatario'), '')
+            else:
+                return rotas_dict.get(row.get('Cidade de Entrega'), '')
+
+        base['Rota'] = base.apply(definir_rota, axis=1)
+
+        colunas_numericas = [
+            'Peso Real em Kg', 'Peso Calculado em Kg', 'Cubagem em m³',
+            'Quantidade de Volumes', 'Valor do Frete'
+        ]
+        for col in colunas_numericas:
+            if col in base.columns:
+                base[col] = (
+                    base[col].astype(str)
+                    .str.replace('.', '', regex=False)
+                    .str.replace(',', '.', regex=False)
+                )
+                base[col] = pd.to_numeric(base[col], errors='coerce')
+            else:
+                st.warning(f"Coluna '{col}' não encontrada na base.")
+
+        base['Indice'] = base.index
+        return base
+
+    except Exception as e:
+        st.error(f"Erro ao consultar as tabelas do Supabase: {e}")
+        return None
+
+def main():
+    st.sidebar.title("Menu")
+    st.sidebar.info("Navegação feita automaticamente com arquivos em /pages")
+    st.title("📦 Pré Roterização")
+
+    df = carregar_base_supabase()
+    if df is not None:
+        # Remove entregas já confirmadas
+        # Remove entregas já confirmadas
+        dados_confirmados_raw = supabase.table("rotas_confirmadas").select("*").execute().data
+        dados_confirmados = pd.DataFrame(dados_confirmados_raw)
+
+        if not dados_confirmados.empty and "Serie_Numero_CTRC" in dados_confirmados.columns and "Serie/Numero CTRC" in df.columns:
+            # Padroniza as colunas para evitar problemas de tipo ou espaços
+            df["Serie/Numero CTRC"] = df["Serie/Numero CTRC"].astype(str).str.strip()
+            dados_confirmados["Serie_Numero_CTRC"] = dados_confirmados["Serie_Numero_CTRC"].astype(str).str.strip()
+
+            ctrcs_confirmados = dados_confirmados["Serie_Numero_CTRC"].dropna().unique().tolist()
+            df = df[~df["Serie/Numero CTRC"].isin(ctrcs_confirmados)]
+
+
+        # FILTRO DE ROTA (SELECTBOX)
+        rotas_disponiveis = sorted(df["Rota"].dropna().unique())
+        rotas_opcoes = ["Todas"] + rotas_disponiveis
+        rota_selecionada = st.selectbox("🔎 Filtrar por Rota:", rotas_opcoes)
+
+        if rota_selecionada != "Todas":
+            df = df[df["Rota"] == rota_selecionada]
+
+        # RESUMO TOTAL DE ROTAS E ENTREGAS
+        total_rotas = df["Rota"].nunique()
+        total_entregas = len(df)
+
+        col1, col2 = st.columns(2)
+
+        st.markdown(f"""
+        <div style="display: flex; gap: 20px; margin-bottom: 20px;">
+            <div style="background-color: #2e2e2e; padding: 16px 24px; border-radius: 8px; color: white; text-align: center; display: inline-block;">
+                <h4 style="margin: 0 0 6px 0;">Total de Rotas</h4>
+                <div style="font-size: 22px; font-weight: bold;">{total_rotas}</div>
+            </div>
+            <div style="background-color: #2e2e2e; padding: 16px 24px; border-radius: 8px; color: white; text-align: center; display: inline-block;">
+                <h4 style="margin: 0 0 6px 0;">Total de Entregas</h4>
+                <div style="font-size: 22px; font-weight: bold;">{total_entregas}</div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+
+
+        # Visão Geral
+        st.markdown("### 📊 Visão Geral das Entregas por Rota")
+        df_grouped = df.groupby('Rota').agg({
+            'Peso Real em Kg': 'sum',
+            'Peso Calculado em Kg': 'sum',
+            'Cubagem em m³': 'sum',
+            'Quantidade de Volumes': 'sum',
+            'Valor do Frete': 'sum',
+            'Indice': 'count'
+        }).reset_index().rename(columns={'Indice': 'Qtd Entregas'})
+        st.dataframe(df_grouped.style.format(formatar_brasileiro), use_container_width=True)
+
+        # Por Rota
+        st.markdown("### 📋 Entregas por Rota")
+        rotas_unicas = sorted(df['Rota'].dropna().unique())
+
+        for rota in rotas_unicas:
+            st.markdown(
+                f"""
+                <div style="
+                    background-color: #2e2e2e;
+                    padding: 10px 20px;
+                    border-radius: 6px;
+                    color: white;
+                    font-size: 22px;
+                    font-weight: bold;
+                    margin-top: 30px;
+                ">
+                     Rota: {rota}
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+
+            df_rota = df[df['Rota'] == rota]
+
+            total_entregas = len(df_rota)
+            peso_calculado = df_rota['Peso Calculado em Kg'].sum()
+            peso_real = df_rota['Peso Real em Kg'].sum()
+            valor_frete = df_rota['Valor do Frete'].sum()
+            cubagem = df_rota['Cubagem em m³'].sum()
+            volumes = df_rota['Quantidade de Volumes'].sum()
+
+            st.markdown(f"""
+            - **Quantidade de Entregas:** {total_entregas}  
+            - **Peso Calculado (kg):** {formatar_brasileiro(peso_calculado)}  
+            - **Peso Real (kg):** {formatar_brasileiro(peso_real)}  
+            - **Valor do Frete:** R$ {formatar_brasileiro(valor_frete)}  
+            - **Cubagem (m³):** {formatar_brasileiro(cubagem)}  
+            - **Volumes:** {int(volumes) if pd.notnull(volumes) else 0}
+            """)
+
+            colunas_exibidas = [
+                'Indice', 'Serie/Numero CTRC', 'Cliente Pagador', 'Chave CT-e', 'Cliente Destinatario',
+                'Cidade de Entrega', 'Bairro do Destinatario', 'Previsao de Entrega',
+                'Numero da Nota Fiscal', 'Status', 'Entrega Programada', 'Particularidade',
+                'Codigo da Ultima Ocorrencia', 'Peso Real em Kg', 'Peso Calculado em Kg',
+                'Cubagem em m³', 'Quantidade de Volumes', 'Valor do Frete'
+            ]
+            colunas_exibidas = [col for col in colunas_exibidas if col in df_rota.columns]
+
+            gb = GridOptionsBuilder.from_dataframe(df_rota[colunas_exibidas])
+            gb.configure_default_column(resizable=True, minWidth=150)
+            gb.configure_selection('multiple', use_checkbox=True)
+            gb.configure_pagination(enabled=True)
+            grid_options = gb.build()
+
+            grid_response = AgGrid(
+                df_rota[colunas_exibidas],
+                gridOptions=grid_options,
+                update_mode=GridUpdateMode.SELECTION_CHANGED,
+                fit_columns_on_grid_load=True,
+                height=400
+            )
+
+            selecionadas = grid_response.get('selected_rows', [])
+
+            if selecionadas is not None and len(selecionadas) > 0:
+                st.success(f"{len(selecionadas)} entregas selecionadas nesta rota.")
+                
+                # Cria DataFrame e faz renomeação imediatamente
+                df_selecionadas = pd.DataFrame(selecionadas)
+
+                if "Serie/Numero CTRC" in df_selecionadas.columns:
+                    df_selecionadas.rename(columns={"Serie/Numero CTRC": "Serie_Numero_CTRC"}, inplace=True)
+
+                # Adiciona a coluna 'Rota'
+                df_selecionadas["Rota"] = rota
+
+                if st.button(f"✅ Confirmar Rota: {rota}", key=f"confirmar_{rota}"):
+                    try:
+                        # Define colunas a serem inseridas no Supabase
+                        colunas_para_salvar = [
+                            'Serie_Numero_CTRC', 'Cliente Pagador', 'Chave CT-e', 'Cliente Destinatario',
+                            'Cidade de Entrega', 'Bairro do Destinatario', 'Previsao de Entrega',
+                            'Numero da Nota Fiscal', 'Status', 'Entrega Programada', 'Particularidade',
+                            'Codigo da Ultima Ocorrencia', 'Peso Real em Kg', 'Peso Calculado em Kg',
+                            'Cubagem em m³', 'Quantidade de Volumes', 'Valor do Frete', 'Rota'
+                        ]
+
+                        df_selecionadas = df_selecionadas[[col for col in colunas_para_salvar if col in df_selecionadas.columns]]
+
+                        registros_para_inserir = df_selecionadas.to_dict(orient="records")
+                        supabase.table("rotas_confirmadas").insert(registros_para_inserir).execute()
+                        st.success("Entregas confirmadas com sucesso!")
+                        st.rerun()
+
+                    except Exception as e:
+                        st.error(f"Erro ao confirmar rota: {e}")
+
+
+
+if __name__ == "__main__":
+    main()

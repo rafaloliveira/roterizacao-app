@@ -4070,32 +4070,6 @@ def pagina_cargas_geradas():
                                         df_aprovar_custos["veiculo"] = veiculo_to_save
                                         df_aprovar_custos["valor_contratacao"] = valor_contratacao
 
-                                        # --- INÍCIO DA CORREÇÃO E DEBUG LOCALIZADO ---
-                                        st.write(f"DEBUG: Antes da reconversão em Cargas Geradas:")
-                                        if "Data_Hora_Gerada" in df_aprovar_custos.columns:
-                                            st.write(f"DEBUG: Data_Hora_Gerada (Tipo): {df_aprovar_custos['Data_Hora_Gerada'].dtype}")
-                                            st.write(f"DEBUG: Data_Hora_Gerada (Primeiro valor): {df_aprovar_custos['Data_Hora_Gerada'].iloc[0] if not df_aprovar_custos.empty else 'DataFrame vazio'}")
-
-                                            # Esta linha é CRÍTICA. Ela diz ao Pandas para interpretar
-                                            # a string como DD/MM/AAAA HH:MM.
-                                            df_aprovar_custos["Data_Hora_Gerada"] = pd.to_datetime(
-                                                df_aprovar_custos["Data_Hora_Gerada"],
-                                                format=DATE_DISPLAY_FORMAT_STRING, # Garante o formato brasileiro
-                                                errors='coerce' # Transforma erros de conversão em NaT
-                                            )
-                                            # Garante que NaT (Not a Time) seja None para o Supabase
-                                            df_aprovar_custos["Data_Hora_Gerada"] = df_aprovar_custos["Data_Hora_Gerada"].apply(
-                                                lambda x: None if pd.isna(x) else x
-                                            )
-
-                                            st.write(f"DEBUG: Após a reconversão em Cargas Geradas:")
-                                            st.write(f"DEBUG: Data_Hora_Gerada (Tipo): {df_aprovar_custos['Data_Hora_Gerada'].dtype}")
-                                            st.write(f"DEBUG: Data_Hora_Gerada (Primeiro valor): {df_aprovar_custos['Data_Hora_Gerada'].iloc[0] if not df_aprovar_custos.empty else 'DataFrame vazio'}")
-                                        else:
-                                            st.write("DEBUG: Coluna 'Data_Hora_Gerada' não encontrada em df_aprovar_custos.")
-
-                                            time.sleep(3)
-                                        # --- FIM DA CORREÇÃO E DEBUG LOCALIZADO ---
                                         # Aplicando a função _prepare_df_for_supabase_insert para datas e nulos
                                         df_aprovar_custos = _prepare_df_for_supabase_insert(df_aprovar_custos)
 

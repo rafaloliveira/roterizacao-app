@@ -1,4 +1,8 @@
-# 06-08 em produção após ajuste de cores logo
+#04-08 05
+
+
+# teste enviado para produção 04-08
+
 
 
 
@@ -6,17 +10,17 @@
 
 import streamlit as st
 st.set_page_config(
-    page_title="F4 Rotas",  # Novo título para a aba do navegador
+    page_title="Roteriza",  # Novo título para a aba do navegador
     page_icon="📡",       # Novo ícone para a aba. Pode ser um emoji,
                           # um caminho para um arquivo de imagem, ou uma URL.
     layout="wide",    # (Opcional) Pode ser "centered" ou "wide"
     initial_sidebar_state="auto" # (Opcional) Pode ser "auto", "expanded" ou "collapsed"
 )
 
-import locale
 import pandas as pd
 import numpy as np
 import io
+import locale
 import re
 import json
 import time
@@ -24,20 +28,31 @@ import hashlib
 import uuid
 import bcrypt
 import streamlit as st
+import pandas as pd
 import os
+import uuid
+import time
+import numpy as np
+import pandas as pd
+import streamlit as st
 import random
 import traceback
 from fpdf import FPDF
+import io
 from reportlab.lib.pagesizes import letter, landscape
 from reportlab.platypus import Indenter
+
 from io import BytesIO
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.pagesizes import letter
 from reportlab.lib.units import inch
 from reportlab.lib import colors
-from pytz import timezone
-from zoneinfo import ZoneInfo # Certifique-se que esta importação esteja presente
+
+from zoneinfo import ZoneInfo
+import datetime
 from datetime import datetime, date, timedelta, timezone
+from datetime import datetime, date
 from http.cookies import SimpleCookie
 from st_aggrid.shared import GridUpdateMode
 from st_aggrid.shared import AgGridTheme
@@ -45,28 +60,37 @@ from dotenv import load_dotenv
 from pandas import Timestamp
 from st_aggrid import AgGrid, GridOptionsBuilder, JsCode
 from streamlit_cookies_manager import EncryptedCookieManager
+from datetime import datetime
 from supabase import create_client, Client
+from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
 from pathlib import Path
+from st_aggrid.shared import JsCode
 from decimal import Decimal, ROUND_HALF_UP, getcontext
 
 
 # --- Definições de Constantes Globais para Pylance (Adicione no topo do arquivo) ---
-#locale.setlocale(locale.LC_ALL, 'pt_BR.UTF-8')
-FUSO_BRASIL = ZoneInfo("America/Sao_Paulo")
+locale.setlocale(locale.LC_ALL, 'pt_BR.UTF-8')
 # Formato de exibição de data e hora no padrão brasileiro (completo com horas, minutos, segundos)
-DATE_DISPLAY_FORMAT_STRING = '%d/%m/%Y %H:%M'
+DATE_DISPLAY_FORMAT_STRING = '%d/%m/%Y %H:%M:%S'
 
 # Formato de exibição de data APENAS (sem hora) no padrão brasileiro (DD/MM/YYYY)
 DATE_ONLY_DISPLAY_FORMAT_STRING_BR = '%d/%m/%Y'
 
 
 
-#locale.setlocale(locale.LC_ALL, 'pt_BR.UTF-8')
-
-DATE_DISPLAY_FORMAT_STRING = "%d/%m/%Y %H:%M"
+locale.setlocale(locale.LC_ALL, 'pt_BR.UTF-8')
+FUSO_BRASIL = ZoneInfo("America/Sao_Paulo")
+DATE_DISPLAY_FORMAT_STRING = '%d/%m/%Y %H:%M:%S'
 DATE_ONLY_DISPLAY_FORMAT_STRING_BR = '%d/%m/%Y'
 # Lista de colunas que devem ser exibidas APENAS como data (DD/MM/YYYY), sem hora.
 GLOBAL_DATE_COLUMNS_DISPLAY_ONLY_DATE = [
+    "Data de Emissao",
+    "Data de Autorizacao",
+    "Data de inclusao da Ultima Ocorrencia",
+    "Data da Ultima Ocorrencia",
+    "Previsao de Entrega",
+    "Entrega Programada",
+    "data_fechamento"
 ]
 
 # Lista de colunas que DEVEM ser exibidas COM HORA (timestamp completo).
@@ -74,7 +98,7 @@ GLOBAL_DATE_DISPLAY_COLUMNS = [
     "data_aprovacao_custos",
     "Data_Hora_Gerada",
     "csv_downloaded_at",
-    "data_fechamento",
+    # Outras colunas que ainda precisam de hora/timestamp completo:
     "Data da Entrega Realizada",
     "Data do Cancelamento",
     "Data do Escaneamento",
@@ -90,25 +114,23 @@ GLOBAL_DB_DATE_COLS = [
     "Data da Ultima Ocorrencia",
     "Previsao de Entrega",
     "Entrega Programada",
-   
+    "data_fechamento"
          
 ]
 
 # Lista de colunas que devem ser salvas como tipo TIMESTAMP WITH TIME ZONE (ISO 8601) no Supabase.
 GLOBAL_DB_TIMESTAMP_COLS = [
-    "Data de Autorizacao",
-    "Data de inclusao da Ultima Ocorrencia",
-    "Data da Ultima Ocorrencia",
-    "data_aprovacao_custos",
+    "data_aprovacao_custos",  
     "Data_Hora_Gerada",
+    "data_fechamento",        
     "csv_downloaded_at",
     "Data da Entrega Realizada",
     "Data do Cancelamento",
     "Data do Escaneamento",
-    "data_fechamento",
     "data_aprovacao_diretoria",
     "pdf_downloaded_at"
 ]
+
 
 # --- Fim das Definições de Constantes Globais ---
 
@@ -589,40 +611,72 @@ def data_brasil_iso_only_date():
     """Retorna a data atual no fuso horário do Brasil no formato YYYY-MM-DD."""
     return datetime.now(FUSO_BRASIL).strftime('%Y-%m-%d')
 #-------------------------------------------------------------------------------------------------------------------------
-# Substitua a função formatar_data_hora_br (linha 640 aprox.) por esta versão mais direta:
-
-def formatar_data_hora_br(dt_obj):
-    """
-    Formata um objeto datetime, Timestamp ou string de data/hora para o padrão brasileiro (DD/MM/AAAA HH:MM).
-    """
-    if pd.isna(dt_obj) or dt_obj == "": # Verifica se é NaN ou string vazia
+def formatar_data_hora_br(data_iso):
+    if data_iso is None:
         return ''
 
-    # Primeiro, garante que dt_obj seja um objeto datetime, convertendo de string se necessário
-    if isinstance(dt_obj, str):
+    if pd.isna(data_iso):
+        return ''
+
+    dt = None
+
+    if isinstance(data_iso, str):
         try:
-            # Usa pd.to_datetime para um parsing robusto da string, assumindo UTC
-            dt_obj_parsed = pd.to_datetime(dt_obj, errors='coerce', utc=True)
-            if pd.isna(dt_obj_parsed): # Se o parsing falhou, retorna string vazia
-                return ''
-            dt_obj = dt_obj_parsed
+            dt = datetime.fromisoformat(data_iso)
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+        except ValueError:
+            try:
+                dt = datetime.strptime(data_iso, "%d/%m/%Y %H:%M:%S")
+            except ValueError:
+                try:
+                    dt = datetime.strptime(data_iso, "%d/%m/%Y %H:%M")
+                except ValueError:
+                    try:
+                        dt = datetime.strptime(data_iso, "%d-%m-%Y %H:%M:%S")
+                    except ValueError:
+                        try:
+                            dt = datetime.strptime(data_iso, "%d-%m-%Y %H:%M")
+                        except ValueError:
+                            try:
+                                dt = datetime.strptime(data_iso, "%d/%m/%Y")
+                            except ValueError:
+                                try:
+                                    dt = datetime.strptime(data_iso, "%Y-%m-%d")
+                                except ValueError:
+                                    return str(data_iso)
         except Exception:
-            return '' # Em caso de outro problema, retorna string vazia
+            return str(data_iso)
 
-    # Agora, dt_obj é garantidamente um objeto datetime/Timestamp (ou NaT se a conversão falhou)
-    if pd.isna(dt_obj) or not isinstance(dt_obj, (datetime, pd.Timestamp)): # Re-verifica após o parsing
+    elif isinstance(data_iso, (datetime, date, pd.Timestamp)):
+        dt = data_iso
+    else:
+        try:
+            dt = pd.to_datetime(data_iso, errors='coerce')
+            if pd.isna(dt):
+                return ''
+        except Exception:
+            return str(data_iso)
+
+    if dt is None:
         return ''
 
-    # Garante que dt_obj seja 'timezone-aware'. Se 'naive', assume que está em UTC.
-    if dt_obj.tzinfo is None:
-        dt_aware = dt_obj.tz_localize('UTC', ambiguous='NaT', nonexistent='NaT')
-        if pd.isna(dt_aware): # Se a localização falhou
-            return ''
+    # Garante que dt esteja no fuso horário do Brasil antes de formatar
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc).astimezone(FUSO_BRASIL)
     else:
-        dt_aware = dt_obj # Já é 'timezone-aware'
+        dt = dt.astimezone(FUSO_BRASIL)
 
-    # Converte para o fuso horário do Brasil e formata
-    return dt_aware.astimezone(FUSO_BRASIL).strftime(DATE_DISPLAY_FORMAT_STRING)
+    # NOVO: Constrói a string da data manualmente para forçar DD/MM/AAAA HH:MM
+    # Isso evita qualquer ambiguidade ou problema com strftime dependente de locale
+    day = dt.day
+    month = dt.month
+    year = dt.year
+    hour = dt.hour
+    minute = dt.minute
+
+    # Formata com zeros à esquerda (ex: 05 em vez de 5)
+    return f"{day:02d}/{month:02d}/{year:04d} {hour:02d}:{minute:02d}"
 
 
 
@@ -1711,60 +1765,71 @@ def apply_brazilian_date_only_format_for_display(df_to_format, date_cols):
 
 #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 def apply_brazilian_date_format_for_display(df_to_format):
+    """
+    Aplica formatação de data e hora no padrão brasileiro (DD/MM/YYYY ou DD/MM/YYYY HH:MM:SS)
+    para colunas de data em um DataFrame, com base em constantes globais.
+    Garanti que ele sempre retorna um DataFrame, mesmo que receba input inválido.
+    """
+    # --- NOVO: Verificação defensiva no início da função ---
     if df_to_format is None or not isinstance(df_to_format, pd.DataFrame):
+        st.warning("Função 'apply_brazilian_date_format_for_display' recebeu entrada inválida (None ou não-DataFrame). Retornando DataFrame vazio.")
         return pd.DataFrame()
+    # --- FIM NOVO ---
 
     df_copy = df_to_format.copy()
+
+    # --- NOVO: Se o DataFrame já estiver vazio, não precisa processar colunas ---
     if df_copy.empty:
         return df_copy
+    # --- FIM NOVO ---
 
-    # Consolidamos todas as colunas que são de data ou timestamp no DB
-    # para processar apenas elas e ignorar colunas que não são datas.
-    all_db_date_or_timestamp_cols = set(GLOBAL_DB_DATE_COLS) \
-                                   .union(GLOBAL_DB_TIMESTAMP_COLS)
-
-    for col in all_db_date_or_timestamp_cols:
+    # Combina todas as listas de colunas de data/timestamp relevantes
+    # para garantir que todas sejam consideradas para formatação.
+    cols_to_process = set(GLOBAL_DATE_COLUMNS_DISPLAY_ONLY_DATE) | \
+                      set(GLOBAL_DATE_DISPLAY_COLUMNS) | \
+                      set(GLOBAL_DB_DATE_COLS) | \
+                      set(GLOBAL_DB_TIMESTAMP_COLS)
+    
+    for col in cols_to_process:
         if col not in df_copy.columns:
-            continue # Pula se a coluna não existe no DataFrame
-
-        # Converte para datetime robustamente primeiro, se ainda não for
-        # (Isso é um fallback, idealmente já vem como pd.Timestamp do _parse_date_robustly)
-        if not pd.api.types.is_datetime64_any_dtype(df_copy[col]):
-            df_copy[col] = _parse_date_robustly(df_copy[col])
-            
-        # Pula se a coluna continua sem ser um tipo datetime válido
-        if not pd.api.types.is_datetime64_any_dtype(df_copy[col]):
             continue
 
-        # --- Etapa 1: Localização do Fuso Horário e Determinação do Formato ---
-        format_str = None
-        
-        # Se a coluna é um TIMESTAMP (salvo como TIMESTAMP WITH TIME ZONE no DB)
+        # Tenta converter a coluna para datetime usando a função robusta
+        # Isso garante que a coluna esteja no formato correto antes de aplicar o timezone ou formatar.
+        df_copy[col] = _parse_date_robustly(df_copy[col])
+
+        # Se a coluna é de TIMESTAMP WITH TIME ZONE, lida com fusos horários
         if col in GLOBAL_DB_TIMESTAMP_COLS:
             df_copy[col] = df_copy[col].apply(
-                lambda x: (
-                    '' if pd.isna(x) or not isinstance(x, (datetime, pd.Timestamp)) else
-                    (x.tz_localize(timezone.utc, ambiguous='NaT', nonexistent='NaT').astimezone(FUSO_BRASIL)
-                     if pd.notna(x) and x.tzinfo is None # Se tz-naive, assume UTC e converte
-                     else (x.astimezone(FUSO_BRASIL) if pd.notna(x) and x.tzinfo is not None else pd.NaT)) # Se tz-aware, apenas converte
+                lambda dt_obj: dt_obj.tz_localize(timezone.utc).astimezone(FUSO_BRASIL)
+                if pd.notna(dt_obj) and dt_obj.tzinfo is None else (
+                    dt_obj.astimezone(FUSO_BRASIL) if pd.notna(dt_obj) and dt_obj.tzinfo is not None else pd.NaT
                 )
             )
-            format_str = DATE_DISPLAY_FORMAT_STRING # Para timestamps, usa HH:MM
-        
-        # Se a coluna é uma DATA (salvo como DATE no DB)
+        # Se a coluna é apenas DATA, remove qualquer informação de timezone para facilitar formatação
         elif col in GLOBAL_DB_DATE_COLS:
             df_copy[col] = df_copy[col].apply(
-                lambda x: x.replace(tzinfo=None) if pd.notna(x) and x.tzinfo is not None else x # Garante que seja tz-naive (sem info de fuso)
+                lambda dt_obj: dt_obj.replace(tzinfo=None) if pd.notna(dt_obj) and dt_obj.tzinfo is not None else dt_obj
             )
-            format_str = DATE_ONLY_DISPLAY_FORMAT_STRING_BR # Para datas, usa DD/MM/YYYY
+
+        # Determina o formato de string final com base nas constantes
+        format_str = ''
+        if col in GLOBAL_DATE_COLUMNS_DISPLAY_ONLY_DATE:
+            format_str = DATE_ONLY_DISPLAY_FORMAT_STRING_BR
+        elif col in GLOBAL_DATE_DISPLAY_COLUMNS:
+            format_str = DATE_DISPLAY_FORMAT_STRING
+        elif col in GLOBAL_DB_DATE_COLS: # Catch-all para colunas de data sem hora
+            format_str = DATE_ONLY_DISPLAY_FORMAT_STRING_BR
+        elif col in GLOBAL_DB_TIMESTAMP_COLS: # Catch-all para colunas de timestamp com hora
+            format_str = DATE_DISPLAY_FORMAT_STRING
         
-        # --- Etapa 2: Aplica a formatação final para strings ---
-        if format_str: # Aplica apenas se um formato foi determinado
-            df_copy[col] = df_copy[col].apply(
-                lambda x: x.strftime(format_str)
-                if pd.notna(x) and isinstance(x, (pd.Timestamp, datetime))
-                else '' # Trata NaT e valores não-datetime
-            )
+        # Aplica a formatação final para strings
+        # Garante que NaT (Not a Time) e outros valores não-datetime sejam convertidos para string vazia.
+        df_copy[col] = df_copy[col].apply(
+            lambda x: x.strftime(format_str)
+            if pd.notna(x) and isinstance(x, (pd.Timestamp, datetime))
+            else ''
+        )
     return df_copy
 #--------------------------------------------------------------------------------------------------------------------
 def _parse_date_robustly(date_series):
@@ -1882,17 +1947,15 @@ def formatar_brasileiro(valor):
 def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, veiculo, valor_frete, valor_contratacao, valor_sugerido_contratacao=None, for_print=False):
     buffer = BytesIO()
 
-    # --- NOVO: Formata o DataFrame para exibição ANTES de usar no PDF ---
-    df_entregas_formatted_for_pdf = apply_brazilian_date_format_for_display(df_entregas.copy())
-    # ------------------------------------------------------------------
-
-    image_path = r"C:\Users\Rafael\Roteriza\Scripts\logo.png"
+    image_path = r"C:\Users\Rafael\Roteriza\Scripts\logo.png" 
     img_width = 1.0 * inch
     img_height = 0.75 * inch
 
     def draw_image_on_page(canvas_obj, doc):
         page_width, page_height = landscape(letter)
-        x_pos = doc.leftMargin
+        
+        x_pos = doc.leftMargin 
+        
         y_pos = page_height - img_height - doc.topMargin
         try:
             canvas_obj.drawImage(image_path, x_pos, y_pos, width=img_width, height=img_height, preserveAspectRatio=True)
@@ -1902,11 +1965,11 @@ def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, veiculo, valor_f
     doc = SimpleDocTemplate(
         buffer,
         pagesize=landscape(letter),
-        rightMargin=inch / 2,
-        leftMargin=inch / 2,
-        topMargin=inch / 2,
+        rightMargin=inch / 2, 
+        leftMargin=inch / 2, 
+        topMargin=inch / 2,  
         bottomMargin=inch / 2,
-        onPage=draw_image_on_page
+        onPage=draw_image_on_page 
     )
     styles = getSampleStyleSheet()
     h1 = styles['h1']
@@ -1932,6 +1995,7 @@ def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, veiculo, valor_f
     )
 
     elements = []
+
     elements.append(Spacer(1, 0.75 * inch))
 
     elements.append(Paragraph(f"Detalhes da Carga: <font color='#1A73E8'><b>{carga}</b></font>", h1))
@@ -1942,13 +2006,13 @@ def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, veiculo, valor_f
             Paragraph(f"<b>Rota:</b> {rota}", styles['CustomNormal']),
             Paragraph(f"<b>Motorista:</b> {motorista if motorista and motorista.strip() else '<i>Não Informado</i>'}", styles['CustomNormal']),
             Paragraph(f"<b>Placa:</b> {placa if placa and placa.strip() else '<i>Não Informada</i>'}", styles['CustomNormal']),
-            ""
+            "" 
         ],
         [
             Paragraph(f"<b>Tipo de Veículo:</b> {veiculo if veiculo and veiculo.strip() else '<i>Não Informado</i>'}", styles['CustomNormal']),
             Paragraph(f"<b>Valor de Contratação:</b> R$ {formatar_brasileiro(valor_contratacao)}", styles['CustomNormal']),
             Paragraph(f"<b>Valor Sugerido:</b> R$ {formatar_brasileiro(valor_sugerido_contratacao)}" if (valor_sugerido_contratacao is not None and not for_print) else "", styles['CustomNormal']),
-            Paragraph(f"<b>Valor Total do Frete:</b> R$ {formatar_brasileiro(valor_frete)}" if not for_print else "", styles['CustomNormal'])
+            Paragraph(f"<b>Valor Total do Frete:</b> R$ {formatar_brasileiro(valor_frete)}" if not for_print else "", styles['CustomNormal']) 
         ]
     ]
 
@@ -1961,13 +2025,12 @@ def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, veiculo, valor_f
     ]))
     elements.append(info_table)
 
-    # Use o DataFrame já formatado para os cálculos de resumo
-    df_entregas_formatted_for_pdf["Peso Real em Kg"] = pd.to_numeric(df_entregas_formatted_for_pdf.get("Peso Real em Kg", 0), errors="coerce").fillna(0)
-    df_entregas_formatted_for_pdf["Cubagem em m³"] = pd.to_numeric(df_entregas_formatted_for_pdf.get("Cubagem em m³", 0), errors="coerce").fillna(0)
+    df_entregas["Peso Real em Kg"] = pd.to_numeric(df_entregas.get("Peso Real em Kg", 0), errors="coerce").fillna(0)
+    df_entregas["Cubagem em m³"] = pd.to_numeric(df_entregas.get("Cubagem em m³", 0), errors="coerce").fillna(0)
 
-    qtd_entregas = len(df_entregas_formatted_for_pdf)
-    peso_real_total = df_entregas_formatted_for_pdf["Peso Real em Kg"].sum()
-    cubagem_total = df_entregas_formatted_for_pdf["Cubagem em m³"].sum()
+    qtd_entregas = len(df_entregas)
+    peso_real_total = df_entregas["Peso Real em Kg"].sum()
+    cubagem_total = df_entregas["Cubagem em m³"].sum()
 
     elements.append(Spacer(1, 0.2 * inch))
     elements.append(Paragraph("<b>Resumo das Entregas:</b>", styles['h2']))
@@ -2008,6 +2071,8 @@ def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, veiculo, valor_f
         "Cubagem em m³": "Cubagem<br/>(m³)",
         "Serie_Numero_CTRC": "Série/Nº<br/>CTRC"
     }
+    #cols_header_map["Valor do Frete"] = "Valor do<br/>Frete" 
+    
 
     requested_order_keys = [
         "Numero da Nota Fiscal", "Cliente Pagador", "Cidade de Entrega", "Quantidade de Volumes",
@@ -2016,22 +2081,27 @@ def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, veiculo, valor_f
         "Serie_Numero_CTRC"
     ]
 
+
+
     if not for_print: # Se NÃO for para impressão (ou seja, é o PDF Completo)
         cols_header_map["Valor do Frete"] = "Valor do<br/>Frete" # Adiciona o cabeçalho
-        requested_order_keys.insert(requested_order_keys.index("Cubagem em m³") + 1, "Valor do Frete") # Adiciona à ordem
-
-    # Use o DataFrame já formatado
-    df_filtrado = df_entregas_formatted_for_pdf[[col for col in requested_order_keys if col in df_entregas_formatted_for_pdf.columns]].copy()
+        requested_order_keys.insert(requested_order_keys.index("Cubagem em m³") + 1, "Valor do Frete") # Adiciona à ordem 
+    
+    df_filtrado = df_entregas[[col for col in requested_order_keys if col in df_entregas.columns]].copy()
 
     header_row = []
     for col_name in df_filtrado.columns:
         display_name = cols_header_map.get(col_name, col_name)
         header_row.append(Paragraph(display_name, header_paragraph_style))
 
-    # As colunas numéricas já devem estar como strings formatadas por formatar_brasileiro
-    # As colunas de data já devem estar como strings formatadas por apply_brazilian_date_format_for_display
-    # Não precisa mais de pd.to_numeric, pd.to_datetime, ou strftime aqui.
-    # Apenas garanta que o valor da célula seja uma string.
+    for col in ["Valor do Frete", "Peso Real em Kg", "Peso Calculado em Kg", "Cubagem em m³"]:
+        if col in df_filtrado.columns:
+            df_filtrado[col] = pd.to_numeric(df_filtrado[col], errors='coerce').fillna(0)
+            df_filtrado[col] = df_filtrado[col].apply(lambda x: formatar_brasileiro(x))
+
+    for col in ["Previsao de Entrega", "Entrega Programada"]:
+        if col in df_filtrado.columns:
+            df_filtrado[col] = pd.to_datetime(df_filtrado[col], errors='coerce').dt.strftime('%d-%m-%Y').fillna('')
 
     table_body_data = []
     for _, row in df_filtrado.iterrows():
@@ -2040,7 +2110,7 @@ def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, veiculo, valor_f
             cell_value = row[col_name]
             alignment = 2 if col_name in ["Peso Calculado em Kg", "Peso Real em Kg", "Cubagem em m³", "Valor do Frete"] else 0
             temp_cell_style = ParagraphStyle(name='TempCell', parent=cell_paragraph_style, alignment=alignment)
-            row_data.append(Paragraph(str(cell_value), temp_cell_style)) # Garante que é string
+            row_data.append(Paragraph(str(cell_value), temp_cell_style))
         table_body_data.append(row_data)
 
     dados_tabela = [header_row] + table_body_data
@@ -2049,22 +2119,20 @@ def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, veiculo, valor_f
         elements.append(Paragraph("<i>Nenhuma entrega detalhada disponível para esta carga.</i>", styles['CustomNormal']))
     else:
         col_widths = [
-            0.7 * inch,
-            1.0 * inch,
-            1.1 * inch,
-            0.6 * inch,
-            0.9 * inch,
-            0.7 * inch,
-            0.7 * inch,
-            0.7 * inch,
-            0.7 * inch,
-            0.7 * inch,
-            0.6 * inch,
-            0.7 * inch,
-        ]
-        # Ajusta larguras se "Valor do Frete" for incluído
-        if "Valor do Frete" in requested_order_keys:
-            col_widths.insert(requested_order_keys.index("Valor do Frete"), 0.7 * inch) # Largura para Valor do Frete
+            0.7 * inch, 
+            1.0 * inch, 
+            1.1 * inch, 
+            0.6 * inch, 
+            0.9 * inch, 
+            0.7 * inch, 
+            0.7 * inch, 
+            0.7 * inch, 
+            0.7 * inch, 
+            0.7 * inch, 
+            0.6 * inch, 
+            0.7 * inch, 
+            0.9 * inch  
+        ] 
 
         table = Table(dados_tabela, colWidths=col_widths, hAlign='LEFT')
         table.setStyle(TableStyle([
@@ -2132,7 +2200,7 @@ def pagina_confirmar_producao():
             return
 
     # ========= MÉTRICAS COMPARATIVAS =========
-    col_total_2, col_total_1, col_total_3, col_total_4, col_badge_agendar, col_badge_particularidade, spacer, col_conf_1, col_conf_2, col_conf_3 = st.columns([1, 1, 1, 1, 1.2, 1.2, 0.5, 1, 1, 1])
+    col_total_2, col_total_1, col_total_3, col_total_4, spacer, col_conf_1, col_conf_2, col_conf_3 = st.columns([1, 1, 1, 1, 0.5, 1, 1, 1])
 
     with col_total_2:
         st.metric("📦 Total de Entregas", len(df))
@@ -2145,39 +2213,6 @@ def pagina_confirmar_producao():
 
     with col_total_4:
         st.metric("📏 Peso Calculado (kg)", formatar_brasileiro(df['Peso Calculado em Kg'].sum()))
-
-      # --- NOVO: Cálculo e exibição do badge para 'AGENDAR' sem 'Entrega Programada' ---
-    entregas_agendar_sem_programacao = df[
-        (df['Status'].astype(str).str.upper() == 'AGENDAR') & # Garante que 'Status' é tratado como string
-        (df['Entrega Programada'].isnull() | (df['Entrega Programada'] == '')) # Verifica se é nulo ou string vazia
-    ]
-    qtd_agendar_sem_programacao = len(entregas_agendar_sem_programacao)
-
-    with col_badge_agendar:
-        st.markdown(badge(
-            f"📅 Total Agendas sem Data Prog.: {qtd_agendar_sem_programacao}", 
-            background_color="#FF4500", # Laranja avermelhado para destaque
-            text_color="white"
-        ), unsafe_allow_html=True)
-
-    # --- NOVO: Cálculo e exibição do badge para 'Particularidade' preenchida ---
-    entregas_com_particularidade = df[
-        (df['Particularidade'].astype(str).str.strip() != '') & # Garante que 'Particularidade' é string e não está vazia
-        (df['Particularidade'].notna()) # Garante que não é NaN
-    ]
-    qtd_com_particularidade = len(entregas_com_particularidade)
-
-    with col_badge_particularidade:
-        st.markdown(badge(
-            f"⚠️ Com Particularidade: {qtd_com_particularidade}",
-            background_color="#DAA520", # Amarelo ouro para destaque
-            text_color="white"
-        ), unsafe_allow_html=True)
-
-
-
-
-
 
     # 🔹 DADOS CONFIRMADOS NA SESSÃO (à direita)
     try:
@@ -2244,8 +2279,8 @@ def pagina_confirmar_producao():
             continue
 
         st.markdown(f"""
-        <div style="margin-top:20px;padding:10px;background:#333333;border-left:4px solid #6c757d;border-radius:6px;display:inline-block;max-width:100%;">
-            <strong style="color:white;">Cliente Pagador:</strong> <span style="color:white;">{cliente_pagador}</span>
+        <div style="margin-top:20px;padding:10px;background:#e8f0fe;border-left:4px solid #4285f4;border-radius:6px;display:inline-block;max-width:100%;">
+            <strong>Cliente Pagador:</strong> {cliente_pagador}
         </div>
         """, unsafe_allow_html=True)
 
@@ -2258,32 +2293,17 @@ def pagina_confirmar_producao():
             valor_frete_sum = df_cliente['Valor do Frete'].sum() if 'Valor do Frete' in df_cliente.columns else 0
             cubagem_sum = df_cliente['Cubagem em m³'].sum() if 'Cubagem em m³' in df_cliente.columns else 0
             volumes_sum = df_cliente['Quantidade de Volumes'].sum() if 'Quantidade de Volumes' in df_cliente.columns else 0
-             # --- Cálculo para os badges específicos do cliente (já existe) ---
-            entregas_agendar_sem_programacao_cliente = df_cliente[
-                (df_cliente['Status'].astype(str).str.upper() == 'AGENDAR') &
-                (df_cliente['Entrega Programada'].isnull() | (df_cliente['Entrega Programada'] == ''))
-            ]
-            qtd_agendar_sem_programacao_cliente = len(entregas_agendar_sem_programacao_cliente)
-
-            entregas_com_particularidade_cliente = df_cliente[
-                (df_cliente['Particularidade'].astype(str).str.strip() != '') &
-                (df_cliente['Particularidade'].notna())
-            ]
-            qtd_com_particularidade_cliente = len(entregas_com_particularidade_cliente)
-            # --- FIM do cálculo ---
-
 
             st.markdown(
-                f"<span style='background:#333333;border-radius:12px;padding:6px 12px;margin:4px;color:white;display:inline-block;'>{len(df_cliente)} entregas</span>"
-                f"<span style='background:#333333;border-radius:12px;padding:6px 12px;margin:4px;color:white;display:inline-block;'>{formatar_brasileiro(peso_calc_sum)} kg calc</span>"
-                f"<span style='background:#333333;border-radius:12px;padding:6px 12px;margin:4px;color:white;display:inline-block;'>{formatar_brasileiro(peso_real_sum)} kg real</span>"
-                f"<span style='background:#333333;border-radius:12px;padding:6px 12px;margin:4px;color:white;display:inline-block;'>Valor frete: R$ {formatar_brasileiro(valor_frete_sum)}</span>"
-                f"<span style='background:#333333;border-radius:12px;padding:6px 12px;margin:4px;color:white;display:inline-block;'>{formatar_brasileiro(cubagem_sum)} m³</span>"
-                f"<span style='background:#333333;border-radius:12px;padding:6px 12px;margin:4px;color:white;display:inline-block;'>{int(volumes_sum)} volumes</span>"
-                f"<span style='background:#e06200;border-radius:12px;padding:6px 12px;margin:4px;color:white;display:inline-block;'>📅Agendar s/ Prog.: {qtd_agendar_sem_programacao_cliente}</span>"
-                f"<span style='background:#b8860b;border-radius:12px;padding:6px 12px;margin:4px;color:white;display:inline-block;'>⚠️ Com Particularidade: {qtd_com_particularidade_cliente}</span>",
+                f"<span style='background:#eef2f7;border-radius:12px;padding:6px 12px;margin:4px;color:inherit;display:inline-block;'>{len(df_cliente)} entregas</span>"
+                f"<span style='background:#eef2f7;border-radius:12px;padding:6px 12px;margin:4px;color:inherit;display:inline-block;'>{formatar_brasileiro(peso_calc_sum)} kg calc</span>"
+                f"<span style='background:#eef2f7;border-radius:12px;padding:6px 12px;margin:4px;color:inherit;display:inline-block;'>{formatar_brasileiro(peso_real_sum)} kg real</span>"
+                f"<span style='background:#eef2f7;border-radius:12px;padding:6px 12px;margin:4px;color:inherit;display:inline-block;'>Valor frete: R$ {formatar_brasileiro(valor_frete_sum)}</span>"
+                f"<span style='background:#eef2f7;border-radius:12px;padding:6px 12px;margin:4px;color:inherit;display:inline-block;'>{formatar_brasileiro(cubagem_sum)} m³</span>"
+                f"<span style='background:#eef2f7;border-radius:12px;padding:6px 12px;margin:4px;color:inherit;display:inline-block;'>{int(volumes_sum)} volumes</span>",
                 unsafe_allow_html=True
             )
+
         # Expander para o grid
         with st.expander("🔽 Selecionar entregas", expanded=True):
             # NOVO: Checkbox "Marcar todas" dentro do expander
@@ -2547,7 +2567,7 @@ def pagina_aprovacao_diretoria():
         const isEntregaEmpty = !entrega || (typeof entrega === 'string' && entrega.trim() === '');
 
         if (status === 'AGENDAR' && isEntregaEmpty) {
-            return { 'background-color': '#ffff00', 'color': '#FFA500', 'color': '#000' }; // LARANJA FORTE
+            return { 'background-color': '#ffff00', 'color': '#333' }; // Amarelo puro para "AGENDAR" sem data
         }
 
         if (particularidade && typeof particularidade === 'string' && particularidade.trim() !== "") {
@@ -2565,43 +2585,22 @@ def pagina_aprovacao_diretoria():
             continue
 
         st.markdown(f"""
-        <div style="margin-top:20px;padding:10px;background:#333333;border-left:4px solid #6c757d;border-radius:6px;display:inline-block;max-width:100%;">
-            <strong style="color:white;">Cliente:</strong> <span style="color:white;">{cliente}</span>
+        <div style="margin-top:20px;padding:10px;background:#e8f0fe;border-left:4px solid #4285f4;border-radius:6px;display:inline-block;max-width:100%;">
+            <strong>Cliente:</strong> {cliente}
         </div>
         """, unsafe_allow_html=True)
 
-     
-            
         col_badge, col_check = st.columns([5, 1])
         with col_badge:
-            # Novos cálculos por cliente
-            entregas_agendar_sem_programacao_cliente = df_cliente[
-                (df_cliente['Status'].astype(str).str.upper() == 'AGENDAR') &
-                (df_cliente['Entrega Programada'].isnull() | (df_cliente['Entrega Programada'] == ''))
-            ]
-            qtd_agendar_sem_programacao_cliente = len(entregas_agendar_sem_programacao_cliente)
-
-            entregas_com_particularidade_cliente = df_cliente[
-                (df_cliente['Particularidade'].astype(str).str.strip() != '') &
-                (df_cliente['Particularidade'].notna())
-            ]
-            qtd_com_particularidade_cliente = len(entregas_com_particularidade_cliente)
-
             st.markdown(
-                f"<span style='background:#333333;border-radius:12px;padding:6px 12px;margin:4px;color:white;display:inline-block;'>{len(df_cliente)} entregas</span>" +
-                f"<span style='background:#333333;border-radius:12px;padding:6px 12px;margin:4px;color:white;display:inline-block;'>{formatar_brasileiro(df_cliente['Peso Calculado em Kg'].sum())} kg calc</span>" +
-                f"<span style='background:#333333;border-radius:12px;padding:6px 12px;margin:4px;color:white;display:inline-block;'>{formatar_brasileiro(df_cliente['Peso Real em Kg'].sum())} kg real</span>" +
-                f"<span style='background:#333333;border-radius:12px;padding:6px 12px;margin:4px;color:white;display:inline-block;'>Valor frete: R$ {formatar_brasileiro(df_cliente['Valor do Frete'].sum())}</span>" +
-                f"<span style='background:#333333;border-radius:12px;padding:6px 12px;margin:4px;color:white;display:inline-block;'>{formatar_brasileiro(df_cliente['Cubagem em m³'].sum())} m³</span>" +
-                f"<span style='background:#333333;border-radius:12px;padding:6px 12px;margin:4px;color:white;display:inline-block;'>{int(df_cliente['Quantidade de Volumes'].sum())} volumes</span>" +
-                f"<span style='background:#e06200;border-radius:12px;padding:6px 12px;margin:4px;color:white;display:inline-block;'>📅 Agendar s/ Prog.: {qtd_agendar_sem_programacao_cliente}</span>" +
-                f"<span style='background:#b8860b;border-radius:12px;padding:6px 12px;margin:4px;color:white;display:inline-block;'>⚠️ Com Particularidade: {qtd_com_particularidade_cliente}</span>",
+                badge(f"{len(df_cliente)} entregas") +
+                badge(f"{formatar_brasileiro(df_cliente['Peso Calculado em Kg'].sum())} kg calc") +
+                badge(f"{formatar_brasileiro(df_cliente['Peso Real em Kg'].sum())} kg real") +
+                badge(f"Valor frete: R$ {formatar_brasileiro(df_cliente['Valor do Frete'].sum())}") +
+                badge(f"{formatar_brasileiro(df_cliente['Cubagem em m³'].sum())} m³") +
+                badge(f"{int(df_cliente['Quantidade de Volumes'].sum())} volumes"),
                 unsafe_allow_html=True
             )
-
-
-
-
 
         with st.expander("🔽 Selecionar entregas", expanded=True):
             df_formatado = apply_brazilian_date_format_for_display(df_cliente[[col for col in colunas_exibir if col in df_cliente.columns]].copy())
@@ -3063,7 +3062,7 @@ def pagina_pre_roterizacao():
         const isEntregaEmpty = !entrega || (typeof entrega === 'string' && entrega.trim() === '');
 
         if (status === 'AGENDAR' && isEntregaEmpty) {
-            return { 'background-color': '#ffff00', 'color': '#FFA500', 'color': '#000' }; // LARANJA FORTE
+            return { 'background-color': '#ffff00', 'color': '#333' }; // Amarelo puro para "AGENDAR" sem data
         }
 
         if (particularidade && typeof particularidade === 'string' && particularidade.trim() !== "") {
@@ -3105,35 +3104,21 @@ def pagina_pre_roterizacao():
 
         # Exibe Rota e Região(s) - Use a 'rota_predominante'
         st.markdown(f"""
-        <div style="margin-top:20px;padding:10px;background:#333333;border-left:4px solid #6c757d;border-radius:6px;display:inline-block;max-width:100%;color:white;">
+        <div style="margin-top:20px;padding:10px;background:#e8f0fe;border-left:4px solid #4285f4;border-radius:6px;display:inline-block;max-width:100%;">
             <strong>Rota Predominante:</strong> {rota_predominante} &nbsp; | &nbsp; <strong>Região:</strong> {regiao_display}
         </div>
         """, unsafe_allow_html=True)
 
-        entregas_agendar_sem_programacao_rota = df_rota[
-            (df_rota['Status'].astype(str).str.upper() == 'AGENDAR') &
-            (df_rota['Entrega Programada'].isnull() | (df_rota['Entrega Programada'] == ''))
-        ]
-        qtd_agendar_sem_programacao_rota = len(entregas_agendar_sem_programacao_rota)
-
-        entregas_com_particularidade_rota = df_rota[
-            (df_rota['Particularidade'].astype(str).str.strip() != '') &
-            (df_rota['Particularidade'].notna())
-        ]
-        qtd_com_particularidade_rota = len(entregas_com_particularidade_rota)
-
-
         st.markdown(
-            f"<span style='background:#333333;border-radius:12px;padding:6px 12px;margin:4px;color:white;display:inline-block;'>{len(df_rota)} entregas</span>" +
-            f"<span style='background:#333333;border-radius:12px;padding:6px 12px;margin:4px;color:white;display:inline-block;'>{formatar_brasileiro(df_rota['Peso Calculado em Kg'].sum())} kg calc</span>" +
-            f"<span style='background:#333333;border-radius:12px;padding:6px 12px;margin:4px;color:white;display:inline-block;'>{formatar_brasileiro(df_rota['Peso Real em Kg'].sum())} kg real</span>" +
-            f"<span style='background:#333333;border-radius:12px;padding:6px 12px;margin:4px;color:white;display:inline-block;'>Valor frete: R$ {formatar_brasileiro(df_rota['Valor do Frete'].sum())}</span>" +
-            f"<span style='background:#333333;border-radius:12px;padding:6px 12px;margin:4px;color:white;display:inline-block;'>{formatar_brasileiro(df_rota['Cubagem em m³'].sum())} m³</span>" +
-            f"<span style='background:#333333;border-radius:12px;padding:6px 12px;margin:4px;color:white;display:inline-block;'>{int(df_rota['Quantidade de Volumes'].sum())} volumes</span>" +
-            f"<span style='background:#e06200;border-radius:12px;padding:6px 12px;margin:4px;color:white;display:inline-block;'>📅  Agenda s/ Prog.: {qtd_agendar_sem_programacao_rota}</span>" +
-            f"<span style='background:#b8860b;border-radius:12px;padding:6px 12px;margin:4px;color:white;display:inline-block;'>⚠️ Com Particularidade: {qtd_com_particularidade_rota}</span>",
+            badge(f"{len(df_rota)} entregas") +
+            badge(f"{formatar_brasileiro(df_rota['Peso Calculado em Kg'].sum())} kg calc") +
+            badge(f"{formatar_brasileiro(df_rota['Peso Real em Kg'].sum())} kg real") +
+            badge(f"Valor frete: R$ {formatar_brasileiro(df_rota['Valor do Frete'].sum())}") +
+            badge(f"{formatar_brasileiro(df_rota['Cubagem em m³'].sum())} m³") +
+            badge(f"{int(df_rota['Quantidade de Volumes'].sum())} volumes"),
             unsafe_allow_html=True
         )
+
             # === Cálculo do valor ideal de contratação com base no Valor do Frete ===
         percentuais_ideais = {
             "INTERIOR 1": 0.35,
@@ -3152,8 +3137,8 @@ def pagina_pre_roterizacao():
 
             st.markdown(
                 f"""
-                <div style='padding: 8px 12px; margin-top: 6px; background-color:#444444;
-                            border-left: 4px solid #28a745; border-radius: 4px; color:white;'>
+                <div style='padding: 8px 12px; margin-top: 6px; background-color:#eaf4ea;
+                            border-left: 4px solid #4caf50; border-radius: 4px;'>
                     💡 <strong> Custo parcial estimado</strong> para região <b>{regiao_chave}</b>
                     ({int(percentual_usado * 100)}% do frete): <b>R$ {formatar_brasileiro(valor_ideal)}</b>
                 </div>
@@ -3485,7 +3470,7 @@ def pagina_cargas_geradas():
         "Serie_Numero_CTRC",  "Cliente Pagador", "Cliente Destinatario", "Cidade de Entrega",
         "Bairro do Destinatario", "Previsao de Entrega", "Numero da Nota Fiscal",  "Status",
         "Entrega Programada", "Peso Real em Kg", "Peso Calculado em Kg", "Valor do Frete",
-        "Rota", "Regiao", "Data de Emissao", "Chave CT-e", "Data_Hora_Gerada" , 
+        "Rota", "Regiao", "Data de Emissao", "Chave CT-e",
         "Particularidade", "Codigo da Ultima Ocorrencia", "Cubagem em m³", "Quantidade de Volumes"
 ]
 
@@ -3507,17 +3492,6 @@ def pagina_cargas_geradas():
             info_valor_contratacao_raw = df_carga_raw["valor_contratacao"].iloc[0] if "valor_contratacao" in df_carga_raw.columns and not df_carga_raw.empty else 0.0
             info_valor_contratacao = formatar_brasileiro(info_valor_contratacao_raw)
             info_data_hora_gerada = df_carga_raw["Data_Hora_Gerada"].iloc[0] if "Data_Hora_Gerada" in df_carga_raw.columns and not df_carga_raw.empty else None
-
-            # --- NOVO: Sanitização para o nome do arquivo ---
-            # Este bloco já estava presente, garantindo a sanitização antes de usar nos nomes de arquivo.
-            sanitized_motorista_name = info_motorista.replace(' ', '_').replace('.', '').replace(',', '').strip()
-            if not sanitized_motorista_name:
-                sanitized_motorista_name = "Nao_Informado"
-
-            sanitized_placa_name = info_placa.replace(' ', '_').replace('.', '').replace(',', '').strip()
-            if not sanitized_placa_name:
-                sanitized_placa_name = "Nao_Informada"
-            # --- FIM NOVO ---
 
             # Determinar a Rota dominante (a mais frequente)
             rota_dominante = "NÃO INFORMADA"
@@ -3580,11 +3554,11 @@ def pagina_cargas_geradas():
 
 
             st.markdown(f"""
-            <div style="margin-top:20px;padding:10px;background:#333333;border-left:4px solid #6c757d;border-radius:6px;display:inline-block;max-width:100%;">
-                <strong style="color:white;">Carga:</strong> <span style="color:white;">{carga}</span> &nbsp; | &nbsp;
-                <strong style="color:white;">Rota:</strong> <span style="color:white;">{rota_dominante}</span> &nbsp; | &nbsp;
-                <strong style="color:white;">Placa:</strong> <span style="color:white;">{info_placa}</span> &nbsp; | &nbsp;
-                <strong style="color:white;">Veículo:</strong> <span style="color:white;">{info_veiculo}</span>
+            <div style="margin-top:20px;padding:10px;background:#e8f0fe;border-left:4px solid #34a853;border-radius:6px;display:inline-block;max-width:100%;">
+                <strong>Carga:</strong> {carga} &nbsp; | &nbsp;
+                <strong>Rota:</strong> {rota_dominante} &nbsp; | &nbsp;
+                <strong>Placa:</strong> {info_placa} &nbsp; | &nbsp;
+                <strong>Veículo:</strong> {info_veiculo}
             </div>
             """, unsafe_allow_html=True)
 
@@ -3601,8 +3575,6 @@ def pagina_cargas_geradas():
                 badge_placa = badge(f'Placa: {info_placa}')
                 badge_valor_contratacao_badge = badge(f'Valor da Contratação: R$ {info_valor_contratacao}') # Use a variável formatada para o badge
                 badge_percentual_custo = badge(f'Custo: {percentual_custo_texto}', background_color=cor_badge_custo, text_color=cor_texto_custo)
-
-
 
                 # Lógica para determinar a data de download do PDF Completo para o badge
                 pdf_downloaded_display_date = None
@@ -3623,58 +3595,38 @@ def pagina_cargas_geradas():
                 if motivo_rejeicao_carga.strip():
                     badge_motivo_rejeicao = badge(f'Motivo Rejeição: {motivo_rejeicao_carga}', background_color="#ffebee", text_color="#d32f2f") 
 
-
-                # Novos cálculos por carga
-                entregas_agendar_sem_programacao_carga = df_carga_raw[
-                    (df_carga_raw['Status'].astype(str).str.upper() == 'AGENDAR') &
-                    (df_carga_raw['Entrega Programada'].isnull() | (df_carga_raw['Entrega Programada'] == ''))
-                ]
-                qtd_agendar_sem_programacao_carga = len(entregas_agendar_sem_programacao_carga)
-
-                entregas_com_particularidade_carga = df_carga_raw[
-                    (df_carga_raw['Particularidade'].astype(str).str.strip() != '') &
-                    (df_carga_raw['Particularidade'].notna())
-                ]
-                qtd_com_particularidade_carga = len(entregas_com_particularidade_carga)
-                
-                
-
                 info_data_hora_gerada = df_carga_raw["Data_Hora_Gerada"].iloc[0] if "Data_Hora_Gerada" in df_carga_raw.columns and not df_carga_raw.empty else None
 
-            html_fragments = [
-                badge(f'{len(df_carga_raw)} entregas', background_color='#333333', text_color='white'),
-                badge(f'{formatar_brasileiro(df_carga_raw["Peso Calculado em Kg"].sum())} kg calc', background_color='#333333', text_color='white'),
-                badge(f'{formatar_brasileiro(df_carga_raw["Peso Real em Kg"].sum())} kg real', background_color='#333333', text_color='white'),
-                badge(f'Valor frete: R$ {formatar_brasileiro(total_frete_carga)}', background_color='#333333', text_color='white'),
-                badge(f'{formatar_brasileiro(df_carga_raw["Cubagem em m³"].sum())} m³', background_color='#333333', text_color='white'),
-                badge(f'{int(df_carga_raw["Quantidade de Volumes"].sum())} volumes', background_color='#333333', text_color='white'),
-                badge(f'Motorista: {info_motorista}', background_color='#333333', text_color='white'),
-                badge(f'Placa: {info_placa}', background_color='#333333', text_color='white'),
-                badge(f'Valor da Contratação: R$ {info_valor_contratacao}', background_color='#333333', text_color='white'),
-                pdf_badge_html_fragment, # Este já é gerado com sua cor
-                badge(f'Custo: {percentual_custo_texto}', background_color=cor_badge_custo, text_color=cor_texto_custo), # Este já é dinâmico
+                html_fragments = [
+                    badge_entregas,
+                    badge_peso_calc,
+                    badge_peso_real,
+                    badge_valor_frete,
+                    badge_cubagem,
+                    badge_volumes,
+                    badge_motorista,
+                    badge_placa,
+                    badge_valor_contratacao_badge, # Use o badge com o valor formatado
+                    pdf_badge_html_fragment,
+                    badge_percentual_custo
+                ]
 
-                # Novos badges com cores ajustadas
-                badge(f'📅  Agenda s/ Prog.: {qtd_agendar_sem_programacao_carga}', background_color='#e06200', text_color='white'),
-                badge(f'⚠️ Com Particularidade: {qtd_com_particularidade_carga}', background_color='#b8860b', text_color='white')
-            ]
+                if info_data_hora_gerada:
+                    html_fragments.append(badge(f'Gerada em: {formatar_data_hora_br(info_data_hora_gerada)}'))
 
-            if info_data_hora_gerada:
-                html_fragments.append(badge(f'Gerada em: {formatar_data_hora_br(info_data_hora_gerada)}', background_color='#333333', text_color='white'))
+                if badge_motivo_rejeicao:
+                    html_fragments.append(badge_motivo_rejeicao)
 
-            if badge_motivo_rejeicao:
-                html_fragments.append(badge_motivo_rejeicao) # Este já tem suas cores
+                full_html_content = " ".join(html_fragments)
 
-            full_html_content = " ".join(html_fragments)
-
-            st.markdown(
-                f'''
-                <div style='display: flex; flex-wrap: wrap; gap: 8px;'>
-                    {full_html_content}
-                </div>
-                ''',
-                unsafe_allow_html=True
-            )
+                st.markdown(
+                    f'''
+                    <div style='display: flex; flex-wrap: wrap; gap: 8px;'>
+                        {full_html_content}
+                    </div>
+                    ''',
+                    unsafe_allow_html=True
+                )
 
             with col2_placeholder:
                 col_pdf_normal, col_pdf_imprimir = st.columns(2)
@@ -3711,9 +3663,9 @@ def pagina_cargas_geradas():
                             except Exception as e_db:
                                 st.warning(f"⚠️ Não foi possível registrar o download do PDF Completo no banco de dados: {e_db}")
 
-                            st.success(f"✅ PDF {carga} gerado!")
+                            st.success(f"✅ PDF Completo da carga {carga} gerado com sucesso!")
                             st.download_button(
-                                label="📥 Baixar",
+                                label="📥 Baixar PDF Completo",
                                 data=buffer_pdf,
                                 file_name=f"carga_{carga}_completo.pdf",
                                 mime="application/pdf",
@@ -4070,32 +4022,6 @@ def pagina_cargas_geradas():
                                         df_aprovar_custos["veiculo"] = veiculo_to_save
                                         df_aprovar_custos["valor_contratacao"] = valor_contratacao
 
-                                        # --- INÍCIO DA CORREÇÃO E DEBUG LOCALIZADO ---
-                                        st.write(f"DEBUG: Antes da reconversão em Cargas Geradas:")
-                                        if "Data_Hora_Gerada" in df_aprovar_custos.columns:
-                                            st.write(f"DEBUG: Data_Hora_Gerada (Tipo): {df_aprovar_custos['Data_Hora_Gerada'].dtype}")
-                                            st.write(f"DEBUG: Data_Hora_Gerada (Primeiro valor): {df_aprovar_custos['Data_Hora_Gerada'].iloc[0] if not df_aprovar_custos.empty else 'DataFrame vazio'}")
-
-                                            # Esta linha é CRÍTICA. Ela diz ao Pandas para interpretar
-                                            # a string como DD/MM/AAAA HH:MM.
-                                            df_aprovar_custos["Data_Hora_Gerada"] = pd.to_datetime(
-                                                df_aprovar_custos["Data_Hora_Gerada"],
-                                                format=DATE_DISPLAY_FORMAT_STRING, # Garante o formato brasileiro
-                                                errors='coerce' # Transforma erros de conversão em NaT
-                                            )
-                                            # Garante que NaT (Not a Time) seja None para o Supabase
-                                            df_aprovar_custos["Data_Hora_Gerada"] = df_aprovar_custos["Data_Hora_Gerada"].apply(
-                                                lambda x: None if pd.isna(x) else x
-                                            )
-
-                                            st.write(f"DEBUG: Após a reconversão em Cargas Geradas:")
-                                            st.write(f"DEBUG: Data_Hora_Gerada (Tipo): {df_aprovar_custos['Data_Hora_Gerada'].dtype}")
-                                            st.write(f"DEBUG: Data_Hora_Gerada (Primeiro valor): {df_aprovar_custos['Data_Hora_Gerada'].iloc[0] if not df_aprovar_custos.empty else 'DataFrame vazio'}")
-                                        else:
-                                            st.write("DEBUG: Coluna 'Data_Hora_Gerada' não encontrada em df_aprovar_custos.")
-
-                                            time.sleep(3)
-                                        # --- FIM DA CORREÇÃO E DEBUG LOCALIZADO ---
                                         # Aplicando a função _prepare_df_for_supabase_insert para datas e nulos
                                         df_aprovar_custos = _prepare_df_for_supabase_insert(df_aprovar_custos)
 
@@ -4141,7 +4067,6 @@ def pagina_cargas_geradas():
 # ==============================================================================
 # FUNÇÃO: pagina_aprovacao_custos() - ATUALIZADA
 # ==============================================================================
-ALL_COLS_TO_PARSE_AS_DATE_OR_TIMESTAMP = list(set(GLOBAL_DB_DATE_COLS + GLOBAL_DB_TIMESTAMP_COLS))
 def pagina_aprovacao_custos():
 
     st.markdown("## Aprovação de Custos")
@@ -4167,16 +4092,6 @@ def pagina_aprovacao_custos():
                 df = pd.DataFrame(dados)
 
                 if not df.empty:
-                    # --- NOVO BLOCO: Conversão Robusta de Data/Timestamp ao carregar ---
-                    for col_name in ALL_COLS_TO_PARSE_AS_DATE_OR_TIMESTAMP:
-                        if col_name in df.columns:
-                            df[col_name] = _parse_date_robustly(df[col_name])
-                            # Para colunas de timestamp, ensure it's timezone-aware as UTC then localize for consistency before cache
-                            if col_name in GLOBAL_DB_TIMESTAMP_COLS and pd.api.types.is_datetime64_any_dtype(df[col_name]):
-                                df[col_name] = df[col_name].apply(
-                                    lambda x: x.tz_localize('UTC', ambiguous='NaT', nonexistent='NaT') if pd.notna(x) and x.tzinfo is None else x
-                                )
-                    # --- FIM NOVO BLOCO
                 
                     # ✅ Garante que 'numero_carga' seja string no cache
                     if 'numero_carga' in df.columns:
@@ -4253,7 +4168,7 @@ def pagina_aprovacao_custos():
         "Serie_Numero_CTRC",  "Cliente Pagador", "Cliente Destinatario", "Cidade de Entrega",
         "Bairro do Destinatario", "Previsao de Entrega", "Numero da Nota Fiscal",  "Status",
         "Entrega Programada", "Peso Real em Kg", "Peso Calculado em Kg", "Valor do Frete",
-        "Rota", "Regiao", "Data de Emissao", "Chave CT-e", "Data_Hora_Gerada",
+        "Rota", "Regiao", "Data de Emissao", "Chave CT-e",
         "Particularidade", "Codigo da Ultima Ocorrencia", "Cubagem em m³", "Quantidade de Volumes",
 ]
 
@@ -4270,7 +4185,7 @@ def pagina_aprovacao_custos():
             placa_veiculo = df_carga["placa"].iloc[0] if "placa" in df_carga.columns and not df_carga["placa"].isnull().all() else "–"
             veiculo = df_carga["veiculo"].iloc[0] if "veiculo" in df_carga.columns and not df_carga["veiculo"].isnull().all() else "–"
             info_data_hora_gerada = df_carga["Data_Hora_Gerada"].iloc[0] if "Data_Hora_Gerada" in df_carga.columns and not df_carga.empty else None
-            
+
             # --- 2. Cálculos de Rentabilidade e Custo por Região (onde situacao_custo_regional é definida) ---
             total_frete_carga = df_carga["Valor do Frete"].sum()
 
@@ -4383,8 +4298,8 @@ def pagina_aprovacao_custos():
                 rota_dominante = df_carga["Rota"].value_counts().idxmax()
             
             st.markdown(fr"""
-            <div style="margin-top:20px;padding:10px;background:#333333;border-left:4px solid #6c757d;border-radius:6px;display:inline-block;max-width:100%;">
-                <strong style="color:white;">Carga:</strong> <span style="color:white;">{carga}</span> &nbsp;&nbsp;|&nbsp;&nbsp; <strong style="color:white;">Rota Predominante:</strong> <span style="color:white;">{rota_dominante}</span>
+            <div style="margin-top:20px;padding:10px;background:#e8f0fe;border-left:4px solid #f9ab00;border-radius:6px;display:inline-block;max-width:100%;">
+                <strong>Carga:</strong> {carga} &nbsp;&nbsp;|&nbsp;&nbsp; <strong>Rota Predominante:</strong> {rota_dominante}
             </div>
             """, unsafe_allow_html=True)
 
@@ -4395,37 +4310,25 @@ def pagina_aprovacao_custos():
                 all_badges_html_list = []
 
                 # Adicione os badges existentes à lista
-                all_badges_html_list.append(badge(f'{len(df_carga)} entregas', background_color='#333333', text_color='white'))
-                all_badges_html_list.append(badge(f'{formatar_brasileiro(df_carga["Peso Calculado em Kg"].sum())} kg calc', background_color='#333333', text_color='white'))
-                all_badges_html_list.append(badge(f'{formatar_brasileiro(df_carga["Peso Real em Kg"].sum())} kg real', background_color='#333333', text_color='white'))
-                all_badges_html_list.append(badge(f'Valor frete: R$ {formatar_brasileiro(total_frete_carga)}', background_color='#333333', text_color='white'))
-                all_badges_html_list.append(badge(f'{formatar_brasileiro(df_carga["Cubagem em m³"].sum())} m³', background_color='#333333', text_color='white'))
-                all_badges_html_list.append(badge(f'{int(df_carga["Quantidade de Volumes"].sum())} volumes', background_color='#333333', text_color='white'))
-                all_badges_html_list.append(badge(f'Valor Contratação: R$ {formatar_brasileiro(valor_contratacao_carga_existente)}', background_color='#333333', text_color='white'))
-                all_badges_html_list.append(badge(f'Motorista: {motorista_}', background_color='#333333', text_color='white'))
-                all_badges_html_list.append(badge(f'Placa: {placa_veiculo}', background_color='#333333', text_color='white'))
-                all_badges_html_list.append(badge(f'Veículo: {veiculo}', background_color='#333333', text_color='white'))
-                all_badges_html_list.append(badge(f'Gerada em: {formatar_data_hora_br(info_data_hora_gerada)}', background_color='#333333', text_color='white'))
+                all_badges_html_list.append(badge(f'{len(df_carga)} entregas'))
+                all_badges_html_list.append(badge(f'{formatar_brasileiro(df_carga["Peso Calculado em Kg"].sum())} kg calc'))
+                all_badges_html_list.append(badge(f'{formatar_brasileiro(df_carga["Peso Real em Kg"].sum())} kg real'))
+                all_badges_html_list.append(badge(f'Valor frete: R$ {formatar_brasileiro(total_frete_carga)}'))
+                all_badges_html_list.append(badge(f'{formatar_brasileiro(df_carga["Cubagem em m³"].sum())} m³'))
+                all_badges_html_list.append(badge(f'{int(df_carga["Quantidade de Volumes"].sum())} volumes'))
+                all_badges_html_list.append(badge(f'Valor Contratação: R$ {formatar_brasileiro(valor_contratacao_carga_existente)}'))
+                all_badges_html_list.append(badge(f'Motorista: {motorista_}'))
+                all_badges_html_list.append(badge(f'Placa: {placa_veiculo}'))
+                all_badges_html_list.append(badge(f'Veículo: {veiculo}'))
+
+                # Adicione o badge da Data_Hora_Gerada APENAS se houver valor
+                if info_data_hora_gerada:
+                    all_badges_html_list.append(badge(f'Gerada em: {formatar_data_hora_br(info_data_hora_gerada)}'))
+
+                # Adicione os badges específicos da página de Aprovação de Custos
                 all_badges_html_list.append(badge(f'Custo: {percentual_custo_texto}', background_color=cor_badge_custo, text_color=cor_texto_custo))
-                all_badges_html_list.append(badge(f'Rentabilidade: {rentabilidade_percentual:.2f}%', background_color='#333333', text_color='white'))
-                
-               
-               
-               # Novos cálculos por carga
-                entregas_agendar_sem_programacao_carga = df_carga[
-                    (df_carga['Status'].astype(str).str.upper() == 'AGENDAR') &
-                    (df_carga['Entrega Programada'].isnull() | (df_carga['Entrega Programada'] == ''))
-                ]
-                qtd_agendar_sem_programacao_carga = len(entregas_agendar_sem_programacao_carga)
-
-                entregas_com_particularidade_carga = df_carga[
-                    (df_carga['Particularidade'].astype(str).str.strip() != '') &
-                    (df_carga['Particularidade'].notna())
-                ]
-                qtd_com_particularidade_carga = len(entregas_com_particularidade_carga)
-
-                all_badges_html_list.append(badge(f'📅  Agenda s/ Prog.: {qtd_agendar_sem_programacao_carga}', background_color='#e06200', text_color='white'))
-                all_badges_html_list.append(badge(f'⚠️ Com Particularidade: {qtd_com_particularidade_carga}', background_color='#b8860b', text_color='white'))
+                all_badges_html_list.append(badge(f'Rentabilidade: {rentabilidade_percentual:.2f}%'))
+                all_badges_html_list.append(badge(f'Situação Custo: {situacao_custo_regional}', background_color=cor_situacao, text_color='white'))
 
                 # Junte todos os HTMLs dos badges em uma única string
                 full_badges_html_string = "".join(all_badges_html_list)
@@ -4799,17 +4702,7 @@ def pagina_cargas_aprovadas():
                 dados = supabase.table("cargas_aprovadas").select("*").execute().data
 
                 df = pd.DataFrame(dados)
-                if not df.empty:
-                    # --- NOVO BLOCO: Conversão Robusta de Data/Timestamp ao carregar ---
-                    for col_name in ALL_COLS_TO_PARSE_AS_DATE_OR_TIMESTAMP:
-                        if col_name in df.columns:
-                            df[col_name] = _parse_date_robustly(df[col_name])
-                            # Para colunas de timestamp, ensure it's timezone-aware as UTC then localize for consistency before cache
-                            if col_name in GLOBAL_DB_TIMESTAMP_COLS and pd.api.types.is_datetime64_any_dtype(df[col_name]):
-                                df[col_name] = df[col_name].apply(
-                                    lambda x: x.tz_localize('UTC', ambiguous='NaT', nonexistent='NaT') if pd.notna(x) and x.tzinfo is None else x
-                                )
-                                
+
                 st.session_state["df_cargas_aprovadas_cache"] = df
             else:
                 df = st.session_state["df_cargas_aprovadas_cache"]
@@ -4866,7 +4759,7 @@ def pagina_cargas_aprovadas():
         "Rota", "Regiao", "Data de Emissao", "Chave CT-e",
         "Particularidade", "Codigo da Ultima Ocorrencia", "Cubagem em m³", "Quantidade de Volumes",
         "valor_contratacao", "numero_carga", "motorista", "placa",
-        "veiculo", "aprovador_custos_login", "data_aprovacao_custos", "Data_Hora_Gerada"
+        "veiculo", "aprovador_custos_login", "data_aprovacao_custos"
 ]
 
         cargas_unicas = sorted(df["numero_carga"].dropna().unique())
@@ -4965,8 +4858,8 @@ def pagina_cargas_aprovadas():
    
 
             st.markdown(f"""
-            <div style="margin-top:20px;padding:10px;background:#333333;border-left:4px solid #6c757d;border-radius:6px;display:inline-block;max-width:100%;">
-                <strong style="color:white;">Carga:</strong> <span style="color:white;">{carga}</span>
+            <div style="margin-top:20px;padding:10px;background:#e8f0fe;border-left:4px solid #34a853;border-radius:6px;display:inline-block;max-width:100%;">
+                <strong>Carga:</strong> {carga}
             </div>
             """, unsafe_allow_html=True)
 
@@ -4977,48 +4870,32 @@ def pagina_cargas_aprovadas():
                 all_badges_html_list = []
 
                 # Adicione os badges existentes à lista
-                all_badges_html_list.append(badge(f'{len(df_carga)} entregas', background_color='#333333', text_color='white'))
-                all_badges_html_list.append(badge(f'{formatar_brasileiro(df_carga["Peso Calculado em Kg"].sum())} kg calc', background_color='#333333', text_color='white'))
-                all_badges_html_list.append(badge(f'{formatar_brasileiro(df_carga["Peso Real em Kg"].sum())} kg real', background_color='#333333', text_color='white'))
-                all_badges_html_list.append(badge(f'Valor frete: R$ {formatar_brasileiro(total_frete_carga)}', background_color='#333333', text_color='white'))
-                all_badges_html_list.append(badge(f'{formatar_brasileiro(df_carga["Cubagem em m³"].sum())} m³', background_color='#333333', text_color='white'))
-                all_badges_html_list.append(badge(f'{int(df_carga["Quantidade de Volumes"].sum())} volumes', background_color='#333333', text_color='white'))
-                all_badges_html_list.append(badge(f'Valor Contratação: R$ {formatar_brasileiro(valor_contratacao_carga)}', background_color='#333333', text_color='white'))
-                all_badges_html_list.append(badge(f'Motorista: {motorista_carga}', background_color='#333333', text_color='white'))
-                all_badges_html_list.append(badge(f'Placa: {placa_carga}', background_color='#333333', text_color='white'))
-                all_badges_html_list.append(badge(f'Veículo: {veiculo_carga}', background_color='#333333', text_color='white'))
-                all_badges_html_list.append(badge(f'Gerada em: {formatar_data_hora_br(info_data_hora_gerada)}', background_color='#333333', text_color='white'))
-                
+                all_badges_html_list.append(badge(f'{len(df_carga)} entregas'))
+                all_badges_html_list.append(badge(f'{formatar_brasileiro(df_carga["Peso Calculado em Kg"].sum())} kg calc'))
+                all_badges_html_list.append(badge(f'{formatar_brasileiro(df_carga["Peso Real em Kg"].sum())} kg real'))
+                all_badges_html_list.append(badge(f'Valor frete: R$ {formatar_brasileiro(total_frete_carga)}'))
+                all_badges_html_list.append(badge(f'{formatar_brasileiro(df_carga["Cubagem em m³"].sum())} m³'))
+                all_badges_html_list.append(badge(f'{int(df_carga["Quantidade de Volumes"].sum())} volumes'))
+                all_badges_html_list.append(badge(f'Valor Contratação: R$ {formatar_brasileiro(valor_contratacao_carga)}'))
+                all_badges_html_list.append(badge(f'Motorista: {motorista_carga}'))
+                all_badges_html_list.append(badge(f'Placa: {placa_carga}'))
+                all_badges_html_list.append(badge(f'Veículo: {veiculo_carga}'))
+
+                # Adicione o badge da Data_Hora_Gerada APENAS se houver valor
+                if info_data_hora_gerada:
+                    all_badges_html_list.append(badge(f'Gerada em: {formatar_data_hora_br(info_data_hora_gerada)}'))
+
+                # Adicione os badges específicos da página de Cargas Aprovadas
                 all_badges_html_list.append(badge(f'Custo: {percentual_custo_texto}', background_color=cor_badge_custo, text_color=cor_texto_custo))
-                all_badges_html_list.append(badge(f'Rentabilidade: {rentabilidade_percentual:.2f}%', background_color='#333333', text_color='white')) # Rentabilidade sempre cinza
-                all_badges_html_list.append(badge(f'Situação Custo: {situacao_custo_regional}', background_color=cor_situacao, text_color='white')) # Este já é dinâmico
-                all_badges_html_list.append(badge(f'Aprovado por: {aprovador_custos_login}', background_color='#333333', text_color='white')) # Aprovado por sempre cinza
+                all_badges_html_list.append(badge(f'Rentabilidade: {rentabilidade_percentual:.2f}%'))
+                all_badges_html_list.append(badge(f'Situação Custo: {situacao_custo_regional}', background_color=cor_situacao, text_color='white'))
+                all_badges_html_list.append(badge(f'Aprovado por: {aprovador_custos_login}'))
 
+                # Verifique se data_aprovacao_custos existe e não é nula antes de tentar formatar
                 if pd.notna(data_aprovacao_custos):
-                    all_badges_html_list.append(badge(f'Em: {formatar_data_hora_br(data_aprovacao_custos)}', background_color='#333333', text_color='white')) # Data aprovacao sempre cinza
-
+                    all_badges_html_list.append(badge(f'Em: {formatar_data_hora_br(data_aprovacao_custos)}'))
                 if justificativa_aprovacao:
-                    all_badges_html_list.append(badge(f'Justificativa: {justificativa_aprovacao}', background_color='#aed6f1', text_color='#333')) # Justificativa com novo azul
-
-
-
-
-                 # Novos cálculos por carga
-                entregas_agendar_sem_programacao_carga = df_carga[
-                    (df_carga['Status'].astype(str).str.upper() == 'AGENDAR') &
-                    (df_carga['Entrega Programada'].isnull() | (df_carga['Entrega Programada'] == ''))
-                ]
-                qtd_agendar_sem_programacao_carga = len(entregas_agendar_sem_programacao_carga)
-
-                entregas_com_particularidade_carga = df_carga[
-                    (df_carga['Particularidade'].astype(str).str.strip() != '') &
-                    (df_carga['Particularidade'].notna())
-                ]
-                qtd_com_particularidade_carga = len(entregas_com_particularidade_carga)
-
-                all_badges_html_list.append(badge(f'📅  Agenda s/ Prog.: {qtd_agendar_sem_programacao_carga}', background_color='#e06200', text_color='white'))
-                all_badges_html_list.append(badge(f'⚠️ Com Particularidade: {qtd_com_particularidade_carga}', background_color='#b8860b', text_color='white'))
-
+                    all_badges_html_list.append(badge(f'Justificativa: {justificativa_aprovacao}', background_color='#FFD700', text_color='#333'))
 
                 # Junte todos os HTMLs dos badges em uma única string
                 full_badges_html_string = "".join(all_badges_html_list)
@@ -5066,6 +4943,10 @@ def pagina_cargas_aprovadas():
                         )
                     except Exception as e:
                         st.error(f"❌ Erro ao gerar o PDF da carga {carga}: {e}")
+
+
+
+
 
                 # --- CAMPOS PARA MOTORISTA E PLACA PARA EDIÇÃO E BOTÃO ÚNICO DE SALVAR E FECHAR ---
                 
@@ -5189,7 +5070,6 @@ def pagina_cargas_aprovadas():
 
                             if not data_to_move:
                                 st.warning(f"Nenhuma entrega encontrada para a carga {carga} em Cargas Aprovadas para fechar.")
-                                time.sleep(3)
                                 st.rerun() # Recarrega para limpar estado
                                 return
 
@@ -5199,10 +5079,11 @@ def pagina_cargas_aprovadas():
                             df_to_move["motorista"] = motorista_carga  # Usa valor já carregado da carga
                             df_to_move["placa"] = placa_carga # Já está em UPPER()
                             df_to_move["veiculo"] = veiculo_carga # <--- ADICIONADO PARA VEICULO
-                            df_to_move["data_fechamento"] = data_hora_brasil_iso()  # Data e hora atual do Brasil
+                            df_to_move["data_fechamento"] = data_brasil_iso_only_date()  # Data e hora atual do Brasil
                             df_to_move["situacao"] = "Fechada" # Definir a situação
                             df_to_move["fechador_carga_login"] = st.session_state.get("username", "Desconhecido") # Quem fechou
-                            
+
+
 
                             # 3. Preparar dados para inserção em 'cargas_fechadas'
                             # APLICAÇÃO DA NOVA FUNÇÃO AUXILIAR PARA FORMATAR DATAS
@@ -5214,25 +5095,18 @@ def pagina_cargas_aprovadas():
 
                             # 4. Inserir em 'cargas_fechadas'
                             if records_to_insert:
-                                try:
-                                    supabase.table("cargas_fechadas").insert(records_to_insert).execute()
-                                    st.success(f"Carga {carga} movida para Cargas Fechadas com sucesso!")
-                                except Exception as insert_error:
-                                    st.error(f"Erro ao inserir dados na tabela cargas_fechadas: {insert_error}")
-                                    st.exception(insert_error) # Isso imprimirá o traceback completo do erro
-                                    return # Interrompe a execução aqui se houver um erro de inserção
+                                supabase.table("cargas_fechadas").insert(records_to_insert).execute()
+                                st.success(f"Carga {carga} movida para Cargas Fechadas com sucesso!")
                             else:
                                 st.warning(f"Não há registros válidos para mover para Cargas Fechadas para a carga {carga}.")
-                                time.sleep(3)
-                                st.rerun()
-                                return
+                                st.rerun() # Não deleta se não inseriu
+                                return 
 
                             # 5. Deletar da 'cargas_aprovadas' (original)
                             supabase.table("cargas_aprovadas").delete().eq("numero_carga", carga).execute()
                             
                             st.session_state["reload_cargas_aprovadas"] = True # Força recarregamento da página atual
                             st.session_state["reload_cargas_fechadas"] = True # Força recarregamento da nova página
-                            time.sleep(3)
                             st.rerun() # Renderiza novamente para mostrar as mudanças
 
                         except Exception as e:
@@ -5251,7 +5125,6 @@ def pagina_cargas_aprovadas():
 
                                 if not data_to_move:
                                     st.warning(f"Nenhuma entrega encontrada para a carga {carga} em Cargas Aprovadas para retornar.")
-                                    time.sleep(3)
                                     st.rerun()
                                     return
 
@@ -5274,7 +5147,6 @@ def pagina_cargas_aprovadas():
                                     st.success(f"Carga {carga} retornada para Aprovação de Custos com sucesso!")
                                 else:
                                     st.warning(f"Não há registros válidos para mover para Aprovação de Custos para a carga {carga}.")
-                                    time.sleep(3)
                                     st.rerun()
                                     return
 
@@ -5284,7 +5156,7 @@ def pagina_cargas_aprovadas():
                                 # Forçar recarregamento das páginas afetadas
                                 st.session_state["reload_cargas_aprovadas"] = True
                                 st.session_state["reload_aprovacao_custos"] = True
-                                time.sleep(3)
+                                
                                 st.rerun()
 
                         except Exception as e:
@@ -5300,6 +5172,9 @@ def pagina_cargas_aprovadas():
 # ==============================================================================
 # Função pagina_cargas_fechadas() - com os ajustes aplicados (sem filtro de data e sem DEBUGs)
 # ==============================================================================
+# ==============================================================================
+# FUNÇÃO: pagina_cargas_fechadas() - com os ajustes aplicados (sem filtro de data e sem DEBUGs)
+# ==============================================================================
 def pagina_cargas_fechadas():
     st.markdown("## Cargas Encerradas")
     st.markdown("---")
@@ -5311,15 +5186,15 @@ def pagina_cargas_fechadas():
             st.session_state.pop("df_cargas_fechadas_cache", None)  # Limpa explicitamente o DataFrame em cache
             st.session_state["_force_reload_cargas_fechadas"] = True  # Define a flag para forçar recarga
             st.rerun()  # Força um rerun para que a flag e a limpeza sejam processadas
-    
+
     # 0.1. Lógica de Carregamento de Dados
     df_original = pd.DataFrame() # Inicializa como DataFrame vazio para garantir definição
 
+    # Condição para determinar se devemos recarregar do Supabase ou usar o cache
     should_reload_from_supabase = st.session_state.get("_force_reload_cargas_fechadas", False) or \
     ("df_cargas_fechadas_cache" not in st.session_state) or \
     (st.session_state.get("df_cargas_fechadas_cache") is None) or \
     (st.session_state.get("df_cargas_fechadas_cache") is not None and st.session_state["df_cargas_fechadas_cache"].empty)
-
 
     try:
         with st.spinner("🔄 Carregando dados para cargas fechadas..."):
@@ -5329,33 +5204,35 @@ def pagina_cargas_fechadas():
                 if not dados:
                     df_original = pd.DataFrame()
                 else:
-                    
                     df_original = pd.DataFrame(dados)
 
-                # 1. Colunas que são TIMESTAMPS (com hora e fuso)
-                # Estas colunas já vêm do Supabase como strings ISO 8601 (UTC)
-                  # --- CORREÇÃO AQUI: Iterar especificamente sobre as colunas de timestamp ---
-                    timestamp_cols_in_df = [
-                        col for col in GLOBAL_DB_TIMESTAMP_COLS
-                        if col in df_original.columns
-                    ]
-                    for col in timestamp_cols_in_df:
-                    # pd.to_datetime é a função ideal e mais rápida para strings ISO 8601
-                        df_original[col] = df_original[col].astype(str).str.replace('Z', '+00:00').apply(
-                            lambda x: pd.to_datetime(x, format='%Y-%m-%dT%H:%M:%S%z', errors='coerce')
-                        )
-                        df_original[col] = pd.to_datetime(df_original[col], errors='coerce', utc=True)
+                # Garante que 'data_fechamento' seja do tipo datetime imediatamente após o carregamento
+                if 'data_fechamento' in df_original.columns:
+                    df_original['data_fechamento'] = pd.to_datetime(df_original['data_fechamento'], errors='coerce')
 
-                # 2. Colunas que são apenas DATAS (sem hora)
-                date_cols_in_df = [
-                    col for col in GLOBAL_DB_DATE_COLS 
-                    if col in df_original.columns
-                ]
-                for col in date_cols_in_df:
-                    # Aqui usamos a função robusta, pois podem vir em formatos variados
-                    df_original[col] = _parse_date_robustly(df_original[col])
 
-                # Limpeza e tipagem para df_original (o restante do seu código)
+                # --- Conversão Compreensiva de Todas as Colunas de Data/Timestamp ---
+                all_cols_to_convert_to_datetime_general = list(set(
+                    GLOBAL_DB_DATE_COLS +
+                    GLOBAL_DB_TIMESTAMP_COLS +
+                    ['pdf_downloaded_at', 'csv_downloaded_at']
+                ))
+
+                for col_name in all_cols_to_convert_to_datetime_general:
+                    if col_name in df_original.columns:
+                        # Aplica o parser robusto para todas as colunas de data/timestamp
+                        df_original.loc[:, col_name] = _parse_date_robustly(df_original[col_name].copy())   
+                        
+                        # Garante que as colunas TIMESTAMP WITH TIME ZONE sejam convertidas para UTC
+                        if col_name in GLOBAL_DB_TIMESTAMP_COLS and pd.api.types.is_datetime64_any_dtype(df_original[col_name]):
+                            df_original.loc[:, col_name] = df_original[col_name].apply(
+                                lambda x: x.tz_localize(timezone.utc, ambiguous='NaT', nonexistent='NaT').tz_convert("UTC")
+                                if pd.notna(x) and x.tzinfo is None else (
+                                    x.tz_convert("UTC") if pd.notna(x) and x.tzinfo is not None else pd.NaT
+                                )
+                            )
+
+                # Limpeza e tipagem para df_original
                 df_original.columns = df_original.columns.str.strip()
                 numeric_cols_to_convert = [
                     'Peso Real em Kg', 'Peso Calculado em Kg', 'Cubagem em m³',
@@ -5365,7 +5242,7 @@ def pagina_cargas_fechadas():
                     if col in df_original.columns:
                         df_original[col] = pd.to_numeric(df_original[col], errors='coerce').fillna(0)
 
-                string_cols_to_clean = ['Regiao', 'motorista', 'placa', 'veiculo', 'situacao',
+                string_cols_to_clean = ['Regiao', 'motorista', 'placa', 'situacao',
                                         'aprovador_custos_login', 'fechador_carga_login',
                                         'justificativa_aprovacao_custo']
                 for col in string_cols_to_clean:
@@ -5381,7 +5258,6 @@ def pagina_cargas_fechadas():
 
             else:  # Usando o DataFrame em cache
                 df_original = st.session_state["df_cargas_fechadas_cache"]
-                
 
         # Verifica se df_original está vazio após o carregamento ou uso do cache
         if df_original.empty:
@@ -5393,16 +5269,9 @@ def pagina_cargas_fechadas():
         st.exception(e)  # Exibe o traceback completo
         return
 
-    
-
     # --- INICIALIZAÇÃO E APLICAÇÃO DO FILTRO DE NÚMERO DA CARGA ---
     df_filtered = df_original.copy()
 
-
-          
-    if df_filtered.empty:
-            st.info("Nenhuma carga encontrada com os filtros aplicados.")
-            return
     # 1. Inicializa variáveis de estado de sessão para filtros e paginação
     if 'cargas_fechadas_load_number_filter' not in st.session_state:
         st.session_state.cargas_fechadas_load_number_filter = ""
@@ -5410,34 +5279,43 @@ def pagina_cargas_fechadas():
         st.session_state.cargas_fechadas_current_page = 0
 
     # 2. Exibe o filtro por data de fechamento
-    col_data_filter, col_data_spacer = st.columns([0.3, 0.7])
+    # Usando colunas para controlar o alinhamento e largura
+    col_data_filter, col_data_spacer = st.columns([0.3, 0.7]) # 30% para o filtro, 70% de espaço
 
     with col_data_filter:
         st.subheader("Filtro por Data de Fechamento")
         if 'data_fechamento' in df_original.columns and not df_original['data_fechamento'].empty:
+            # Pega as datas únicas como objetos datetime.date, remove nulos e ordena da mais recente para a mais antiga
             valid_dates_series = df_original['data_fechamento'].dropna()
-
+            
             if not valid_dates_series.empty:
-                # Extrai apenas a parte da data e remove duplicatas, depois ordena
                 unique_fechamento_dates_dt_sorted = sorted(
-                    valid_dates_series.dt.date.unique(),
+                    valid_dates_series.dt.date.unique(), # Extrai apenas a parte da data e remove duplicatas
                     reverse=True
                 )
+                # Formata para exibição no selectbox (DD/MM/AAAA)
                 fechamento_dates_display = ["Todas as Datas"] + [
-                    d.strftime(DATE_ONLY_DISPLAY_FORMAT_STRING_BR) for d in unique_fechamento_dates_dt_sorted
+                    d.strftime('%d/%m/%Y') for d in unique_fechamento_dates_dt_sorted
+                ]
+                # Armazena as datas no formato original (AAAA-MM-DD) para fácil comparação/filtro no DataFrame
+                fechamento_dates_filter_values = [None] + [
+                    d.strftime('%Y-%m-%d') for d in unique_fechamento_dates_dt_sorted
                 ]
             else:
                 fechamento_dates_display = ["Todas as Datas"]
+                fechamento_dates_filter_values = [None]
         else:
             fechamento_dates_display = ["Todas as Datas"]
+            fechamento_dates_filter_values = [None]
 
+        # Garante que selected_date_filter_display esteja inicializado
         if 'cargas_fechadas_selected_date_filter_display' not in st.session_state:
             st.session_state.cargas_fechadas_selected_date_filter_display = "Todas as Datas"
 
         try:
             default_index_date = fechamento_dates_display.index(st.session_state.cargas_fechadas_selected_date_filter_display)
         except ValueError:
-            default_index_date = 0
+            default_index_date = 0 # Se o valor salvo não estiver mais nas opções (ex: dados antigos), volta para 'Todas as Datas'
 
         selected_date_display = st.selectbox(
             "Selecione uma data:",
@@ -5446,38 +5324,44 @@ def pagina_cargas_fechadas():
             key="cargas_fechadas_date_filter_selectbox"
         )
 
+        # Atualiza o estado da sessão
         if selected_date_display != st.session_state.cargas_fechadas_selected_date_filter_display:
             st.session_state.cargas_fechadas_selected_date_filter_display = selected_date_display
-            st.session_state.cargas_fechadas_current_page = 0
+            st.session_state.cargas_fechadas_current_page = 0 # Reinicia a paginação na mudança de filtro
             st.rerun()
 
+        # Aplica o filtro de data
         if selected_date_display != "Todas as Datas":
+            # Converte a data selecionada para o formato de comparação (AAAA-MM-DD)
             selected_date_iso = None
             try:
-                selected_date_iso = datetime.strptime(selected_date_display, DATE_ONLY_DISPLAY_FORMAT_STRING_BR).strftime('%Y-%m-%d')
+                selected_date_iso = datetime.strptime(selected_date_display, '%d/%m/%Y').strftime('%Y-%m-%d')
             except ValueError:
-                pass
+                pass # Caso a data não esteja no formato esperado
 
             if selected_date_iso and 'data_fechamento' in df_filtered.columns:
+                # Garante que a coluna de data de fechamento no df_filtered está em formato de data (sem hora) para comparação
+                # E que a comparação é feita apenas com a parte da data
                 df_filtered = df_filtered[
                     (df_filtered['data_fechamento'].dt.strftime('%Y-%m-%d') == selected_date_iso)
                 ].copy()
             else:
-                df_filtered = pd.DataFrame()
+                df_filtered = pd.DataFrame() # Se não conseguir converter ou coluna não existe, filtra tudo
 
     # 2. Exibe o filtro de número da carga
-    col_number_filter, col_number_spacer = st.columns([0.3, 0.7])
+    # Usando colunas para controlar o alinhamento e largura
+    col_number_filter, col_number_spacer = st.columns([0.3, 0.7]) # 30% para o filtro, 70% de espaço
 
     with col_number_filter:
-        st.subheader("Filtro por Número da Carga")
+        st.subheader("Filtro por Número da Carga") # Título específico para este filtro
         new_load_number_filter = st.text_input(
-            "Digite o número da carga...",
+            "Digite o número da carga...", # Placeholder como label
             value=st.session_state.cargas_fechadas_load_number_filter,
             key="cargas_fechadas_load_number_filter_input"
         )
         if new_load_number_filter != st.session_state.cargas_fechadas_load_number_filter:
             st.session_state.cargas_fechadas_load_number_filter = new_load_number_filter
-            st.session_state.cargas_fechadas_current_page = 0
+            st.session_state.cargas_fechadas_current_page = 0 # Reset pagination on filter change
             st.rerun()
 
     # Aplica o filtro por número da carga
@@ -5511,42 +5395,47 @@ def pagina_cargas_fechadas():
         "valor_contratacao", "numero_carga", "motorista", "placa", "veiculo",
         "data_fechamento", "situacao", "aprovador_custos_login", "data_aprovacao_custos",
         "fechador_carga_login", "justificativa_aprovacao_custo",
-        "pdf_downloaded_at", "csv_downloaded_at","Data_Hora_Gerada" 
+        "pdf_downloaded_at", "csv_downloaded_at"
     ]
 
     try:
-        # Passa df_filtered para aplicar a formatação correta ANTES de gerar o CSV
         df_csv_geral = df_filtered[[col for col in colunas_para_csv_geral_completo if col in df_filtered.columns]].copy()
 
         for col in df_csv_geral.columns:
-            # 1. Se a coluna for um TIMESTAMP (DB_TIMESTAMP_COLS)
+            # 1. Se a coluna for uma das que deve ter TIMESTAMP COM TIME ZONE
             if col in GLOBAL_DB_TIMESTAMP_COLS:
                 df_csv_geral[col] = df_csv_geral[col].apply(
                     lambda x: (
+                        # Verifica se é um objeto de data válido e não é NaT
                         '' if pd.isna(x) or not isinstance(x, (datetime, pd.Timestamp)) else
-                        # Localiza para UTC se tz-naive, converte para UTC se tz-aware, depois para BRASIL
+                        # Se for tz-naive, localize para UTC; se já tz-aware, converta para UTC.
                         (x.tz_localize(timezone.utc, ambiguous='NaT', nonexistent='NaT')
                          if x.tzinfo is None else x.astimezone(timezone.utc))
-                        .astimezone(FUSO_BRASIL).strftime(DATE_DISPLAY_FORMAT_STRING) # Formato BR HH:MM
+                        # Em seguida, converta para o fuso horário do Brasil e formate.
+                        .astimezone(FUSO_BRASIL).strftime('%Y-%m-%d %H:%M:%S')
                     )
                 )
-            # 2. Se a coluna for uma DATA (DB_DATE_COLS)
+            # 2. Se a coluna for uma das que deve ter APENAS DATA (sem hora, sem fuso horário)
             elif col in GLOBAL_DB_DATE_COLS:
                 df_csv_geral[col] = df_csv_geral[col].apply(
                     lambda x: (
+                        # Verifica se é um objeto de data válido e não é NaT
                         '' if pd.isna(x) or not isinstance(x, (datetime, pd.Timestamp)) else
-                        x.strftime(DATE_ONLY_DISPLAY_FORMAT_STRING_BR) # Formato BR DD/MM/YYYY
+                        # Formata diretamente a data.
+                        x.strftime('%Y-%m-%d')
                     )
                 )
-            # 3. Fallback para qualquer outra coluna que possa ser datetime (caso não esteja nas listas globais)
+            # 3. Fallback para qualquer outra coluna que possa ser do tipo datetime
             elif pd.api.types.is_datetime64_any_dtype(df_csv_geral[col]):
                 df_csv_geral[col] = df_csv_geral[col].apply(
                     lambda x: (
+                        # Verifica se é um objeto de data válido e não é NaT
                         '' if pd.isna(x) or not isinstance(x, (datetime, pd.Timestamp)) else
-                        # Localiza para UTC se tz-naive, converte para UTC se tz-aware, depois para BRASIL
-                        (x.tz_localize(timezone.utc, ambiguous='NaT', nonexistent='NaT')
-                         if x.tzinfo is None else x.astimezone(timezone.utc))
-                        .astimezone(FUSO_BRASIL).strftime(DATE_DISPLAY_FORMAT_STRING) # Default para HH:MM
+                        # Se for tz-naive, localize para o fuso do Brasil; se já tz-aware, converta.
+                        (x.tz_localize(FUSO_BRASIL, ambiguous='NaT', nonexistent='NaT')
+                         if x.tzinfo is None else x.astimezone(FUSO_BRASIL))
+                        # Em seguida, formate.
+                        .strftime('%Y-%m-%d %H:%M:%S')
                     )
                 )
             # 4. Tratamento para colunas específicas de texto que precisam de aspas para o CSV
@@ -5556,14 +5445,15 @@ def pagina_cargas_fechadas():
             else:
                 df_csv_geral[col] = df_csv_geral[col].astype(str).str.strip()
 
-        with col_download_placeholder:
-            st.download_button(
-                    label="⬇️ Baixar CSV Filtrado",
-                    data=df_csv_geral.to_csv(index=False, sep=';', encoding='utf-8-sig'),
-                    file_name="cargas_fechadas_filtradas.csv",
-                    mime="text/csv",
-                    key="download_csv_geral_filtered"
-                )
+
+
+        st.download_button(
+                label="⬇️ Baixar CSV Filtrado",
+                data=df_csv_geral.to_csv(index=False, sep=';', encoding='utf-8-sig'), # <--- LINHA CORRIGIDA
+                file_name="cargas_fechadas_filtradas.csv",
+                mime="text/csv",
+                key="download_csv_geral_filtered"
+            )
     except Exception as e:
         st.warning(f"⚠️ Não foi possível gerar o CSV filtrado: {e}")
         st.exception(e)
@@ -5580,10 +5470,11 @@ def pagina_cargas_fechadas():
     if st.session_state.cargas_fechadas_current_page < 0:
         st.session_state.cargas_fechadas_current_page = 0
 
-    col_left_align_pagination, col_pagination_content = st.columns([0.01, 10])
-    with col_pagination_content:
+
+    col_left_align_pagination, col_pagination_content = st.columns([0.01, 10]) # Cria uma coluna quase invisível à esquerda
+    with col_pagination_content: # Coloca o conteúdo da paginação nesta coluna
         st.markdown(f"**Página {st.session_state.cargas_fechadas_current_page + 1} de {total_pages}**")
-        col_prev, col_page_select, col_next = st.columns([1, 3, 1])
+        col_prev, col_page_select, col_next = st.columns([1, 3, 1]) # Mantém a estrutura interna de colunas para os botões
 
         with col_prev:
             if st.button("⬅️ Anterior", disabled=(st.session_state.cargas_fechadas_current_page == 0), key="btn_prev_page"):
@@ -5606,7 +5497,6 @@ def pagina_cargas_fechadas():
         if st.button("Próxima ➡️", disabled=(st.session_state.cargas_fechadas_current_page >= total_pages - 1), key="btn_next_page"):
             st.session_state.cargas_fechadas_current_page += 1
             st.rerun()
-
     start_idx = st.session_state.cargas_fechadas_current_page * LOADS_PER_PAGE
     end_idx = start_idx + LOADS_PER_PAGE
     cargas_unicas_paginated = cargas_unicas_filtered[start_idx:end_idx]
@@ -5628,69 +5518,23 @@ def pagina_cargas_fechadas():
         "pdf_downloaded_at", "csv_downloaded_at"
     ]
 
-    # --- INÍCIO DO LOOP FOR SOLICITADO ---
     for carga in cargas_unicas_paginated:
         df_carga = df_filtered[df_filtered["numero_carga"] == carga].copy()
         if df_carga.empty:
-         # --- NOVOS DEBUGs: Verificação de df_carga IMEDIATAMENTE após a criação ---
-            st.subheader(f"DEBUG: df_carga para Carga {carga} (imediatamente após slicing)")
-            st.write(f"df_carga.dtypes: {df_carga.dtypes}")
-            if not df_carga.empty and "data_fechamento" in df_carga.columns:
-                st.write(f"df_carga['data_fechamento'].iloc[0]: {df_carga['data_fechamento'].iloc[0]}")
-                st.write(f"Tipo em df_carga.iloc[0]: {type(df_carga['data_fechamento'].iloc[0])}")
-            else:
-                st.write("df_carga é vazio ou 'data_fechamento' não existe.")
-            st.markdown("---")
+            st.write(f"df_carga para '{carga}' está vazio após subconjunto de df_filtered. Pulando.")
+            continue
 
         valor_contratacao_carga = df_carga["valor_contratacao"].iloc[0] if "valor_contratacao" in df_carga.columns and not df_carga["valor_contratacao"].isnull().all() else 0.0
         motorista_carga = df_carga["motorista"].iloc[0] if "motorista" in df_carga.columns and not df_carga["motorista"].isnull().all() else 'Não Informado'
         placa_carga = df_carga["placa"].iloc[0] if "placa" in df_carga.columns and not df_carga["placa"].isnull().all() else 'Não Informada'
         veiculo_carga = df_carga["veiculo"].iloc[0] if "veiculo" in df_carga.columns and not df_carga["veiculo"].isnull().all() else 'Não Informado'
+        data_fechamento_carga = df_carga["data_fechamento"].iloc[0] if "data_fechamento" in df_carga.columns and pd.notna(df_carga["data_fechamento"].iloc[0]) else None
         situacao_carga = df_carga["situacao"].iloc[0] if "situacao" in df_carga.columns and not df_carga["situacao"].isnull().all() else 'Não Definida'
         aprovador_custos_login = df_carga["aprovador_custos_login"].iloc[0] if "aprovador_custos_login" in df_carga.columns and not df_carga["aprovador_custos_login"].isnull().all() else 'Desconhecido'
+        data_aprovacao_custos = df_carga["data_aprovacao_custos"].iloc[0] if "data_aprovacao_custos" in df_carga.columns and pd.notna(df_carga["data_aprovacao_custos"].iloc[0]) else None
         fechador_carga_login = df_carga["fechador_carga_login"].iloc[0] if "fechador_carga_login" in df_carga.columns and not df_carga["fechador_carga_login"].isnull().all() else 'Desconhecido'
         justificativa_aprovacao_final = df_carga["justificativa_aprovacao_custo"].iloc[0] if "justificativa_aprovacao_custo" in df_carga.columns and pd.notna(df_carga["justificativa_aprovacao_custo"].iloc[0]) else ''
-
-         # --- NOVO: Sanitização para o nome do arquivo CSV ---
-        sanitized_motorista_name = motorista_carga.replace(' ', '_').replace('.', '').replace(',', '').strip()
-        if not sanitized_motorista_name:
-            sanitized_motorista_name = "Nao_Informado"
-
-        sanitized_placa_name = placa_carga.replace(' ', '_').replace('.', '').replace(',', '').strip()
-        if not sanitized_placa_name:
-            sanitized_placa_name = "Nao_Informada"
-        # --- FIM NOVO ---
-
-        # Datas extraídas como pd.Timestamp (ainda tz-naive)
-        data_fechamento_carga_raw = df_carga["data_fechamento"].iloc[0] if "data_fechamento" in df_carga.columns and pd.notna(df_carga["data_fechamento"].iloc[0]) else None
-
-        # --- A CORREÇÃO É AQUI ---
-        # Antes de extrair o valor, garanta que a coluna 'data_fechamento' é do tipo datetime.
-        # Isso é uma precaução para o caso de o Pandas ter despromovido o tipo em alguma cópia/filtro anterior.
-        # --- SEU ÚLTIMO FIX TENTADO (Mantenha ele aqui) ---
-        if "data_fechamento" in df_carga.columns:
-            df_carga["data_fechamento"] = pd.to_datetime(df_carga["data_fechamento"], errors='coerce', utc=True)
-            data_fechamento_carga_raw = df_carga["data_fechamento"].iloc[0]
-            if pd.isna(data_fechamento_carga_raw):
-                    data_fechamento_carga_raw = None
-        else:
-            data_fechamento_carga_raw = None
         
-        data_aprovacao_custos_raw = df_carga["data_aprovacao_custos"].iloc[0] if "data_aprovacao_custos" in df_carga.columns and pd.notna(df_carga["data_aprovacao_custos"].iloc[0]) else None
-        pdf_downloaded_at_raw = df_carga["pdf_downloaded_at"].iloc[0] if "pdf_downloaded_at" in df_carga.columns and pd.notna(df_carga["pdf_downloaded_at"].iloc[0]) else None
-        csv_downloaded_at_raw = df_carga["csv_downloaded_at"].iloc[0] if "csv_downloaded_at" in df_carga.columns and pd.notna(df_carga["csv_downloaded_at"].iloc[0]) else None
-        data_hora_gerada_raw = df_carga["Data_Hora_Gerada"].iloc[0] if "Data_Hora_Gerada" in df_carga.columns and pd.notna(df_carga["Data_Hora_Gerada"].iloc[0]) else None
-
-        
-        # Formatando as datas para exibição em badges usando formatar_data_hora_br (hh:mm)
-        data_fechamento_carga_display = formatar_data_hora_br(data_fechamento_carga_raw)
-        
-
-        data_aprovacao_custos_display = formatar_data_hora_br(data_aprovacao_custos_raw)
-        pdf_downloaded_at_display = formatar_data_hora_br(pdf_downloaded_at_raw)
-        csv_downloaded_at_display = formatar_data_hora_br(csv_downloaded_at_raw)
-        data_hora_gerada_display = formatar_data_hora_br(data_hora_gerada_raw)
-
         getcontext().prec = 6
 
         total_frete_carga = df_carga["Valor do Frete"].sum()
@@ -5728,60 +5572,50 @@ def pagina_cargas_fechadas():
             cor_situacao = "gray"
 
         st.markdown(f"""
-            <div style="margin-top:20px;padding:10px;background:#333333;border-left:4px solid #6c757d;border-radius:6px;display:inline-block;max-width:100%;">
-                <strong style="color:white;">Carga:</strong> <span style="color:white;">{carga}</span>
-            </div>
-            """, unsafe_allow_html=True)
+        <div style="margin-top:20px;padding:10px;background:#e8f0fe;border-left:4px solid #34a853;border-radius:6px;display:inline-block;max-width:100%;">
+            <strong>Carga:</strong> {carga}
+        </div>
+        """, unsafe_allow_html=True)
 
         col1_badges, col2_placeholder = st.columns([5, 1])
         with col1_badges:
+            csv_downloaded_display_date = None
+            if f"csv_downloaded_{carga}" in st.session_state:
+                csv_downloaded_display_date = st.session_state[f"csv_downloaded_{carga}"]
+            elif "csv_downloaded_at" in df_carga.columns and pd.notna(df_carga["csv_downloaded_at"].iloc[0]):
+                csv_downloaded_display_date = formatar_data_hora_br(df_carga["csv_downloaded_at"].iloc[0])
+
             all_badges_html_list = []
 
-            all_badges_html_list.append(badge(f'{len(df_carga)} entregas', background_color='#6c757d', text_color='white'))
-            all_badges_html_list.append(badge(f'{formatar_brasileiro(df_carga["Peso Calculado em Kg"].sum())} kg calc', background_color='#6c757d', text_color='white'))
-            all_badges_html_list.append(badge(f'{formatar_brasileiro(df_carga["Peso Real em Kg"].sum())} kg real', background_color='#6c757d', text_color='white'))
-            all_badges_html_list.append(badge(f'Valor frete: R$ {formatar_brasileiro(total_frete_carga)}', background_color='#6c757d', text_color='white'))
-            all_badges_html_list.append(badge(f'{formatar_brasileiro(df_carga["Cubagem em m³"].sum())} m³', background_color='#6c757d', text_color='white'))
-            all_badges_html_list.append(badge(f'{int(df_carga["Quantidade de Volumes"].sum())} volumes', background_color='#6c757d', text_color='white'))
-            all_badges_html_list.append(badge(f'Valor Contratação: R$ {formatar_brasileiro(valor_contratacao_carga)}', background_color='#6c757d', text_color='white'))
-            all_badges_html_list.append(badge(f'Motorista: {motorista_carga}', background_color='#6c757d', text_color='white'))
-            all_badges_html_list.append(badge(f'Placa: {placa_carga}', background_color='#6c757d', text_color='white'))
-            all_badges_html_list.append(badge(f'Veículo: {veiculo_carga}', background_color='#6c757d', text_color='white'))
-            all_badges_html_list.append(badge(f'Rentabilidade: {rentabilidade_percentual:.2f}%', background_color='#6c757d', text_color='white'))
-            all_badges_html_list.append(badge(f'Situação Custo: {situacao_custo_regional}', background_color=cor_situacao, text_color='white')) # Este já é dinâmico
-            all_badges_html_list.append(badge(f'Aprovado por: {aprovador_custos_login}', background_color='#6c757d', text_color='white'))
-            all_badges_html_list.append(badge(f'Aprovado em: {data_aprovacao_custos_display}', background_color='#6c757d', text_color='white'))
-            all_badges_html_list.append(badge(f'Fechado por: {fechador_carga_login}', background_color='#6c757d', text_color='white'))
-            all_badges_html_list.append(badge(f'Fechado  em: {data_fechamento_carga_display}', background_color='#34495e', text_color='white')) # Novo cinza escuro
+            all_badges_html_list.append(badge(f'{len(df_carga)} entregas'))
+            all_badges_html_list.append(badge(f'{formatar_brasileiro(df_carga["Peso Calculado em Kg"].sum())} kg calc'))
+            all_badges_html_list.append(badge(f'{formatar_brasileiro(df_carga["Peso Real em Kg"].sum())} kg real'))
+            all_badges_html_list.append(badge(f'Valor frete: R\$ {formatar_brasileiro(total_frete_carga)}'))
+            all_badges_html_list.append(badge(f'{formatar_brasileiro(df_carga["Cubagem em m³"].sum())} m³'))
+            all_badges_html_list.append(badge(f'{int(df_carga["Quantidade de Volumes"].sum())} volumes'))
+            all_badges_html_list.append(badge(f'Valor Contratação: R\$ {formatar_brasileiro(valor_contratacao_carga)}'))
+            all_badges_html_list.append(badge(f'Motorista: {motorista_carga}'))
+            all_badges_html_list.append(badge(f'Placa: {placa_carga}'))
+            all_badges_html_list.append(badge(f'Veículo: {veiculo_carga}'))
+            all_badges_html_list.append(badge(f'Rentabilidade: {rentabilidade_percentual:.2f}%'))
+            all_badges_html_list.append(badge(f'Situação Custo: {situacao_custo_regional}', background_color=cor_situacao, text_color='white'))
+            all_badges_html_list.append(badge(f'Aprovado por: {aprovador_custos_login}'))
+            all_badges_html_list.append(badge(f'Fechado por: {fechador_carga_login}'))
 
-            if data_hora_gerada_display:
-                all_badges_html_list.append(badge(f'Gerada em: {data_hora_gerada_display}', background_color='#6c757d', text_color='white'))
-            if pdf_downloaded_at_display:
-                all_badges_html_list.append(badge(f'PDF baixado em: {pdf_downloaded_at_display}', background_color='#4a4a4a', text_color='white')) # Novo cinza escuro
-           
-            if csv_downloaded_at_display:
-                all_badges_html_list.append(badge(f'CSV baixado em: {csv_downloaded_at_display}', background_color='#4a4a4a', text_color='white')) # Novo cinza escuro
+            if pd.notna(data_aprovacao_custos):
+                all_badges_html_list.append(badge(f'Fechado em: {formatar_data_hora_br(data_aprovacao_custos)}'))
+            
+            all_badges_html_list.append(badge(f'Situação: {situacao_carga}'))
 
-            all_badges_html_list.append(badge(f'Situação: {situacao_carga}', background_color='#6c757d', text_color='white')) # Situação genérica cinza
+            if csv_downloaded_display_date:
+                all_badges_html_list.append(badge(f'CSV baixado em: {csv_downloaded_display_date}', background_color="#6c757d", text_color="white"))
+
             if justificativa_aprovacao_final:
-                all_badges_html_list.append(badge(f'Justificativa: {justificativa_aprovacao_final}', background_color='#aed6f1', text_color='#333')) # Justificativa com novo azul
+                all_badges_html_list.append(badge(f'Justificativa: {justificativa_aprovacao_final}', background_color='#ADD8E6', text_color='#333'))
 
-             # Novos cálculos por carga
-            entregas_agendar_sem_programacao_carga = df_carga[
-                (df_carga['Status'].astype(str).str.upper() == 'AGENDAR') &
-                (df_carga['Entrega Programada'].isnull() | (df_carga['Entrega Programada'] == ''))
-            ]
-            qtd_agendar_sem_programacao_carga = len(entregas_agendar_sem_programacao_carga)
-
-            entregas_com_particularidade_carga = df_carga[
-                (df_carga['Particularidade'].astype(str).str.strip() != '') &
-                (df_carga['Particularidade'].notna())
-            ]
-            qtd_com_particularidade_carga = len(entregas_com_particularidade_carga)
-
-            all_badges_html_list.append(badge(f'📅  Agenda s/ Prog.: {qtd_agendar_sem_programacao_carga}', background_color='#e06200', text_color='white'))
-            all_badges_html_list.append(badge(f'⚠️ Com Particularidade: {qtd_com_particularidade_carga}', background_color='#b8860b', text_color='white'))
-
+            # NOVO BADGE: data_fechamento_carga formatada para dd/mm/yyyy HH:MM
+            if pd.notna(data_fechamento_carga):
+                all_badges_html_list.append(badge(f'Fechado em: {formatar_data_hora_br(data_fechamento_carga)}', background_color="#28a745", text_color="white"))
 
             full_badges_html_string = "".join(all_badges_html_list)
 
@@ -5809,7 +5643,6 @@ def pagina_cargas_fechadas():
                 )
 
                 try:
-                    # df_carga é passado para gerar_pdf_carga, que já aplica apply_brazilian_date_format_for_display internamente
                     buffer_pdf = gerar_pdf_carga(
                         df_entregas=df_carga.copy(),
                         carga=carga,
@@ -5835,16 +5668,16 @@ def pagina_cargas_fechadas():
                 try:
                     if 'Serie_Numero_CTRC' not in df_carga.columns:
                         st.error(f"Coluna 'Serie_Numero_CTRC' NÃO ENCONTRADA em df_carga para a carga {carga}. Verifique a origem dos dados no Supabase ou no carregamento inicial.")
-                        return
-
+                        return 
+                    
                     df_export = df_carga[['Chave CT-e', 'Serie_Numero_CTRC']].copy()
 
                     df_export['Chave CT-e'] = df_export['Chave CT-e'].astype(str).apply(lambda x: '="' + re.sub(r'\D', '', x) + '"')
-
+                    
                     df_export['Serie_Numero_CTRC'] = df_export['Serie_Numero_CTRC'].apply(
                         lambda x: '="' + str(x) + '"' if pd.notna(x) else '=""'
                     )
-
+                    
                     csv_content = df_export.to_csv(index=False, sep=';', encoding='utf-8-sig')
 
                     if st.button(f" ⬇📥 Gerar CSV SSW {carga}", key=f"btn_csv_{carga}"):
@@ -5855,20 +5688,19 @@ def pagina_cargas_fechadas():
                                 "csv_downloaded_at": data_csv_download
                             }).eq("numero_carga", carga).execute()
 
-                            st.session_state.pop("df_cargas_fechadas_cache", None)
-                            st.session_state["_force_reload_cargas_fechadas"] = True # Força recarregar para o badge aparecer
+                            st.session_state[f"csv_downloaded_{carga}"] = formatar_data_hora_br(pd.to_datetime(data_csv_download))
 
-                            st.success(f"Baixar CSV carga {carga}.")
-                            
-                            
+                            st.session_state.pop("df_cargas_fechadas_cache", None)
+
+                            st.success(f"CSV baixado e registrado com sucesso para a carga {carga}.")
                         except Exception as e:
                             st.error(f"❌ Erro ao salvar csv_downloaded_at no banco: {e}")
 
+                    if f"csv_downloaded_{carga}" in st.session_state:
                         st.download_button(
-                            label="⬇️ Baixar",
+                            label="⬇️ Clique para baixar o CSV",
                             data=csv_content,
-                          # --- ALTERAÇÃO AQUI para o nome do arquivo CSV ---
-                            file_name=f"Carga_{carga}_Motorista_{sanitized_motorista_name}_Placa_{sanitized_placa_name}.csv",
+                            file_name=f"chaves_e_series_carga_encerrada_{carga}.csv",
                             mime="text/csv",
                             key=f"download_csv_chaves_carga_{carga}"
                         )
@@ -5891,18 +5723,26 @@ def pagina_cargas_fechadas():
                 date_only_formatter = JsCode("""
                     function(params) {
                         if (params.value === null || typeof params.value === 'undefined' || params.value === '') return '';
-                        const parts = params.value.split(' ')[0]; // Pega só a parte da data
+                        const parts = params.value.split(' ')[0];
                         return parts;
                     }
                 """)
-                # Formata o DataFrame para exibição no AgGrid
+
                 df_formatado = df_carga[[col for col in colunas_exibir if col in df_carga.columns]].copy()
                 df_formatado = apply_brazilian_date_format_for_display(df_formatado)
                 # Garante que NaT e None sejam substituídos por string vazia para exibição no grid
-                df_formatado = df_formatado.replace([np.nan, None, pd.NaT], "")
+                df_formatado = df_formatado.replace([np.nan, None, pd.NaT], "") # <--- LINHA AJUSTADA
 
+                ## REMOVER ESTE BLOCO INTEIRO ##
+                # if df_formatado is None:
+                #     st.error(f"Erro inesperado: 'df_formatado' está como None para a carga {carga}. Reinicializando como DataFrame vazio para evitar falhas.")
+                #     df_formatado = pd.DataFrame()
+                ## FIM DO BLOCO A SER REMOVIDO ##
+                
+                # Este bloco agora cuidará de DataFrames vazios ou sem colunas
                 if df_formatado.empty or df_formatado.shape[1] == 0:
                     st.warning(f"Atenção: A carga {carga} não possui dados ou colunas válidas para exibir. Pulando a renderização do grid para esta carga.")
+                    pass
                 else:
                     gb = GridOptionsBuilder.from_dataframe(df_formatado)
                     gb.configure_default_column(minWidth=145)
@@ -5927,10 +5767,13 @@ def pagina_cargas_fechadas():
                     """))
                     gb.configure_grid_options(headerCheckboxSelection=True)
                     gb.configure_grid_options(rowSelection='multiple')
-                    gb.configure_grid_options(onGridReady=JsCode("""
+                    # DEBUG 5: Adicionado um console.log no JsCode do onGridReady para verificar o DataFrame
+                    # Isso aparecerá no console do navegador (F12)
+                    GRID_RESIZE_JS_CODE = JsCode("""
                     function(params) {
                         const gridApi = params.api;
                         const gridDiv = params.eGridDiv;
+                        // console.log("DEBUG - P5 (JS Grid): DataFrame antes de renderizar o grid:", params.rowData);
                         const resizeColumns = () => {
                             if (!gridApi) {
                                 console.warn("AgGrid API não disponível no momento do redimensionamento de colunas.");
@@ -5948,7 +5791,9 @@ def pagina_cargas_fechadas():
                         });
                         resizeObserver.observe(gridDiv);
                     }
-                    """))
+                    """)
+                    gb.configure_grid_options(onGridReady=GRID_RESIZE_JS_CODE)
+
 
                     for col in ['Peso Real em Kg', 'Peso Calculado em Kg', 'Cubagem em m³', 'Quantidade de Volumes', 'Valor do Frete', 'valor_contratacao']:
                         if col in df_formatado.columns:
@@ -5959,26 +5804,29 @@ def pagina_cargas_fechadas():
 
                     if 'data_fechamento' in df_formatado.columns:
                         gb.configure_column('data_fechamento', valueFormatter=JsCode("""
+                        function(params) {
+                            if (!params.value) return '';
+
+                            // DEBUG 6: Valor da data_fechamento dentro do valueFormatter do AgGrid
+                            // console.log("DEBUG - P6 (JS Grid Formatter): data_fechamento recebida:", params.value);
+
+                            const parts = params.value.split(' ')[0];
+                            return parts; // Já deveria estar em DD/MM/YYYY
+                        }
+                    """))
+
+
+                    if 'situacao' in df_formatado.columns:
+                        gb.configure_column('situacao', type=["textColumn"])
+                    if 'data_aprovacao_custos' in df_formatado.columns:
+                        gb.configure_column('data_aprovacao_custos', valueFormatter=JsCode("""
                             function(params) {
                                 if (params.value) {
-                                    return params.value; // A string já virá formatada como dd/mm/yyyy hh:mm
+                                    return params.value;
                                 }
                                 return '';
                             }
                         """))
-
-
-                    # Formatação específica para as novas colunas de auditoria que são timestamps completos
-                    for col in ['data_aprovacao_custos', 'pdf_downloaded_at', 'csv_downloaded_at', 'Data_Hora_Gerada']:
-                        if col in df_formatado.columns:
-                            gb.configure_column(col, valueFormatter=JsCode("""
-                                function(params) {
-                                    if (params.value) {
-                                        return params.value; // Já está em dd-mm-yyyy HH:MM
-                                    }
-                                    return '';
-                                }
-                            """))
                     if 'justificativa_aprovacao_custo' in df_formatado.columns:
                         gb.configure_column('justificativa_aprovacao_custo', type=["textColumn"], headerName="Justificativa")
 
@@ -5988,7 +5836,7 @@ def pagina_cargas_fechadas():
                         st.session_state[grid_key_id] = str(uuid.uuid4())
                     grid_key = st.session_state[grid_key_id]
 
-                    AgGrid(
+                    grid_response = AgGrid(
                         df_formatado,
                         gridOptions=grid_options,
                         update_mode=GridUpdateMode.SELECTION_CHANGED,
@@ -6019,7 +5867,7 @@ login()  # Garante que o usuário esteja logado
 
 # Mostra welcome + botão sair no topo da página principal
 if st.session_state.get("login", False):
-    image_path = "assets/logo_fundo_branco.jpg" 
+    image_path = r"C:\Users\Rafael\OneDrive\Área de Trabalho\Logo FA.png"
 
     col_welcome_text, col_image_display, col_logout_button = st.columns([2, 2, 1])
 
