@@ -5401,8 +5401,9 @@ def pagina_cargas_fechadas():
 
           
     if df_filtered.empty:
-            st.info("Nenhuma carga encontrada com os filtros aplicados.")
-            return
+        st.info("Nenhuma carga encontrada com os filtros aplicados.")
+        return
+
     # 1. Inicializa variáveis de estado de sessão para filtros e paginação
     if 'cargas_fechadas_load_number_filter' not in st.session_state:
         st.session_state.cargas_fechadas_load_number_filter = ""
@@ -5415,7 +5416,13 @@ def pagina_cargas_fechadas():
     with col_data_filter:
         st.subheader("Filtro por Data de Fechamento")
         if 'data_fechamento' in df_original.columns and not df_original['data_fechamento'].empty:
-            valid_dates_series = df_original['data_fechamento'].dropna()
+            # Conversão segura para datetime
+            valid_dates_series = pd.to_datetime(
+                df_original['data_fechamento'],
+                errors="coerce",   # ignora valores inválidos
+                dayfirst=True,     # formato BR: dia/mês/ano
+                utc=True           # mantém padrão UTC
+            ).dropna()
 
             if not valid_dates_series.empty:
                 # Extrai apenas a parte da data e remove duplicatas, depois ordena
@@ -5435,7 +5442,9 @@ def pagina_cargas_fechadas():
             st.session_state.cargas_fechadas_selected_date_filter_display = "Todas as Datas"
 
         try:
-            default_index_date = fechamento_dates_display.index(st.session_state.cargas_fechadas_selected_date_filter_display)
+            default_index_date = fechamento_dates_display.index(
+                st.session_state.cargas_fechadas_selected_date_filter_display
+            )
         except ValueError:
             default_index_date = 0
 
@@ -5445,6 +5454,7 @@ def pagina_cargas_fechadas():
             index=default_index_date,
             key="cargas_fechadas_date_filter_selectbox"
         )
+
 
         if selected_date_display != st.session_state.cargas_fechadas_selected_date_filter_display:
             st.session_state.cargas_fechadas_selected_date_filter_display = selected_date_display
