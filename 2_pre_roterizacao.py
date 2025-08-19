@@ -10,7 +10,15 @@ st.set_page_config(
     page_icon="assets/Logo-FA.ico",
     layout="wide"
 )
-
+# Hack para remover "· Streamlit"
+st.markdown(
+    """
+    <script>
+        document.title = "F4Rotas";
+    </script>
+    """,
+    unsafe_allow_html=True
+)
 import locale
 import pandas as pd
 import numpy as np
