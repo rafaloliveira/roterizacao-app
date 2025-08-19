@@ -5,29 +5,29 @@
 #sincronização, Pré Roterização e Rotas Confirmadas funcionando
 
 import streamlit as st
+import streamlit.components.v1 as components
+
 st.set_page_config(
     page_title="F4Rotas",
     page_icon="assets/Logo-FA.ico",
     layout="wide"
 )
 
-# Forçar título sem "· Streamlit"
-st.markdown(
+# Hack definitivo para tirar o "· Streamlit"
+components.html(
     """
     <script>
     const tituloDesejado = "F4Rotas";
     function ajustarTitulo() {
-        if (document.title !== tituloDesejado) {
-            document.title = tituloDesejado;
-        }
+        document.title = tituloDesejado;
     }
-    // Corrige imediatamente e observa mudanças
+    // Aplica agora e a cada 1s (para garantir contra sobrescrita)
     ajustarTitulo();
-    const observer = new MutationObserver(ajustarTitulo);
-    observer.observe(document.querySelector('title'), { childList: true });
+    setInterval(ajustarTitulo, 1000);
     </script>
     """,
-    unsafe_allow_html=True
+    height=0,
+    width=0,
 )
 import locale
 import pandas as pd
