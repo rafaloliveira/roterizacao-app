@@ -10,11 +10,21 @@ st.set_page_config(
     page_icon="assets/Logo-FA.ico",
     layout="wide"
 )
-# Hack para remover "· Streamlit"
+
+# Forçar título sem "· Streamlit"
 st.markdown(
     """
     <script>
-        document.title = "F4Rotas";
+    const tituloDesejado = "F4Rotas";
+    function ajustarTitulo() {
+        if (document.title !== tituloDesejado) {
+            document.title = tituloDesejado;
+        }
+    }
+    // Corrige imediatamente e observa mudanças
+    ajustarTitulo();
+    const observer = new MutationObserver(ajustarTitulo);
+    observer.observe(document.querySelector('title'), { childList: true });
     </script>
     """,
     unsafe_allow_html=True
