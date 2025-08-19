@@ -382,17 +382,10 @@ def login():
         st.session_state.classe = classe_cookie # Define a classe no session_state a partir do cookie
         return # Sai da função, usuário já logado
 
-# Linha 1 → só para a imagem
-    col1, col2, col3 = st.columns([0.5, 3, 0.5])
+    # Cria três colunas e usa a do meio para o formulário de login
+    col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
-        image_col_left, image_col_center, image_col_right = st.columns([1, 2, 1])
-        with image_col_center:
-            st.image("assets/logo_fundo_branco.jpg", width=700)
-
-    # Linha 2 → só para o formulário (independente da imagem)
-    form_col1, form_col2, form_col3 = st.columns([0.6, 1, 0.6])
-    with form_col2:
-        st.markdown("#### 🔐 Login")
+        st.markdown("## 🔐 Login")
         nome = st.text_input("Usuário").strip()
         senha = st.text_input("Senha", type="password").strip()
 
@@ -1057,6 +1050,7 @@ function(params) {
     resizeObserver.observe(gridDiv);
 }
 """);
+
 def badge(label, background_color="#eef2f7", text_color="inherit"):
     """
     Retorna uma string HTML formatada como um 'badge' estilizado.
@@ -1132,6 +1126,35 @@ def recuperar_hora_sincronizacao():
         st.warning(f"Erro ao recuperar hora da sincronização: {e}")
         return None, None
 #---------------------------------------------------------------------------------------------------    
+
+def salvar_historico_sincronizacao(username, num_new_fbaseroter, num_confirmadas, num_pre_roterizacao, file_name=None, file_hash=None):
+    """
+    Salva um registro de sincronização como uma nova linha na tabela 'metadados'.
+    A chave será única para cada registro de histórico, e o valor será um JSON.
+    """
+    agora_iso = data_hora_brasil_iso() # Data/hora atual no formato ISO 8601
+    
+    sync_details = {
+        "timestamp": agora_iso,
+        "username": username,
+        "novas_entregas_fbaseroter": num_new_fbaseroter,
+        "qtd_confirmadas_producao": num_confirmadas,
+        "qtd_pre_roterizacao": num_pre_roterizacao,
+        "nome_arquivo_excel": file_name,
+        "arquivo_excel_hash": file_hash
+    }
+    
+    # Cria uma chave única para este registro de histórico
+    historico_key = f"sync_log_{agora_iso}_{uuid.uuid4()}" 
+    
+    try:
+        supabase.table("metadados").insert({"chave": historico_key, "valor": json.dumps(sync_details)}).execute()
+        # st.info("DEBUG: Histórico de sincronização salvo como nova entrada em metadados.") # Opcional
+    except Exception as e:
+        st.error(f"Erro ao salvar histórico de sincronização em metadados: {e}")
+
+
+
 ##############################
 # Página de sincronização
 ##############################
@@ -1169,55 +1192,123 @@ def pagina_sincronizacao():
         st.session_state._qtd_confirmadas = 0
         st.session_state._qtd_pre_roterizacao = 0
 
-    st.markdown("### 1. Carregar Planilha Excel")
-        
-    arquivo_excel = st.file_uploader(
-        "Selecione a planilha da fBaseroter:", 
-        type=["xlsx"], 
-        key=f"sync_file_uploader_{st.session_state.file_uploader_key}"
-    )
+    # --- Botão de Download do Histórico ---
+    col_history_btn, _ = st.columns([1, 4])
+    with col_history_btn:
+        if st.button("⬇️ Baixar Histórico de Sincronizações", key="download_sync_history_button"):
+            try:
+                with st.spinner("Preparando histórico para download..."):
+                    response = supabase.table("metadados").select("chave", "valor").like("chave", "sync_log_%").execute()
+                    historico_raw_data = response.data
+                    
+                    if not historico_raw_data:
+                        st.warning("Nenhum registro de histórico de sincronização encontrado.")
+                    else:
+                        historico_parsed = []
+                        for record in historico_raw_data:
+                            try:
+                                details = json.loads(record['valor'])
+                                historico_parsed.append(details)
+                            except json.JSONDecodeError:
+                                st.warning(f"Erro ao decodificar JSON do histórico para a chave {record['chave']}. Registro pulado.")
+                                continue
+                        
+                        if historico_parsed:
+                            df_historico = pd.DataFrame(historico_parsed)
+                            
+                            if 'timestamp' in df_historico.columns:
+                                df_historico['timestamp'] = pd.to_datetime(df_historico['timestamp'])
+                                df_historico = df_historico.sort_values(by='timestamp', ascending=False)
+                                df_historico['timestamp'] = df_historico['timestamp'].apply(formatar_data_hora_br)
 
-    current_file_hash = None
-    if arquivo_excel:
-        current_file_hash = hashlib.md5(arquivo_excel.getvalue()).hexdigest()
+                            df_historico.rename(columns={
+                                'timestamp': 'Data/Hora Sinc.',
+                                'username': 'Usuário',
+                                'novas_entregas_fbaseroter': 'Novas Entregas fBaseroter',
+                                'qtd_confirmadas_producao': 'Entregas em Confirmar Produção',
+                                'qtd_pre_roterizacao': 'Entregas em Pré-Roterização',
+                                'nome_arquivo_excel': 'Nome do Arquivo Excel',
+                                'arquivo_excel_hash': 'Hash do Arquivo'
+                            }, inplace=True)
 
-    if current_file_hash != st.session_state.uploaded_sync_file_hash:
-        st.session_state.uploaded_sync_file_hash = current_file_hash
-        st.session_state.sync_triggered = False
-        st.session_state.df_for_sync_cache = None
+                            csv_buffer = df_historico.to_csv(index=False, sep=';', encoding='utf-8-sig')
+                            
+                            st.download_button(
+                                label="Download CSV do Histórico",
+                                data=csv_buffer,
+                                file_name="historico_sincronizacoes.csv",
+                                mime="text/csv",
+                                key="download_csv_sync_history"
+                            )
+                            st.success("Histórico pronto para download!")
+                        else:
+                            st.warning("Nenhum registro de histórico válido para gerar o CSV.")
+            except Exception as e:
+                st.error(f"Erro ao preparar histórico para download: {e}")
+                st.exception(e)
 
-    if arquivo_excel:
-        try:
-            if st.session_state.df_for_sync_cache is None:
-                df_raw = pd.read_excel(arquivo_excel)
-                df_raw.columns = df_raw.columns.str.strip()
-                st.session_state.df_for_sync_cache = df_raw
+    st.markdown("---") # Separador visual
 
-            st.success(f"Arquivo '{arquivo_excel.name}' carregado com sucesso!")
-            st.write("Clique em 'Iniciar Sincronização' para começar o processo.")
+    # === INÍCIO: Coluna mais estreita para o uploader de arquivos ===
+    # Ajuste o primeiro valor ([0.4, 0.6]) para controlar a largura da coluna do uploader.
+    # 0.4 significa 40% da largura disponível. Aumente ou diminua conforme desejar.
+    col_uploader_area, _ = st.columns([0.4, 0.6]) # Primeira coluna para o uploader, segunda para espaço vazio
+    with col_uploader_area:
+        st.markdown("### Carregar Planilha Excel")
+            
+        arquivo_excel = st.file_uploader(
+            "Selecione a planilha da fBaseroter:", 
+            type=["xlsx"], 
+            key=f"sync_file_uploader_{st.session_state.file_uploader_key}"
+        )
 
-            if st.button("🚀 Iniciar Sincronização", key="start_sync_button", disabled=st.session_state.sync_triggered):
-                st.session_state.sync_triggered = True
-                st.rerun()
+        current_file_hash = None 
+        if arquivo_excel: # Esta e as próximas lógicas devem estar indentadas dentro de col_uploader_area
+            current_file_hash = hashlib.md5(arquivo_excel.getvalue()).hexdigest()
 
-        except Exception as e:
-            st.error(f"Erro ao ler o arquivo Excel: {e}")
-            st.session_state.uploaded_sync_file_hash = None
+        # Esta lógica precisa estar na mesma indentação do arquivo_excel,
+        # portanto, dentro de `col_uploader_area`.
+        if current_file_hash != st.session_state.uploaded_sync_file_hash:
+            st.session_state.uploaded_sync_file_hash = current_file_hash
             st.session_state.sync_triggered = False
             st.session_state.df_for_sync_cache = None
 
-    elif not arquivo_excel and st.session_state.uploaded_sync_file_hash:
-        st.session_state.uploaded_sync_file_hash = None
-        st.session_state.df_for_sync_cache = None
-        st.session_state.sync_triggered = False
-        st.info("Nenhum arquivo carregado. Faça o upload de um novo arquivo Excel para sincronizar.")
-        return
-    else:
-        st.info("Aguardando o upload de um arquivo Excel para iniciar a sincronização.")
-        return
+        if arquivo_excel:
+            try:
+                if st.session_state.df_for_sync_cache is None:
+                    df_raw = pd.read_excel(arquivo_excel)
+                    df_raw.columns = df_raw.columns.str.strip()
+                    st.session_state.df_for_sync_cache = df_raw
 
+                st.success(f"Arquivo '{arquivo_excel.name}' carregado com sucesso!")
+                st.write("Clique em 'Iniciar Sincronização' para começar o processo.")
+
+                if st.button("🚀 Iniciar Sincronização", key="start_sync_button", disabled=st.session_state.sync_triggered):
+                    st.session_state.sync_triggered = True
+                    st.rerun()
+
+            except Exception as e:
+                st.error(f"Erro ao ler o arquivo Excel: {e}")
+                st.session_state.uploaded_sync_file_hash = None
+                st.session_state.sync_triggered = False
+                st.session_state.df_for_sync_cache = None
+
+        elif not arquivo_excel and st.session_state.uploaded_sync_file_hash:
+            st.session_state.uploaded_sync_file_hash = None
+            st.session_state.df_for_sync_cache = None
+            st.session_state.sync_triggered = False
+            st.info("Nenhum arquivo carregado. Faça o upload de um novo arquivo Excel para sincronizar.")
+            return # Este return ainda funciona e sai da função.
+        else: # Este 'else' pertence ao 'if arquivo_excel', por isso também precisa estar dentro de col_uploader_area
+            st.info("Aguardando o upload de um arquivo Excel para iniciar a sincronização.")
+            return # Este return também funciona e sai da função.
+    # === FIM: Coluna mais estreita para o uploader de arquivos ===
+
+    # O restante da lógica da função (processamento da sincronização) começa aqui,
+    # FORA da coluna estreita, e só será executado se um arquivo foi carregado e
+    # o botão de sincronização foi clicado.
     if st.session_state.sync_triggered:
-        st.markdown("---")
+        st.markdown("---") # Separador visual para a barra de progresso
         progress_bar = st.progress(0)
         
         try:
@@ -1241,20 +1332,38 @@ def pagina_sincronizacao():
             df_to_process = corrigir_tipos(df_to_process)
             df_to_process = _prepare_df_for_supabase_insert(df_to_process)
 
-            supabase.table("fBaseroter").delete().neq("Serie_Numero_CTRC", "").execute()
-            inserir_em_lote("fBaseroter", df_to_process)
+            st.info("Verificando chaves existentes na tabela 'fBaseroter' no Supabase...")
+            existing_keys_response = supabase.table("fBaseroter").select("Serie_Numero_CTRC").execute()
+            existing_ctrcs = {record["Serie_Numero_CTRC"] for record in existing_keys_response.data}
+            st.info(f"Encontradas {len(existing_ctrcs)} chaves existentes em 'fBaseroter'.")
+
+            num_new_fbaseroter_inserted = 0
+
+            if 'Serie_Numero_CTRC' in df_to_process.columns:
+                df_to_process['Serie_Numero_CTRC'] = df_to_process['Serie_Numero_CTRC'].astype(str)
+                new_entries_df = df_to_process[~df_to_process['Serie_Numero_CTRC'].isin(existing_ctrcs)].copy()
+            else:
+                st.warning("Coluna 'Serie_Numero_CTRC' não encontrada no arquivo importado. Todas as entradas serão consideradas novas.")
+                new_entries_df = df_to_process.copy()
+            
+            if not new_entries_df.empty:
+                st.info(f"Inserindo {len(new_entries_df)} novas entregas na tabela 'fBaseroter'...")
+                inserir_em_lote("fBaseroter", new_entries_df)
+                num_new_fbaseroter_inserted = len(new_entries_df)
+                st.success(f"✅ {num_new_fbaseroter_inserted} novas entregas inseridas na tabela 'fBaseroter'.")
+            else:
+                st.info("Nenhuma nova entrega encontrada no arquivo para inserir na tabela 'fBaseroter'.")
 
             progress_bar.progress(30)
             progress_bar.progress(50)
-            limpar_tabelas_relacionadas()
+            limpar_tabelas_relacionadas() 
             progress_bar.progress(70)
             progress_bar.progress(90)
-            aplicar_regras_e_preencher_tabelas()
+            aplicar_regras_e_preencher_tabelas() 
             progress_bar.progress(95)
 
             st.session_state["reload_confirmadas_producao"] = True
             st.session_state.pop("df_confirmadas_cache", None)
-
             st.session_state["reload_aprovacao_diretoria"] = True 
             st.session_state["reload_pre_roterizacao"] = True
             st.session_state.pop("df_pre_roterizacao_cache", None)
@@ -1277,6 +1386,15 @@ def pagina_sincronizacao():
                 st.session_state._sync_success_message_displayed = True
                 st.session_state._qtd_confirmadas = qtd_confirmadas
                 st.session_state._qtd_pre_roterizacao = qtd_pre_roterizacao
+
+                salvar_historico_sincronizacao(
+                    username=st.session_state.get("username", "Desconhecido"),
+                    num_new_fbaseroter=num_new_fbaseroter_inserted,
+                    num_confirmadas=qtd_confirmadas,
+                    num_pre_roterizacao=qtd_pre_roterizacao,
+                    file_name=arquivo_excel.name if arquivo_excel else None,
+                    file_hash=current_file_hash
+                )
 
             except Exception as e:
                 st.error("⚠️ Sincronização concluída, mas houve erro ao consultar os totais.")
@@ -3283,72 +3401,86 @@ def pagina_pre_roterizacao():
                 unsafe_allow_html=True
             )
 
-            if not selecionadas.empty:  # BOTÃO AGORA SÓ APARECE SE TIVER SELEÇÃO
-
+            # Define ctrcs_selecionados e chaves_cte aqui, fora da condição de empty,
+            # para que possam ser usados pelos botões mesmo quando desabilitados.
+            # Se selecionadas for vazio, essas listas também serão vazias.
+               # --- TRECHO ALTERADO ---
+            if not selecionadas.empty: # <--- NOVA CONDIÇÃO
                 chaves_cte = selecionadas["Chave CT-e"].dropna().astype(str).str.strip().tolist()
                 ctrcs_selecionados = selecionadas["Serie_Numero_CTRC"].dropna().astype(str).str.strip().tolist()
+            else: # <--- NOVO BLOCO ELSE
+                chaves_cte = []
+                ctrcs_selecionados = []
+            # --- FIM DO TRECHO ALTERADO ---
 
+            # ➕ Botão: Criar nova carga com entregas selecionadas
+            st.button(
+                f"🟢Gerar Carga com entregas da Rota {rota_predominante}",
+                key=f"btn_nova_carga_rota_{rota_visual}",
+                disabled=selecionadas.empty
+            )
+            if st.session_state[f"btn_nova_carga_rota_{rota_visual}"]: # Verifica se o botão foi clicado
+                try:
+                    #st.write("DEBUG: Botão 'Gerar Carga' clicado.")
+                    #st.write(f"DEBUG: CTRCs selecionados recebidos: {ctrcs_selecionados[:5]}...") # Mostra os primeiros 5 CTRCs
+                    numero_carga = gerar_proximo_numero_carga(supabase)
+                    if numero_carga:
+                        adicionar_entregas_a_carga(ctrcs_selecionados, numero_carga)
+                    else:
+                        st.error("Erro ao gerar número de carga.")
+                except Exception as e:
+                    st.error(f"Erro ao criar nova carga: {e}")
 
+            # #    Substituto do botão: Mover entregas para outra rota existente na pré-roteirização
+            rotas_disponiveis = sorted([
+                r for r in df_visivel["Rota_Grupo"].dropna().unique().tolist()
+                if r != rota_visual
+            ])
+            if rotas_disponiveis:
+                nova_rota = st.selectbox(
+                    "🚚 Mover entregas selecionadas para outra rota:",
+                    options=["Selecionar..."] + rotas_disponiveis,
+                    key=f"selectbox_mover_rota_{rota_visual}",
+                    disabled=selecionadas.empty # Adicionado: Desabilita se nenhuma linha estiver selecionada
+                )
 
-                # ➕ Botão: Criar nova carga com entregas selecionadas
-                if st.button(f"🟢 Gerar Carga com entregas da Rota {rota_predominante}", key=f"btn_nova_carga_rota_{rota_visual}"):
-                    try:
-                        #st.write("DEBUG: Botão 'Gerar Carga' clicado.")
-                        #st.write(f"DEBUG: CTRCs selecionados recebidos: {ctrcs_selecionados[:5]}...") # Mostra os primeiros 5 CTRCs
-                        numero_carga = gerar_proximo_numero_carga(supabase)
-                        if numero_carga:
-                            adicionar_entregas_a_carga(ctrcs_selecionados, numero_carga)
-
-                        else:
-                            st.error("Erro ao gerar número de carga.")
-                    except Exception as e:
-                        st.error(f"Erro ao criar nova carga: {e}")
-
-                # # 🔄 Substituto do botão: Mover entregas para outra rota existente na pré-roteirização
-                rotas_disponiveis = sorted([
-                    r for r in df_visivel["Rota_Grupo"].dropna().unique().tolist()
-                    if r != rota_visual
-                ])
-                if rotas_disponiveis:
-                    nova_rota = st.selectbox(
-                        "🚚 Mover entregas selecionadas para outra rota:",
-                        options=["Selecionar..."] + rotas_disponiveis,
-                        key=f"selectbox_mover_rota_{rota_visual}"
-                    )
-
-                    if st.button(f"🔄 Mover entregas para rota '{nova_rota}'", key=f"btn_mover_rota_{rota_visual}"):
-                        if nova_rota == "Selecionar...":
-                            st.warning("Por favor, selecione uma rota válida.")
-                        else:
-                            try:
-                                mover_entregas_para_outra_rota(ctrcs_selecionados, nova_rota)
-                                
-                                # ✅ Força recarregamento de dados
-                                st.session_state["reload_pre_roterizacao"] = True
-
-                                # ✅ Limpa as chaves dos grids para forçar redesenho
-                                for key in list(st.session_state.keys()):
-                                    if key.startswith("grid_pre_rota_"):
-                                        st.session_state.pop(key, None)
-
-                                # ✅ Atualiza a tela com dados novos
-                                st.rerun()
-
-                            except Exception as e:
-                                st.error(f"Erro ao mover entregas: {e}")
-
+                st.button(
+                    f"🔄 Mover entregas para rota '{nova_rota}'",
+                    key=f"btn_mover_rota_{rota_visual}",
+                    disabled=selecionadas.empty # Adicionado: Desabilita se nenhuma linha estiver selecionada
+                )
+                if st.session_state[f"btn_mover_rota_{rota_visual}"]: # Verifica se o botão foi clicado
+                    if nova_rota == "Selecionar...":
+                        st.warning("Por favor, selecione uma rota válida.")
+                    else:
+                        try:
+                            mover_entregas_para_outra_rota(ctrcs_selecionados, nova_rota)
+                            
+                            # ✅ Força recarregamento de dados
                             st.session_state["reload_pre_roterizacao"] = True
 
-                            # ✅ Limpa os estados de seleção dos grids (chaves começam com 'grid_pre_rota_')
+                            # ✅ Limpa as chaves dos grids para forçar redesenho
                             for key in list(st.session_state.keys()):
                                 if key.startswith("grid_pre_rota_"):
                                     st.session_state.pop(key, None)
 
-                            # ✅ Força recarregamento da página com novos dados
+                            # ✅ Atualiza a tela com dados novos
                             st.rerun()
 
-                else:
-                    st.info("Nenhuma outra rota disponível para movimentação.")
+                        except Exception as e:
+                            st.error(f"Erro ao mover entregas: {e}")
+
+                        st.session_state["reload_pre_roterizacao"] = True
+
+                        # ✅ Limpa os estados de seleção dos grids (chaves começam com 'grid_pre_rota_')
+                        for key in list(st.session_state.keys()):
+                            if key.startswith("grid_pre_rota_"):
+                                st.session_state.pop(key, None)
+
+                        # ✅ Força recarregamento da página com novos dados
+                        st.rerun()
+            else:
+                st.info("Nenhuma outra rota disponível para movimentação.")
 
 
 
@@ -3504,7 +3636,7 @@ def pagina_cargas_geradas():
         "Bairro do Destinatario", "Previsao de Entrega", "Numero da Nota Fiscal",  "Status",
         "Entrega Programada", "Peso Real em Kg", "Peso Calculado em Kg", "Valor do Frete",
         "Rota", "Regiao", "Data de Emissao", "Chave CT-e", "Data_Hora_Gerada" , 
-        "Particularidade", "Codigo da Ultima Ocorrencia", "Cubagem em m³", "Quantidade de Volumes"
+        "Particularidade", "Codigo da Ultima Ocorrencia", "Cubagem em m³", "Quantidade de Volumes", "status_retorno"
 ]
 
         cargas_unicas = sorted(df["numero_carga"].dropna().unique())
@@ -3661,6 +3793,7 @@ def pagina_cargas_geradas():
 
             html_fragments = [
                 badge(f'{len(df_carga_raw)} entregas', background_color='#333333', text_color='white'),
+                
                 badge(f'{formatar_brasileiro(df_carga_raw["Peso Calculado em Kg"].sum())} kg calc', background_color='#333333', text_color='white'),
                 badge(f'{formatar_brasileiro(df_carga_raw["Peso Real em Kg"].sum())} kg real', background_color='#333333', text_color='white'),
                 badge(f'Valor frete: R$ {formatar_brasileiro(total_frete_carga)}', background_color='#333333', text_color='white'),
@@ -3676,6 +3809,13 @@ def pagina_cargas_geradas():
                 badge(f'📅  Agenda s/ Prog.: {qtd_agendar_sem_programacao_carga}', background_color='#e06200', text_color='white'),
                 badge(f'⚠️ Com Particularidade: {qtd_com_particularidade_carga}', background_color='#b8860b', text_color='white')
             ]
+
+             # <<< NOVO BLOCO PARA O BADGE DE RETORNO >>>
+            if "status_retorno" in df_carga_raw.columns and df_carga_raw["status_retorno"].iloc[0]:
+                if df_carga_raw["status_retorno"].iloc[0] == "CARGA ENCERRADA RETORNADA":
+                    # Badge Roxo para cargas retornadas
+                    html_fragments.append(badge('CARGA ENCERRADA RETORNADA', background_color="#33045F", text_color='white'))
+            # <<< FIM DO NOVO BLOCO >>>
 
             if info_data_hora_gerada:
                 html_fragments.append(badge(f'Gerada em: {formatar_data_hora_br(info_data_hora_gerada)}', background_color='#333333', text_color='white'))
@@ -3861,292 +4001,303 @@ def pagina_cargas_geradas():
                     # Garante que 'selecionadas' seja SEMPRE um DataFrame, mesmo que nada esteja selecionado
                     selecionadas = pd.DataFrame(grid_response.get("selected_rows", []))
 
-                if not selecionadas.empty:
-                    col_ret, col_aprov = st.columns([1, 1])
-                                    
-                    with col_ret:
-                        if st.button(f"♻️ Retirar da Carga", key=f"btn_retirar_{carga}"):
-                            try:
-                                with st.spinner(" Retirando entregas da carga..."):
-                                    # Extrai CTRCs diretamente do DataFrame, eliminando nulos
-                                    ctrcs_a_remover_do_grid = selecionadas["Serie_Numero_CTRC"].dropna().tolist()
 
-                                    # Verifica se o DataFrame de selecionadas está vazio
-                                    if selecionadas.empty:
-                                        st.warning("Nenhuma entrega válida selecionada para remover.")
+
+                # --- INÍCIO DO TRECHO ALTERADO/MOVIDO ---
+            # Este bloco foi desindentado (removido da condição 'if not selecionadas.empty:')
+
+                col_ret, col_aprov = st.columns([1, 1]) # Mantido o st.columns
+
+                with col_ret:
+                    # Botão "Retirar da Carga" agora sempre visível e desabilitado se não houver seleção
+                    if st.button(
+                        f"♻️ Retirar da Carga",
+                        key=f"btn_retirar_{carga}",
+                        disabled=selecionadas.empty # <<< ALTERADO: Adicionado 'disabled'
+                    ):
+                        try:
+                            with st.spinner(" Retirando entregas da carga..."):
+                                # Extrai CTRCs diretamente do DataFrame, eliminando nulos
+                                # Esta linha é segura aqui porque o botão só estará habilitado se 'selecionadas' não estiver vazia
+                                ctrcs_a_remover_do_grid = selecionadas["Serie_Numero_CTRC"].dropna().tolist()
+
+                                # Verifica se o DataFrame de selecionadas está vazio
+                                if selecionadas.empty:
+                                    st.warning("Nenhuma entrega válida selecionada para remover.")
+                                    return
+
+                                response_original = supabase.table("cargas_geradas").select("*").in_("Serie_Numero_CTRC", ctrcs_a_remover_do_grid).execute()
+                                dados_originais = response_original.data
+
+                                if not dados_originais:
+                                    st.warning("Não foi possível recuperar os dados originais das entregas no Supabase para os CTRCs selecionados. Nenhuma ação será realizada.")
+                                    return
+
+                                df_para_retornar = pd.DataFrame(dados_originais)
+
+                                # Remove colunas específicas de "carga" que não pertencem a "pre_roterizacao"
+                                df_para_retornar = df_para_retornar.drop(columns=[
+                                    "numero_carga", "Data_Hora_Gerada", "motorista", "placa", "veiculo",
+                                    "valor_contratacao", "aprovador_custos_login", "data_aprovacao_custos",
+                                    "pdf_downloaded_at", "pdf_simplified_downloaded_at"
+                                ], errors="ignore")
+
+                                # --- NOVO: Usando a função _prepare_df_for_supabase_insert para datas ---
+                                df_para_retornar = _prepare_df_for_supabase_insert(df_para_retornar)
+
+                                registros_para_inserir = df_para_retornar.to_dict(orient="records")
+
+                                # Tenta inserir em "pre_roterizacao" com tratamento de duplicidade
+                                if registros_para_inserir:
+                                    try:
+                                        supabase.table("pre_roterizacao").insert(registros_para_inserir).execute()
+                                        st.session_state["reload_pre_roterizacao"] = True
+                                    except Exception as e_insert:
+                                        if "23505" in str(e_insert) and "duplicate key value violates unique constraint" in str(e_insert):
+                                            key_info = registros_para_inserir[0].get('Serie_Numero_CTRC', 'Desconhecida') if registros_para_inserir else 'Desconhecida'
+                                            st.error(f"❌ Erro de duplicidade ao retornar entrega {key_info} para Pré-Roterização: Já existe um registro com essa chave. Por favor, verifique o Supabase manualmente.")
+                                        else:
+                                            st.error(f"❌ Erro ao inserir entregas em Pré-Roterização: {e_insert}")
                                         return
 
-                                    response_original = supabase.table("cargas_geradas").select("*").in_("Serie_Numero_CTRC", ctrcs_a_remover_do_grid).execute()
-                                    dados_originais = response_original.data
+                                # >> DELEÇÃO DA CARGA GERADA COM RETRY <<
+                                delete_success = False
+                                deleted_count = 0
+                                attempted_delete = bool(ctrcs_a_remover_do_grid)
 
-                                    if not dados_originais:
-                                        st.warning("Não foi possível recuperar os dados originais das entregas no Supabase para os CTRCs selecionados. Nenhuma ação será realizada.")
-                                        return
+                                for tentativa in range(2):
+                                    if not attempted_delete:
+                                        delete_success = True
+                                        break
 
-                                    df_para_retornar = pd.DataFrame(dados_originais)
+                                    try:
+                                        delete_response = supabase.table("cargas_geradas").delete().in_("Serie_Numero_CTRC", ctrcs_a_remover_do_grid).execute()
 
-                                    # Remove colunas específicas de "carga" que não pertencem a "pre_roterizacao"
-                                    df_para_retornar = df_para_retornar.drop(columns=[
-                                        "numero_carga", "Data_Hora_Gerada", "motorista", "placa", "veiculo",
-                                        "valor_contratacao", "aprovador_custos_login", "data_aprovacao_custos",
-                                        "pdf_downloaded_at", "pdf_simplified_downloaded_at"
-                                    ], errors="ignore")
-
-                                    # --- NOVO: Usando a função _prepare_df_for_supabase_insert para datas ---
-                                    df_para_retornar = _prepare_df_for_supabase_insert(df_para_retornar)
-
-                                    registros_para_inserir = df_para_retornar.to_dict(orient="records")
-
-                                    # Tenta inserir em "pre_roterizacao" com tratamento de duplicidade
-                                    if registros_para_inserir:
-                                        try:
-                                            supabase.table("pre_roterizacao").insert(registros_para_inserir).execute()
-                                            st.session_state["reload_pre_roterizacao"] = True
-                                        except Exception as e_insert:
-                                            if "23505" in str(e_insert) and "duplicate key value violates unique constraint" in str(e_insert):
-                                                key_info = registros_para_inserir[0].get('Serie_Numero_CTRC', 'Desconhecida') if registros_para_inserir else 'Desconhecida'
-                                                st.error(f"❌ Erro de duplicidade ao retornar entrega {key_info} para Pré-Roterização: Já existe um registro com essa chave. Por favor, verifique o Supabase manualmente.")
-                                            else:
-                                                st.error(f"❌ Erro ao inserir entregas em Pré-Roterização: {e_insert}")
-                                            return
-
-                                    # >> DELEÇÃO DA CARGA GERADA COM RETRY <<
-                                    delete_success = False
-                                    deleted_count = 0
-                                    attempted_delete = bool(ctrcs_a_remover_do_grid)
-
-                                    for tentativa in range(2):
-                                        if not attempted_delete:
+                                        if hasattr(delete_response, 'data') and delete_response.data:
+                                            deleted_count = len(delete_response.data)
+                                            st.success(f"DEBUG: Deleção em 'cargas_geradas' na Tentativa {tentativa+1} bem-sucedida! {deleted_count} registros realmente deletados.")
                                             delete_success = True
                                             break
-
-                                        try:
-                                            delete_response = supabase.table("cargas_geradas").delete().in_("Serie_Numero_CTRC", ctrcs_a_remover_do_grid).execute()
-
-                                            if hasattr(delete_response, 'data') and delete_response.data:
-                                                deleted_count = len(delete_response.data)
-                                                st.success(f"DEBUG: Deleção em 'cargas_geradas' na Tentativa {tentativa+1} bem-sucedida! {deleted_count} registros realmente deletados.")
-                                                delete_success = True
-                                                break
-                                            elif hasattr(delete_response, 'error') and delete_response.error:
-                                                raise Exception(delete_response.error.message)
-                                            else:
-                                                st.warning(f"DEBUG: Deleção em 'cargas_geradas' na Tentativa {tentativa+1} retornou sem erro, mas 0 registros deletados. Possível problema de RLS ou itens não encontrados. Resposta: {delete_response}")
-                                                if tentativa < 1: time.sleep(1)
-                                                continue
-
-                                        except Exception as e_delete:
-                                            st.error(f"DEBUG: Exceção inesperada durante deleção de 'cargas_geradas': {e_delete} (Tipo: {type(e_delete)})")
-                                            st.warning(f"Tentativa {tentativa+1}/2: Exceção geral durante remoção de 'cargas_geradas': {e_delete}")
+                                        elif hasattr(delete_response, 'error') and delete_response.error:
+                                            raise Exception(delete_response.error.message)
+                                        else:
+                                            st.warning(f"DEBUG: Deleção em 'cargas_geradas' na Tentativa {tentativa+1} retornou sem erro, mas 0 registros deletados. Possível problema de RLS ou itens não encontrados. Resposta: {delete_response}")
                                             if tentativa < 1: time.sleep(1)
                                             continue
 
-                                    if not delete_success and attempted_delete:
-                                        raise Exception(f"Falha CRÍTICA na remoção de {len(ctrcs_a_remover_do_grid)} entrega(s) de 'Cargas Geradas'. "
-                                                        f"Verifique as políticas RLS ou inconsistência de dados no Supabase.")
-                                    elif deleted_count > 0:
-                                        st.success(f"✅ {deleted_count} entregas removidas de 'Cargas Geradas'.")
-                                    elif attempted_delete and deleted_count == 0:
-                                        st.warning(f"ℹ️ Deleção de 'Cargas Geradas' concluída, mas 0 entregas foram removidas. Isso pode indicar RLS ou que já haviam sido movidas.")
+                                    except Exception as e_delete:
+                                        st.error(f"DEBUG: Exceção inesperada durante deleção de 'cargas_geradas': {e_delete} (Tipo: {type(e_delete)})")
+                                        st.warning(f"Tentativa {tentativa+1}/2: Exceção geral durante remoção de 'cargas_geradas': {e_delete}")
+                                        if tentativa < 1: time.sleep(1)
+                                        continue
 
-                                    if delete_success:
-                                        dados_restantes_na_carga_pos_delete = supabase.table("cargas_geradas").select("Serie_Numero_CTRC").eq("numero_carga", carga).limit(1).execute().data
-                                        if not dados_restantes_na_carga_pos_delete:
-                                            pass
-                                    
-                                    st.session_state.pop("df_cargas_cache", None)
-                                    grid_key_id = f"grid_carga_gerada_{carga}"
-                                    st.session_state.pop(grid_key_id, None)
-                                    st.session_state.pop(checkbox_key, None)
+                                if not delete_success and attempted_delete:
+                                    raise Exception(f"Falha CRÍTICA na remoção de {len(ctrcs_a_remover_do_grid)} entrega(s) de 'Cargas Geradas'. "
+                                                    f"Verifique as políticas RLS ou inconsistência de dados no Supabase.")
+                                elif deleted_count > 0:
+                                    st.success(f"✅ {deleted_count} entregas removidas de 'Cargas Geradas'.")
+                                elif attempted_delete and deleted_count == 0:
+                                    st.warning(f"ℹ️ Deleção de 'Cargas Geradas' concluída, mas 0 entregas foram removidas. Isso pode indicar RLS ou que já haviam sido movidas.")
 
-                                    st.session_state["reload_cargas_geradas"] = True
-                                    st.session_state['last_action_message_type'] = 'success'
-                                    st.session_state['last_action_message_text'] = f"✅ {len(ctrcs_a_remover_do_grid)} entrega(s) removida(s) da carga {carga} e retornada(s) para Pré-Roterização."
-                                    st.rerun()
+                                if delete_success:
+                                    dados_restantes_na_carga_pos_delete = supabase.table("cargas_geradas").select("Serie_Numero_CTRC").eq("numero_carga", carga).limit(1).execute().data
+                                    if not dados_restantes_na_carga_pos_delete:
+                                        pass
+                                
+                                st.session_state.pop("df_cargas_cache", None)
+                                grid_key_id = f"grid_carga_gerada_{carga}"
+                                st.session_state.pop(grid_key_id, None)
+                                st.session_state.pop(checkbox_key, None)
 
-                            except Exception as e:
-                                st.session_state['last_action_message_type'] = 'error'
-                                st.session_state['last_action_message_text'] = f"❌ Ocorreu um erro inesperado ao retirar entregas da carga: {e}"
+                                st.session_state["reload_cargas_geradas"] = True
+                                st.session_state['last_action_message_type'] = 'success'
+                                st.session_state['last_action_message_text'] = f"✅ {len(ctrcs_a_remover_do_grid)} entrega(s) removida(s) da carga {carga} e retornada(s) para Pré-Roterização."
                                 st.rerun()
 
-                    with col_aprov:
-                        valor_contratacao_key = f"valor_contratacao_{carga}"
+                        except Exception as e:
+                            st.session_state['last_action_message_type'] = 'error'
+                            st.session_state['last_action_message_text'] = f"❌ Ocorreu um erro inesperado ao retirar entregas da carga: {e}"
+                            st.rerun()
 
-                        st.markdown("<br>", unsafe_allow_html=True) # Separador visual
+                with col_aprov:
+                    valor_contratacao_key = f"valor_contratacao_{carga}"
 
-                        # --- INPUTS DE MOTORISTA, PLACA E VEÍCULO (NOVO) --- #
-                        col_mot, col_placa, col_veiculo_tipo = st.columns([1.5, 1, 1.5]) # Renomeei col_veiculo para col_veiculo_tipo para evitar conflitos
+                    st.markdown("<br>", unsafe_allow_html=True) # Separador visual
 
-                        with col_mot:
-                            # Use info_motorista (que vem do DB) como valor inicial
-                            motorista = st.text_input("Nome do Motorista", value=info_motorista, key=f"motorista_input_{carga}")
-                        with col_placa:
-                            # Use info_placa (que vem do DB) como valor inicial
-                            placa = st.text_input("Placa do Veículo", value=info_placa, key=f"placa_input_{carga}")
-                        with col_veiculo_tipo:
-                            # Encontra o índice da opção atual para pré-selecionar o selectbox
-                            try:
-                                default_vehicle_index = vehicle_options_list.index(info_veiculo.upper().strip())
-                            except ValueError:
-                                default_vehicle_index = 0 # Default para a primeira (vazia) se não encontrado
+                    # --- INPUTS DE MOTORISTA, PLACA E VEÍCULO (NOVO) --- #
+                    col_mot, col_placa, col_veiculo_tipo = st.columns([1.5, 1, 1.5]) # Renomeei col_veiculo para col_veiculo_tipo para evitar conflitos
 
-                            veiculo_selected = st.selectbox(
-                                "Tipo de Veículo",
-                                options=vehicle_options_list,
-                                index=default_vehicle_index,
-                                key=f"veiculo_input_{carga}"
-                            )
+                    with col_mot:
+                        # Use info_motorista (que vem do DB) como valor inicial
+                        motorista = st.text_input("Nome do Motorista", value=info_motorista, key=f"motorista_input_{carga}")
+                    with col_placa:
+                        # Use info_placa (que vem do DB) como valor inicial
+                        placa = st.text_input("Placa do Veículo", value=info_placa, key=f"placa_input_{carga}")
+                    with col_veiculo_tipo:
+                        # Encontra o índice da opção atual para pré-selecionar o selectbox
+                        try:
+                            default_vehicle_index = vehicle_options_list.index(info_veiculo.upper().strip())
+                        except ValueError:
+                            default_vehicle_index = 0 # Default para a primeira (vazia) se não encontrado
 
-                        st.subheader(f"Valor da Contratação da Carga {carga}")
-
-                        if valor_sugerido_contratacao > 0:
-                            st.info(f"**Sugestão de Valor:** Para atingir a meta da região '{dominant_region}' ({MAX_COST_PER_REGION.get(dominant_region, 0)*100:.0f}%), o valor ideal seria de **R$ {formatar_brasileiro(valor_sugerido_contratacao)}**")
-                        elif total_frete_carga > 0:
-                            st.warning(f"Não foi possível calcular uma sugestão de valor de contratação para a Rota {rota_dominante} / Região {dominant_region}.")
-                        else:
-                            st.info("Não foi possível calcular uma sugestão de valor de contratação (frete total zero).")
-
-                        # --- AJUSTADO: Definir o valor inicial do number_input ---
-                        initial_valor_contratacao_input = info_valor_contratacao_raw
-                        # Apenas se o valor existente for zero E a sugestão for maior que zero, usa a sugestão
-                        if initial_valor_contratacao_input == 0.0 and valor_sugerido_contratacao > 0:
-                             initial_valor_contratacao_input = valor_sugerido_contratacao
-
-                        valor_contratacao = st.number_input(
-                            "Valor da Contratação da Carga (R$)",
-                            min_value=0.0,
-                            value=initial_valor_contratacao_input,
-                            step=0.01,
-                            format="%.2f",
-                            key=valor_contratacao_key,
-                            disabled=selecionadas.empty
+                        veiculo_selected = st.selectbox(
+                            "Tipo de Veículo",
+                            options=vehicle_options_list,
+                            index=default_vehicle_index,
+                            key=f"veiculo_input_{carga}"
                         )
 
-                        salvar_key = f"btn_salvar_info_{carga}"
-                        if st.button(f"💾 Salvar Informações", key=f"btn_salvar_{carga}", disabled=not (motorista or placa or veiculo_selected or valor_contratacao)):
-                            
-                            try:
-                                with st.spinner("Salvando dados da carga..."):
+                    st.subheader(f"Valor da Contratação da Carga {carga}")
 
-                                    supabase.table("cargas_geradas").update({
-                                        "motorista": motorista.upper().strip(),
-                                        "placa": placa.upper().strip(),
-                                        "veiculo": veiculo_selected.upper().strip() if veiculo_selected else None,
-                                        "valor_contratacao": valor_contratacao
-                                    }).eq("numero_carga", carga).execute()
+                    if valor_sugerido_contratacao > 0:
+                        st.info(f"**Sugestão de Valor:** Para atingir a meta da região '{dominant_region}' ({MAX_COST_PER_REGION.get(dominant_region, 0)*100:.0f}%), o valor ideal seria de **R$ {formatar_brasileiro(valor_sugerido_contratacao)}**")
+                    elif total_frete_carga > 0:
+                        st.warning(f"Não foi possível calcular uma sugestão de valor de contratação para a Rota {rota_dominante} / Região {dominant_region}.")
+                    else:
+                        st.info("Não foi possível calcular uma sugestão de valor de contratação (frete total zero).")
 
-                                    # ✅ Limpa os inputs da session_state para forçar a re-leitura dos valores atualizados
-                                    st.session_state.pop(f"motorista_input_{carga}", None)
-                                    st.session_state.pop(f"placa_input_{carga}", None)
-                                    st.session_state.pop(f"veiculo_input_{carga}", None)
-                                    st.session_state.pop(valor_contratacao_key, None)
+                    # --- AJUSTADO: Definir o valor inicial do number_input ---
+                    initial_valor_contratacao_input = info_valor_contratacao_raw
+                    # Apenas se o valor existente for zero E a sugestão for maior que zero, usa a sugestão
+                    if initial_valor_contratacao_input == 0.0 and valor_sugerido_contratacao > 0:
+                            initial_valor_contratacao_input = valor_sugerido_contratacao
 
-                                    # ✅ Limpa cache e força recarregamento dos dados e do grid
-                                    st.session_state.pop("df_cargas_cache", None)
-                                    st.session_state["reload_cargas_geradas"] = True
+                    valor_contratacao = st.number_input(
+                        "Valor da Contratação da Carga (R$)",
+                        min_value=0.0,
+                        value=initial_valor_contratacao_input,
+                        step=0.01,
+                        format="%.2f",
+                        key=valor_contratacao_key,
+                        disabled=selecionadas.empty # Mantido o 'disabled' já existente
+                    )
 
-                                    # --- NOVO: Armazena a mensagem de sucesso ---
-                                    st.session_state['last_action_message_type'] = 'success'
-                                    
-                                    # --- FIM DO NOVO ---
-                                    st.rerun()
+                    salvar_key = f"btn_salvar_info_{carga}"
+                    if st.button(f"💾 Salvar Informações", key=f"btn_salvar_{carga}", disabled=not (motorista or placa or veiculo_selected or valor_contratacao)):
+                        
+                        try:
+                            with st.spinner("Salvando dados da carga..."):
 
-                            except Exception as e:
-                                # --- NOVO: Armazena a mensagem de erro ---
-                                st.session_state['last_action_message_type'] = 'error'
-                                st.session_state['last_action_message_text'] = f"❌ Erro ao salvar dados: {e}"
+                                supabase.table("cargas_geradas").update({
+                                    "motorista": motorista.upper().strip(),
+                                    "placa": placa.upper().strip(),
+                                    "veiculo": veiculo_selected.upper().strip() if veiculo_selected else None,
+                                    "valor_contratacao": valor_contratacao
+                                }).eq("numero_carga", carga).execute()
+
+                                # ✅ Limpa os inputs da session_state para forçar a re-leitura dos valores atualizados
+                                st.session_state.pop(f"motorista_input_{carga}", None)
+                                st.session_state.pop(f"placa_input_{carga}", None)
+                                st.session_state.pop(f"veiculo_input_{carga}", None)
+                                st.session_state.pop(valor_contratacao_key, None)
+
+                                # ✅ Limpa cache e força recarregamento dos dados e do grid
+                                st.session_state.pop("df_cargas_cache", None)
+                                st.session_state["reload_cargas_geradas"] = True
+
+                                # --- NOVO: Armazena a mensagem de sucesso ---
+                                st.session_state['last_action_message_type'] = 'success'
+                                
                                 # --- FIM DO NOVO ---
                                 st.rerun()
 
-                        btn_aprovar_custos_key = f"btn_aprov_custos_{carga}"
-                        btn_aprovar_custos_key = f"btn_aprov_custos_{carga}"
-                        if st.button(
-                            f"➤ Enviar para Aprovação de Custos",
-                            key=btn_aprovar_custos_key,
-                            disabled=(selecionadas.empty) or (valor_contratacao <= 0) # <--- AQUI ESTÁ A CORREÇÃO
-                        ):
-                            if valor_contratacao <= 0:
-                                st.warning("Por favor, insira um valor de contratação válido (maior que zero).")
-                            else:
-                                try:
-                                    with st.spinner(" Enviando entregas para aprovação de custos..."):
-                                        # 'selecionadas' já é um DataFrame, basta copiá-lo
-                                        df_aprovar_custos = selecionadas.copy()
-                                        df_aprovar_custos = df_aprovar_custos.drop(columns=["_selectedRowNodeInfo"], errors="ignore")
+                        except Exception as e:
+                            # --- NOVO: Armazena a mensagem de erro ---
+                            st.session_state['last_action_message_type'] = 'error'
+                            st.session_state['last_action_message_text'] = f"❌ Erro ao salvar dados: {e}"
+                            # --- FIM DO NOVO ---
+                            st.rerun()
 
-                                        if "motivo_rejeicao" in df_aprovar_custos.columns:
-                                            df_aprovar_custos["motivo_rejeicao"] = None
+                    btn_aprovar_custos_key = f"btn_aprov_custos_{carga}"
+                    if st.button(
+                        f"➤ Enviar para Aprovação de Custos",
+                        key=btn_aprovar_custos_key,
+                        disabled=selecionadas.empty or (valor_contratacao <= 0) # <<< ALTERADO: Removido parênteses extras e mantido a condição de 'valor_contratacao'
+                    ):
+                        if valor_contratacao <= 0:
+                            st.warning("Por favor, insira um valor de contratação válido (maior que zero).")
+                        else:
+                            try:
+                                with st.spinner(" Enviando entregas para aprovação de custos..."):
+                                    # 'selecionadas' já é um DataFrame, basta copiá-lo
+                                    # Esta linha é segura aqui porque o botão só estará habilitado se 'selecionadas' não estiver vazia
+                                    df_aprovar_custos = selecionadas.copy()
+                                    df_aprovar_custos = df_aprovar_custos.drop(columns=["_selectedRowNodeInfo"], errors="ignore")
 
-                                        df_aprovar_custos["numero_carga"] = carga
-                                        
-                                        motorista_to_save = motorista.strip().upper() if isinstance(motorista, str) else ""
-                                        placa_to_save = placa.strip().upper() if isinstance(placa, str) else ""
-                                        veiculo_to_save = veiculo_selected.upper().strip() if veiculo_selected else None
+                                    if "motivo_rejeicao" in df_aprovar_custos.columns:
+                                        df_aprovar_custos["motivo_rejeicao"] = None
 
-                                        df_aprovar_custos["motorista"] = motorista_to_save
-                                        df_aprovar_custos["placa"] = placa_to_save
-                                        df_aprovar_custos["veiculo"] = veiculo_to_save
-                                        df_aprovar_custos["valor_contratacao"] = valor_contratacao
+                                    df_aprovar_custos["numero_carga"] = carga
+                                    
+                                    motorista_to_save = motorista.strip().upper() if isinstance(motorista, str) else ""
+                                    placa_to_save = placa.strip().upper() if isinstance(placa, str) else ""
+                                    veiculo_to_save = veiculo_selected.upper().strip() if veiculo_selected else None
 
-                                        # --- INÍCIO DA CORREÇÃO E DEBUG LOCALIZADO ---
-                                        st.write(f"DEBUG: Antes da reconversão em Cargas Geradas:")
-                                        if "Data_Hora_Gerada" in df_aprovar_custos.columns:
-                                            st.write(f"DEBUG: Data_Hora_Gerada (Tipo): {df_aprovar_custos['Data_Hora_Gerada'].dtype}")
-                                            st.write(f"DEBUG: Data_Hora_Gerada (Primeiro valor): {df_aprovar_custos['Data_Hora_Gerada'].iloc[0] if not df_aprovar_custos.empty else 'DataFrame vazio'}")
+                                    df_aprovar_custos["motorista"] = motorista_to_save
+                                    df_aprovar_custos["placa"] = placa_to_save
+                                    df_aprovar_custos["veiculo"] = veiculo_to_save
+                                    df_aprovar_custos["valor_contratacao"] = valor_contratacao
 
-                                            # Esta linha é CRÍTICA. Ela diz ao Pandas para interpretar
-                                            # a string como DD/MM/AAAA HH:MM.
-                                            df_aprovar_custos["Data_Hora_Gerada"] = pd.to_datetime(
-                                                df_aprovar_custos["Data_Hora_Gerada"],
-                                                format=DATE_DISPLAY_FORMAT_STRING, # Garante o formato brasileiro
-                                                errors='coerce' # Transforma erros de conversão em NaT
-                                            )
-                                            # Garante que NaT (Not a Time) seja None para o Supabase
-                                            df_aprovar_custos["Data_Hora_Gerada"] = df_aprovar_custos["Data_Hora_Gerada"].apply(
-                                                lambda x: None if pd.isna(x) else x
-                                            )
+                                    # --- INÍCIO DA CORREÇÃO E DEBUG LOCALIZADO ---
+                                    # Os DEBUGs (st.write) aqui foram mantidos para sua referência,
+                                    # mas podem ser removidos em produção.
+                                    st.write(f"DEBUG: Antes da reconversão em Cargas Geradas:")
+                                    if "Data_Hora_Gerada" in df_aprovar_custos.columns:
+                                        st.write(f"DEBUG: Data_Hora_Gerada (Tipo): {df_aprovar_custos['Data_Hora_Gerada'].dtype}")
+                                        st.write(f"DEBUG: Data_Hora_Gerada (Primeiro valor): {df_aprovar_custos['Data_Hora_Gerada'].iloc[0] if not df_aprovar_custos.empty else 'DataFrame vazio'}")
 
-                                            st.write(f"DEBUG: Após a reconversão em Cargas Geradas:")
-                                            st.write(f"DEBUG: Data_Hora_Gerada (Tipo): {df_aprovar_custos['Data_Hora_Gerada'].dtype}")
-                                            st.write(f"DEBUG: Data_Hora_Gerada (Primeiro valor): {df_aprovar_custos['Data_Hora_Gerada'].iloc[0] if not df_aprovar_custos.empty else 'DataFrame vazio'}")
-                                        else:
-                                            st.write("DEBUG: Coluna 'Data_Hora_Gerada' não encontrada em df_aprovar_custos.")
+                                        # Esta linha é CRÍTICA. Ela diz ao Pandas para interpretar
+                                        # a string como DD/MM/AAAA HH:MM.
+                                        df_aprovar_custos["Data_Hora_Gerada"] = pd.to_datetime(
+                                            df_aprovar_custos["Data_Hora_Gerada"],
+                                            format=DATE_DISPLAY_FORMAT_STRING, # Garante o formato brasileiro
+                                            errors='coerce' # Transforma erros de conversão em NaT
+                                        )
+                                        # Garante que NaT (Not a Time) seja None para o Supabase
+                                        df_aprovar_custos["Data_Hora_Gerada"] = df_aprovar_custos["Data_Hora_Gerada"].apply(
+                                            lambda x: None if pd.isna(x) else x
+                                        )
 
-                                            time.sleep(3)
-                                        # --- FIM DA CORREÇÃO E DEBUG LOCALIZADO ---
-                                        # Aplicando a função _prepare_df_for_supabase_insert para datas e nulos
-                                        df_aprovar_custos = _prepare_df_for_supabase_insert(df_aprovar_custos)
+                                        st.write(f"DEBUG: Após a reconversão em Cargas Geradas:")
+                                        st.write(f"DEBUG: Data_Hora_Gerada (Tipo): {df_aprovar_custos['Data_Hora_Gerada'].dtype}")
+                                        st.write(f"DEBUG: Data_Hora_Gerada (Primeiro valor): {df_aprovar_custos['Data_Hora_Gerada'].iloc[0] if not df_aprovar_custos.empty else 'DataFrame vazio'}")
+                                    else:
+                                        st.write("DEBUG: Coluna 'Data_Hora_Gerada' não encontrada em df_aprovar_custos.")
 
-                                        registros_para_custos = df_aprovar_custos.to_dict(orient="records")
+                                        time.sleep(3)
+                                    # --- FIM DA CORREÇÃO E DEBUG LOCALIZADO ---
+                                    # Aplicando a função _prepare_df_for_supabase_insert para datas e nulos
+                                    df_aprovar_custos = _prepare_df_for_supabase_insert(df_aprovar_custos)
 
-                                        if registros_para_custos:
-                                            supabase.table("aprovacao_custos").insert(registros_para_custos).execute()
-                                            chaves_para_remover = [r.get("Serie_Numero_CTRC") for r in registros_para_custos if r.get("Serie_Numero_CTRC")]
-                                            if chaves_para_remover:
-                                                supabase.table("cargas_geradas").delete().in_("Serie_Numero_CTRC", chaves_para_remover).execute()
-                                                # Atualiza a carga remanescente com motorista/placa/veiculo/valor_contratacao
-                                                supabase.table("cargas_geradas").update({
-                                                    "motorista": motorista_to_save,
-                                                    "placa": placa_to_save,
-                                                    "veiculo": veiculo_to_save,
-                                                    "valor_contratacao": valor_contratacao
-                                                }).eq("numero_carga", carga).execute()
+                                    registros_para_custos = df_aprovar_custos.to_dict(orient="records")
 
-                                            st.session_state["reload_cargas_geradas"] = True
-                                            st.session_state["reload_aprovacao_custos"] = True
+                                    if registros_para_custos:
+                                        supabase.table("aprovacao_custos").insert(registros_para_custos).execute()
+                                        chaves_para_remover = [r.get("Serie_Numero_CTRC") for r in registros_para_custos if r.get("Serie_Numero_CTRC")]
+                                        if chaves_para_remover:
+                                            supabase.table("cargas_geradas").delete().in_("Serie_Numero_CTRC", chaves_para_remover).execute()
+                                            # Atualiza a carga remanescente com motorista/placa/veiculo/valor_contratacao
+                                            supabase.table("cargas_geradas").update({
+                                                "motorista": motorista_to_save,
+                                                "placa": placa_to_save,
+                                                "veiculo": veiculo_to_save,
+                                                "valor_contratacao": valor_contratacao
+                                            }).eq("numero_carga", carga).execute()
 
-                                            st.session_state.pop(grid_key_id, None)
+                                        st.session_state["reload_cargas_geradas"] = True
+                                        st.session_state["reload_aprovacao_custos"] = True
 
-                                            st.session_state['last_action_message_type'] = 'success'
-                                            st.session_state['last_action_message_text'] = f"✅ {len(registros_para_custos)} entregas da carga {carga} enviadas para Aprovação de Custos com valor R$ {valor_contratacao:.2f}."
-                                            st.rerun()
-                                        else:
-                                            st.warning("Nenhuma entrega válida selecionada para enviar para aprovação de custos.")
-                                except Exception as e:
-                                    st.session_state['last_action_message_type'] = 'error'
-                                    st.session_state['last_action_message_text'] = f"❌ Erro ao enviar entregas para aprovação de custos: {e}"
-                                    st.rerun()
+                                        st.session_state.pop(grid_key_id, None)
 
+                                        st.session_state['last_action_message_type'] = 'success'
+                                        st.session_state['last_action_message_text'] = f"✅ {len(registros_para_custos)} entregas da carga {carga} enviadas para Aprovação de Custos com valor R$ {valor_contratacao:.2f}."
+                                        st.rerun()
+                                    else:
+                                        st.warning("Nenhuma entrega válida selecionada para enviar para aprovação de custos.")
+                            except Exception as e:
+                                st.session_state['last_action_message_type'] = 'error'
+                                st.session_state['last_action_message_text'] = f"❌ Erro ao enviar entregas para aprovação de custos: {e}"
+                                st.rerun()
     except Exception as e:
         # Captura e exibe erros gerais da página, garantindo o feedback
         st.session_state['last_action_message_type'] = 'error'
@@ -5823,7 +5974,7 @@ def pagina_cargas_fechadas():
             )
 
         with col2_placeholder:
-            col_pdf, col_excel = st.columns([1, 1])
+            col_pdf, col_excel, col_return_btn = st.columns([1, 1, 1])
             with col_pdf:
                 pdf_motorista = motorista_carga if motorista_carga and motorista_carga != "-" else ""
                 pdf_placa = placa_carga if placa_carga and placa_carga != "-" else ""
@@ -5904,142 +6055,171 @@ def pagina_cargas_fechadas():
                 except Exception as e:
                     st.error(f"❌ Erro ao gerar CSV da carga {carga}: {e}")
 
+
+        with col_return_btn:
+            if st.button(
+                f"↩️ Retornar para Geradas",
+                key=f"return_to_geradas_{carga}"
+            ):
+                try:
+                    with st.spinner(f"Retornando carga {carga} para Cargas Geradas..."):
+                        # 1. Obter todas as entregas desta carga de 'cargas_fechadas'
+                        response_fetch = supabase.table("cargas_fechadas").select("*").eq("numero_carga", carga).execute()
+                        data_to_move = response_fetch.data
+
+                        if not data_to_move:
+                            st.warning(f"Nenhuma entrega encontrada para a carga {carga} em Cargas Encerradas para retornar.")
+                            time.sleep(3)
+                            st.rerun()
+                            return
+
+                        df_to_move = pd.DataFrame(data_to_move)
+
+                        # 2. Preparar dados para inserção em 'cargas_geradas' (remover colunas de controle de fechamento)
+                        df_to_move = df_to_move.drop(columns=[
+                            "data_fechamento", "fechador_carga_login", "situacao",
+                            "pdf_downloaded_at", "csv_downloaded_at"
+                        ], errors="ignore")
+
+                        df_to_move["status_retorno"] = "CARGA ENCERRADA RETORNADA"
+
+                        # 3. IDENTIFICAR E FILTRAR DUPLICATAS EM CARGAS_GERADAS
+                        ctrcs_to_return = df_to_move['Serie_Numero_CTRC'].tolist()
+                        
+                        if ctrcs_to_return: # Verifica se há CTRCs para processar
+                            # Consulta quais desses CTRCs já existem em 'cargas_geradas'
+                            existing_in_cargas_geradas_response = supabase.table("cargas_geradas") \
+                                .select("Serie_Numero_CTRC") \
+                                .in_("Serie_Numero_CTRC", ctrcs_to_return) \
+                                .execute()
+                            
+                            # Cria um conjunto para busca rápida dos CTRCs existentes
+                            existing_ctrcs_set = {r["Serie_Numero_CTRC"] for r in existing_in_cargas_geradas_response.data}
+
+                            if existing_ctrcs_set:
+                                # Filtra o DataFrame para incluir APENAS as entregas que NÃO existem em 'cargas_geradas'
+                                df_to_insert = df_to_move[~df_to_move['Serie_Numero_CTRC'].isin(existing_ctrcs_set)].copy()
+                                skipped_ctrcs = list(existing_ctrcs_set)
+                                st.warning(f"⚠️ {len(skipped_ctrcs)} entrega(s) da carga {carga} já existe(m) em 'Cargas Geradas' e foi/foram pulada(s) para evitar duplicidade: {', '.join(skipped_ctrcs)}")
+                            else:
+                                # Se não há duplicatas, todo o DataFrame será inserido
+                                df_to_insert = df_to_move.copy()
+                        else:
+                            # Se não há CTRCs para retornar, df_to_insert fica vazio
+                            df_to_insert = pd.DataFrame() 
+
+                        # Se, após a filtragem de duplicatas, não restarem entregas para inserir, exibe um aviso
+                        if df_to_insert.empty:
+                            st.warning(f"Nenhuma entrega válida para retornar para Cargas Geradas após verificar duplicidades.")
+                            time.sleep(3)
+                            st.rerun()
+                            return
+
+                        # Prepara para inserção no Supabase (datas, etc.)
+                        df_to_insert = _prepare_df_for_supabase_insert(df_to_insert)
+                        records_to_insert = df_to_insert.to_dict(orient="records")
+                        # Garante que registros sem Serie_Numero_CTRC não sejam processados (verificação final)
+                        records_to_insert = [r for r in records_to_insert if r.get("Serie_Numero_CTRC")] 
+
+                        # 4. Inserir em 'cargas_geradas'
+                        if records_to_insert:
+                            supabase.table("cargas_geradas").insert(records_to_insert).execute()
+                            st.success(f"Carga {carga} retornada para Cargas Geradas com sucesso! {len(records_to_insert)} entregas movidas.")
+                        else:
+                            st.warning(f"Nenhuma entrega restante para mover para Cargas Geradas após a filtragem de duplicidades.")
+                            time.sleep(3)
+                            st.rerun()
+                            return
+
+                        # 5. Deletar da 'cargas_fechadas'
+                        # Importante: deleta SOMENTE as entregas que foram movidas com sucesso
+                        successfully_moved_ctrcs = [r.get("Serie_Numero_CTRC") for r in records_to_insert]
+                        if successfully_moved_ctrcs:
+                            supabase.table("cargas_fechadas").delete().in_("Serie_Numero_CTRC", successfully_moved_ctrcs).execute()
+                            st.info(f"Removidas {len(successfully_moved_ctrcs)} entregas da carga {carga} de 'Cargas Encerradas'.")
+                        else:
+                            st.info("Nenhuma entrega foi movida com sucesso para 'Cargas Geradas', portanto, nenhuma será deletada de 'Cargas Encerradas'.")
+
+                        # 6. Forçar recarregamento das páginas afetadas
+                        st.session_state["_force_reload_cargas_fechadas"] = True # Recarrega a página atual
+                        st.session_state["reload_cargas_geradas"] = True # Recarrega a página de destino
+
+                        time.sleep(3)
+                        st.rerun()
+
+                except Exception as e:
+                    st.error(f"Erro ao retornar carga {carga} para Cargas Geradas: {e}")
+                    st.exception(e) # Exibe o traceback completo para depuração
+
+
+
         with st.expander("🔽 Ver entregas da carga fechada", expanded=False):
             with st.spinner("   Formatando entregas da carga fechada..."):
-                formatter = JsCode("""
-                    function(params) {
-                        if (!params.value && params.value !== 0) return '';
-                        return Number(params.value).toLocaleString('pt-BR', {
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2
-                        });
-                    }
-                """)
+                # As definições de 'formatter' e 'date_only_formatter' são JAVASCRIPT para AGGRID
+                # ELAS NÃO DEVEM SER USADAS AQUI. A formatação do st.dataframe é via st.column_config.
+                # Não é necessário ter essas variáveis definidas DENTRO deste bloco.
 
-                date_only_formatter = JsCode("""
-                    function(params) {
-                        if (params.value === null || typeof params.value === 'undefined' || params.value === '') return '';
-                        const parts = params.value.split(' ')[0]; // Pega só a parte da data
-                        return parts;
-                    }
-                """)
-                # Formata o DataFrame para exibição no AgGrid
+                # Formata o DataFrame para exibição no AgGrid (CORRETO, isso prepara os dados)
                 df_formatado = df_carga[[col for col in colunas_exibir if col in df_carga.columns]].copy()
                 df_formatado = apply_brazilian_date_format_for_display(df_formatado)
                 # Garante que NaT e None sejam substituídos por string vazia para exibição no grid
                 df_formatado = df_formatado.replace([np.nan, None, pd.NaT], "")
 
+                # <<< TODO O CÓDIGO DO GB (GridOptionsBuilder) E AgGrid DEVE SER REMOVIDO DAQUI >>>
+                # E SUBSTITUÍDO PELO CÓDIGO ABAIXO:
+
                 if df_formatado.empty or df_formatado.shape[1] == 0:
                     st.warning(f"Atenção: A carga {carga} não possui dados ou colunas válidas para exibir. Pulando a renderização do grid para esta carga.")
                 else:
-                    gb = GridOptionsBuilder.from_dataframe(df_formatado)
-                    gb.configure_default_column(minWidth=145)
-                    gb.configure_selection("multiple", use_checkbox=True)
-                    gb.configure_grid_options(paginationPageSize=12)
-                    gb.configure_grid_options(alwaysShowHorizontalScroll=True)
-                    gb.configure_grid_options(rowStyle={"font-size": "11px"})
-
-                    gb.configure_grid_options(getRowStyle=JsCode("""
-                        function(params) {
-                            const status = params.data.Status;
-                            const entregaProg = params.data["Entrega Programada"];
-                            const particularidade = params.data.Particularidade;
-                            if (status === "AGENDAR" && (!entregaProg || entregaProg.trim() === "")) {
-                                return { 'background-color': '#ffe0b2', 'color': '#333' };
-                            }
-                            if (particularidade && particularidade.trim() !== "") {
-                                return { 'background-color': '#fff59d', 'color': '#333' };
-                            }
-                            return null;
-                        }
-                    """))
-                    gb.configure_grid_options(headerCheckboxSelection=True)
-                    gb.configure_grid_options(rowSelection='multiple')
-                    gb.configure_grid_options(onGridReady=JsCode("""
-                    function(params) {
-                        const gridApi = params.api;
-                        const gridDiv = params.eGridDiv;
-                        const resizeColumns = () => {
-                            if (!gridApi) {
-                                console.warn("AgGrid API não disponível no momento do redimensionamento de colunas.");
-                                return;
-                            }
-                            gridDiv.offsetWidth;
-                            gridApi.sizeColumnsToFit();
-                        };
-                        setTimeout(resizeColumns, 200);
-                        const resizeObserver = new ResizeObserver(entries => {
-                            for (let entry of entries) {
-                                entry.target.offsetWidth;
-                                resizeColumns();
-                            }
-                        });
-                        resizeObserver.observe(gridDiv);
-                    }
-                    """))
-
-                    for col in ['Peso Real em Kg', 'Peso Calculado em Kg', 'Cubagem em m³', 'Quantidade de Volumes', 'Valor do Frete', 'valor_contratacao']:
+                    # Dicionário para configurar a exibição das colunas no st.dataframe
+                    column_configuration = {}
+                    
+                    # Configuração para colunas numéricas (usará formatação de número e precisão)
+                    # NOTA: O 'format' aqui é uma string de formatação Python, NÃO JavaScript.
+                    numeric_cols = ['Peso Real em Kg', 'Peso Calculado em Kg', 'Cubagem em m³', 'Quantidade de Volumes', 'Valor do Frete', 'valor_contratacao']
+                    for col in numeric_cols:
                         if col in df_formatado.columns:
-                            gb.configure_column(col, type=["numericColumn"], valueFormatter=formatter)
-                    for col in ['Previsao de Entrega', 'Entrega Programada']:
+                            column_configuration[col] = st.column_config.NumberColumn(
+                                format="%.2f" 
+                            )
+
+                    # Configuração para colunas de data (apenas data)
+                    # NOTA: O 'format' aqui é uma string de formatação Python, NÃO JavaScript.
+                    date_only_cols = ['Previsao de Entrega', 'Entrega Programada']
+                    for col in date_only_cols:
                         if col in df_formatado.columns:
-                            gb.configure_column(col, valueFormatter=date_only_formatter)
+                            column_configuration[col] = st.column_config.DateColumn(
+                                format="DD/MM/YYYY" 
+                            )
 
-                    if 'data_fechamento' in df_formatado.columns:
-                        gb.configure_column('data_fechamento', valueFormatter=JsCode("""
-                            function(params) {
-                                if (params.value) {
-                                    return params.value; // A string já virá formatada como dd/mm/yyyy hh:mm
-                                }
-                                return '';
-                            }
-                        """))
-
-
-                    # Formatação específica para as novas colunas de auditoria que são timestamps completos
-                    for col in ['data_aprovacao_custos', 'pdf_downloaded_at', 'csv_downloaded_at', 'Data_Hora_Gerada']:
+                    # Configuração para colunas de timestamp (data e hora)
+                    # NOTA: O 'format' aqui é uma string de formatação Python, NÃO JavaScript.
+                    timestamp_cols = ['data_fechamento', 'data_aprovacao_custos', 'pdf_downloaded_at', 'csv_downloaded_at', 'Data_Hora_Gerada']
+                    for col in timestamp_cols:
                         if col in df_formatado.columns:
-                            gb.configure_column(col, valueFormatter=JsCode("""
-                                function(params) {
-                                    if (params.value) {
-                                        return params.value; // Já está em dd-mm-yyyy HH:MM
-                                    }
-                                    return '';
-                                }
-                            """))
+                            # A coluna 'data_fechamento' já vem formatada do apply_brazilian_date_format_for_display
+                            # como "DD/MM/YYYY HH:MM". Se ela já vem formatada assim, pode não precisar de um DatetimeColumn
+                            # ou a formatação abaixo precisa refletir a string exata que o dado já possui.
+                            # Se for Timestamp de Python, o formato abaixo é o correto.
+                            column_configuration[col] = st.column_config.DatetimeColumn(
+                                format="DD/MM/YYYY HH:mm" 
+                            )
+                    
+                    # Coluna de justificativa, para garantir que seja tratada como texto
                     if 'justificativa_aprovacao_custo' in df_formatado.columns:
-                        gb.configure_column('justificativa_aprovacao_custo', type=["textColumn"], headerName="Justificativa")
+                        column_configuration['justificativa_aprovacao_custo'] = st.column_config.TextColumn(
+                            "Justificativa" # Pode definir o cabeçalho se quiser
+                        )
 
-                    grid_options = gb.build()
-                    grid_key_id = f"grid_cargas_fechadas_{carga}"
-                    if grid_key_id not in st.session_state:
-                        st.session_state[grid_key_id] = str(uuid.uuid4())
-                    grid_key = st.session_state[grid_key_id]
 
-                    AgGrid(
+                    # Exibe o DataFrame usando st.dataframe
+                    st.dataframe(
                         df_formatado,
-                        gridOptions=grid_options,
-                        update_mode=GridUpdateMode.SELECTION_CHANGED,
-                        selected_rows=df_formatado.to_dict("records"),
-                        fit_columns_on_grid_load=True,
-                        width="100%",
-                        height=400,
-                        allow_unsafe_jscode=True,
-                        key=grid_key,
-                        theme=AgGridTheme.MATERIAL,
-                        show_toolbar=False,
-                        custom_css={
-                            ".ag-theme-material .ag-cell": {"font-size": "11px", "line-height": "18px", "border-right": "1px solid #ccc", },
-                            ".ag-theme-material .ag-row:last-child .ag-cell": {"border-bottom": "1px solid #ccc", },
-                            ".ag-theme-material .ag-header-cell": {"border-right": "1px solid #ccc", "border-bottom": "1px solid #ccc", },
-                            ".ag-theme-material .ag-root-wrapper": {"border": "1px solid black", "border-radius": "6px", "padding": "4px", },
-                            ".ag-theme-material .ag-header-cell-label": {"font-size": "11px", },
-                            ".ag-center-cols-viewport": {"overflow-x": "auto !important", "overflow-y": "hidden", },
-                            ".ag-center-cols-container": {"min-width": "100% !important", },
-                            "#gridToolBar": {"padding-bottom": "0px !important", }
-                        }
+                        use_container_width=True,
+                        hide_index=True,
+                        column_config=column_configuration, # AQUI NÃO PODE HAVER OBJETOS JSCODE
+                        height=400
                     )
-
 
 # ========== EXECUÇÃO PRINCIPAL ========== #
 
@@ -6112,4 +6292,5 @@ if st.session_state.get("login", False):
 
         st.subheader("Alterar Minha Senha")
         pagina_trocar_senha()
+
 
