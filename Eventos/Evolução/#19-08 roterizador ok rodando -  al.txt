@@ -1,3 +1,6 @@
+#19-08 roterizador ok rodando -  alteração do logos
+
+
 # 06-08 em produção após ajuste de cores logo
 
 
@@ -6,9 +9,11 @@
 
 import streamlit as st
 st.set_page_config(
-    page_title="F4Rotas",
-    page_icon="assets/Logo-FA.ico",  # caminho da imagem do favicon
-    layout="wide"
+    page_title="F4 Rotas",  # Novo título para a aba do navegador
+    page_icon="📡",       # Novo ícone para a aba. Pode ser um emoji,
+                          # um caminho para um arquivo de imagem, ou uma URL.
+    layout="wide",    # (Opcional) Pode ser "centered" ou "wide"
+    initial_sidebar_state="auto" # (Opcional) Pode ser "auto", "expanded" ou "collapsed"
 )
 
 import locale
@@ -6110,4 +6115,3 @@ if st.session_state.get("login", False):
 
         st.subheader("Alterar Minha Senha")
         pagina_trocar_senha()
-
