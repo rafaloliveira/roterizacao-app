@@ -6,7 +6,7 @@
 
 import streamlit as st
 st.set_page_config(
-    page_title="F4Rotas",
+    page_title="F4Rotas                ",
     page_icon="assets/Logo-FA.ico",  # caminho da imagem do favicon
     layout="wide"
 )
