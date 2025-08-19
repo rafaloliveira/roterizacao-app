@@ -5,7 +5,6 @@
 #sincronização, Pré Roterização e Rotas Confirmadas funcionando
 
 import streamlit as st
-import streamlit.components.v1 as components
 
 st.set_page_config(
     page_title="F4Rotas",
@@ -13,22 +12,6 @@ st.set_page_config(
     layout="wide"
 )
 
-# Hack definitivo para tirar o "· Streamlit"
-components.html(
-    """
-    <script>
-    const tituloDesejado = "F4Rotas";
-    function ajustarTitulo() {
-        document.title = tituloDesejado;
-    }
-    // Aplica agora e a cada 1s (para garantir contra sobrescrita)
-    ajustarTitulo();
-    setInterval(ajustarTitulo, 1000);
-    </script>
-    """,
-    height=0,
-    width=0,
-)
 import locale
 import pandas as pd
 import numpy as np
