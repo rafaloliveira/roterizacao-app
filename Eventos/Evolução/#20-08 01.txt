@@ -6,10 +6,13 @@
 
 import streamlit as st
 st.set_page_config(
-    page_title="F4Rotas - teste",
-    page_icon="assets/Logo-FA.ico",
-    layout="wide"
+    page_title="F4 Rotas",  # Novo título para a aba do navegador
+    page_icon="📡",       # Novo ícone para a aba. Pode ser um emoji,
+                          # um caminho para um arquivo de imagem, ou uma URL.
+    layout="wide",    # (Opcional) Pode ser "centered" ou "wide"
+    initial_sidebar_state="auto" # (Opcional) Pode ser "auto", "expanded" ou "collapsed"
 )
+
 import locale
 import pandas as pd
 import numpy as np
@@ -24,7 +27,6 @@ import streamlit as st
 import os
 import random
 import traceback
-from uuid import uuid4
 from fpdf import FPDF
 from reportlab.lib.pagesizes import letter, landscape
 from reportlab.platypus import Indenter
@@ -152,7 +154,7 @@ def corrigir_tipos(df):
     return df
 #------------------------------------------------------------------------------------
 
-def aplicar_zoom_personalizado(percent=100):
+def aplicar_zoom_personalizado(percent=85):
     escala = percent / 100
     largura = 100 / escala  # Ex: para 85%, usamos 117% de largura
 
@@ -234,16 +236,8 @@ def _aprovar_carga_custos(selecionadas_para_aprovar, df_carga_original, carga_nu
 
 
 # ========== SUPABASE CONFIG ========== #
-# Base de Dados Projeto roteriza
 url = "https://xhwotwefiqfwfabenwsi.supabase.co"
 key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhod290d2VmaXFmd2ZhYmVud3NpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDgzNjc4NTMsImV4cCI6MjA2Mzk0Mzg1M30.3E2z-1SaABbCaV_HjQf0Rj8249mnPeGv7YkV4gOGhlg"  # Substitua pela sua chave real
-
-# Base de Dados Projeto F4Rotas
-#url = "https://agiugsfojyansjeanfbz.supabase.co"
-#key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFnaXVnc2ZvanlhbnNqZWFuZmJ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM4OTUzOTUsImV4cCI6MjA2OTQ3MTM5NX0.44w1wtOe3A8eQS6rINRdT9tDowZWwHM_H9Apr_B17I4"
-
-
-
 
 @st.cache_resource(show_spinner=False)
 def init_supabase_client():
@@ -572,17 +566,8 @@ def pagina_gerenciar_usuarios():
 # CONFIG BANCO
 ###############################################
 # Supabase config
-
-# Base de Dados Projeto roteriza
 url = "https://xhwotwefiqfwfabenwsi.supabase.co"
 key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhod290d2VmaXFmd2ZhYmVud3NpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDgzNjc4NTMsImV4cCI6MjA2Mzk0Mzg1M30.3E2z-1SaABbCaV_HjQf0Rj8249mnPeGv7YkV4gOGhlg"
-
-
-# Base de Dados Projeto F4Rotas teste
-#url = "https://agiugsfojyansjeanfbz.supabase.co"
-#key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFnaXVnc2ZvanlhbnNqZWFuZmJ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM4OTUzOTUsImV4cCI6MjA2OTQ3MTM5NX0.44w1wtOe3A8eQS6rINRdT9tDowZWwHM_H9Apr_B17I4"
-
-
 TABLE_NAME = "fBaseroter"
 EXCEL_SHEET_NAME = "Sheet1"
 DELETE_FILTER_COLUMN = "Setor de Destino"
@@ -1147,31 +1132,32 @@ def recuperar_hora_sincronizacao():
         return None, None
 #---------------------------------------------------------------------------------------------------    
 
-def salvar_historico_sincronizacao(username, num_new_fbaseroter, num_confirmadas, num_pre_roterizacao, num_paletizadas, num_novas_confirmadas, num_novas_pre_roterizacao, file_name=None, file_hash=None):
+def salvar_historico_sincronizacao(username, num_new_fbaseroter, num_confirmadas, num_pre_roterizacao, file_name=None, file_hash=None):
     """
-    Salva um registro de sincronização como uma nova linha na tabela 'historico_sincronizacoes'.
+    Salva um registro de sincronização como uma nova linha na tabela 'metadados'.
+    A chave será única para cada registro de histórico, e o valor será um JSON.
     """
-    agora_iso = datetime.now(FUSO_BRASIL).isoformat()
-
+    agora_iso = data_hora_brasil_iso() # Data/hora atual no formato ISO 8601
+    
     sync_details = {
-        "id": str(uuid4()),
-        "usuario": username,
-        "data_hora_sincronizacao": agora_iso,
+        "timestamp": agora_iso,
+        "username": username,
         "novas_entregas_fbaseroter": num_new_fbaseroter,
         "qtd_confirmadas_producao": num_confirmadas,
         "qtd_pre_roterizacao": num_pre_roterizacao,
-        "qtd_paletizadas": num_paletizadas,
-        "novas_confirmadas_producao": num_novas_confirmadas, # NOVO CAMPO
-        "novas_pre_roterizacao": num_novas_pre_roterizacao, # NOVO CAMPO
         "nome_arquivo_excel": file_name,
-        "arquivo_excel_hash": file_hash,
-        "status_sincronizacao": "SUCESSO"
+        "arquivo_excel_hash": file_hash
     }
-
+    
+    # Cria uma chave única para este registro de histórico
+    historico_key = f"sync_log_{agora_iso}_{uuid.uuid4()}" 
+    
     try:
-        supabase.table("historico_sincronizacoes").insert(sync_details).execute()
+        supabase.table("metadados").insert({"chave": historico_key, "valor": json.dumps(sync_details)}).execute()
+        # st.info("DEBUG: Histórico de sincronização salvo como nova entrada em metadados.") # Opcional
     except Exception as e:
-        st.error(f"Erro ao salvar histórico de sincronização na tabela 'historico_sincronizacoes': {e}")
+        st.error(f"Erro ao salvar histórico de sincronização em metadados: {e}")
+
 
 
 ##############################
@@ -1188,21 +1174,11 @@ if 'file_uploader_key' not in st.session_state:
 
 if "_sync_success_message_displayed" not in st.session_state:
     st.session_state._sync_success_message_displayed = False
-    
-# ATENÇÃO: Alterações AQUI para inicializar com 0 em vez de None
 if "_qtd_confirmadas" not in st.session_state:
-    st.session_state._qtd_confirmadas = 0 
+    st.session_state._qtd_confirmadas = 0
 if "_qtd_pre_roterizacao" not in st.session_state:
     st.session_state._qtd_pre_roterizacao = 0
-if "_qtd_paletizadas" not in st.session_state:
-    st.session_state._qtd_paletizadas = 0 # <-- Corrigido para 0
-if "_novas_confirmadas" not in st.session_state:
-    st.session_state._novas_confirmadas = 0 # <-- Corrigido para 0
-if "_novas_pre_roterizacao" not in st.session_state:
-    st.session_state._novas_pre_roterizacao = 0 # <-- Corrigido para 0
 
-
-#---- sincronização do Arquivo fBaseroter  ----------
 def pagina_sincronizacao():
     st.title("🔄 Sincronização de Dados")
 
@@ -1212,22 +1188,14 @@ def pagina_sincronizacao():
     else:
         st.markdown("🕒 Última sincronização: **ainda não realizada**")
 
-    # Mensagens temporárias de sucesso e balões (aparecerão apenas uma vez)
-    if st.session_state.get("_sync_success_message_displayed", False):
+    if st.session_state._sync_success_message_displayed:
         st.success("✅ Sincronização finalizada com sucesso!")
         st.balloons()
-        st.session_state._sync_success_message_displayed = False # Reseta a flag
-
-    # Exibição persistente dos totais e novas entregas (sempre visíveis, mesmo que zero)
-    # Usamos .get() com um valor padrão para garantir que sempre haja um valor,
-    # embora com a inicialização para 0, .get() com default não seja estritamente necessário para o display,
-    # mas é uma boa prática.
-    st.markdown(f"📦 Entregas em **Confirmar Produção**: **{st.session_state._qtd_confirmadas}**")
-    st.markdown(f"🗂️ Entregas em **Pré-Roterização**: **{st.session_state._qtd_pre_roterizacao}**")
-    st.markdown(f"🅿️ Entregas **Paletizadas**: **{st.session_state._qtd_paletizadas}**")
-    st.markdown(f"➕ Novas em **Confirmar Produção (nesta sync)**: **{st.session_state._novas_confirmadas}**")
-    st.markdown(f"➕ Novas em **Pré-Roterização (nesta sync)**: **{st.session_state._novas_pre_roterizacao}**")
-
+        st.markdown(f"📦 Entregas em **Confirmar Produção**: **{st.session_state._qtd_confirmadas}**")
+        st.markdown(f"🗂️ Entregas em **Pré-Roteirização**: **{st.session_state._qtd_pre_roterizacao}**")
+        st.session_state._sync_success_message_displayed = False
+        st.session_state._qtd_confirmadas = 0
+        st.session_state._qtd_pre_roterizacao = 0
 
     # --- Botão de Download do Histórico ---
     col_history_btn, _ = st.columns([1, 4])
@@ -1235,75 +1203,64 @@ def pagina_sincronizacao():
         if st.button("⬇️ Baixar Histórico de Sincronizações", key="download_sync_history_button"):
             try:
                 with st.spinner("Preparando histórico para download..."):
-                    response = supabase.table("historico_sincronizacoes") \
-                        .select("*") \
-                        .order("data_hora_sincronizacao", desc=True) \
+                    response = supabase.table("metadados") \
+                        .select("chave, valor") \
+                        .ilike("chave", "sync_log_%") \
                         .execute()
+                    historico_raw_data = response.data
                     
-                    historico_data = response.data
-                    
-                    if not historico_data:
-                        # cria placeholder apenas nesse caso
-                        msg_placeholder = st.empty()
-                        msg_placeholder.warning("Nenhum registro de histórico de sincronização encontrado na nova tabela.")
-                        time.sleep(3)
-                        msg_placeholder.empty()
+                    if not historico_raw_data:
+                        st.warning("Nenhum registro de histórico de sincronização encontrado.")
                     else:
-                        # O DataFrame já será montado com as colunas corretas
-                        df_historico = pd.DataFrame(historico_data)
+                        historico_parsed = []
+                        for record in historico_raw_data:
+                            try:
+                                details = json.loads(record['valor'])
+                                historico_parsed.append(details)
+                            except json.JSONDecodeError:
+                                st.warning(f"Erro ao decodificar JSON do histórico para a chave {record['chave']}. Registro pulado.")
+                                continue
                         
-                        # Converte a coluna de data/hora para o formato de exibição brasileiro
-                        if 'data_hora_sincronizacao' in df_historico.columns:
-                            df_historico['data_hora_sincronizacao'] = pd.to_datetime(df_historico['data_hora_sincronizacao'], utc=True)
-                            df_historico['data_hora_sincronizacao'] = df_historico['data_hora_sincronizacao'].apply(formatar_data_hora_br)
+                        if historico_parsed:
+                            df_historico = pd.DataFrame(historico_parsed)
+                            
+                            if 'timestamp' in df_historico.columns:
+                                df_historico['timestamp'] = pd.to_datetime(df_historico['timestamp'])
+                                df_historico = df_historico.sort_values(by='timestamp', ascending=False)
+                                df_historico['timestamp'] = df_historico['timestamp'].apply(formatar_data_hora_br)
 
-                        # Renomear colunas para exibição no CSV, conforme sua sugestão
-                        df_historico.rename(columns={
-                            'data_hora_sincronizacao': 'Data/Hora Sinc.',
-                            'usuario': 'Usuário',
-                            'novas_entregas_fbaseroter': 'Novas Entregas fBaseroter',
-                            'qtd_confirmadas_producao': 'Entregas em Confirmar Produção',
-                            'qtd_pre_roterizacao': 'Entregas em Pré-Roterização',
-                            'qtd_paletizadas': 'Entregas Paletizadas', 
-                            'novas_confirmadas_producao': 'Novas em Confirmar Produção (sync)', 
-                            'novas_pre_roterizacao': 'Novas em Pré-Roterização (sync)', 
-                            'nome_arquivo_excel': 'Nome do Arquivo Excel',
-                            'arquivo_excel_hash': 'Hash do Arquivo',
-                            'status_sincronizacao': 'Status' 
-                        }, inplace=True)
+                            df_historico.rename(columns={
+                                'timestamp': 'Data/Hora Sinc.',
+                                'username': 'Usuário',
+                                'novas_entregas_fbaseroter': 'Novas Entregas fBaseroter',
+                                'qtd_confirmadas_producao': 'Entregas em Confirmar Produção',
+                                'qtd_pre_roterizacao': 'Entregas em Pré-Roterização',
+                                'nome_arquivo_excel': 'Nome do Arquivo Excel',
+                                'arquivo_excel_hash': 'Hash do Arquivo'
+                            }, inplace=True)
 
-                        # Opcional: Reordenar colunas no CSV para melhor leitura
-                        colunas_csv_ordenadas = [
-                            'Data/Hora Sinc.', 'Usuário', 'Novas Entregas fBaseroter',
-                            'Entregas em Confirmar Produção', 'Novas em Confirmar Produção (sync)', 
-                            'Entregas em Pré-Roterização', 'Novas em Pré-Roterização (sync)', 
-                            'Entregas Paletizadas', 
-                            'Nome do Arquivo Excel', 'Hash do Arquivo'
-                        ]
-                        if 'Status' in df_historico.columns: 
-                            colunas_csv_ordenadas.append('Status')
-
-                        df_historico = df_historico[colunas_csv_ordenadas]
-
-                        csv_buffer = df_historico.to_csv(index=False, sep=';', encoding='utf-8-sig')
-                        
-                        st.download_button(
-                            label="Download CSV do Histórico",
-                            data=csv_buffer,
-                            file_name="historico_sincronizacoes.csv",
-                            mime="text/csv",
-                            key="download_csv_sync_history"
-                        )
-                        st.success("Histórico pronto para download!")
+                            csv_buffer = df_historico.to_csv(index=False, sep=';', encoding='utf-8-sig')
+                            
+                            st.download_button(
+                                label="Download CSV do Histórico",
+                                data=csv_buffer,
+                                file_name="historico_sincronizacoes.csv",
+                                mime="text/csv",
+                                key="download_csv_sync_history"
+                            )
+                            st.success("Histórico pronto para download!")
+                        else:
+                            st.warning("Nenhum registro de histórico válido para gerar o CSV.")
             except Exception as e:
                 st.error(f"Erro ao preparar histórico para download: {e}")
                 st.exception(e)
 
-
     st.markdown("---") # Separador visual
 
     # === INÍCIO: Coluna mais estreita para o uploader de arquivos ===
-    col_uploader_area, _ = st.columns([0.4, 0.6]) 
+    # Ajuste o primeiro valor ([0.4, 0.6]) para controlar a largura da coluna do uploader.
+    # 0.4 significa 40% da largura disponível. Aumente ou diminua conforme desejar.
+    col_uploader_area, _ = st.columns([0.4, 0.6]) # Primeira coluna para o uploader, segunda para espaço vazio
     with col_uploader_area:
         st.markdown("### Carregar Planilha Excel")
             
@@ -1314,17 +1271,19 @@ def pagina_sincronizacao():
         )
 
         current_file_hash = None 
-        if arquivo_excel: 
+        if arquivo_excel: # Esta e as próximas lógicas devem estar indentadas dentro de col_uploader_area
             current_file_hash = hashlib.md5(arquivo_excel.getvalue()).hexdigest()
 
-        if current_file_hash != st.session_state.get("uploaded_sync_file_hash"):
+        # Esta lógica precisa estar na mesma indentação do arquivo_excel,
+        # portanto, dentro de `col_uploader_area`.
+        if current_file_hash != st.session_state.uploaded_sync_file_hash:
             st.session_state.uploaded_sync_file_hash = current_file_hash
             st.session_state.sync_triggered = False
             st.session_state.df_for_sync_cache = None
 
         if arquivo_excel:
             try:
-                if st.session_state.get("df_for_sync_cache") is None:
+                if st.session_state.df_for_sync_cache is None:
                     df_raw = pd.read_excel(arquivo_excel)
                     df_raw.columns = df_raw.columns.str.strip()
                     st.session_state.df_for_sync_cache = df_raw
@@ -1342,20 +1301,22 @@ def pagina_sincronizacao():
                 st.session_state.sync_triggered = False
                 st.session_state.df_for_sync_cache = None
 
-        elif not arquivo_excel and st.session_state.get("uploaded_sync_file_hash"):
+        elif not arquivo_excel and st.session_state.uploaded_sync_file_hash:
             st.session_state.uploaded_sync_file_hash = None
             st.session_state.df_for_sync_cache = None
             st.session_state.sync_triggered = False
             st.info("Nenhum arquivo carregado. Faça o upload de um novo arquivo Excel para sincronizar.")
-            return 
-        else: 
+            return # Este return ainda funciona e sai da função.
+        else: # Este 'else' pertence ao 'if arquivo_excel', por isso também precisa estar dentro de col_uploader_area
             st.info("Aguardando o upload de um arquivo Excel para iniciar a sincronização.")
-            return 
+            return # Este return também funciona e sai da função.
     # === FIM: Coluna mais estreita para o uploader de arquivos ===
 
-    # O restante da lógica da função (processamento da sincronização) começa aqui
+    # O restante da lógica da função (processamento da sincronização) começa aqui,
+    # FORA da coluna estreita, e só será executado se um arquivo foi carregado e
+    # o botão de sincronização foi clicado.
     if st.session_state.sync_triggered:
-        st.markdown("---") 
+        st.markdown("---") # Separador visual para a barra de progresso
         progress_bar = st.progress(0)
         
         try:
@@ -1403,16 +1364,12 @@ def pagina_sincronizacao():
 
             progress_bar.progress(30)
             progress_bar.progress(50)
-            # A chamada para limpar_tabelas_relacionadas() foi removida daqui,
-            # de acordo com o requisito de não limpar as tabelas.
-            # limpar_tabelas_relacionadas() 
+            limpar_tabelas_relacionadas() 
             progress_bar.progress(70)
-            
-            num_inseridos_pre_roterizacao, num_inseridos_confirmadas = aplicar_regras_e_preencher_tabelas()
-            
+            progress_bar.progress(90)
+            aplicar_regras_e_preencher_tabelas() 
             progress_bar.progress(95)
 
-            # Recarregamento de caches é essencial para refletir as mudanças
             st.session_state["reload_confirmadas_producao"] = True
             st.session_state.pop("df_confirmadas_cache", None)
             st.session_state["reload_aprovacao_diretoria"] = True 
@@ -1431,30 +1388,18 @@ def pagina_sincronizacao():
             progress_bar.progress(100)
 
             try:
-                # Contagens totais (não apenas as novas inseridas nesta sincronização)
                 qtd_confirmadas = len(supabase.table("confirmadas_producao").select("Serie_Numero_CTRC").execute().data or [])
                 qtd_pre_roterizacao = len(supabase.table("pre_roterizacao").select("Serie_Numero_CTRC").execute().data or [])
-                
-                qtd_paletizadas_confirmadas = len(supabase.table("confirmadas_producao").select("Serie_Numero_CTRC").eq("Tipo_Tratativa_Especial", "Paletizadas").execute().data or [])
-                qtd_paletizadas_pre_roterizacao = len(supabase.table("pre_roterizacao").select("Serie_Numero_CTRC").eq("Tipo_Tratativa_Especial", "Paletizadas").execute().data or [])
-                total_paletizadas = qtd_paletizadas_confirmadas + qtd_paletizadas_pre_roterizacao
 
                 st.session_state._sync_success_message_displayed = True
                 st.session_state._qtd_confirmadas = qtd_confirmadas
                 st.session_state._qtd_pre_roterizacao = qtd_pre_roterizacao
-                st.session_state._qtd_paletizadas = total_paletizadas
-                st.session_state._novas_confirmadas = num_inseridos_confirmadas 
-                st.session_state._novas_pre_roterizacao = num_inseridos_pre_roterizacao 
-
 
                 salvar_historico_sincronizacao(
                     username=st.session_state.get("username", "Desconhecido"),
                     num_new_fbaseroter=num_new_fbaseroter_inserted,
                     num_confirmadas=qtd_confirmadas,
                     num_pre_roterizacao=qtd_pre_roterizacao,
-                    num_paletizadas=total_paletizadas,
-                    num_novas_confirmadas=num_inseridos_confirmadas, 
-                    num_novas_pre_roterizacao=num_inseridos_pre_roterizacao, 
                     file_name=arquivo_excel.name if arquivo_excel else None,
                     file_hash=current_file_hash
                 )
@@ -1483,7 +1428,6 @@ def pagina_sincronizacao():
             salvar_hora_sincronizacao()
             time.sleep(3)
             st.rerun()
-
 
 
 
@@ -1520,7 +1464,35 @@ def inserir_em_lote(nome_tabela, df, lote=100, tentativas=3, pausa=0.2):
         time.sleep(pausa)
 
 #------------------------------------------------------------------------------
+def limpar_tabelas_relacionadas():
+    # Lista de tabelas que precisam ser limpas completamente
+    # 'fBaseroter' já é limpa separadamente no início da pagina_sincronizacao
+    tabelas_para_limpar_por_ctrc = [
+        "confirmadas_producao", "aprovacao_diretoria", "pre_roterizacao",
+        "cargas_geradas", "aprovacao_custos", "cargas_aprovadas"
+    ]
 
+    for tabela in tabelas_para_limpar_por_ctrc:
+        try:
+            # A forma mais robusta de limpar uma tabela no Supabase é usar um filtro
+            # que é garantido que sempre será verdadeiro para todos os registros que você deseja apagar.
+            # Usaremos 'neq' (not equal to) em uma coluna que existe em todas essas tabelas
+            # ('Serie_Numero_CTRC') com um valor que nunca existirá.
+            # Adicionei um print para depuração.
+            #st.write(f"DEBUG: Tentando limpar a tabela: {tabela}")
+            response = supabase.table(tabela).delete().neq("Serie_Numero_CTRC", "DUMMY_VALUE_FOR_FULL_CLEAN_12345").execute()
+            
+            if response.data: # Se 'data' não for None, significa que algo foi retornado/deletado.
+                st.success(f"✅ Tabela '{tabela}' limpa com sucesso. Registros afetados: {len(response.data) if response.data else 0}")
+            elif response.error:
+                st.error(f"❌ Erro ao limpar tabela '{tabela}': {response.error}")
+            else:
+                st.info(f"ℹ️ Tabela '{tabela}' já estava vazia ou não havia registros correspondentes para deletar.")
+
+
+        except Exception as e:
+            st.error(f"")
+            #st.error(f"[ERRO GERAL] Ao tentar limpar a tabela '{tabela}': {e}. Por favor, verifique suas permissões (RLS) no Supabase ou se a coluna 'Serie_Numero_CTRC' existe em todas as tabelas listadas.")
 #--------------------------------------------------------------------------------------------------------------------------------
 def tratar_data_para_utc(valor):
     """
@@ -1675,195 +1647,213 @@ def aplicar_regras_e_preencher_tabelas():
     #st.subheader("🔍 Aplicando Regras de Negócio")
 
     try:
-        # Carrega dados base da fBaseroter (já atualizada pela etapa anterior da sincronização)
-        df_raw_data = supabase.table("fBaseroter").select("*").execute().data
-        if not df_raw_data:
-            st.error("Tabela fBaseroter está vazia. Nenhuma entrega será processada para Pré Roterização ou Confirmar Produção.")
-            return 0, 0 # Retorna (0, 0) explicitamente para evitar TypeError
-            
-        df = pd.DataFrame(df_raw_data)
+        # Carrega dados base
+        df = supabase.table("fBaseroter").select("*").execute().data
+        if not df:
+            st.error("Tabela fBaseroter está vazia.")
+            return
+
+        df = pd.DataFrame(df)
         df.columns = df.columns.str.strip()
 
-        # NOVO: Coleta todos os CTRCs já existentes em todas as tabelas do fluxo de trabalho
-        workflow_tables = [
-            "confirmadas_producao", "aprovacao_diretoria", "pre_roterizacao",
-            "cargas_geradas", "aprovacao_custos", "cargas_aprovadas"
-        ]
-        existing_workflow_ctrcs = set()
-        for table_name in workflow_tables:
-            try:
-                response = supabase.table(table_name).select("Serie_Numero_CTRC").execute()
-                current_ctrcs = {record["Serie_Numero_CTRC"] for record in response.data}
-                existing_workflow_ctrcs.update(current_ctrcs)
-            except Exception as e:
-                #st.warning(f"Não foi possível ler CTRCs da tabela '{table_name}': {e}. Prosseguindo sem considerar CTRCs desta tabela.")
-                # Remover o st.warning aqui para não poluir o log, a menos que seja um erro crítico.
-                pass # Apenas ignora e segue
+        df['Previsao de Entrega'] = pd.to_datetime(df.get('Previsao de Entrega'), errors='coerce')
+        df['Entrega Programada'] = pd.to_datetime(df.get('Entrega Programada'), errors='coerce')
 
-        # Filtra o DataFrame para incluir APENAS entregas que AINDA NÃO estão no fluxo de trabalho
-        # Ou seja, estas são as *novas* entregas que precisam entrar no fluxo
-        df_novas_para_fluxo = df[~df['Serie_Numero_CTRC'].isin(existing_workflow_ctrcs)].copy()
-
-        if df_novas_para_fluxo.empty:
-            st.info("Nenhuma nova entrega encontrada para ser inserida no fluxo de trabalho (todas já existem ou foram processadas).")
-            return 0, 0 # Nenhuma nova entrada no fluxo
-
-        # Agora, todo o processamento de regras de negócio será aplicado APENAS a df_novas_para_fluxo
-        df_processar = df_novas_para_fluxo
-        
-        # Garante que as colunas de data sejam datetime antes de qualquer operação de data/tempo
-        df_processar['Previsao de Entrega'] = pd.to_datetime(df_processar.get('Previsao de Entrega'), errors='coerce')
-        df_processar['Entrega Programada'] = pd.to_datetime(df_processar.get('Entrega Programada'), errors='coerce')
-
-        #__________________________________________________________________________________________________________
+        # st.text(f"[DEBUG] {len(df)} registros carregados de fBaseroter.") # REMOVIDO
+#__________________________________________________________________________________________________________
+       
         # Merge com Micro_Regiao_por_data_embarque
         micro = supabase.table("Micro_Regiao_por_data_embarque").select("*").execute().data
         if micro:
             df_micro = pd.DataFrame(micro)
             df_micro.columns = df_micro.columns.str.strip()
 
+            # Detectar nome da coluna de data e região (assumindo 'REGIÃO' é o nome da coluna no Supabase)
             col_data_micro = [col for col in df_micro.columns if 'relação' in col.lower()]
             cidade_destino_col = 'CIDADE DESTINO'
             regiao_col = 'REGIÃO'
 
+            # Garante que as colunas essenciais para o merge e para a região existam
             if col_data_micro and cidade_destino_col in df_micro.columns and regiao_col in df_micro.columns:
                 data_col = col_data_micro[0]
                 df_micro[data_col] = pd.to_numeric(df_micro[data_col], errors='coerce')
 
-                df_processar['Cidade de Entrega_upper'] = df_processar['Cidade de Entrega'].astype(str).str.strip().str.upper()
+                # Preparar colunas para o merge (case-insensitive e trim para garantir match)
+                df['Cidade de Entrega_upper'] = df['Cidade de Entrega'].astype(str).str.strip().str.upper()
                 df_micro[cidade_destino_col + '_upper'] = df_micro[cidade_destino_col].astype(str).str.strip().str.upper()
 
-                df_processar = df_processar.merge(
+                # Faz merge com base em Cidade de Entrega = CIDADE DESTINO e inclui a REGIÃO
+                df = df.merge(
                     df_micro[[data_col, cidade_destino_col + '_upper', regiao_col]],
                     how='left',
                     left_on='Cidade de Entrega_upper',
                     right_on=cidade_destino_col + '_upper'
                 )
 
-                df_processar.rename(columns={regiao_col: 'Regiao'}, inplace=True)
-                df_processar['Data de Embarque'] = df_processar['Previsao de Entrega'] - pd.to_timedelta(df_processar[data_col], unit='D')
-                df_processar.drop(columns=[data_col, cidade_destino_col + '_upper', 'Cidade de Entrega_upper'], inplace=True, errors='ignore')
+                # Renomeia a coluna de região para o nome final desejado 'Regiao'
+                df.rename(columns={regiao_col: 'Regiao'}, inplace=True)
+
+                # Calcula Data de Embarque
+                df['Data de Embarque'] = df['Previsao de Entrega'] - pd.to_timedelta(df[data_col], unit='D')
+
+                # Remove colunas auxiliares criadas para o merge
+                df.drop(columns=[data_col, cidade_destino_col + '_upper', 'Cidade de Entrega_upper'], inplace=True, errors='ignore')
             else:
                 st.warning("Colunas de data de relação, cidade destino ou região não encontradas em Micro_Regiao_por_data_embarque. A coluna 'Regiao' será preenchida como nula.")
-                df_processar['Data de Embarque'] = pd.NaT
-                df_processar['Regiao'] = None 
+                df['Data de Embarque'] = pd.NaT
+                df['Regiao'] = None # Garante que a coluna Regiao existe mesmo sem merge
         else:
-            df_processar['Data de Embarque'] = pd.NaT
-            df_processar['Regiao'] = None 
-        #______________________________________________________________________________________________________________________
+            df['Data de Embarque'] = pd.NaT
+            df['Regiao'] = None # Garante que a coluna Regiao existe mesmo sem dados
+        # st.text("[DEBUG] Mescla com Micro_Regiao_por_data_embarque concluída.") # REMOVIDO
+#______________________________________________________________________________________________________________________
 
         # Merge com Particularidades
         part = supabase.table("Particularidades").select("*").execute().data
         if part:
             df_part = pd.DataFrame(part)
             df_part.columns = df_part.columns.str.strip()
-            df_processar = df_processar.merge(df_part[['CNPJ', 'Particularidade']], how='left',
+            df = df.merge(df_part[['CNPJ', 'Particularidade']], how='left',
                           left_on='CNPJ Destinatario', right_on='CNPJ')
-            df_processar.drop(columns=['CNPJ'], inplace=True)
+            df.drop(columns=['CNPJ'], inplace=True)
         else:
-            df_processar['Particularidade'] = None
-        #________________________________________________________________________________________________________________________
+            df['Particularidade'] = None
+        # st.text("[DEBUG] Mescla com Particularidades concluída.") # REMOVIDO
+#________________________________________________________________________________________________________________________
         # Merge com Clientes_Entrega_Agendada
         agendados = supabase.table("Clientes_Entrega_Agendada").select("*").execute().data
         if agendados:
             df_ag = pd.DataFrame(agendados)
             df_ag.columns = df_ag.columns.str.strip()
 
+            # Corrigir o nome da coluna
             if 'CNPJ' in df_ag.columns and 'Status de Agenda' in df_ag.columns:
+                # Filtra os CNPJs com 'Status de Agenda' == 'AGENDAR'
                 cnpjs_agendar = df_ag[df_ag['Status de Agenda'].str.upper() == 'AGENDAR']['CNPJ'].str.strip().unique()
-                df_processar['Status'] = df_processar['CNPJ Destinatario'].str.strip().isin(cnpjs_agendar).map({True: 'AGENDAR', False: None})
+
+                # Marca como 'AGENDAR' na coluna Status se o CNPJ estiver na lista
+                df['Status'] = df['CNPJ Destinatario'].str.strip().isin(cnpjs_agendar).map({True: 'AGENDAR', False: None})
             else:
-                df_processar['Status'] = None
+                df['Status'] = None
                 st.warning("Colunas 'CNPJ' e/ou 'Status de Agenda' não encontradas em Clientes_Entrega_Agendada.")
         else:
-            df_processar['Status'] = None
+            df['Status'] = None
+        # st.text("[DEBUG] Mescla com Clientes_Entrega_Agendada concluída.") # REMOVIDO
 
 
-        #________________________________________________________________________________________________________________________
+#________________________________________________________________________________________________________________________
         # Definição da Rota
-        df_processar['Rota'] = None
+        # (Se a variável 'rotas' for definida duas vezes, como no seu código, a segunda sobrescreve a primeira.
+        # Certifique-se de que isso é intencional ou remova a redundância.)
+        # rotas = supabase.table("Rotas").select("*").execute().data # Esta linha é redundante se a próxima já carregar
+        df['Rota'] = None
 
+        # Tabela geral de rotas
         rotas = supabase.table("Rotas").select("*").execute().data
         df_rotas = pd.DataFrame(rotas) if rotas else pd.DataFrame()
         df_rotas.columns = df_rotas.columns.str.strip()
 
+        # Tabela específica de Porto Alegre
         rotas_poas = supabase.table("RotasPortoAlegre").select("*").execute().data
         df_poas = pd.DataFrame(rotas_poas) if rotas_poas else pd.DataFrame()
         df_poas.columns = df_poas.columns.str.strip()
 
-        # Iterar sobre df_processar, não sobre df
-        for idx, row in df_processar.iterrows():
+        for idx, row in df.iterrows():
             cidade = row.get('Cidade de Entrega', '').strip().upper()
             bairro = row.get('Bairro do Destinatario', '').strip().upper()
 
             if cidade == 'PORTO ALEGRE' and not df_poas.empty:
                 match = df_poas[df_poas['Bairro do Destinatario'].str.strip().str.upper() == bairro]
                 if not match.empty:
-                    df_processar.at[idx, 'Rota'] = match.iloc[0]['Rota']
+                    df.at[idx, 'Rota'] = match.iloc[0]['Rota']
             elif not df_rotas.empty:
                 match = df_rotas[df_rotas['Cidade de Entrega'].str.strip().str.upper() == cidade]
                 if not match.empty:
-                    df_processar.at[idx, 'Rota'] = match.iloc[0]['Rota']
+                    df.at[idx, 'Rota'] = match.iloc[0]['Rota']
+        # st.text("[DEBUG] Definição de rotas concluída.") # REMOVIDO
 
-        #__________________________________________________________________________________________________________________________
+#__________________________________________________________________________________________________________________________
 
         # --- INÍCIO DO BLOCO ATUALIZADO: Identificação de Entregas 'Paletizadas' ---
         try:
+            # Carrega as colunas "CNPJ DESTINATARIO" e "PALETIZADORA" da tabela Paletizadores.
+            # No Python, use aspas simples para a string externa e aspas duplas escapadas ou aspas simples internas.
             paletizadores_data = supabase.table("Paletizadores").select('"CNPJ DESTINATARIO", "PALETIZADORA"').execute().data
+            
+            # Processa os dados carregados
             if paletizadores_data:
                 df_paletizadores_raw = pd.DataFrame(paletizadores_data)
+                
+                # O Pandas, ao ler nomes de colunas com aspas do Supabase, remove as aspas e mantém o espaço.
+                # Precisamos garantir que os nomes das colunas no DataFrame Python correspondam exatamente
+                # ao que esperamos para filtrar: "CNPJ DESTINATARIO" e "PALETIZADORA".
+                # O .str.strip().str.replace('"', '') limpa eventuais aspas remanescentes e espaços
                 df_paletizadores_raw.columns = df_paletizadores_raw.columns.str.strip().str.replace('"', '')
 
+                # Verifica se as colunas essenciais existem no DataFrame após a limpeza dos nomes
                 if "CNPJ DESTINATARIO" not in df_paletizadores_raw.columns or "PALETIZADORA" not in df_paletizadores_raw.columns:
                     raise ValueError("As colunas 'CNPJ DESTINATARIO' ou 'PALETIZADORA' não foram encontradas no DataFrame de Paletizadores após leitura do Supabase. Verifique os nomes das colunas no Supabase.")
 
+                # FILTRA APENAS AS ENTRADAS ONDE A COLUNA 'PALETIZADORA' É 'SIM'
+                # Normaliza o texto para garantir a comparação (converte para maiúsculas e remove espaços)
                 df_paletizadores_sim = df_paletizadores_raw[
                     df_paletizadores_raw['PALETIZADORA'].astype(str).str.upper().str.strip() == 'SIM'
                 ].copy()
 
+                # Cria um set de CNPJs únicos e limpos (apenas dígitos) das entregas 'Paletizadoras SIM'
+                # Isso é essencial para comparações precisas, removendo pontos, barras e traços do CNPJ.
                 cnpjs_paletizadores_set = set(
                     df_paletizadores_sim['CNPJ DESTINATARIO'].astype(str).apply(lambda x: re.sub(r'\D', '', x)).unique()
                 )
                 
-                df_processar['CNPJ Destinatario_limpo'] = df_processar['CNPJ Destinatario'].astype(str).apply(lambda x: re.sub(r'\D', '', x))
-                df_processar['Tipo_Tratativa_Especial'] = None 
-                df_processar.loc[df_processar['CNPJ Destinatario_limpo'].isin(cnpjs_paletizadores_set), 'Tipo_Tratativa_Especial'] = 'Paletizadas'
+                # Prepara o CNPJ Destinatario do DataFrame principal (df) para comparação,
+                # também normalizando-o (removendo caracteres não numéricos).
+                df['CNPJ Destinatario_limpo'] = df['CNPJ Destinatario'].astype(str).apply(lambda x: re.sub(r'\D', '', x))
+
+                # Cria a nova coluna 'Tipo_Tratativa_Especial'.
+                # Inicializa como None, e então marca como 'Paletizadas'
+                # para aqueles CNPJs que estão no set de CNPJs paletizadores.
+                df['Tipo_Tratativa_Especial'] = None 
+                df.loc[df['CNPJ Destinatario_limpo'].isin(cnpjs_paletizadores_set), 'Tipo_Tratativa_Especial'] = 'Paletizadas'
                 
-                df_processar.drop(columns=['CNPJ Destinatario_limpo'], inplace=True, errors='ignore')
+                # Remove a coluna auxiliar temporária do CNPJ limpo
+                df.drop(columns=['CNPJ Destinatario_limpo'], inplace=True, errors='ignore')
+                
                 st.success("✅ Entregas 'Paletizadas' identificadas com sucesso.")
             else:
-                df_processar['Tipo_Tratativa_Especial'] = None 
+                # Se a tabela Paletizadores estiver vazia, nenhuma entrega será marcada como 'Paletizadas'
+                df['Tipo_Tratativa_Especial'] = None 
                 st.info("Tabela 'Paletizadores' está vazia. Nenhuma entrega será marcada como 'Paletizadas'.")
         except Exception as e:
             st.error(f"❌ Erro ao integrar dados de 'Paletizadores': {e}. A coluna 'Tipo_Tratativa_Especial' será nula.")
-            df_processar['Tipo_Tratativa_Especial'] = None 
+            # Em caso de erro, garante que a coluna ainda exista para evitar KeyErrors posteriores
+            df['Tipo_Tratativa_Especial'] = None 
         # --- FIM DO BLOCO ATUALIZADO ---
 
-        # Pré-roterização
+
+                # Pré-roterização
         hoje = pd.to_datetime('today').normalize()
 
         # 🔹 Normaliza tipo do código para numérico
-        df_processar['Codigo da Ultima Ocorrencia'] = pd.to_numeric(
-            df_processar.get('Codigo da Ultima Ocorrencia'), errors='coerce'
+        df['Codigo da Ultima Ocorrencia'] = pd.to_numeric(
+            df.get('Codigo da Ultima Ocorrencia'), errors='coerce'
         )
 
         codigos_criticos = [17, 78, 79]
 
-        obrigatorias = df_processar[ # Aplicado em df_processar
-            (df_processar['Data de Embarque'] < hoje + pd.Timedelta(days=1)) |  # Data de embarque até hoje
-            (df_processar['Entrega Programada'].notna()) |                      # Já tem entrega programada
-            (df_processar['Codigo da Ultima Ocorrencia'].isin(codigos_criticos)) # Ocorrências críticas
+        obrigatorias = df[
+            (df['Data de Embarque'] < hoje + pd.Timedelta(days=1)) |  # Data de embarque até hoje
+            (df['Entrega Programada'].notna()) |                      # Já tem entrega programada
+            (df['Codigo da Ultima Ocorrencia'].isin(codigos_criticos)) # Ocorrências críticas
         ].copy()
 
-        # Entregas a serem Confirmadas: são todas as de df_processar MENOS as que foram para obrigatorias
-        confirmadas = df_processar[~df_processar['Serie_Numero_CTRC'].isin(obrigatorias['Serie_Numero_CTRC'])].copy()
+        confirmadas = df[~df['Serie_Numero_CTRC'].isin(obrigatorias['Serie_Numero_CTRC'])].copy()
 
-        # Remover duplicatas (embora o filtro inicial já devesse evitar isso)
+
+
         obrigatorias.drop_duplicates(subset='Serie_Numero_CTRC', inplace=True)
         confirmadas.drop_duplicates(subset='Serie_Numero_CTRC', inplace=True)
 
-        # Garante que as colunas de aprovação não sejam levadas para tabelas de destino
-        # onde não fazem sentido ou para evitar conflitos de tipo/valor
         if 'data_aprovacao_diretoria' in obrigatorias.columns:
             obrigatorias['data_aprovacao_diretoria'] = None
         if 'aprovador_diretoria_login' in obrigatorias.columns:
@@ -1875,6 +1865,7 @@ def aplicar_regras_e_preencher_tabelas():
             confirmadas['aprovador_diretoria_login'] = None
 
 
+        # >>> ATENÇÃO AQUI: ADICIONE 'Tipo_Tratativa_Especial' à lista de colunas finais <<<
         colunas_finais = [
             'Serie_Numero_CTRC', 'Data de Emissao','Cliente Pagador', 'Chave CT-e', 'Cliente Destinatario',
             'Cidade de Entrega', 'Bairro do Destinatario', 'Previsao de Entrega',
@@ -1882,7 +1873,7 @@ def aplicar_regras_e_preencher_tabelas():
             'Codigo da Ultima Ocorrencia', 'Peso Real em Kg', 'Peso Calculado em Kg',
             'Cubagem em m³', 'Quantidade de Volumes', 'Valor do Frete', 'Rota','Regiao',
             'CEP de Entrega','CEP do Destinatario','CEP do Remetente',
-            'Tipo_Tratativa_Especial' 
+            'Tipo_Tratativa_Especial' # <--- NOVA COLUNA ADICIONADA AQUI!
         ]
 
         # Garante que apenas as colunas definidas em colunas_finais sejam usadas
@@ -1894,19 +1885,13 @@ def aplicar_regras_e_preencher_tabelas():
             confirmadas[[col for col in colunas_finais if col in confirmadas.columns]]
         )
 
-        inserir_em_lote("pre_roterizacao", obrigatorias_prepared) 
-        inserir_em_lote("confirmadas_producao", confirmadas_prepared) 
+        inserir_em_lote("pre_roterizacao", obrigatorias_prepared) # Use obrigatorias_prepared
+        inserir_em_lote("confirmadas_producao", confirmadas_prepared) # Use confirmadas_prepared
 
-        # A mensagem e o retorno agora refletem apenas as NOVAS entregas inseridas no fluxo
-        st.success(f"Inseridos {len(obrigatorias)} NOVAS entregas em Pré Roterização e {len(confirmadas)} NOVAS em Confirmar Produção.")
-        
-        # Retorna as quantidades de novas entregas inseridas no fluxo
-        return len(obrigatorias), len(confirmadas)
+        st.success(f"Inseridos {len(obrigatorias)} em Pré Roterização e {len(confirmadas)} em Confirmar Produção.")
 
     except Exception as e:
-        st.error(f"[ERRO] Regras de sincronização: {e}. Nenhuma nova entrega foi processada para Pré Roterização ou Confirmar Produção.")
-        # Em caso de erro, retorna (0, 0) para garantir a consistência do retorno
-        return 0, 0
+        st.error(f"[ERRO] Regras de sincronização: {e}")
 
 #------------------------------------------------------------------------------------------------------
 # Lista de colunas que devem ser salvas como tipo DATE (AAAA-MM-DD) no Supabase.
@@ -1991,26 +1976,49 @@ def apply_brazilian_date_format_for_display(df_to_format):
     return df_copy
 #--------------------------------------------------------------------------------------------------------------------
 def _parse_date_robustly(date_series):
-    """
-    Tenta converter uma série de valores para objetos datetime do Pandas de forma robusta.
-    Prioriza a detecção de formatos com fuso horário (como ISO 8601) e o mantém.
-    Para formatos sem fuso horário (ingênuos), tenta inferir com 'dayfirst=True'.
-    """
     if not isinstance(date_series, pd.Series):
         date_series = pd.Series(date_series)
 
-    # Tenta analisar a série com infer_datetime_format=True.
-    # Isso é eficaz para strings ISO 8601 (com 'Z' ou offset) e tentará manter o fuso horário.
-    # Para strings sem fuso horário, resultará em objetos datetime ingênuos (naive).
-    parsed = pd.to_datetime(date_series, errors='coerce', infer_datetime_format=True)
+    # Inicializa parsed_series explicitamente como datetime64[ns] (naive)
+    parsed_series = pd.Series(pd.NaT, index=date_series.index, dtype='datetime64[ns]')
 
-    # Para quaisquer valores que ainda não foram analisados (NaNs),
-    # tenta uma análise adicional com dayfirst=True, útil para formatos brasileiros ingênuos.
-    nan_mask = parsed.isna()
-    if nan_mask.any():
-        parsed.loc[nan_mask] = pd.to_datetime(date_series.loc[nan_mask], errors='coerce', dayfirst=True)
+    # Função auxiliar para atualizar a Series e remover o fuso horário se presente
+    def update_and_strip_tz(target_series, source_series):
+        if not source_series.empty and pd.api.types.is_datetime64_any_dtype(source_series):
+            # Se a Series de origem tiver fuso horário, torna-a naive antes de atualizar
+            if source_series.dt.tz is not None:
+                source_series = source_series.dt.tz_localize(None)
+            target_series.update(source_series)
 
-    return parsed
+    # Tenta parsear com formato brasileiro (dd/mm/yyyy)
+    temp_parsed_br_slash = pd.to_datetime(date_series, format='%d/%m/%Y', errors='coerce')
+    update_and_strip_tz(parsed_series, temp_parsed_br_slash)
+
+    # Se ainda houver nulos, tenta formato brasileiro (dd-mm-yyyy)
+    if parsed_series.isnull().any():
+        needs_reparse = date_series[parsed_series.isnull()]
+        temp_parsed_br_dash = pd.to_datetime(needs_reparse, format='%d-%m-%Y', errors='coerce')
+        update_and_strip_tz(parsed_series, temp_parsed_br_dash)
+
+    # Se ainda houver nulos, tenta formato ISO (yyyy-mm-dd)
+    if parsed_series.isnull().any():
+        needs_reparse = date_series[parsed_series.isnull()]
+        temp_parsed_iso_date = pd.to_datetime(needs_reparse, format='%Y-%m-%d', errors='coerce')
+        update_and_strip_tz(parsed_series, temp_parsed_iso_date)
+
+    # Se ainda houver nulos, tenta inferir o formato (sem infer_datetime_format=True)
+    if parsed_series.isnull().any():
+        needs_reparse = date_series[parsed_series.isnull()]
+        temp_parsed_infer = pd.to_datetime(needs_reparse, errors='coerce') # infer_datetime_format=True removido
+        update_and_strip_tz(parsed_series, temp_parsed_infer)
+
+    # Se ainda houver nulos, tenta com dayfirst=True
+    if parsed_series.isnull().any():
+        needs_reparse = date_series[parsed_series.isnull()]
+        temp_parsed_dayfirst = pd.to_datetime(needs_reparse, dayfirst=True, errors='coerce')
+        update_and_strip_tz(parsed_series, temp_parsed_dayfirst)
+        
+    return parsed_series
 
 
 #--------------------------------------------------------------------------------------------------------------
@@ -3174,6 +3182,7 @@ def pagina_pre_roterizacao():
             
             df_visivel['Tipo_Tratativa_Especial'] = df_visivel['Tipo_Tratativa_Especial'].fillna('').astype(str)
 
+            # 📤 Exportação em Excel de todas as entregas visíveis na pré-roteirização (MANTIDO INALTERADO)
             if not df_visivel.empty:
                 excel_buffer = BytesIO()
                 with pd.ExcelWriter(excel_buffer, engine='xlsxwriter') as writer:
@@ -3181,20 +3190,16 @@ def pagina_pre_roterizacao():
                     writer.close()
                 excel_buffer.seek(0)
 
-                col_spacer, col_button = st.columns([1, 0.25])
-
-                with col_button:
-                    st.download_button(
-                        label="📥 Baixar Excel Geral da Pré-Roteirização",
-                        data=excel_buffer,
-                        file_name="pre_roterizacao_entregas.xlsx",
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                        key="download_excel_pre_rota"
-                    )
+                st.download_button(
+                    label="📥 Baixar Excel Geral da Pré-Roteirização",
+                    data=excel_buffer,
+                    file_name="pre_roterizacao_entregas.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    key="download_excel_pre_rota"
+                )
 
             st.session_state['_pre_roterizacao_df_check'] = df_visivel
-
-
+                
         except Exception as e:
             st.error(f"Erro ao consultar as tabelas do Supabase: {e}")
             return
@@ -3203,7 +3208,6 @@ def pagina_pre_roterizacao():
             st.info("Nenhuma entrega disponível para pré-roterização.")
             return
         
-
         # Definir as colunas que devem ser exibidas no grid (incluindo Tipo_Tratativa_Especial)
         colunas_exibir = [
             "Serie_Numero_CTRC",  "Cliente Pagador", "Cliente Destinatario", "Cidade de Entrega",
@@ -6342,50 +6346,12 @@ if st.session_state.get("login", False):
         pagina_sincronizacao()
 
     elif aba_selecionada == "Operações":
-        # Criamos colunas para o st.radio e para o botão de Atualizar
-        # A proporção [8, 1] significa que o rádio terá 8 partes da largura e o botão 1 parte.
-        # Você pode ajustar essa proporção (ex: [10, 1] ou [6, 1]) conforme o layout desejado.
-        col_radio, col_refresh_button = st.columns([8, 1])
+        sub_abas = [
+            "Confirmar Produção", "Aprovação Diretoria", "Pré Roterização", 
+            "Cargas Geradas", "Aprovação de Custos", "Cargas Aprovadas", "Cargas Encerradas"
+        ]
+        sub_aba = st.radio("Selecione a sub-aba:", sub_abas, horizontal=True)
 
-        with col_radio:
-            sub_abas = [
-                "Confirmar Produção", "Aprovação Diretoria", "Pré Roterização",
-                "Cargas Geradas", "Aprovação de Custos", "Cargas Aprovadas", "Cargas Encerradas"
-            ]
-            # Adicionado uma 'key' para o st.radio para melhor gerenciamento do estado
-            sub_aba = st.radio("Selecione a sub-aba:", sub_abas, horizontal=True, key='sub_aba_operations_radio')
-
-        with col_refresh_button:
-            # Adiciona um pequeno espaço vertical para alinhar o botão com o rádio
-            st.write("<br>", unsafe_allow_html=True)
-            if st.button("🔄 Atualizar", key="refresh_operations_page_button"):
-                # Baseado na sub-aba selecionada, invalida o cache correto para forçar o recarregamento dos dados
-                if sub_aba == "Confirmar Produção":
-                    st.session_state["reload_confirmadas_producao"] = True
-                    st.session_state.pop("df_confirmadas_cache", None)
-                elif sub_aba == "Aprovação Diretoria":
-                    st.session_state["reload_aprovacao_diretoria"] = True
-                    st.session_state.pop("df_aprovacao_diretoria_cache", None)
-                elif sub_aba == "Pré Roterização":
-                    st.session_state["reload_pre_roterizacao"] = True
-                    st.session_state.pop("df_pre_roterizacao_cache", None)
-                elif sub_aba == "Cargas Geradas":
-                    st.session_state["reload_cargas_geradas"] = True
-                    st.session_state.pop("df_cargas_cache", None)
-                elif sub_aba == "Aprovação de Custos":
-                    st.session_state["reload_aprovacao_custos"] = True
-                    st.session_state.pop("df_aprovacao_custos_cache", None)
-                elif sub_aba == "Cargas Aprovadas":
-                    st.session_state["reload_cargas_aprovadas"] = True
-                    st.session_state.pop("df_cargas_aprovadas_cache", None)
-                elif sub_aba == "Cargas Encerradas":
-                    # Cargas Encerradas usa uma flag de recarga diferente
-                    st.session_state["_force_reload_cargas_fechadas"] = True
-                    st.session_state.pop("df_cargas_fechadas_cache", None)
-
-                st.rerun() # Força o Streamlit a re-executar o script para buscar os novos dados
-
-        # As chamadas às funções das páginas permanecem as mesmas
         if sub_aba == "Confirmar Produção":
             pagina_confirmar_producao()
         elif sub_aba == "Aprovação Diretoria":

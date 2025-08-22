@@ -1,3 +1,5 @@
+#22-08 02
+
 # 06-08 em produção após ajuste de cores logo
 
 
@@ -98,7 +100,7 @@ GLOBAL_DB_TIMESTAMP_COLS = [
     "Data de inclusao da Ultima Ocorrencia",
     "Data da Ultima Ocorrencia",
     "data_aprovacao_custos",
-    "Data_Hora_Gerada",
+    #"Data_Hora_Gerada",
     "csv_downloaded_at",
     "Data da Entrega Realizada",
     "Data do Cancelamento",
@@ -235,12 +237,12 @@ def _aprovar_carga_custos(selecionadas_para_aprovar, df_carga_original, carga_nu
 
 # ========== SUPABASE CONFIG ========== #
 # Base de Dados Projeto roteriza
-url = "https://xhwotwefiqfwfabenwsi.supabase.co"
-key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhod290d2VmaXFmd2ZhYmVud3NpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDgzNjc4NTMsImV4cCI6MjA2Mzk0Mzg1M30.3E2z-1SaABbCaV_HjQf0Rj8249mnPeGv7YkV4gOGhlg"  # Substitua pela sua chave real
+#url = "https://xhwotwefiqfwfabenwsi.supabase.co"
+#key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhod290d2VmaXFmd2ZhYmVud3NpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDgzNjc4NTMsImV4cCI6MjA2Mzk0Mzg1M30.3E2z-1SaABbCaV_HjQf0Rj8249mnPeGv7YkV4gOGhlg"  # Substitua pela sua chave real
 
 # Base de Dados Projeto F4Rotas
-#url = "https://agiugsfojyansjeanfbz.supabase.co"
-#key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFnaXVnc2ZvanlhbnNqZWFuZmJ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM4OTUzOTUsImV4cCI6MjA2OTQ3MTM5NX0.44w1wtOe3A8eQS6rINRdT9tDowZWwHM_H9Apr_B17I4"
+url = "https://agiugsfojyansjeanfbz.supabase.co"
+key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFnaXVnc2ZvanlhbnNqZWFuZmJ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM4OTUzOTUsImV4cCI6MjA2OTQ3MTM5NX0.44w1wtOe3A8eQS6rINRdT9tDowZWwHM_H9Apr_B17I4"
 
 
 
@@ -574,13 +576,13 @@ def pagina_gerenciar_usuarios():
 # Supabase config
 
 # Base de Dados Projeto roteriza
-url = "https://xhwotwefiqfwfabenwsi.supabase.co"
-key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhod290d2VmaXFmd2ZhYmVud3NpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDgzNjc4NTMsImV4cCI6MjA2Mzk0Mzg1M30.3E2z-1SaABbCaV_HjQf0Rj8249mnPeGv7YkV4gOGhlg"
+#url = "https://xhwotwefiqfwfabenwsi.supabase.co"
+#key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhod290d2VmaXFmd2ZhYmVud3NpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDgzNjc4NTMsImV4cCI6MjA2Mzk0Mzg1M30.3E2z-1SaABbCaV_HjQf0Rj8249mnPeGv7YkV4gOGhlg"
 
 
 # Base de Dados Projeto F4Rotas teste
-#url = "https://agiugsfojyansjeanfbz.supabase.co"
-#key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFnaXVnc2ZvanlhbnNqZWFuZmJ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM4OTUzOTUsImV4cCI6MjA2OTQ3MTM5NX0.44w1wtOe3A8eQS6rINRdT9tDowZWwHM_H9Apr_B17I4"
+url = "https://agiugsfojyansjeanfbz.supabase.co"
+key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFnaXVnc2ZvanlhbnNqZWFuZmJ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM4OTUzOTUsImV4cCI6MjA2OTQ3MTM5NX0.44w1wtOe3A8eQS6rINRdT9tDowZWwHM_H9Apr_B17I4"
 
 
 TABLE_NAME = "fBaseroter"
@@ -1574,6 +1576,7 @@ def aplicar_brazilian_date_format_for_display(df_to_format):
     cols_to_process = set(GLOBAL_DATE_COLUMNS_DISPLAY_ONLY_DATE) | set(GLOBAL_DATE_DISPLAY_COLUMNS) # Usar display columns
 # ------------------------#############-------------------------------------------
 def adicionar_entregas_a_carga(ctrcs_selecionados, numero_carga_destino): 
+    
     #st.write("DEBUG: Função 'adicionar_entregas_a_carga' iniciada.")
     #st.write(f"DEBUG: Número da Carga Destino: {numero_carga_destino}")
     #st.write(f"DEBUG: CTRCs selecionados para adição: {ctrcs_selecionados[:5]}...")
@@ -1613,7 +1616,7 @@ def adicionar_entregas_a_carga(ctrcs_selecionados, numero_carga_destino):
     df_para_inserir["GrupoDeExibicao"] = df_para_inserir["GrupoDeExibicao"].fillna(df_para_inserir["Rota"])
 
 
-    df_para_inserir["Data_Hora_Gerada"] = data_hora_brasil_iso()
+    df_para_inserir["Data_Hora_Gerada"] = datetime.now(timezone.utc).isoformat(timespec='seconds').replace('+00:00', 'Z')
     df_para_inserir["numero_carga"] = numero_carga
 
     # APLICAÇÃO DA NOVA FUNÇÃO AUXILIAR PARA FORMATAR DATAS
@@ -1988,29 +1991,61 @@ def apply_brazilian_date_format_for_display(df_to_format):
                 if pd.notna(x) and isinstance(x, (pd.Timestamp, datetime))
                 else '' # Trata NaT e valores não-datetime
             )
+
+
+
+        # --- NOVO BLOCO: Tratamento específico para Data_Hora_Gerada (agora uma string fixa) ---
+        if 'Data_Hora_Gerada' in df_copy.columns:
+            df_copy['Data_Hora_Gerada'] = df_copy['Data_Hora_Gerada'].apply(
+                lambda x: formatar_data_hora_br(x) if pd.notna(x) and x != '' else ''
+            )
+    # --- FIM DO NOVO BLOCO ---
     return df_copy
 #--------------------------------------------------------------------------------------------------------------------
 def _parse_date_robustly(date_series):
-    """
-    Tenta converter uma série de valores para objetos datetime do Pandas de forma robusta.
-    Prioriza a detecção de formatos com fuso horário (como ISO 8601) e o mantém.
-    Para formatos sem fuso horário (ingênuos), tenta inferir com 'dayfirst=True'.
-    """
     if not isinstance(date_series, pd.Series):
         date_series = pd.Series(date_series)
 
-    # Tenta analisar a série com infer_datetime_format=True.
-    # Isso é eficaz para strings ISO 8601 (com 'Z' ou offset) e tentará manter o fuso horário.
-    # Para strings sem fuso horário, resultará em objetos datetime ingênuos (naive).
-    parsed = pd.to_datetime(date_series, errors='coerce', infer_datetime_format=True)
+    # Inicializa parsed_series explicitamente como datetime64[ns] (naive)
+    parsed_series = pd.Series(pd.NaT, index=date_series.index, dtype='datetime64[ns]')
 
-    # Para quaisquer valores que ainda não foram analisados (NaNs),
-    # tenta uma análise adicional com dayfirst=True, útil para formatos brasileiros ingênuos.
-    nan_mask = parsed.isna()
-    if nan_mask.any():
-        parsed.loc[nan_mask] = pd.to_datetime(date_series.loc[nan_mask], errors='coerce', dayfirst=True)
+    # Função auxiliar para atualizar a Series e remover o fuso horário se presente
+    def update_and_strip_tz(target_series, source_series):
+        if not source_series.empty and pd.api.types.is_datetime64_any_dtype(source_series):
+            # Se a Series de origem tiver fuso horário, torna-a naive antes de atualizar
+            if source_series.dt.tz is not None:
+                source_series = source_series.dt.tz_localize(None)
+            target_series.update(source_series)
 
-    return parsed
+    # Tenta parsear com formato brasileiro (dd/mm/yyyy)
+    temp_parsed_br_slash = pd.to_datetime(date_series, format='%d/%m/%Y', errors='coerce')
+    update_and_strip_tz(parsed_series, temp_parsed_br_slash)
+
+    # Se ainda houver nulos, tenta formato brasileiro (dd-mm-yyyy)
+    if parsed_series.isnull().any():
+        needs_reparse = date_series[parsed_series.isnull()]
+        temp_parsed_br_dash = pd.to_datetime(needs_reparse, format='%d-%m-%Y', errors='coerce')
+        update_and_strip_tz(parsed_series, temp_parsed_br_dash)
+
+    # Se ainda houver nulos, tenta formato ISO (yyyy-mm-dd)
+    if parsed_series.isnull().any():
+        needs_reparse = date_series[parsed_series.isnull()]
+        temp_parsed_iso_date = pd.to_datetime(needs_reparse, format='%Y-%m-%d', errors='coerce')
+        update_and_strip_tz(parsed_series, temp_parsed_iso_date)
+
+    # Se ainda houver nulos, tenta inferir o formato (sem infer_datetime_format=True)
+    if parsed_series.isnull().any():
+        needs_reparse = date_series[parsed_series.isnull()]
+        temp_parsed_infer = pd.to_datetime(needs_reparse, errors='coerce') # infer_datetime_format=True removido
+        update_and_strip_tz(parsed_series, temp_parsed_infer)
+
+    # Se ainda houver nulos, tenta com dayfirst=True
+    if parsed_series.isnull().any():
+        needs_reparse = date_series[parsed_series.isnull()]
+        temp_parsed_dayfirst = pd.to_datetime(needs_reparse, dayfirst=True, errors='coerce')
+        update_and_strip_tz(parsed_series, temp_parsed_dayfirst)
+        
+    return parsed_series
 
 
 #--------------------------------------------------------------------------------------------------------------
@@ -3023,6 +3058,7 @@ def pagina_aprovacao_diretoria():
 import re # Certifique-se que esta importação está no topo do seu arquivo
 
 def pagina_pre_roterizacao():
+    df_para_inserir = pd.DataFrame()
     st.markdown("## Pré-Roterização")
 
     date_only_formatter = JsCode("""
@@ -3105,7 +3141,7 @@ def pagina_pre_roterizacao():
                         entrega.pop("id")
 
                     entrega["numero_carga"] = st.session_state["numero_nova_carga"]
-                    entrega["Data_Hora_Gerada"] = data_hora_brasil_iso()
+                    df_para_inserir["Data_Hora_Gerada"] = datetime.now(timezone.utc).isoformat(timespec='seconds').replace('+00:00', 'Z')
 
                     # Aplica a preparação de datas para garantir formato Supabase
                     # Cria um DataFrame temporário para usar _prepare_df_for_supabase_insert
