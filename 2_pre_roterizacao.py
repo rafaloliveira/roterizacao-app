@@ -351,8 +351,19 @@ def mover_entregas_para_outra_rota(ctrcs_selecionados, nova_rota_visual):
 
     try:
         # ✅ CORREÇÃO: Atualização em lote usando .in_() para maior eficiência e robustez
+        
+        # Determine o valor para Tipo_Tratativa_Especial com base no destino
+        tipo_tratativa_value = None
+        if nova_rota_visual == "Paletizadores":
+            tipo_tratativa_value = "Paletizadas"
+
+        update_data = {
+            "GrupoDeExibicao": nova_rota_visual,
+            "Tipo_Tratativa_Especial": tipo_tratativa_value
+        }
+
         response = supabase.table("pre_roterizacao") \
-            .update({"GrupoDeExibicao": nova_rota_visual}) \
+            .update(update_data) \
             .in_("Serie_Numero_CTRC", ctrcs_selecionados) \
             .execute()
         
@@ -3526,7 +3537,7 @@ def pagina_pre_roterizacao():
             # Por isso, filtramos 'Paletizadores' da lista de opções de destino.
             rotas_disponiveis = sorted([
                 r for r in grupos_para_exibir.keys() # Busca entre todos os grupos visíveis
-                if r != nome_grupo and r != "Paletizadores" # Não move para o próprio grupo nem para Paletizadores
+                if r != nome_grupo # Permite mover para qualquer grupo, exceto o de origem
             ])
 
             if rotas_disponiveis:
@@ -3534,7 +3545,6 @@ def pagina_pre_roterizacao():
                     "🚚 Mover entregas selecionadas para outro grupo:",
                     options=["Selecionar..."] + rotas_disponiveis,
                     key=f"selectbox_mover_grupo_{nome_grupo}",
-                    #disabled=selecionadas.empty or is_paletizadoras_group # Desabilita se for grupo Paletizadores
                     disabled=selecionadas.empty
                 )
 
@@ -3559,6 +3569,7 @@ def pagina_pre_roterizacao():
 
                         except Exception as e:
                             st.error(f"Erro ao mover entregas: {e}")
+                            
             else:
                 st.info("Nenhum outro grupo disponível para movimentação.")
         st.markdown("---") # Separador visual após cada grupo
