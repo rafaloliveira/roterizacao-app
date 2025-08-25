@@ -3534,13 +3534,15 @@ def pagina_pre_roterizacao():
                     "🚚 Mover entregas selecionadas para outro grupo:",
                     options=["Selecionar..."] + rotas_disponiveis,
                     key=f"selectbox_mover_grupo_{nome_grupo}",
-                    disabled=selecionadas.empty or is_paletizadoras_group # Desabilita se for grupo Paletizadores
+                    #disabled=selecionadas.empty or is_paletizadoras_group # Desabilita se for grupo Paletizadores
+                    disabled=selecionadas.empty
                 )
 
                 st.button(
                     f"🔄 Mover entregas para o grupo '{nova_rota}'",
                     key=f"btn_mover_grupo_{nome_grupo}", 
-                    disabled=selecionadas.empty or nova_rota == "Selecionar..." or is_paletizadoras_group
+                    #disabled=selecionadas.empty or nova_rota == "Selecionar..." or is_paletizadoras_group
+                    disabled=selecionadas.empty or nova_rota == "Selecionar..."
                 )
                 if st.session_state[f"btn_mover_grupo_{nome_grupo}"]:
                     if nova_rota == "Selecionar...":
