@@ -3512,7 +3512,7 @@ def pagina_pre_roterizacao():
                 key=st.session_state[grid_key],
                 data_return_mode="AS_INPUT",
                 theme=AgGridTheme.MATERIAL,
-                show_toolbar=False,
+                show_toolbar=True,
                 custom_css={
                     ".ag-theme-material .ag-cell": {
                         "font-size": "11px",
