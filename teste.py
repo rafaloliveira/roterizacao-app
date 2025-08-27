@@ -52,18 +52,18 @@ from decimal import Decimal, ROUND_HALF_UP, getcontext
 #locale.setlocale(locale.LC_ALL, 'pt_BR.UTF-8')
 FUSO_BRASIL = ZoneInfo("America/Sao_Paulo")
 # Formato de exibição de data e hora no padrão brasileiro (completo com horas, minutos, segundos)
-DATE_DISPLAY_FORMAT_STRING = '%d/%m/%Y %H:%M'
+DATE_DISPLAY_FORMAT_STRING = '%d-%m-%Y %H:%M'
 
-# Formato de exibição de data APENAS (sem hora) no padrão brasileiro (DD/MM/YYYY)
-DATE_ONLY_DISPLAY_FORMAT_STRING_BR = '%d/%m/%Y'
+# Formato de exibição de data APENAS (sem hora) no padrão brasileiro (DD-MM-YYYY)
+DATE_ONLY_DISPLAY_FORMAT_STRING_BR = '%d-%m-%Y'
 
 
 
 #locale.setlocale(locale.LC_ALL, 'pt_BR.UTF-8')
 
-DATE_DISPLAY_FORMAT_STRING = "%d/%m/%Y %H:%M"
-DATE_ONLY_DISPLAY_FORMAT_STRING_BR = '%d/%m/%Y'
-# Lista de colunas que devem ser exibidas APENAS como data (DD/MM/YYYY), sem hora.
+DATE_DISPLAY_FORMAT_STRING = '%d-%m-%Y %H:%M'
+DATE_ONLY_DISPLAY_FORMAT_STRING_BR = '%d-%m-%Y'
+# Lista de colunas que devem ser exibidas APENAS como data (DD-MM-YYYY), sem hora.
 GLOBAL_DATE_COLUMNS_DISPLAY_ONLY_DATE = [
 ]
 
@@ -144,11 +144,16 @@ def corrigir_tipos(df):
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors='coerce')
 
-    # Converter para datetime
+     # Converter para datetime
     for col in colunas_data:
         if col in df.columns:
-            df[col] = pd.to_datetime(df[col], errors='coerce', dayfirst=True)
-
+            # NOVO: Padroniza o separador de datas para hífen antes de parsear.
+            # Isso garante que '%d-%m-%Y' em _parse_date_robustly possa ser aplicado com sucesso.
+            # Converte para string para garantir que a operação .str.replace funcione.
+            df[col] = df[col].astype(str).str.replace('/', '-', regex=False)
+            
+            # Use a função _parse_date_robustly para garantir que a data seja interpretada corretamente
+            df[col] = _parse_date_robustly(df[col])
     return df
 #------------------------------------------------------------------------------------
 
@@ -191,6 +196,15 @@ def _aprovar_carga_custos(selecionadas_para_aprovar, df_carga_original, carga_nu
     # Filtra o DataFrame ORIGINAL (df_carga_original) pelas linhas selecionadas
     df_aprovar_full_columns = df_carga_original[df_carga_original['Serie_Numero_CTRC'].isin(ctrcs_a_aprovar)].copy()
     df_aprovar = df_aprovar_full_columns.drop(columns=["_selectedRowNodeInfo"], errors="ignore")
+
+    if 'Previsao de Entrega' in df_aprovar.columns:
+        # Os dados do cache (df_carga_original) já devem ser pd.Timestamp,
+        # mas esta é uma camada de segurança para evitar corrupção de tipo.
+        df_aprovar['Previsao de Entrega'] = pd.to_datetime(
+            df_aprovar['Previsao de Entrega'],
+            errors='coerce',
+            dayfirst=True # Garante consistente leitura Dia-Mês-Ano
+        )
 
     df_aprovar["aprovador_custos_login"] = st.session_state.get("username", "Desconhecido")
     df_aprovar["data_aprovacao_custos"] = data_hora_brasil_iso()
@@ -351,8 +365,19 @@ def mover_entregas_para_outra_rota(ctrcs_selecionados, nova_rota_visual):
 
     try:
         # ✅ CORREÇÃO: Atualização em lote usando .in_() para maior eficiência e robustez
+        
+        # Determine o valor para Tipo_Tratativa_Especial com base no destino
+        tipo_tratativa_value = None
+        if nova_rota_visual == "Paletizadores":
+            tipo_tratativa_value = "Paletizadas"
+
+        update_data = {
+            "GrupoDeExibicao": nova_rota_visual,
+            "Tipo_Tratativa_Especial": tipo_tratativa_value
+        }
+
         response = supabase.table("pre_roterizacao") \
-            .update({"GrupoDeExibicao": nova_rota_visual}) \
+            .update(update_data) \
             .in_("Serie_Numero_CTRC", ctrcs_selecionados) \
             .execute()
         
@@ -1003,7 +1028,7 @@ def gerar_proximo_numero_carga(supabase):
     cargo_tables = ["cargas_geradas", "aprovacao_custos", "cargas_aprovadas", "cargas_fechadas"]
     max_retries = 1000 # Limite de tentativas para encontrar um número único
     
-    st.info("Iniciando geração de número de carga aleatório e único...")
+    #st.info("Iniciando geração de número de carga aleatório e único...")
 
     for attempt in range(max_retries):
         # Gera um número aleatório de 6 dígitos, formatado com zeros à esquerda
@@ -1033,7 +1058,7 @@ def gerar_proximo_numero_carga(supabase):
         
         if is_unique_candidate:
             # Encontrou um número aleatório único!
-            st.success(f"Número de carga único gerado com sucesso: {random_cargo_number} (Tentativa {attempt + 1})")
+            #st.success(f"Número de carga único gerado com sucesso: {random_cargo_number} (Tentativa {attempt + 1})")
             return random_cargo_number
             
     # Se o loop terminar sem encontrar um número único após max_retries
@@ -1189,22 +1214,33 @@ if 'file_uploader_key' not in st.session_state:
 if "_sync_success_message_displayed" not in st.session_state:
     st.session_state._sync_success_message_displayed = False
     
-# ATENÇÃO: Alterações AQUI para inicializar com 0 em vez de None
-if "_qtd_confirmadas" not in st.session_state:
-    st.session_state._qtd_confirmadas = 0 
-if "_qtd_pre_roterizacao" not in st.session_state:
-    st.session_state._qtd_pre_roterizacao = 0
-if "_qtd_paletizadas" not in st.session_state:
-    st.session_state._qtd_paletizadas = 0 # <-- Corrigido para 0
-if "_novas_confirmadas" not in st.session_state:
-    st.session_state._novas_confirmadas = 0 # <-- Corrigido para 0
-if "_novas_pre_roterizacao" not in st.session_state:
-    st.session_state._novas_pre_roterizacao = 0 # <-- Corrigido para 0
+
 
 
 #---- sincronização do Arquivo fBaseroter  ----------
 def pagina_sincronizacao():
     st.title("🔄 Sincronização de Dados")
+
+    if "_qtd_confirmadas" not in st.session_state:
+        try:
+            with st.spinner("Carregando totais de entregas atuais..."):
+                st.session_state._qtd_confirmadas = len(supabase.table("confirmadas_producao").select("Serie_Numero_CTRC").execute().data or [])
+                st.session_state._qtd_pre_roterizacao = len(supabase.table("pre_roterizacao").select("Serie_Numero_CTRC").execute().data or [])
+
+                qtd_paletizadas_confirmadas = len(supabase.table("confirmadas_producao").select("Serie_Numero_CTRC").eq("Tipo_Tratativa_Especial", "Paletizadas").execute().data or [])
+                qtd_paletizadas_pre_roterizacao = len(supabase.table("pre_roterizacao").select("Serie_Numero_CTRC").eq("Tipo_Tratativa_Especial", "Paletizadas").execute().data or [])
+                st.session_state._qtd_paletizadas = qtd_paletizadas_confirmadas + qtd_paletizadas_pre_roterizacao
+
+                st.session_state._novas_confirmadas = 0
+                st.session_state._novas_pre_roterizacao = 0
+
+        except Exception as e:
+            st.error(f"Erro ao carregar totais de entregas: {e}")
+            st.session_state._qtd_confirmadas = 0
+            st.session_state._qtd_pre_roterizacao = 0
+            st.session_state._qtd_paletizadas = 0
+            st.session_state._novas_confirmadas = 0
+            st.session_state._novas_pre_roterizacao = 0
 
     ultima_data, ultimo_usuario = recuperar_hora_sincronizacao()
     if ultima_data:
@@ -1212,21 +1248,20 @@ def pagina_sincronizacao():
     else:
         st.markdown("🕒 Última sincronização: **ainda não realizada**")
 
-    # Mensagens temporárias de sucesso e balões (aparecerão apenas uma vez)
     if st.session_state.get("_sync_success_message_displayed", False):
         st.success("✅ Sincronização finalizada com sucesso!")
         st.balloons()
-        st.session_state._sync_success_message_displayed = False # Reseta a flag
+        st.session_state._sync_success_message_displayed = False
 
-    # Exibição persistente dos totais e novas entregas (sempre visíveis, mesmo que zero)
-    # Usamos .get() com um valor padrão para garantir que sempre haja um valor,
-    # embora com a inicialização para 0, .get() com default não seja estritamente necessário para o display,
-    # mas é uma boa prática.
     st.markdown(f"📦 Entregas em **Confirmar Produção**: **{st.session_state._qtd_confirmadas}**")
     st.markdown(f"🗂️ Entregas em **Pré-Roterização**: **{st.session_state._qtd_pre_roterizacao}**")
     st.markdown(f"🅿️ Entregas **Paletizadas**: **{st.session_state._qtd_paletizadas}**")
     st.markdown(f"➕ Novas em **Confirmar Produção (nesta sync)**: **{st.session_state._novas_confirmadas}**")
     st.markdown(f"➕ Novas em **Pré-Roterização (nesta sync)**: **{st.session_state._novas_pre_roterizacao}**")
+
+
+
+
 
 
     # --- Botão de Download do Histórico ---
@@ -1572,6 +1607,7 @@ def tratar_data_para_utc(valor):
 def aplicar_brazilian_date_format_for_display(df_to_format):
     df_copy = df_to_format.copy()
     cols_to_process = set(GLOBAL_DATE_COLUMNS_DISPLAY_ONLY_DATE) | set(GLOBAL_DATE_DISPLAY_COLUMNS) # Usar display columns
+
 # ------------------------#############-------------------------------------------
 def adicionar_entregas_a_carga(ctrcs_selecionados, numero_carga_destino): 
     #st.write("DEBUG: Função 'adicionar_entregas_a_carga' iniciada.")
@@ -1607,6 +1643,13 @@ def adicionar_entregas_a_carga(ctrcs_selecionados, numero_carga_destino):
 
     df_para_inserir = pd.DataFrame(entregas_coletadas)
 
+    if 'Previsao de Entrega' in df_para_inserir.columns:
+        df_para_inserir['Previsao de Entrega'] = pd.to_datetime(
+            df_para_inserir['Previsao de Entrega'],
+            format='%Y-%m-%d', # Explicitamente informa o formato da string de entrada
+            errors='coerce'    # Coage erros para NaT (Not a Time)
+        )
+
     if "GrupoDeExibicao" not in df_para_inserir.columns:
         df_para_inserir["GrupoDeExibicao"] = df_para_inserir["Rota"]
 
@@ -1628,18 +1671,21 @@ def adicionar_entregas_a_carga(ctrcs_selecionados, numero_carga_destino):
     insert_success = False
     inserted_ctrcs = []
 
-    for tentativa in range(2): # Tenta inserir duas vezes em caso de falha temporária
-        try:
-            insert_response = supabase.table("cargas_geradas").insert(dados_para_insercao).execute()
-            if insert_response and insert_response.data:
-                inserted_ctrcs = [r.get("Serie_Numero_CTRC") for r in insert_response.data if r.get("Serie_Numero_CTRC")]
-                insert_success = True
-                st.success(f"✅ {len(inserted_ctrcs)} entrega(s) adicionada(s) à Carga {numero_carga}.")
-                break # Sai do loop de tentativas se a inserção for bem-sucedida
-        except Exception as e:
-            st.warning(f"Erro na tentativa {tentativa + 1} de inserção: {e}")
-            if tentativa == 0:
-                time.sleep(1) # Pequena pausa antes de tentar novamente
+
+    with st.spinner(f"Adicionando entregas à carga {numero_carga_destino}..."):
+
+        for tentativa in range(2): # Tenta inserir duas vezes em caso de falha temporária
+            try:
+                insert_response = supabase.table("cargas_geradas").insert(dados_para_insercao).execute()
+                if insert_response and insert_response.data:
+                    inserted_ctrcs = [r.get("Serie_Numero_CTRC") for r in insert_response.data if r.get("Serie_Numero_CTRC")]
+                    insert_success = True
+                    #st.success(f"✅ {len(inserted_ctrcs)} entrega(s) adicionada(s) à Carga {numero_carga}.")
+                    break # Sai do loop de tentativas se a inserção for bem-sucedida
+            except Exception as e:
+                st.warning(f"Erro na tentativa {tentativa + 1} de inserção: {e}")
+                if tentativa == 0:
+                    time.sleep(1) # Pequena pausa antes de tentar novamente
 
     if not insert_success:
         st.error(f"❌ Falha ao adicionar entregas à carga {numero_carga}.")
@@ -1652,12 +1698,15 @@ def adicionar_entregas_a_carga(ctrcs_selecionados, numero_carga_destino):
             ctrcs_to_delete_from_pre = list(set(inserted_ctrcs).intersection(found_ctrc_in_pre_roterizacao))
             if ctrcs_to_delete_from_pre:
                 delete_response_pre = supabase.table("pre_roterizacao").delete().in_("Serie_Numero_CTRC", ctrcs_to_delete_from_pre).execute()
-                st.info(f"Removidas {len(delete_response_pre.data)} entregas de 'pre_roterizacao'.")
+                #st.info(f"Removidas {len(delete_response_pre.data)} entregas de 'pre_roterizacao'.")
         except Exception as e:
             st.warning(f"Erro ao deletar de 'pre_roterizacao': {e}")
     else:
         st.warning("Nenhuma entrega foi realmente inserida para deletar da tabela de origem.")
 
+
+    st.success(f"✅ {len(inserted_ctrcs)} entrega(s) adicionada(s) à Carga {numero_carga_destino}.")
+    time.sleep(2) 
     # Força o recarregamento dos caches de estado da sessão para atualizar os grids
     st.session_state["reload_rotas_confirmadas"] = True
     st.session_state["reload_pre_roterizacao"] = True
@@ -1979,7 +2028,7 @@ def apply_brazilian_date_format_for_display(df_to_format):
             df_copy[col] = df_copy[col].apply(
                 lambda x: x.replace(tzinfo=None) if pd.notna(x) and x.tzinfo is not None else x # Garante que seja tz-naive (sem info de fuso)
             )
-            format_str = DATE_ONLY_DISPLAY_FORMAT_STRING_BR # Para datas, usa DD/MM/YYYY
+            format_str = DATE_ONLY_DISPLAY_FORMAT_STRING_BR # Para datas, usa 
         
         # --- Etapa 2: Aplica a formatação final para strings ---
         if format_str: # Aplica apenas se um formato foi determinado
@@ -1992,23 +2041,26 @@ def apply_brazilian_date_format_for_display(df_to_format):
 #--------------------------------------------------------------------------------------------------------------------
 def _parse_date_robustly(date_series):
     """
-    Tenta converter uma série de valores para objetos datetime do Pandas de forma robusta.
-    Prioriza a detecção de formatos com fuso horário (como ISO 8601) e o mantém.
-    Para formatos sem fuso horário (ingênuos), tenta inferir com 'dayfirst=True'.
+    Tenta converter uma série de valores para objetos datetime do Pandas de forma robusta,
+    priorizando formatos explícitos e conhecidos antes de tentar inferências mais genéricas.
     """
     if not isinstance(date_series, pd.Series):
         date_series = pd.Series(date_series)
 
-    # Tenta analisar a série com infer_datetime_format=True.
-    # Isso é eficaz para strings ISO 8601 (com 'Z' ou offset) e tentará manter o fuso horário.
-    # Para strings sem fuso horário, resultará em objetos datetime ingênuos (naive).
-    parsed = pd.to_datetime(date_series, errors='coerce', infer_datetime_format=True)
+    # Tenta 1: Formato ISO AAAA-MM-DD (comum para dados vindos de bancos de dados)
+    parsed = pd.to_datetime(date_series, format='%Y-%m-%d', errors='coerce')
 
-    # Para quaisquer valores que ainda não foram analisados (NaNs),
-    # tenta uma análise adicional com dayfirst=True, útil para formatos brasileiros ingênuos.
+    # Tenta 2: Se ainda há NaNs, tenta inferir assumindo dia-mês-ano (dayfirst=True),
+    # para formatos brasileiros como DD-MM-AAAA ou DD/MM/AAAA.
     nan_mask = parsed.isna()
     if nan_mask.any():
         parsed.loc[nan_mask] = pd.to_datetime(date_series.loc[nan_mask], errors='coerce', dayfirst=True)
+
+    # Tenta 3: Se ainda há NaNs, tenta a inferência automática do Pandas.
+    # Isso cobre formatos variados que não se encaixam nos anteriores, incluindo ISO 8601 completos.
+    nan_mask = parsed.isna()
+    if nan_mask.any():
+        parsed.loc[nan_mask] = pd.to_datetime(date_series.loc[nan_mask], errors='coerce', infer_datetime_format=True)
 
     return parsed
 
@@ -2031,13 +2083,18 @@ def _prepare_df_for_supabase_insert(df_to_process):
             elif col in GLOBAL_DB_TIMESTAMP_COLS:
                 df_copy[col] = _parse_date_robustly(df_copy[col])
                 df_copy[col] = df_copy[col].apply(tratar_data_para_utc)
-
+            # NOVO: Esta cláusula irá capturar QUALQUER outra coluna do tipo datetime
+            # que não foi explicitamente listada nas GLOBALS_DB_DATE/TIMESTAMP_COLS.
+            elif pd.api.types.is_datetime64_any_dtype(df_copy[col]):
+                df_copy[col] = df_copy[col].apply(tratar_data_para_utc) # Trata como timestamp
+                
         result_df = df_copy.replace([np.nan, pd.NaT, np.inf, -np.inf, ""], None)
         return result_df
 
     except Exception as e:
         st.error(f"Erro ao preparar DataFrame para inserção no Supabase: {e}")
         return pd.DataFrame()
+
 
 
 #----------------------------------------------------------------------------------------------------------------
@@ -2909,6 +2966,13 @@ def pagina_aprovacao_diretoria():
                                     df_aprovar = pd.DataFrame(selecionadas)
                                     df_aprovar = df_aprovar.drop(columns=["_selectedRowNodeInfo"], errors="ignore")
 
+                                    if 'Previsao de Entrega' in df_aprovar.columns:
+                                        df_aprovar['Previsao de Entrega'] = pd.to_datetime(
+                                            df_aprovar['Previsao de Entrega'],
+                                            errors='coerce',
+                                            dayfirst=True # Garante que DD-MM-YYYY seja lido como Dia-Mês-Ano
+                                        )
+
                                     # --- TRATAMENTO DE DATAS PARA SUPABASE ---
                                     for col_name in GLOBAL_DATE_DISPLAY_COLUMNS:
                                         if col_name in df_aprovar.columns:
@@ -2928,14 +2992,8 @@ def pagina_aprovacao_diretoria():
                                     registros_para_pre_roterizacao = [r for r in registros_para_pre_roterizacao if r.get("Serie_Numero_CTRC")]
 
                                     if registros_para_pre_roterizacao:
-                                        st.write("DEBUG: DataFrame prestes a ser inserido no Supabase:")
-                                        st.write(df_aprovar) # Ou df_rejeitar, dependendo do caminho (aprovar ou rejeitar)
-                                        st.write("DEBUG: Tipos de dados:")
-                                        st.write(df_aprovar.dtypes)
+                                       
                                         supabase.table("pre_roterizacao").insert(registros_para_pre_roterizacao).execute()
-
-
-
 
                                         # 🔄 Acumula aprovadas na sessão
                                         df_aprovadas_sessao = pd.DataFrame(registros_para_pre_roterizacao)
@@ -2978,6 +3036,15 @@ def pagina_aprovacao_diretoria():
                                 with st.spinner("🔄 Rejeitando entregas e retornando para Confirmar Produção..."):
                                     df_rejeitar = pd.DataFrame(selecionadas)
                                     df_rejeitar = df_rejeitar.drop(columns=["_selectedRowNodeInfo"], errors="ignore")
+
+                                    if 'Previsao de Entrega' in df_rejeitar.columns:
+                                        df_rejeitar['Previsao de Entrega'] = pd.to_datetime(
+                                            df_rejeitar['Previsao de Entrega'],
+                                            errors='coerce',
+                                            dayfirst=True # Garante que DD-MM-YYYY seja lido como Dia-Mês-Ano
+                                        )
+
+
 
                                     df_rejeitar = _prepare_df_for_supabase_insert(df_rejeitar)
                                     # *** FIM DA INTEGRIDADE DE DADOS ***
@@ -3028,7 +3095,7 @@ def pagina_pre_roterizacao():
     date_only_formatter = JsCode("""
     function(params) {
         if (params.value === null || typeof params.value === 'undefined' || params.value === '') return '';
-        return params.value; // Retorna o valor diretamente, pois o Python já o terá formatado como DD/MM/YYYY
+        return params.value; // Retorna o valor diretamente, pois o Python já o terá formatado como DD-MM-YYYY
     }
     """)
     # --- Bloco de criação de carga avulsa ---
@@ -3123,25 +3190,29 @@ def pagina_pre_roterizacao():
 
 
                 if entregas_encontradas:
-                    try:
-                        # Converte a lista de dicionários para DataFrame para inserção em lote
-                        df_to_insert_into_cargas = pd.DataFrame(entregas_encontradas)
-                        # Remove colunas que podem ter sido adicionadas por outras rotinas e não pertencem a cargas_geradas
-                        df_to_insert_into_cargas = df_to_insert_into_cargas.drop(columns=[
-                            'CNPJ Destinatario_limpo', 'Grupo_Especial_Action' # Exemplo de colunas a remover, ajuste conforme seu projeto
-                        ], errors='ignore')
-                        
-                        inserir_em_lote("cargas_geradas", df_to_insert_into_cargas)
-                        st.success(f"✅ {len(entregas_encontradas)} entrega(s) adicionada(s) à carga {st.session_state['numero_nova_carga']}.")
-                    except Exception as e:
-                        st.error(f"Erro ao salvar entregas na carga: {e}")
+                    with st.spinner(f"Adicionando {len(entregas_encontradas)} entrega(s) à carga {st.session_state['numero_nova_carga']}..."):
+                        try:
+                            # Converte a lista de dicionários para DataFrame para inserção em lote
+                            df_to_insert_into_cargas = pd.DataFrame(entregas_encontradas)
+                            # Remove colunas que podem ter sido adicionadas por outras rotinas e não pertencem a cargas_geradas
+                            df_to_insert_into_cargas = df_to_insert_into_cargas.drop(columns=[
+                                'CNPJ Destinatario_limpo', 'Grupo_Especial_Action' # Exemplo de colunas a remover, ajuste conforme seu projeto
+                            ], errors='ignore')
+                            
+                            inserir_em_lote("cargas_geradas", df_to_insert_into_cargas)
 
-                st.session_state["nova_carga_em_criacao"] = False
-                st.session_state["numero_nova_carga"] = ""
-                st.session_state["reload_pre_roterizacao"] = True
-                st.session_state["reload_cargas_geradas"] = True
-               
-                st.rerun()
+                            st.success(f"✅ {len(entregas_encontradas)} entrega(s) adicionada(s) à carga {st.session_state['numero_nova_carga']}.")
+                            time.sleep(2)
+                            
+                        except Exception as e:
+                            st.error(f"Erro ao salvar entregas na carga: {e}")
+
+                            st.session_state["nova_carga_em_criacao"] = False
+                            st.session_state["numero_nova_carga"] = ""
+                            st.session_state["reload_pre_roterizacao"] = True
+                            st.session_state["reload_cargas_geradas"] = True
+                        
+                            st.rerun()
 
             except Exception as e:
                 st.error(f"Erro ao adicionar entregas: {e}")
@@ -3526,7 +3597,7 @@ def pagina_pre_roterizacao():
             # Por isso, filtramos 'Paletizadores' da lista de opções de destino.
             rotas_disponiveis = sorted([
                 r for r in grupos_para_exibir.keys() # Busca entre todos os grupos visíveis
-                if r != nome_grupo and r != "Paletizadores" # Não move para o próprio grupo nem para Paletizadores
+                if r != nome_grupo # Permite mover para qualquer grupo, exceto o de origem
             ])
 
             if rotas_disponiveis:
@@ -3534,13 +3605,14 @@ def pagina_pre_roterizacao():
                     "🚚 Mover entregas selecionadas para outro grupo:",
                     options=["Selecionar..."] + rotas_disponiveis,
                     key=f"selectbox_mover_grupo_{nome_grupo}",
-                    disabled=selecionadas.empty or is_paletizadoras_group # Desabilita se for grupo Paletizadores
+                    disabled=selecionadas.empty
                 )
 
                 st.button(
                     f"🔄 Mover entregas para o grupo '{nova_rota}'",
                     key=f"btn_mover_grupo_{nome_grupo}", 
-                    disabled=selecionadas.empty or nova_rota == "Selecionar..." or is_paletizadoras_group
+                    #disabled=selecionadas.empty or nova_rota == "Selecionar..." or is_paletizadoras_group
+                    disabled=selecionadas.empty or nova_rota == "Selecionar..."
                 )
                 if st.session_state[f"btn_mover_grupo_{nome_grupo}"]:
                     if nova_rota == "Selecionar...":
@@ -3557,6 +3629,7 @@ def pagina_pre_roterizacao():
 
                         except Exception as e:
                             st.error(f"Erro ao mover entregas: {e}")
+                            
             else:
                 st.info("Nenhum outro grupo disponível para movimentação.")
         st.markdown("---") # Separador visual após cada grupo
@@ -3571,7 +3644,7 @@ def pagina_cargas_geradas():
     date_only_formatter = JsCode("""
     function(params) {
         if (params.value === null || typeof params.value === 'undefined' || params.value === '') return '';
-        // Retorna o valor diretamente, pois o Python já o terá formatado como DD/MM/YYYY
+        // Retorna o valor diretamente, pois o Python já o terá formatado como 
         return params.value;
     }
 """)
@@ -4008,6 +4081,14 @@ def pagina_cargas_geradas():
                 with st.spinner("Carregando entregas da carga no grid..."):
                     # Use df_carga_raw para garantir que o dataframe tenha todos os tipos corretos
                     df_formatado = df_carga_raw[[col for col in colunas_exibir if col in df_carga_raw.columns]].copy()
+
+                    for col_to_check in ["Previsao de Entrega", "Entrega Programada", "Data de Emissao"]:
+                        if col_to_check in df_formatado.columns:
+                            df_formatado[col_to_check] = pd.to_datetime(
+                                df_formatado[col_to_check],
+                                errors='coerce',
+                                dayfirst=True # Consistentemente lê como Dia-Mês-Ano
+                            )
                     # Apply Brazilian date format for display on this specific DataFrame
                     df_formatado = apply_brazilian_date_format_for_display(df_formatado)
 
@@ -4081,10 +4162,6 @@ def pagina_cargas_geradas():
                     selecionadas = pd.DataFrame(grid_response.get("selected_rows", []))
 
 
-
-                # --- INÍCIO DO TRECHO ALTERADO/MOVIDO ---
-            # Este bloco foi desindentado (removido da condição 'if not selecionadas.empty:')
-
                 col_ret, col_aprov = st.columns([1, 1]) # Mantido o st.columns
 
                 with col_ret:
@@ -4154,18 +4231,19 @@ def pagina_cargas_geradas():
 
                                         if hasattr(delete_response, 'data') and delete_response.data:
                                             deleted_count = len(delete_response.data)
-                                            st.success(f"DEBUG: Deleção em 'cargas_geradas' na Tentativa {tentativa+1} bem-sucedida! {deleted_count} registros realmente deletados.")
+                                            #st.success(f"DEBUG: Deleção em 'cargas_geradas' na Tentativa {tentativa+1} bem-sucedida! {deleted_count} registros realmente deletados.")
                                             delete_success = True
                                             break
                                         elif hasattr(delete_response, 'error') and delete_response.error:
                                             raise Exception(delete_response.error.message)
                                         else:
-                                            st.warning(f"DEBUG: Deleção em 'cargas_geradas' na Tentativa {tentativa+1} retornou sem erro, mas 0 registros deletados. Possível problema de RLS ou itens não encontrados. Resposta: {delete_response}")
+                                            
+                                            #st.warning(f"DEBUG: Deleção em 'cargas_geradas' na Tentativa {tentativa+1} retornou sem erro, mas 0 registros deletados. Possível problema de RLS ou itens não encontrados. Resposta: {delete_response}")
                                             if tentativa < 1: time.sleep(1)
                                             continue
 
                                     except Exception as e_delete:
-                                        st.error(f"DEBUG: Exceção inesperada durante deleção de 'cargas_geradas': {e_delete} (Tipo: {type(e_delete)})")
+                                        #st.error(f"DEBUG: Exceção inesperada durante deleção de 'cargas_geradas': {e_delete} (Tipo: {type(e_delete)})")
                                         st.warning(f"Tentativa {tentativa+1}/2: Exceção geral durante remoção de 'cargas_geradas': {e_delete}")
                                         if tentativa < 1: time.sleep(1)
                                         continue
@@ -4300,7 +4378,9 @@ def pagina_cargas_geradas():
                                 with st.spinner(" Enviando entregas para aprovação de custos..."):
                                     # 'selecionadas' já é um DataFrame, basta copiá-lo
                                     # Esta linha é segura aqui porque o botão só estará habilitado se 'selecionadas' não estiver vazia
-                                    df_aprovar_custos = selecionadas.copy()
+                                    ctrcs_selecionados_str = [s.get("Serie_Numero_CTRC") for s in selecionadas.to_dict(orient="records") if s.get("Serie_Numero_CTRC")]
+                                    df_aprovar_custos = df_carga_raw[df_carga_raw['Serie_Numero_CTRC'].isin(ctrcs_selecionados_str)].copy()
+
                                     df_aprovar_custos = df_aprovar_custos.drop(columns=["_selectedRowNodeInfo"], errors="ignore")
 
                                     if "motivo_rejeicao" in df_aprovar_custos.columns:
@@ -4320,32 +4400,8 @@ def pagina_cargas_geradas():
                                     # --- INÍCIO DA CORREÇÃO E DEBUG LOCALIZADO ---
                                     # Os DEBUGs (st.write) aqui foram mantidos para sua referência,
                                     # mas podem ser removidos em produção.
-                                    st.write(f"DEBUG: Antes da reconversão em Cargas Geradas:")
-                                    if "Data_Hora_Gerada" in df_aprovar_custos.columns:
-                                        st.write(f"DEBUG: Data_Hora_Gerada (Tipo): {df_aprovar_custos['Data_Hora_Gerada'].dtype}")
-                                        st.write(f"DEBUG: Data_Hora_Gerada (Primeiro valor): {df_aprovar_custos['Data_Hora_Gerada'].iloc[0] if not df_aprovar_custos.empty else 'DataFrame vazio'}")
 
-                                        # Esta linha é CRÍTICA. Ela diz ao Pandas para interpretar
-                                        # a string como DD/MM/AAAA HH:MM.
-                                        df_aprovar_custos["Data_Hora_Gerada"] = pd.to_datetime(
-                                            df_aprovar_custos["Data_Hora_Gerada"],
-                                            format=DATE_DISPLAY_FORMAT_STRING, # Garante o formato brasileiro
-                                            errors='coerce' # Transforma erros de conversão em NaT
-                                        )
-                                        # Garante que NaT (Not a Time) seja None para o Supabase
-                                        df_aprovar_custos["Data_Hora_Gerada"] = df_aprovar_custos["Data_Hora_Gerada"].apply(
-                                            lambda x: None if pd.isna(x) else x
-                                        )
-
-                                        st.write(f"DEBUG: Após a reconversão em Cargas Geradas:")
-                                        st.write(f"DEBUG: Data_Hora_Gerada (Tipo): {df_aprovar_custos['Data_Hora_Gerada'].dtype}")
-                                        st.write(f"DEBUG: Data_Hora_Gerada (Primeiro valor): {df_aprovar_custos['Data_Hora_Gerada'].iloc[0] if not df_aprovar_custos.empty else 'DataFrame vazio'}")
-                                    else:
-                                        st.write("DEBUG: Coluna 'Data_Hora_Gerada' não encontrada em df_aprovar_custos.")
-
-                                        time.sleep(3)
-                                    # --- FIM DA CORREÇÃO E DEBUG LOCALIZADO ---
-                                    # Aplicando a função _prepare_df_for_supabase_insert para datas e nulos
+                                   
                                     df_aprovar_custos = _prepare_df_for_supabase_insert(df_aprovar_custos)
 
                                     registros_para_custos = df_aprovar_custos.to_dict(orient="records")
@@ -4993,7 +5049,7 @@ def pagina_aprovacao_custos():
                                     if registros_para_cargas_geradas:
                                         try:
                                             supabase.table("cargas_geradas").insert(registros_para_cargas_geradas).execute()
-                                            st.success("DEBUG: Insert into cargas_geradas successful.")
+                                            #st.success("DEBUG: Insert into cargas_geradas successful.")
                                         except Exception as insert_e:
                                             st.error(f"❌ Erro ao inserir registros em cargas_geradas: {insert_e}")
                                             st.error(f"Detalhes do erro: {insert_e}")
@@ -5002,7 +5058,7 @@ def pagina_aprovacao_custos():
                                     chaves_rejeitadas = [r.get("Serie_Numero_CTRC") for r in registros_para_cargas_geradas if r.get("Serie_Numero_CTRC")]
                                     if chaves_rejeitadas:
                                         supabase.table("aprovacao_custos").delete().in_("Serie_Numero_CTRC", chaves_rejeitadas).execute()
-                                        st.success("DEBUG: Delete from aprovacao_custos successful.")
+                                        #st.success("DEBUG: Delete from aprovacao_custos successful.")
 
                                     st.warning(f"✅ {len(registros_para_cargas_geradas)} entregas da carga {carga} rejeitadas e retornadas para Cargas Geradas.")
                                     
@@ -5443,6 +5499,15 @@ def pagina_cargas_aprovadas():
 
                             df_to_move = pd.DataFrame(data_to_move)
 
+                            if 'Previsao de Entrega' in df_to_move.columns:
+                                df_to_move['Previsao de Entrega'] = pd.to_datetime(
+                                    df_to_move['Previsao de Entrega'],
+                                    format='%Y-%m-%d', # Força a interpretação como Ano-Mês-Dia
+                                    errors='coerce'    # Coage erros para NaT (Not a Time)
+                                )
+                            # Remove o atributo de fuso horário se ele foi adicionado inadvertidamente
+                            df_to_move['Previsao de Entrega'] = df_to_move['Previsao de Entrega'].dt.tz_localize(None)
+
                             # 2. Adicionar/Atualizar 'motorista', 'placa', 'data_fechamento', 'situacao' e 'fechador_carga_login'
                             df_to_move["motorista"] = motorista_carga  # Usa valor já carregado da carga
                             df_to_move["placa"] = placa_carga # Já está em UPPER()
@@ -5580,6 +5645,9 @@ def pagina_cargas_fechadas():
                     
                     df_original = pd.DataFrame(dados)
 
+                    if 'Previsao de Entrega' in df_original.columns:
+                        df_original['Previsao de Entrega'] = df_original['Previsao de Entrega'].astype(str)
+
                 # 1. Colunas que são TIMESTAMPS (com hora e fuso)
                 # Estas colunas já vêm do Supabase como strings ISO 8601 (UTC)
                   # --- CORREÇÃO AQUI: Iterar especificamente sobre as colunas de timestamp ---
@@ -5661,21 +5729,23 @@ def pagina_cargas_fechadas():
     # 2. Exibe o filtro por data de fechamento
     col_data_filter, col_data_spacer = st.columns([0.3, 0.7])
 
+
+
     with col_data_filter:
         st.subheader("Filtro por Data de Fechamento")
         if 'data_fechamento' in df_original.columns and not df_original['data_fechamento'].empty:
-            # Conversão segura para datetime
+            # Conversão segura para datetime (já feito, resultando em Timestamps UTC-aware)
             valid_dates_series = pd.to_datetime(
                 df_original['data_fechamento'],
                 errors="coerce",   # ignora valores inválidos
-                dayfirst=True,     # formato BR: dia/mês/ano
+                # Removido dayfirst=True aqui, pois a coluna já foi tratada no carregamento inicial da df_original
                 utc=True           # mantém padrão UTC
             ).dropna()
 
             if not valid_dates_series.empty:
-                # Extrai apenas a parte da data e remove duplicatas, depois ordena
+                # Paulo: CORREÇÃO AQUI - Converta para FUSO_BRASIL ANTES de extrair a data para o filtro.
                 unique_fechamento_dates_dt_sorted = sorted(
-                    valid_dates_series.dt.date.unique(),
+                    valid_dates_series.dt.tz_convert(FUSO_BRASIL).dt.date.unique(), # <--- LINHA MODIFICADA
                     reverse=True
                 )
                 fechamento_dates_display = ["Todas as Datas"] + [
@@ -5703,7 +5773,6 @@ def pagina_cargas_fechadas():
             key="cargas_fechadas_date_filter_selectbox"
         )
 
-
         if selected_date_display != st.session_state.cargas_fechadas_selected_date_filter_display:
             st.session_state.cargas_fechadas_selected_date_filter_display = selected_date_display
             st.session_state.cargas_fechadas_current_page = 0
@@ -5717,11 +5786,19 @@ def pagina_cargas_fechadas():
                 pass
 
             if selected_date_iso and 'data_fechamento' in df_filtered.columns:
+                # Paulo: CORREÇÃO AQUI - Aplica o filtro no fuso horário do Brasil.
                 df_filtered = df_filtered[
-                    (df_filtered['data_fechamento'].dt.strftime('%Y-%m-%d') == selected_date_iso)
+                    (df_filtered['data_fechamento'].dt.tz_convert(FUSO_BRASIL).dt.strftime('%Y-%m-%d') == selected_date_iso) # <--- LINHA MODIFICADA
                 ].copy()
             else:
                 df_filtered = pd.DataFrame()
+
+
+
+
+
+
+
 
     # 2. Exibe o filtro de número da carga
     col_number_filter, col_number_spacer = st.columns([0.3, 0.7])
@@ -5891,8 +5968,8 @@ def pagina_cargas_fechadas():
         df_carga = df_filtered[df_filtered["numero_carga"] == carga].copy()
         if df_carga.empty:
          # --- NOVOS DEBUGs: Verificação de df_carga IMEDIATAMENTE após a criação ---
-            st.subheader(f"DEBUG: df_carga para Carga {carga} (imediatamente após slicing)")
-            st.write(f"df_carga.dtypes: {df_carga.dtypes}")
+            #st.subheader(f"DEBUG: df_carga para Carga {carga} (imediatamente após slicing)")
+            #st.write(f"df_carga.dtypes: {df_carga.dtypes}")
             if not df_carga.empty and "data_fechamento" in df_carga.columns:
                 st.write(f"df_carga['data_fechamento'].iloc[0]: {df_carga['data_fechamento'].iloc[0]}")
                 st.write(f"Tipo em df_carga.iloc[0]: {type(df_carga['data_fechamento'].iloc[0])}")
@@ -6154,6 +6231,15 @@ def pagina_cargas_fechadas():
 
                         df_to_move = pd.DataFrame(data_to_move)
 
+                        if 'Previsao de Entrega' in df_to_move.columns:
+                            df_to_move['Previsao de Entrega'] = pd.to_datetime(
+                                df_to_move['Previsao de Entrega'],
+                                format='%Y-%m-%d', # Força a interpretação do que veio do DB como AAAA-MM-DD
+                                errors='coerce'    # Coage erros para NaT
+                            )
+                            # Garante que seja timezone-naive, pois o campo DATE do Supabase não tem fuso horário
+                            df_to_move['Previsao de Entrega'] = df_to_move['Previsao de Entrega'].dt.tz_localize(None)
+
                         # 2. Preparar dados para inserção em 'cargas_geradas' (remover colunas de controle de fechamento)
                         df_to_move = df_to_move.drop(columns=[
                             "data_fechamento", "fechador_carga_login", "situacao",
@@ -6277,7 +6363,7 @@ def pagina_cargas_fechadas():
                     for col in timestamp_cols:
                         if col in df_formatado.columns:
                             # A coluna 'data_fechamento' já vem formatada do apply_brazilian_date_format_for_display
-                            # como "DD/MM/YYYY HH:MM". Se ela já vem formatada assim, pode não precisar de um DatetimeColumn
+                            # como "DD-MM-YYYY HH:MM". Se ela já vem formatada assim, pode não precisar de um DatetimeColumn
                             # ou a formatação abaixo precisa refletir a string exata que o dado já possui.
                             # Se for Timestamp de Python, o formato abaixo é o correto.
                             column_configuration[col] = st.column_config.DatetimeColumn(
