@@ -136,21 +136,29 @@ colunas_data = [
 # Adicione esta lista de colunas que devem ser sincronizadas
 # (Ou seja, que vêm do Excel e podem ser atualizadas em todas as tabelas)
 SYNCABLE_COLUMNS = [
-    "Serie_Numero_CTRC", "Serie/Numero CT-e", "Tipo do Documento", "Unidade Emissora",
-    "Data de Emissao", "Data de Autorizacao", "Chave CT-e", "Cliente Remetente",
-    "UF do Remetente", "UF do Expedidor", "Cliente Pagador", "UF do Pagador",
-    "CNPJ Destinatario", "Cliente Destinatario",
-    "Bairro do Destinatario", "Setor de Destino", "UF do Destinatario", "Local de Entrega",
-    "Bairro", "Cidade de Entrega", "UF de Entrega", "Unidade Receptora",
-    "Numero da Nota Fiscal", "Peso Real em Kg", "Cubagem em m³", "Quantidade de Volumes",
-    "Valor da Mercadoria", "Valor do Frete", "Valor do ICMS", "Valor do ISS",
-    "Peso Calculado em Kg", "Frete Peso", "Frete Valor", "TDA", "TDE",
+    "Serie_Numero_CTRC",
+    "Cliente Pagador",
+    "Chave CT-e",
+    "Cliente Destinatario",
+    "Cidade de Entrega",
+    "Bairro do Destinatario",
+    "Previsao de Entrega",
+    "Numero da Nota Fiscal",
+    "Status",
+    "Entrega Programada",
+    "Particularidade",
     "Codigo da Ultima Ocorrencia",
-    "Data de inclusao da Ultima Ocorrencia", "Data da Ultima Ocorrencia",
-    "Usuario da Ultima Ocorrencia", "Unidade da Ultima Ocorrencia",
-    "Descricao da Ultima Ocorrencia", "Latitude da Ultima Ocorrencia",
-    "Longitude da Ultima Ocorrencia", "Previsao de Entrega", "Entrega Programada",
-    "Data da Entrega Realizada", "Quantidade de Dias de Atraso", "Localizacao Atual"
+    "Peso Real em Kg",
+    "Peso Calculado em Kg",
+    "Cubagem em m³",
+    "Quantidade de Volumes",
+    "Valor do Frete",
+    "Rota",
+    "Localizacao Atual",
+    "CNPJ Destinatario",
+    "CEP de Entrega",
+    "CEP do Destinatario",
+    "CEP do Remetente"
     
     
     # Campos como 'motorista', 'placa', 'valor_contratacao', 'aprovador_custos_login', 'data_aprovacao_custos', etc., NÃO devem estar aqui.
