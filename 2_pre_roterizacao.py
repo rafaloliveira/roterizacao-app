@@ -1371,6 +1371,18 @@ if 'file_uploader_key' not in st.session_state:
 
 if "_sync_success_message_displayed" not in st.session_state:
     st.session_state._sync_success_message_displayed = False
+
+# ATENÇÃO: Alterações AQUI para inicializar com 0 em vez de None
+if "_qtd_confirmadas" not in st.session_state:
+    st.session_state._qtd_confirmadas = 0
+if "_qtd_pre_roterizacao" not in st.session_state: # <-- Esta linha
+    st.session_state._qtd_pre_roterizacao = 0       # <-- E esta linha
+if "_qtd_paletizadas" not in st.session_state:
+    st.session_state._qtd_paletizadas = 0 # <-- Corrigido para 0
+if "_novas_confirmadas" not in st.session_state:
+    st.session_state._novas_confirmadas = 0 # <-- Corrigido para 0
+if "_novas_pre_roterizacao" not in st.session_state:
+    st.session_state._novas_pre_roterizacao = 0 # <-- Corrigido para 0
     
 
 
