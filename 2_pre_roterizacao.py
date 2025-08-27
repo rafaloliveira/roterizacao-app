@@ -139,23 +139,20 @@ SYNCABLE_COLUMNS = [
     "Serie_Numero_CTRC", "Serie/Numero CT-e", "Tipo do Documento", "Unidade Emissora",
     "Data de Emissao", "Data de Autorizacao", "Chave CT-e", "Cliente Remetente",
     "UF do Remetente", "UF do Expedidor", "Cliente Pagador", "UF do Pagador",
-    "Fone do Pagador", "Segmento do Pagador", "CNPJ Destinatario", "Cliente Destinatario",
+    "CNPJ Destinatario", "Cliente Destinatario",
     "Bairro do Destinatario", "Setor de Destino", "UF do Destinatario", "Local de Entrega",
     "Bairro", "Cidade de Entrega", "UF de Entrega", "Unidade Receptora",
     "Numero da Nota Fiscal", "Peso Real em Kg", "Cubagem em m³", "Quantidade de Volumes",
     "Valor da Mercadoria", "Valor do Frete", "Valor do ICMS", "Valor do ISS",
     "Peso Calculado em Kg", "Frete Peso", "Frete Valor", "TDA", "TDE",
-    "Adicional de Frete", "UF origem da prestacao", "Codigo da Ultima Ocorrencia",
+    "Codigo da Ultima Ocorrencia",
     "Data de inclusao da Ultima Ocorrencia", "Data da Ultima Ocorrencia",
     "Usuario da Ultima Ocorrencia", "Unidade da Ultima Ocorrencia",
     "Descricao da Ultima Ocorrencia", "Latitude da Ultima Ocorrencia",
     "Longitude da Ultima Ocorrencia", "Previsao de Entrega", "Entrega Programada",
-    "Data da Entrega Realizada", "Quantidade de Dias de Atraso", "Localizacao Atual",
-    "Data do Cancelamento", "Motivo do Cancelamento", "Codigo dos Correios",
-    "Numero da Capa de Remessa", "Numero do Pacote de Arquivamento",
-    "Compr. de Entrega Escaneado", "Data do Escaneamento", "Hora do Escaneamento",
-    "Notas Fiscais", "Numero dos Pedidos", "Chaves NF-es",
-    "Volume Cliente/Shipment", "Unnamed: 67","CEP de Entrega","CEP do Destinatario"
+    "Data da Entrega Realizada", "Quantidade de Dias de Atraso", "Localizacao Atual"
+    
+    
     # Campos como 'motorista', 'placa', 'valor_contratacao', 'aprovador_custos_login', 'data_aprovacao_custos', etc., NÃO devem estar aqui.
     # Eles são específicos de cada estágio do fluxo.
 ]
@@ -170,8 +167,8 @@ FLOW_TABLES = [
     "pre_roterizacao",
     "cargas_geradas",
     "aprovacao_custos",
-    "cargas_aprovadas",
-    "cargas_fechadas"
+    "cargas_aprovadas"
+   
 ]
 
 #------------------------------------------------------------------------------------------------------------------------------------------
