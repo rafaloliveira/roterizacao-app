@@ -157,10 +157,7 @@ SYNCABLE_COLUMNS = [
     "Valor do Frete",
     "Rota",
     "Localizacao Atual",
-    "CNPJ Destinatario",
-    "CEP de Entrega",
-    "CEP do Destinatario",
-    "CEP do Remetente"
+ 
     
     
     # Campos como 'motorista', 'placa', 'valor_contratacao', 'aprovador_custos_login', 'data_aprovacao_custos', etc., NÃO devem estar aqui.
@@ -1616,6 +1613,7 @@ def pagina_sincronizacao():
             # Garante que 'Serie_Numero_CTRC' seja string para comparações
             if 'Serie_Numero_CTRC' in df_incoming_allowed.columns:
                 df_incoming_allowed['Serie_Numero_CTRC'] = df_incoming_allowed['Serie_Numero_CTRC'].astype(str)
+                df_incoming_allowed.drop_duplicates(subset=['Serie_Numero_CTRC'], inplace=True) 
             else:
                 st.error("Coluna 'Serie_Numero_CTRC' não encontrada no arquivo importado, impossível realizar a sincronização completa de 'fBaseroter'.")
                 # Pode levantar um erro ou retornar para interromper o processo
