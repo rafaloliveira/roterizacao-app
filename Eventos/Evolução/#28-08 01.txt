@@ -1,3 +1,5 @@
+#28-08 01
+
 # 06-08 em produção após ajuste de cores logo
 
 
@@ -57,7 +59,7 @@ DATE_DISPLAY_FORMAT_STRING = '%d-%m-%Y %H:%M'
 # Formato de exibição de data APENAS (sem hora) no padrão brasileiro (DD-MM-YYYY)
 DATE_ONLY_DISPLAY_FORMAT_STRING_BR = '%d-%m-%Y'
 
-
+ALLOWED_OCCURRENCE_CODES = [15, 17, 39, 78, 79, 80, 96, 97]
 
 #locale.setlocale(locale.LC_ALL, 'pt_BR.UTF-8')
 
@@ -133,26 +135,8 @@ colunas_data = [
 
 #---------------------------------------------------------------------------------------------------------------
 
-# ==============================================================================
-# NOVAS CONSTANTES PARA SINCRONIZAÇÃO DETALHADA
-# ==============================================================================
-
-# Defina esta constante se ainda não estiver global:
-ALLOWED_OCCURRENCE_CODES = [15, 17, 39, 78, 79, 80, 96, 97]
-
-# Lista de tabelas do fluxo que precisam ser sincronizadas
-FLOW_TABLES = [
-    "confirmadas_producao",
-    "aprovacao_diretoria",
-    "pre_roterizacao",
-    "cargas_geradas",
-    "aprovacao_custos",
-    "cargas_aprovadas"
-    # 'cargas_fechadas' está intencionalmente fora, conforme sua solicitação
-]
-
-# Lista exata de colunas que devem ser sincronizadas entre fBaseroter e as tabelas do fluxo.
-# Apenas estas colunas terão suas informações atualizadas em todas as etapas do fluxo.
+# Adicione esta lista de colunas que devem ser sincronizadas
+# (Ou seja, que vêm do Excel e podem ser atualizadas em todas as tabelas)
 SYNCABLE_COLUMNS = [
     "Serie_Numero_CTRC",
     "Cliente Pagador",
@@ -166,7 +150,6 @@ SYNCABLE_COLUMNS = [
     "Entrega Programada",
     "Particularidade",
     "Codigo da Ultima Ocorrencia",
-    "Data da Ultima Ocorrencia",
     "Peso Real em Kg",
     "Peso Calculado em Kg",
     "Cubagem em m³",
@@ -178,18 +161,31 @@ SYNCABLE_COLUMNS = [
     "CEP de Entrega",
     "CEP do Destinatario",
     "CEP do Remetente"
+    
+    
+    # Campos como 'motorista', 'placa', 'valor_contratacao', 'aprovador_custos_login', 'data_aprovacao_custos', etc., NÃO devem estar aqui.
+    # Eles são específicos de cada estágio do fluxo.
 ]
 
-# ==============================================================================
-# FIM NOVAS CONSTANTES
-# ==============================================================================
+# Defina esta constante também se ainda não estiver global:
+ALLOWED_OCCURRENCE_CODES = [15, 17, 39, 78, 79, 80, 96, 97]
+
+# Lista de tabelas do fluxo que precisam ser sincronizadas
+FLOW_TABLES = [
+    "confirmadas_producao",
+    "aprovacao_diretoria",
+    "pre_roterizacao",
+    "cargas_geradas",
+    "aprovacao_custos",
+    "cargas_aprovadas"
+   
+]
 
 #------------------------------------------------------------------------------------------------------------------------------------------
 # Adicione esta função em um local adequado, por exemplo, após apply_regras_e_preencher_tabelas()
 
 def sincronizar_fluxo_com_fbaseroter(supabase_client):
     st.info("🔄 Iniciando sincronização do fluxo de trabalho com fBaseroter...")
-    sync_log_list = [] # Lista para coletar os logs de operações
 
     try:
         # 1. Obter todas as entregas ativas da fBaseroter (já filtradas por ocorrência)
@@ -200,23 +196,14 @@ def sincronizar_fluxo_com_fbaseroter(supabase_client):
         if df_fbaseroter_active.empty:
             st.warning("fBaseroter está vazia. Nenhuma entrega no fluxo será atualizada ou adicionada.")
             # Se a fBaseroter está vazia, todas as entregas em todas as tabelas de fluxo devem ser deletadas
+            # Pois não há mais referência delas no Excel
             for table_name in FLOW_TABLES:
                 st.info(f"Deletando todas as entregas da tabela '{table_name}' (fBaseroter vazia)...")
-                response_all_current = supabase_client.table(table_name).select("*").execute()
-                df_all_current = pd.DataFrame(response_all_current.data)
-                if not df_all_current.empty:
-                    deleted_ctrcs_for_log = df_all_current['Serie_Numero_CTRC'].tolist()
-                    supabase_client.table(table_name).delete().neq("Serie_Numero_CTRC", "").execute()
-                    for ctrc in deleted_ctrcs_for_log:
-                        sync_log_list.append({
-                            'change_type': 'deleted',
-                            'table_name': table_name,
-                            'ctrc': ctrc,
-                            'details_json': {'reason': 'Registro removido da fBaseroter (fBaseroter vazia).'}
-                        })
-            return sync_log_list
+                supabase_client.table(table_name).delete().neq("Serie_Numero_CTRC", "").execute() # Deleta tudo, exceto talvez um registro com CTRC vazio
+            return
 
         # Garante que as colunas syncable estejam presentes na df_fbaseroter_active para o _prepare_df_for_supabase_insert
+        # e para o merge posterior.
         df_fbaseroter_active = df_fbaseroter_active[
             [col for col in SYNCABLE_COLUMNS if col in df_fbaseroter_active.columns]
         ].copy()
@@ -224,9 +211,11 @@ def sincronizar_fluxo_com_fbaseroter(supabase_client):
         # Garante que 'Serie_Numero_CTRC' seja string e não tenha nulos para ser a chave principal
         df_fbaseroter_active['Serie_Numero_CTRC'] = df_fbaseroter_active['Serie_Numero_CTRC'].astype(str)
         df_fbaseroter_active.dropna(subset=['Serie_Numero_CTRC'], inplace=True)
-        df_fbaseroter_active.set_index('Serie_Numero_CTRC', inplace=True) # Para lookup rápido
 
         st.info(f"Total de entregas ativas em fBaseroter (filtradas): {len(df_fbaseroter_active)}.")
+
+        # Preparar df_fbaseroter_active para upsert no formato Supabase (datas em ISO, nulos em None)
+        df_fbaseroter_active_prepared = _prepare_df_for_supabase_insert(df_fbaseroter_active)
 
         # Iterar sobre cada tabela do fluxo de trabalho
         for table_name in FLOW_TABLES:
@@ -235,107 +224,61 @@ def sincronizar_fluxo_com_fbaseroter(supabase_client):
                 response_flow_table = supabase_client.table(table_name).select("*").execute()
                 df_flow_table = pd.DataFrame(response_flow_table.data)
 
-                # Garante que 'Serie_Numero_CTRC' seja string e não tenha nulos para ser a chave principal
-                if 'Serie_Numero_CTRC' not in df_flow_table.columns:
-                    st.warning(f"Coluna 'Serie_Numero_CTRC' não encontrada em '{table_name}'. Pulando esta tabela para sincronização.")
+                if df_flow_table.empty:
+                    st.info(f"Tabela '{table_name}' está vazia. Nenhuma atualização ou deleção necessária por enquanto.")
                     continue
 
+                # Garante que 'Serie_Numero_CTRC' seja string e não tenha nulos para ser a chave principal
                 df_flow_table['Serie_Numero_CTRC'] = df_flow_table['Serie_Numero_CTRC'].astype(str)
                 df_flow_table.dropna(subset=['Serie_Numero_CTRC'], inplace=True)
-                df_flow_table.set_index('Serie_Numero_CTRC', inplace=True) # Para lookup rápido
 
-                current_flow_ctrcs = set(df_flow_table.index.tolist())
-                active_fbaseroter_ctrcs = set(df_fbaseroter_active.index.tolist())
+                current_flow_ctrcs = set(df_flow_table['Serie_Numero_CTRC'].tolist())
+                active_fbaseroter_ctrcs = set(df_fbaseroter_active['Serie_Numero_CTRC'].tolist())
 
-                # ==================================
-                # Operações de DELEÇÃO
-                # ==================================
+                # Identificar CTRCs a serem deletados da tabela de fluxo (não estão mais na fBaseroter ativa)
                 ctrcs_to_delete_from_flow_table = current_flow_ctrcs - active_fbaseroter_ctrcs
 
                 if ctrcs_to_delete_from_flow_table:
                     st.info(f"Deletando {len(ctrcs_to_delete_from_flow_table)} entrega(s) de '{table_name}' (não mais ativas em fBaseroter)...")
-                    # Coleta dados antes da deleção para log
-                    deleted_records_df = df_flow_table.loc[list(ctrcs_to_delete_from_flow_table), :].copy()
-                    
                     supabase_client.table(table_name).delete().in_("Serie_Numero_CTRC", list(ctrcs_to_delete_from_flow_table)).execute()
-                    
-                    for ctrc, row in deleted_records_df.iterrows():
-                        sync_log_list.append({
-                            'change_type': 'deleted',
-                            'table_name': table_name,
-                            'ctrc': ctrc,
-                            'details_json': {'reason': 'Registro não mais presente na fBaseroter ativa.', 'data_before_deletion': row.to_dict()}
-                        })
+
+                # Identificar CTRCs a serem atualizados (existem em ambas)
+                ctrcs_to_update = list(current_flow_ctrcs.intersection(active_fbaseroter_ctrcs))
+
+                if ctrcs_to_update:
+                    # Filtra os dados da fBaseroter para apenas os que precisam de atualização
+                    df_updates = df_fbaseroter_active_prepared[
+                        df_fbaseroter_active_prepared['Serie_Numero_CTRC'].isin(ctrcs_to_update)
+                    ].copy()
+
+                    # Transforma em lista de dicionários para UPSERT
+                    records_to_update = df_updates.to_dict(orient='records')
+
+                    if records_to_update:
+                        st.info(f"Atualizando {len(records_to_update)} entrega(s) em '{table_name}'...")
+                        # Realiza UPSERT para atualizar ou inserir (se por algum motivo não estivesse lá)
+                        supabase_client.table(table_name).upsert(records_to_update).execute()
                 else:
-                    st.info(f"Nenhum registro a ser deletado de '{table_name}'.")
-
-                # ==================================
-                # Operações de ATUALIZAÇÃO / INSERÇÃO (UPSERT)
-                # ==================================
-                # Entregas que estão na fBaseroter ativa e que DEVEM estar nesta tabela (seja por update ou nova inserção)
-                ctrcs_for_upsert = active_fbaseroter_ctrcs.intersection(current_flow_ctrcs) # Atualizações
-                ctrcs_for_upsert.update(active_fbaseroter_ctrcs - current_flow_ctrcs) # Novas inserções (se a lógica de entrada já não tratou)
-
-                if ctrcs_for_upsert:
-                    df_to_upsert = df_fbaseroter_active.loc[list(ctrcs_for_upsert), :].copy()
-
-                    # Prepara para UPSERT (formata datas, nulos, etc.)
-                    df_to_upsert_prepared = _prepare_df_for_supabase_insert(df_to_upsert.reset_index()) # reset_index para 'Serie_Numero_CTRC' virar coluna de novo
-
-                    records_to_upsert = df_to_upsert_prepared.to_dict(orient='records')
-
-                    if records_to_upsert:
-                        st.info(f"Realizando UPSERT de {len(records_to_upsert)} entrega(s) em '{table_name}'...")
-                        
-                        # --- Coletar diferenças para o log ANTES do UPSERT ---
-                        updated_count = 0
-                        for new_record in records_to_upsert:
-                            ctrc = new_record['Serie_Numero_CTRC']
-                            
-                            # Tenta encontrar o registro antigo se ele já existia na tabela de fluxo
-                            old_record = None
-                            if ctrc in df_flow_table.index:
-                                old_record_df = df_flow_table.loc[[ctrc], :].copy()
-                                old_record_df_prepared = _prepare_df_for_supabase_insert(old_record_df.reset_index())
-                                old_record = old_record_df_prepared.iloc[0].to_dict()
-
-                            # Compara e registra as mudanças
-                            if old_record:
-                                changed_fields = {}
-                                for col in SYNCABLE_COLUMNS:
-                                    # É crucial que ambos old_record e new_record tenham os valores padronizados
-                                    # (ex: NaT para None, Timestamps para ISO strings) para comparação precisa.
-                                    # _prepare_df_for_supabase_insert faz isso.
-                                    old_val = old_record.get(col)
-                                    new_val = new_record.get(col)
-
-                                    if str(old_val) != str(new_val): # Compara como string para lidar com tipos mistos
-                                        changed_fields[col] = {'old': old_val, 'new': new_val}
-
-                                if changed_fields:
-                                    updated_count += 1
-                                    sync_log_list.append({
-                                        'change_type': 'updated',
-                                        'table_name': table_name,
-                                        'ctrc': ctrc,
-                                        'details_json': {'changed_fields': changed_fields}
-                                    })
-                        
-                        # Realiza o UPSERT no Supabase
-                        supabase_client.table(table_name).upsert(records_to_upsert).execute()
-                        st.success(f"✅ {updated_count} entrega(s) atualizada(s) em '{table_name}'.")
-                    else:
-                        st.info(f"Nenhuma entrega em '{table_name}' para UPSERT (após preparação).")
-                else:
-                    st.info(f"Nenhuma entrega em '{table_name}' para UPSERT.")
+                    st.info(f"Nenhuma entrega em '{table_name}' para atualizar.")
 
                 # Invalida o cache da tabela específica para forçar o recarregamento
-                if table_name == "confirmadas_producao": st.session_state.pop("df_confirmadas_cache", None); st.session_state["reload_confirmadas_producao"] = True
-                if table_name == "aprovacao_diretoria": st.session_state.pop("df_aprovacao_diretoria_cache", None); st.session_state["reload_aprovacao_diretoria"] = True
-                if table_name == "pre_roterizacao": st.session_state.pop("df_pre_roterizacao_cache", None); st.session_state["reload_pre_roterizacao"] = True
-                if table_name == "cargas_geradas": st.session_state.pop("df_cargas_cache", None); st.session_state["reload_cargas_geradas"] = True
-                if table_name == "aprovacao_custos": st.session_state.pop("df_aprovacao_custos_cache", None); st.session_state["reload_aprovacao_custos"] = True
-                if table_name == "cargas_aprovadas": st.session_state.pop("df_cargas_aprovadas_cache", None); st.session_state["reload_cargas_aprovadas"] = True
+                # (Assumindo que você tem session_state.pop para cada df_cache em cada página)
+                if table_name == "confirmadas_producao": st.session_state.pop("df_confirmadas_cache", None)
+                if table_name == "aprovacao_diretoria": st.session_state.pop("df_aprovacao_diretoria_cache", None)
+                if table_name == "pre_roterizacao": st.session_state.pop("df_pre_roterizacao_cache", None)
+                if table_name == "cargas_geradas": st.session_state.pop("df_cargas_cache", None)
+                if table_name == "aprovacao_custos": st.session_state.pop("df_aprovacao_custos_cache", None)
+                if table_name == "cargas_aprovadas": st.session_state.pop("df_cargas_aprovadas_cache", None)
+                if table_name == "cargas_fechadas": st.session_state.pop("df_cargas_fechadas_cache", None)
+                
+                # E também as flags de reload
+                if table_name == "confirmadas_producao": st.session_state["reload_confirmadas_producao"] = True
+                if table_name == "aprovacao_diretoria": st.session_state["reload_aprovacao_diretoria"] = True
+                if table_name == "pre_roterizacao": st.session_state["reload_pre_roterizacao"] = True
+                if table_name == "cargas_geradas": st.session_state["reload_cargas_geradas"] = True
+                if table_name == "aprovacao_custos": st.session_state["reload_aprovacao_custos"] = True
+                if table_name == "cargas_aprovadas": st.session_state["reload_cargas_aprovadas"] = True
+                if table_name == "cargas_fechadas": st.session_state["_force_reload_cargas_fechadas"] = True
 
             except Exception as e:
                 st.error(f"Erro ao sincronizar tabela '{table_name}': {e}")
@@ -345,8 +288,7 @@ def sincronizar_fluxo_com_fbaseroter(supabase_client):
         st.error(f"Erro crítico durante a sincronização do fluxo: {e}")
         st.exception(e)
 
-    st.success("✅ Sincronização do fluxo de trabalho concluída.")
-    return sync_log_list # Retorna a lista de logs coletados
+    st.success("✅ Sincronização do fluxo de trabalho com fBaseroter concluída.")
 
 #-----------------------------------------------------------------------------------------------------------------------------------------------------------    
 def corrigir_tipos(df):
@@ -1448,70 +1390,29 @@ if "_novas_pre_roterizacao" not in st.session_state:
 
 
 #---- sincronização do Arquivo fBaseroter  ----------
-def salvar_totais_sincronizacao(qtd_confirmadas, qtd_pre_roterizacao, qtd_paletizadas, novas_confirmadas, novas_pre_roterizacao):
-    try:
-        totais_info = {
-            "qtd_confirmadas": qtd_confirmadas,
-            "qtd_pre_roterizacao": qtd_pre_roterizacao,
-            "qtd_paletizadas": qtd_paletizadas,
-            "novas_confirmadas": novas_confirmadas,
-            "novas_pre_roterizacao": novas_pre_roterizacao
-        }
-        supabase.table("metadados").upsert({"chave": "totais_sincronizacao_atual", "valor": json.dumps(totais_info)}).execute()
-    except Exception as e:
-        st.warning(f"Erro ao salvar totais de sincronização em metadados: {e}")
-
-def carregar_totais_sincronizacao():
-    try:
-        dados = supabase.table("metadados").select("valor").eq("chave", "totais_sincronizacao_atual").execute()
-        if dados.data:
-            valor_salvo = dados.data[0]["valor"]
-            return json.loads(valor_salvo)
-        else:
-            return None
-    except Exception as e:
-        st.warning(f"Erro ao carregar totais de sincronização de metadados: {e}")
-        return None
-
-# Ajuste sua função salvar_historico_sincronizacao para chamar salvar_totais_sincronizacao
-# Exemplo (se já tiver uma função salvar_historico_sincronizacao):
-# def salvar_historico_sincronizacao(username, num_new_fbaseroter, num_confirmadas, num_pre_roterizacao, num_paletizadas, num_novas_confirmadas, num_novas_pre_roterizacao, file_name=None, file_hash=None):
-#     # ... (seu código existente para historico_sincronizacoes) ...
-#     salvar_totais_sincronizacao(num_confirmadas, num_pre_roterizacao, num_paletizadas, num_novas_confirmadas, num_novas_pre_roterizacao)
-
-# Certifique-se de que o st.session_state.file_uploader_key seja inicializado
-if 'file_uploader_key' not in st.session_state:
-    st.session_state.file_uploader_key = 0
-
-# Variável de estado para o ID da última operação de sincronização detalhada
-if 'last_sync_operation_id' not in st.session_state:
-    st.session_state.last_sync_operation_id = None
-
-# Variável de estado para a mensagem de sucesso da sincronização (balões)
-if "_sync_success_message_displayed" not in st.session_state:
-    st.session_state._sync_success_message_displayed = False
-
-# --- FUNÇÃO PRINCIPAL ---
 def pagina_sincronizacao():
     st.title("🔄 Sincronização de Dados")
 
-    # NOVO: Carregar os totais persistidos do Supabase
-    # Este bloco substitui o if "_qtd_confirmadas" not in st.session_state:
-    persistidos = carregar_totais_sincronizacao()
+    if "_qtd_confirmadas" not in st.session_state:
+        try:
+            with st.spinner("Carregando totais de entregas atuais..."):
+                st.session_state._qtd_confirmadas = len(supabase.table("confirmadas_producao").select("Serie_Numero_CTRC").execute().data or [])
+                st.session_state._qtd_pre_roterizacao = len(supabase.table("pre_roterizacao").select("Serie_Numero_CTRC").execute().data or [])
 
-    if persistidos:
-        st.session_state._qtd_confirmadas = persistidos.get("qtd_confirmadas", 0)
-        st.session_state._qtd_pre_roterizacao = persistidos.get("qtd_pre_roterizacao", 0)
-        st.session_state._qtd_paletizadas = persistidos.get("qtd_paletizadas", 0)
-        st.session_state._novas_confirmadas = persistidos.get("novas_confirmadas", 0)
-        st.session_state._novas_pre_roterizacao = persistidos.get("novas_pre_roterizacao", 0)
-    else:
-        # Se não houver dados persistidos, inicializa com 0 (primeira vez ou erro)
-        st.session_state._qtd_confirmadas = 0
-        st.session_state._qtd_pre_roterizacao = 0
-        st.session_state._qtd_paletizadas = 0
-        st.session_state._novas_confirmadas = 0
-        st.session_state._novas_pre_roterizacao = 0
+                qtd_paletizadas_confirmadas = len(supabase.table("confirmadas_producao").select("Serie_Numero_CTRC").eq("Tipo_Tratativa_Especial", "Paletizadas").execute().data or [])
+                qtd_paletizadas_pre_roterizacao = len(supabase.table("pre_roterizacao").select("Serie_Numero_CTRC").eq("Tipo_Tratativa_Especial", "Paletizadas").execute().data or [])
+                st.session_state._qtd_paletizadas = qtd_paletizadas_confirmadas + qtd_paletizadas_pre_roterizacao
+
+                st.session_state._novas_confirmadas = 0
+                st.session_state._novas_pre_roterizacao = 0
+
+        except Exception as e:
+            st.error(f"Erro ao carregar totais de entregas: {e}")
+            st.session_state._qtd_confirmadas = 0
+            st.session_state._qtd_pre_roterizacao = 0
+            st.session_state._qtd_paletizadas = 0
+            st.session_state._novas_confirmadas = 0
+            st.session_state._novas_pre_roterizacao = 0
 
     ultima_data, ultimo_usuario = recuperar_hora_sincronizacao()
     if ultima_data:
@@ -1530,6 +1431,11 @@ def pagina_sincronizacao():
     st.markdown(f"➕ Novas em **Confirmar Produção (nesta sync)**: **{st.session_state._novas_confirmadas}**")
     st.markdown(f"➕ Novas em **Pré-Roterização (nesta sync)**: **{st.session_state._novas_pre_roterizacao}**")
 
+
+
+
+
+
     # --- Botão de Download do Histórico ---
     col_history_btn, _ = st.columns([1, 4])
     with col_history_btn:
@@ -1544,17 +1450,21 @@ def pagina_sincronizacao():
                     historico_data = response.data
                     
                     if not historico_data:
+                        # cria placeholder apenas nesse caso
                         msg_placeholder = st.empty()
                         msg_placeholder.warning("Nenhum registro de histórico de sincronização encontrado na nova tabela.")
                         time.sleep(3)
                         msg_placeholder.empty()
                     else:
+                        # O DataFrame já será montado com as colunas corretas
                         df_historico = pd.DataFrame(historico_data)
                         
+                        # Converte a coluna de data/hora para o formato de exibição brasileiro
                         if 'data_hora_sincronizacao' in df_historico.columns:
                             df_historico['data_hora_sincronizacao'] = pd.to_datetime(df_historico['data_hora_sincronizacao'], utc=True)
                             df_historico['data_hora_sincronizacao'] = df_historico['data_hora_sincronizacao'].apply(formatar_data_hora_br)
 
+                        # Renomear colunas para exibição no CSV, conforme sua sugestão
                         df_historico.rename(columns={
                             'data_hora_sincronizacao': 'Data/Hora Sinc.',
                             'usuario': 'Usuário',
@@ -1569,6 +1479,7 @@ def pagina_sincronizacao():
                             'status_sincronizacao': 'Status' 
                         }, inplace=True)
 
+                        # Opcional: Reordenar colunas no CSV para melhor leitura
                         colunas_csv_ordenadas = [
                             'Data/Hora Sinc.', 'Usuário', 'Novas Entregas fBaseroter',
                             'Entregas em Confirmar Produção', 'Novas em Confirmar Produção (sync)', 
@@ -1595,15 +1506,6 @@ def pagina_sincronizacao():
                 st.error(f"Erro ao preparar histórico para download: {e}")
                 st.exception(e)
 
-    # NOVO: Botão para limpar o histórico de logs de sincronização detalhado
-    if st.button("🗑️ Limpar Histórico de Logs de Sincronização Detalhado"):
-        try:
-            supabase.table("sync_operation_log").delete().neq("id", "").execute()
-            st.session_state.last_sync_operation_id = None # Limpa o ID da última operação
-            st.success("Histórico de logs de sincronização detalhado limpo com sucesso!")
-            st.rerun()
-        except Exception as e:
-            st.error(f"Erro ao limpar o histórico de logs: {e}")
 
     st.markdown("---") # Separador visual
 
@@ -1683,6 +1585,14 @@ def pagina_sincronizacao():
             
             df_to_process = corrigir_tipos(df_to_process)
 
+
+
+
+
+
+
+
+
             # --- NOVO BLOCO: Filtragem e Sincronização Completa para fBaseroter ---
             st.info("Verificando estado atual de 'fBaseroter' e aplicando filtro de ocorrência...")
 
@@ -1691,6 +1601,7 @@ def pagina_sincronizacao():
             existing_fbaseroter_ctrcs_set = {record["Serie_Numero_CTRC"] for record in existing_fbaseroter_data}
 
             # 2. Filtrar o DataFrame de entrada com base no Codigo da Ultima Ocorrencia
+            # Garante que 'Codigo da Ultima Ocorrencia' seja numérico para o filtro
             if 'Codigo da Ultima Ocorrencia' in df_to_process.columns:
                 df_to_process['Codigo da Ultima Ocorrencia'] = pd.to_numeric(
                     df_to_process['Codigo da Ultima Ocorrencia'], errors='coerce'
@@ -1700,12 +1611,14 @@ def pagina_sincronizacao():
                 ].copy()
             else:
                 st.warning("Coluna 'Codigo da Ultima Ocorrencia' não encontrada. Todas as entregas do arquivo serão consideradas permitidas para 'fBaseroter'.")
-                df_incoming_allowed = df_to_process.copy()
+                df_incoming_allowed = df_to_process.copy() # Se a coluna não for encontrada, permite todas
 
+            # Garante que 'Serie_Numero_CTRC' seja string para comparações
             if 'Serie_Numero_CTRC' in df_incoming_allowed.columns:
                 df_incoming_allowed['Serie_Numero_CTRC'] = df_incoming_allowed['Serie_Numero_CTRC'].astype(str)
             else:
                 st.error("Coluna 'Serie_Numero_CTRC' não encontrada no arquivo importado, impossível realizar a sincronização completa de 'fBaseroter'.")
+                # Pode levantar um erro ou retornar para interromper o processo
                 return
 
             incoming_allowed_ctrcs_set = set(df_incoming_allowed['Serie_Numero_CTRC'].tolist())
@@ -1725,7 +1638,9 @@ def pagina_sincronizacao():
             df_final_for_upsert = _prepare_df_for_supabase_insert(df_incoming_allowed)
             records_to_upsert = df_final_for_upsert.to_dict(orient='records')
 
-            num_fbaseroter_processed = 0
+            num_fbaseroter_processed = 0 # Usaremos este para o histórico de sincronização
+
+
 
             if records_to_upsert:
                 st.info(f"Realizando UPSERT de {len(records_to_upsert)} entrega(s) em 'fBaseroter' (novas ou atualizadas)...")
@@ -1735,37 +1650,17 @@ def pagina_sincronizacao():
             else:
                 st.info("Nenhuma entrega para UPSERT em 'fBaseroter' após filtragem e verificação de dados.")
 
+
+
             # --- FIM NOVO BLOCO: Filtragem e Sincronização Completa para fBaseroter ---
 
             progress_bar.progress(30) # Ajuste a barra de progresso conforme necessário
 
-            # --- NOVO: Chamar a função para sincronizar o fluxo de trabalho ---
-            # Aqui, capturamos a lista de logs retornada pela função
-            detailed_sync_logs = sincronizar_fluxo_com_fbaseroter(supabase)
-            progress_bar.progress(60)
+            sincronizar_fluxo_com_fbaseroter(supabase)
+            progress_bar.progress(60) 
 
-            # --- NOVO: Salvar os logs detalhados na nova tabela sync_operation_log ---
-            if detailed_sync_logs:
-                st.info(f"Salvando {len(detailed_sync_logs)} registros de log de sincronização...")
-                # Atribui um ID único a esta operação de sincronização
-                sync_operation_uuid = str(uuid4())
-                for log_entry in detailed_sync_logs:
-                    log_entry['id'] = str(uuid4()) # ID único para cada entrada de log
-                    log_entry['sync_operation_id'] = sync_operation_uuid # ID da operação completa
-                    # Assumimos que 'sync_timestamp' já é adicionado dentro de sincronizar_fluxo_com_fbaseroter()
-                    # ou será adicionado no upsert do Supabase se o schema usar now() como default.
-                    # Se não for, adicione aqui: log_entry['sync_timestamp'] = datetime.now(FUSO_BRASIL).isoformat()
-                
-                # Inserção em lote dos logs detalhados
-                # Supabase upsert/insert espera uma lista de dicionários
-                # Se a coluna 'sync_timestamp' tiver default now() no Supabase, não precisa passar aqui.
-                supabase.table("sync_operation_log").insert(detailed_sync_logs).execute()
-                st.session_state.last_sync_operation_id = sync_operation_uuid # Armazena o ID da última sync
-                st.success(f"✅ {len(detailed_sync_logs)} eventos de sincronização registrados.")
-            else:
-                st.info("Nenhum evento de sincronização detalhado para registrar.")
-
-
+            # A função aplicar_regras_e_preencher_tabelas() agora consultará a tabela 'fBaseroter'
+            # já filtrada e atualizada.
             num_inseridos_pre_roterizacao, num_inseridos_confirmadas = aplicar_regras_e_preencher_tabelas()
 
             progress_bar.progress(95)
@@ -1774,12 +1669,11 @@ def pagina_sincronizacao():
             st.session_state["reload_confirmadas_producao"] = True
             st.session_state.pop("df_confirmadas_cache", None)
             st.session_state["reload_aprovacao_diretoria"] = True
-            st.session_state.pop("df_aprovacao_diretoria_cache", None) # Adicionei essa linha, se faltou
             st.session_state["reload_pre_roterizacao"] = True
             st.session_state.pop("df_pre_roterizacao_cache", None)
-            st.session_state.pop("dados_confirmados_cache", None) # Se essa variável for usada para cache
-            # st.session_state["reload_rotas_confirmadas"] = True # Não encontrei essa flag, se não usa pode remover
-            # st.session_state.pop("df_rotas_confirmadas_cache", None) # Não encontrei essa cache
+            st.session_state.pop("dados_confirmados_cache", None)
+            st.session_state["reload_rotas_confirmadas"] = True
+            st.session_state.pop("df_rotas_confirmadas_cache", None)
             st.session_state["reload_cargas_geradas"] = True
             st.session_state.pop("df_cargas_cache", None)
             st.session_state["reload_aprovacao_custos"] = True
@@ -1805,9 +1699,10 @@ def pagina_sincronizacao():
                 st.session_state._novas_confirmadas = num_inseridos_confirmadas
                 st.session_state._novas_pre_roterizacao = num_inseridos_pre_roterizacao
 
+                # ATUALIZE ESTA LINHA: Passe a nova variável para o histórico
                 salvar_historico_sincronizacao(
                     username=st.session_state.get("username", "Desconhecido"),
-                    num_new_fbaseroter=num_fbaseroter_processed,
+                    num_new_fbaseroter=num_fbaseroter_processed, # <--- AQUI!
                     num_confirmadas=qtd_confirmadas,
                     num_pre_roterizacao=qtd_pre_roterizacao,
                     num_paletizadas=total_paletizadas,
@@ -1828,7 +1723,8 @@ def pagina_sincronizacao():
             st.session_state.df_for_sync_cache = None
             st.session_state.file_uploader_key += 1
 
-            time.sleep(2)
+            # Adicione um time.sleep() aqui antes do rerun para que o usuário veja a mensagem final:
+            time.sleep(2) # Pausa por 2 segundos
             st.rerun()
 
         except Exception as e:
@@ -1844,92 +1740,6 @@ def pagina_sincronizacao():
             time.sleep(3)
             st.rerun()
 
-    # --- NOVO: Exibição do Log de Sincronização Recente ---
-    st.markdown("### Logs da Última Sincronização Detalhada")
-
-    if st.session_state.last_sync_operation_id:
-        try:
-            with st.spinner("Carregando logs da última sincronização..."):
-                response_logs = supabase.table("sync_operation_log")\
-                                    .select("sync_timestamp, change_type, table_name, ctrc, details_json")\
-                                    .eq("sync_operation_id", st.session_state.last_sync_operation_id)\
-                                    .order("sync_timestamp", desc=True)\
-                                    .execute()
-                df_logs = pd.DataFrame(response_logs.data)
-
-            if not df_logs.empty:
-                # Formatar timestamp para exibição
-                # Assegura que a coluna 'sync_timestamp' seja do tipo datetime antes de formatar
-                df_logs['sync_timestamp'] = pd.to_datetime(df_logs['sync_timestamp'])
-                df_logs['sync_timestamp'] = df_logs['sync_timestamp'].apply(formatar_data_hora_br)
-
-                log_data_for_grid = []
-                for idx, row in df_logs.iterrows():
-                    entry = {
-                        'Horário': row['sync_timestamp'],
-                        'Tipo de Mudança': row['change_type'],
-                        'Tabela': row['table_name'],
-                        'CTRC': row['ctrc']
-                    }
-                    details = row['details_json']
-
-                    if row['change_type'] == 'updated':
-                        changed_fields = details.get('changed_fields', {})
-                        for field, vals in changed_fields.items():
-                            log_data_for_grid.append({
-                                **entry,
-                                'Campo Alterado': field,
-                                'Valor Antigo': vals.get('old'),
-                                'Valor Novo': vals.get('new'),
-                                'Motivo/Detalhes': 'Atualização de campo'
-                            })
-                    elif row['change_type'] == 'deleted':
-                        log_data_for_grid.append({
-                            **entry,
-                            'Campo Alterado': 'N/A',
-                            'Valor Antigo': 'N/A',
-                            'Valor Novo': 'N/A',
-                            'Motivo/Detalhes': details.get('reason', 'Registro deletado')
-                        })
-                
-                if log_data_for_grid:
-                    df_display_logs = pd.DataFrame(log_data_for_grid)
-                    
-                    gb = GridOptionsBuilder.from_dataframe(df_display_logs)
-                    gb.configure_default_column(resizable=True, sortable=True, filter=True, minWidth=100)
-                    gb.configure_column("Horário", minWidth=160)
-                    gb.configure_column("Tipo de Mudança", minWidth=120)
-                    gb.configure_column("Tabela", minWidth=120)
-                    gb.configure_column("CTRC", minWidth=180)
-                    gb.configure_column("Campo Alterado", minWidth=150)
-                    gb.configure_column("Valor Antigo", minWidth=200)
-                    gb.configure_column("Valor Novo", minWidth=200)
-                    gb.configure_column("Motivo/Detalhes", minWidth=250)
-                    gb.configure_grid_options(domLayout='normal')
-                    gb.configure_grid_options(onGridReady=GRID_RESIZE_JS_CODE)
-                    grid_options = gb.build()
-
-                    AgGrid(
-                        df_display_logs,
-                        gridOptions=grid_options,
-                        update_mode=GridUpdateMode.MODEL_CHANGED,
-                        fit_columns_on_grid_load=True,
-                        height=400,
-                        use_container_width=True,
-                        allow_unsafe_jscode=True,
-                        key="sync_log_grid",
-                        theme=AgGridTheme.MATERIAL
-                    )
-                else:
-                    st.info("Nenhum log detalhado encontrado para a última sincronização.")
-            else:
-                st.info("Nenhum log detalhado encontrado para a última sincronização.")
-
-        except Exception as e:
-            st.error(f"Erro ao carregar os logs da última sincronização: {e}")
-            st.exception(e)
-    else:
-        st.info("Nenhuma sincronização foi realizada ainda nesta sessão ou o histórico foi limpo.")
 
 
 #___________________________________________________________________________________
