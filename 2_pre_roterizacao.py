@@ -1744,14 +1744,14 @@ def pagina_sincronizacao():
                 # Atribui um ID único a esta operação de sincronização
                 sync_operation_uuid = str(uuid4())
                 for log_entry in detailed_sync_logs:
-                    log_entry['id'] = str(uuid4()) # ID único para cada entrada de log
-                    log_entry['sync_operation_id'] = sync_operation_uuid # ID da operação completa
+                   
                     # Assumimos que 'sync_timestamp' já é adicionado dentro de sincronizar_fluxo_com_fbaseroter()
                     # ou será adicionado no upsert do Supabase se o schema usar now() como default.
                     # Se não for, adicione aqui: log_entry['sync_timestamp'] = datetime.now(FUSO_BRASIL).isoformat()
                 # DEBUG: Inspeciona os logs antes de tentar inserir
-                st.write(f"DEBUG: Tentando inserir logs em 'sync_operation_log'. Primeiro registro: {detailed_sync_logs[0] if detailed_sync_logs else 'N/A'}")
-                st.write(f"DEBUG: O primeiro registro contém 'sync_operation_id'? {'sync_operation_id' in detailed_sync_logs[0] if detailed_sync_logs else 'N/A'}")
+                    st.write(f"DEBUG: Tentando inserir logs em 'sync_operation_log'. Primeiro registro: {detailed_sync_logs[0] if detailed_sync_logs else 'N/A'}")
+                    st.write(f"DEBUG: O primeiro registro contém 'sync_operation_id'? {'sync_operation_id' in detailed_sync_logs[0] if detailed_sync_logs else 'N/A'}")
+                    st.write(f"DEBUG: detailed_sync_logs antes do insert: {detailed_sync_logs}") # Veja o JSON completo
                 # Inserção em lote dos logs detalhados
                 # Supabase upsert/insert espera uma lista de dicionários
                 # Se a coluna 'sync_timestamp' tiver default now() no Supabase, não precisa passar aqui.
