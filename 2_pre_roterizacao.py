@@ -166,7 +166,6 @@ SYNCABLE_COLUMNS = [
     "Entrega Programada",
     "Particularidade",
     "Codigo da Ultima Ocorrencia",
-    "Data da Ultima Ocorrencia",
     "Peso Real em Kg",
     "Peso Calculado em Kg",
     "Cubagem em m³",
