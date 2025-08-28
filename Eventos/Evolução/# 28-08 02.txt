@@ -1,4 +1,4 @@
-# 06-08 em produção após ajuste de cores logo
+# 28-08 02
 
 
 
@@ -233,11 +233,6 @@ def sincronizar_fluxo_com_fbaseroter(supabase_client):
             try:
                 response_flow_table = supabase_client.table(table_name).select("*").execute()
                 df_flow_table = pd.DataFrame(response_flow_table.data)
-
-                # DEBUG: Inspeciona as colunas retornadas para cada tabela de fluxo
-                st.write(f"DEBUG: Colunas em df_flow_table para {table_name}: {df_flow_table.columns.tolist()}")
-                st.write(f"DEBUG: 'Serie_Numero_CTRC' está nas colunas? {'Serie_Numero_CTRC' in df_flow_table.columns}")
-
 
                 # Garante que 'Serie_Numero_CTRC' seja string e não tenha nulos para ser a chave principal
                 if 'Serie_Numero_CTRC' not in df_flow_table.columns:
@@ -1436,7 +1431,17 @@ if 'file_uploader_key' not in st.session_state:
 if "_sync_success_message_displayed" not in st.session_state:
     st.session_state._sync_success_message_displayed = False
 
-
+# ATENÇÃO: Alterações AQUI para inicializar com 0 em vez de None
+if "_qtd_confirmadas" not in st.session_state:
+    st.session_state._qtd_confirmadas = 0
+if "_qtd_pre_roterizacao" not in st.session_state: # <-- Esta linha
+    st.session_state._qtd_pre_roterizacao = 0       # <-- E esta linha
+if "_qtd_paletizadas" not in st.session_state:
+    st.session_state._qtd_paletizadas = 0 # <-- Corrigido para 0
+if "_novas_confirmadas" not in st.session_state:
+    st.session_state._novas_confirmadas = 0 # <-- Corrigido para 0
+if "_novas_pre_roterizacao" not in st.session_state:
+    st.session_state._novas_pre_roterizacao = 0 # <-- Corrigido para 0
     
 
 
@@ -1749,9 +1754,7 @@ def pagina_sincronizacao():
                     # Assumimos que 'sync_timestamp' já é adicionado dentro de sincronizar_fluxo_com_fbaseroter()
                     # ou será adicionado no upsert do Supabase se o schema usar now() como default.
                     # Se não for, adicione aqui: log_entry['sync_timestamp'] = datetime.now(FUSO_BRASIL).isoformat()
-                # DEBUG: Inspeciona os logs antes de tentar inserir
-                st.write(f"DEBUG: Tentando inserir logs em 'sync_operation_log'. Primeiro registro: {detailed_sync_logs[0] if detailed_sync_logs else 'N/A'}")
-                st.write(f"DEBUG: O primeiro registro contém 'sync_operation_id'? {'sync_operation_id' in detailed_sync_logs[0] if detailed_sync_logs else 'N/A'}")
+                
                 # Inserção em lote dos logs detalhados
                 # Supabase upsert/insert espera uma lista de dicionários
                 # Se a coluna 'sync_timestamp' tiver default now() no Supabase, não precisa passar aqui.
