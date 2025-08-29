@@ -2037,9 +2037,30 @@ def aplicar_regras_e_preencher_tabelas():
         if part:
             df_part = pd.DataFrame(part)
             df_part.columns = df_part.columns.str.strip()
-            df_processar = df_processar.merge(df_part[['CNPJ', 'Particularidade']], how='left',
-                          left_on='CNPJ Destinatario', right_on='CNPJ')
-            df_processar.drop(columns=['CNPJ'], inplace=True)
+
+            # >>> CORREÇÃO AQUI: Limpa o CNPJ da tabela de Particularidades ANTES do merge <<<
+            if 'CNPJ' in df_part.columns:
+                df_part['CNPJ_LIMPO_PARA_MERGE'] = df_part['CNPJ'].astype(str).apply(_limpa_cnpj)
+            else:
+                df_part['CNPJ_LIMPO_PARA_MERGE'] = '' # Garante que a coluna exista mesmo que vazia
+            # >>> FIM DA CORREÇÃO <<<
+
+            df_processar = df_processar.merge(
+                df_part[['CNPJ_LIMPO_PARA_MERGE', 'Particularidade']], # Use a coluna limpa de df_part
+                how='left',
+                left_on='CNPJ Destinatario', # Assume que CNPJ Destinatario já está limpo vindo de fBaseroter
+                right_on='CNPJ_LIMPO_PARA_MERGE', # Use a coluna limpa para o merge
+                suffixes=('', '_from_particularidades') # Adiciona um sufixo para evitar conflitos de nomes
+            )
+            
+            # Se a particularidade foi mesclada, use-a. Caso contrário, mantenha o valor existente ou None.
+            if 'Particularidade_from_particularidades' in df_processar.columns:
+                df_processar['Particularidade'] = df_processar['Particularidade_from_particularidades'].fillna(
+                    df_processar.get('Particularidade', pd.NA) # Preserve Particularidade original se merge for NaN
+                )
+            # Limpa a coluna temporária criada para o merge
+            df_processar.drop(columns=['Particularidade_from_particularidades'], errors='ignore', inplace=True)
+            
         else:
             df_processar['Particularidade'] = None
         #________________________________________________________________________________________________________________________
@@ -2174,8 +2195,20 @@ def aplicar_regras_e_preencher_tabelas():
             confirmadas[[col for col in colunas_finais if col in confirmadas.columns]]
         )
 
+        st.write("DEBUG 7: CNPJ Destinatario em 'obrigatorias_prepared' (antes de inserir em pre_roterizacao)")
+        st.write(obrigatorias_prepared['CNPJ Destinatario'].head(5))
+        st.write(f"DEBUG 7.1: CNPJs vazios em obrigatorias_prepared: {obrigatorias_prepared['CNPJ Destinatario'].isnull().sum()}")
+
+        st.write("DEBUG 8: CNPJ Destinatario em 'confirmadas_prepared' (antes de inserir em confirmadas_producao)")
+        st.write(confirmadas_prepared['CNPJ Destinatario'].head(5))
+        st.write(f"DEBUG 8.1: CNPJs vazios em confirmadas_prepared: {confirmadas_prepared['CNPJ Destinatario'].isnull().sum()}")
+
+
         inserir_em_lote("pre_roterizacao", obrigatorias_prepared) 
         inserir_em_lote("confirmadas_producao", confirmadas_prepared) 
+
+
+        
 
         # A mensagem e o retorno agora refletem apenas as NOVAS entregas inseridas no fluxo
         st.success(f"Inseridos {len(obrigatorias)} NOVAS entregas em Pré Roterização e {len(confirmadas)} NOVAS em Confirmar Produção.")
