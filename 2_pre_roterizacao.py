@@ -1,4 +1,4 @@
-#28-08 01
+#28-08 004
 
 # 06-08 em produção após ajuste de cores logo
 
@@ -941,8 +941,7 @@ def load_and_prepare_data(uploaded_file):
 
             # ✅ GARANTE QUE CNPJ DESTINATARIO ESTEJA LIMPO E PREENCHIDO COMO STRING
         if "CNPJ Destinatario" in df.columns:
-            # APLICANDO _limpa_cnpj DIRETAMENTE NO PONTO DE ENTRADA DO SISTEMA
-            df["CNPJ Destinatario"] = df["CNPJ Destinatario"].astype(str).apply(_limpa_cnpj)
+            df["CNPJ Destinatario"] = df["CNPJ Destinatario"].astype(str).str.strip()
 
         data_to_insert = df.to_dict(orient='records')
 
@@ -1055,39 +1054,25 @@ def carregar_base_supabase():
         if part:
             df_part = pd.DataFrame(part)
             df_part.columns = df_part.columns.str.strip()
-
-            # Limpa apenas o CNPJ da tabela de particularidades para o merge
+            # Certifique-se que CNPJ Destinatario está como string antes do merge
+            if 'CNPJ Destinatario' in base.columns:
+                base['CNPJ Destinatario'] = base['CNPJ Destinatario'].astype(str).str.strip()
             if 'CNPJ' in df_part.columns:
-                df_part['CNPJ_LIMPO'] = df_part['CNPJ'].astype(str).apply(_limpa_cnpj)
+                df_part['CNPJ'] = df_part['CNPJ'].astype(str).str.strip()
+
+            base_merged_part = pd.merge(base, df_part[['CNPJ', 'Particularidade']], how='left',
+            left_on='CNPJ Destinatario', right_on='CNPJ', suffixes=('', '_part_merge'))
+            if 'Particularidade_part_merge' in base_merged_part.columns:
+                # Prioriza a particularidade do merge, mas mantém a original se a do merge for nula
+                base['Particularidade'] = base_merged_part['Particularidade_part_merge'].fillna(base.get('Particularidade', pd.NA))
             else:
-                df_part['CNPJ_LIMPO'] = '' # Garante que a coluna exista mesmo que vazia
+                base['Particularidade'] = base.get('Particularidade', pd.NA) # Garante que a coluna exista
+            base.drop(columns=['CNPJ_part_merge'], errors='ignore', inplace=True) # Renomeado para evitar conflito
 
-            base['CNPJ_DEST_LIMPO'] = base['CNPJ Destinatario'].astype(str).apply(_limpa_cnpj)
-            base_merged_part = pd.merge(
-                base,
-                df_part[['CNPJ_LIMPO', 'Particularidade']],
-                how='left',
-                left_on='CNPJ_DEST_LIMPO',   # << agora usa a chave limpa
-                right_on='CNPJ_LIMPO',
-                suffixes=('', '_part_merge_temp')
-            )
-
-            if 'Particularidade_part_merge_temp' in base_merged_part.columns:
-                tmp_part = base_merged_part['Particularidade_part_merge_temp'] \
-                    .replace(r'^\s*$', pd.NA, regex=True)  # trata "" e "   " como ausente
-                base['Particularidade'] = tmp_part.combine_first(base.get('Particularidade', pd.NA))
-            else:
-                base['Particularidade'] = base.get('Particularidade', pd.NA)
-
-
-            # REMOVA A LINHA ABAIXO (ela se refere a uma coluna que não é mais gerada por essa lógica de merge)
-            # base.drop(columns=['CNPJ_part_merge'], errors='ignore', inplace=True)
         else:
             if 'Particularidade' not in base.columns:
-                base['Particularidade'] = None
-
-
-
+                base['Particularidade'] = None # Garante que a coluna exista mesmo sem merge
+        #: [carregar_base_supabase] Linhas após merge Particularidades: {len(base)}")
 
 
         # --- DEBUG 3: Após o merge com "Clientes_Entrega_Agendada" (AJUSTADO) ---
@@ -2040,46 +2025,9 @@ def aplicar_regras_e_preencher_tabelas():
         if part:
             df_part = pd.DataFrame(part)
             df_part.columns = df_part.columns.str.strip()
-
-            st.write("--- DEBUG Particularidade Merge ---")
-            st.write("Estado de df_processar['CNPJ Destinatario'] antes do merge:")
-            st.write(df_processar[['Serie_Numero_CTRC', 'CNPJ Destinatario']].head())
-            st.write(f"Count of non-empty CNPJ Destinatario in df_processar: {df_processar['CNPJ Destinatario'].astype(str).str.len().gt(0).sum()}")
-
-            # Certifique-se que 'CNPJ' existe em df_part e limpe-o
-            if 'CNPJ' in df_part.columns:
-                df_part['CNPJ_LIMPO_PARA_MERGE'] = df_part['CNPJ'].astype(str).apply(_limpa_cnpj)
-            else:
-                df_part['CNPJ_LIMPO_PARA_MERGE'] = '' # Garante que a coluna exista
-
-            st.write("Estado de df_part[['CNPJ', 'Particularidade', 'CNPJ_LIMPO_PARA_MERGE']] antes do merge:")
-            st.write(df_part[['CNPJ', 'Particularidade', 'CNPJ_LIMPO_PARA_MERGE']].head())
-            st.write(f"Count of non-empty CNPJ_LIMPO_PARA_MERGE in df_part: {df_part['CNPJ_LIMPO_PARA_MERGE'].astype(str).str.len().gt(0).sum()}")
-            st.write(f"Count of non-empty Particularidade in df_part: {df_part['Particularidade'].astype(str).str.len().gt(0).sum()}")
-
-            # Realiza o merge
-            df_processar = df_processar.merge(
-                df_part[['CNPJ_LIMPO_PARA_MERGE', 'Particularidade']],
-                how='left',
-                left_on='CNPJ Destinatario',
-                right_on='CNPJ_LIMPO_PARA_MERGE',
-                suffixes=('', '_from_particularities_temp')
-            )
-            
-            # Atribui a Particularidade mesclada
-            tmp_part = df_processar['Particularidade_from_particularities_temp'] \
-                .replace(r'^\s*$', pd.NA, regex=True)
-            df_processar['Particularidade'] = tmp_part.combine_first(df_processar.get('Particularidade', pd.NA))
-
-            
-            # Limpa colunas temporárias
-            df_processar.drop(columns=['Particularidade_from_particularities_temp'], errors='ignore', inplace=True)
-            
-            st.write("Estado de df_processar[['Serie_Numero_CTRC', 'CNPJ Destinatario', 'Particularidade']] APÓS o merge:")
-            st.write(df_processar[['Serie_Numero_CTRC', 'CNPJ Destinatario', 'Particularidade']].head())
-            st.write(f"Count of non-empty Particularidade in df_processar AFTER merge: {df_processar['Particularidade'].astype(str).str.len().gt(0).sum()}")
-            st.write("--- FIM DEBUG Particularidade Merge ---")
-                
+            df_processar = df_processar.merge(df_part[['CNPJ', 'Particularidade']], how='left',
+                          left_on='CNPJ Destinatario', right_on='CNPJ')
+            df_processar.drop(columns=['CNPJ'], inplace=True)
         else:
             df_processar['Particularidade'] = None
         #________________________________________________________________________________________________________________________
@@ -2197,7 +2145,7 @@ def aplicar_regras_e_preencher_tabelas():
 
         colunas_finais = [
             'Serie_Numero_CTRC', 'Data de Emissao','Cliente Pagador', 'Chave CT-e', 'Cliente Destinatario',
-            'Cidade de Entrega', 'Bairro do Destinatario', 'Previsao de Entrega', 'CNPJ Destinatario',
+            'Cidade de Entrega', 'Bairro do Destinatario', 'Previsao de Entrega','CNPJ Destinatario',
             'Numero da Nota Fiscal', 'Status', 'Entrega Programada', 'Particularidade',
             'Codigo da Ultima Ocorrencia', 'Peso Real em Kg', 'Peso Calculado em Kg',
             'Cubagem em m³', 'Quantidade de Volumes', 'Valor do Frete', 'Rota','Regiao',
@@ -2214,20 +2162,8 @@ def aplicar_regras_e_preencher_tabelas():
             confirmadas[[col for col in colunas_finais if col in confirmadas.columns]]
         )
 
-        st.write("DEBUG 7: CNPJ Destinatario em 'obrigatorias_prepared' (antes de inserir em pre_roterizacao)")
-        st.write(obrigatorias_prepared['CNPJ Destinatario'].head(5))
-        st.write(f"DEBUG 7.1: CNPJs vazios em obrigatorias_prepared: {obrigatorias_prepared['CNPJ Destinatario'].isnull().sum()}")
-
-        st.write("DEBUG 8: CNPJ Destinatario em 'confirmadas_prepared' (antes de inserir em confirmadas_producao)")
-        st.write(confirmadas_prepared['CNPJ Destinatario'].head(5))
-        st.write(f"DEBUG 8.1: CNPJs vazios em confirmadas_prepared: {confirmadas_prepared['CNPJ Destinatario'].isnull().sum()}")
-
-
         inserir_em_lote("pre_roterizacao", obrigatorias_prepared) 
         inserir_em_lote("confirmadas_producao", confirmadas_prepared) 
-
-
-        
 
         # A mensagem e o retorno agora refletem apenas as NOVAS entregas inseridas no fluxo
         st.success(f"Inseridos {len(obrigatorias)} NOVAS entregas em Pré Roterização e {len(confirmadas)} NOVAS em Confirmar Produção.")
@@ -2703,7 +2639,7 @@ def pagina_confirmar_producao():
         "Serie_Numero_CTRC",  "Cliente Pagador", "Cliente Destinatario", "Cidade de Entrega",
         "Bairro do Destinatario", "Previsao de Entrega", "Numero da Nota Fiscal",  "Status",
         "Entrega Programada", "Peso Real em Kg", "Peso Calculado em Kg", "Valor do Frete",
-        "Rota", "Regiao", "Data de Emissao", "Chave CT-e","CNPJ Destinatario",
+        "Rota", "Regiao", "Data de Emissao", "Chave CT-e",
         "Particularidade", "Codigo da Ultima Ocorrencia", "Cubagem em m³", "Quantidade de Volumes",
         "Tipo_Tratativa_Especial" 
     ]
@@ -3563,7 +3499,7 @@ def pagina_pre_roterizacao():
             "Serie_Numero_CTRC",  "Cliente Pagador", "Cliente Destinatario", "Cidade de Entrega",
             "Previsao de Entrega","Entrega Programada","Peso Real em Kg", "Status","Bairro do Destinatario", 
             "Numero da Nota Fiscal", "Peso Calculado em Kg", "Valor do Frete",
-            "Rota", "Regiao", "Data de Emissao", "Chave CT-e","CNPJ Destinatario",
+            "Rota", "Regiao", "Data de Emissao", "Chave CT-e",
             "Particularidade", "Codigo da Ultima Ocorrencia", "Cubagem em m³", "Quantidade de Volumes",
             "Tipo_Tratativa_Especial" # Nova coluna para exibição
         ]
@@ -4070,7 +4006,7 @@ def pagina_cargas_geradas():
         "Serie_Numero_CTRC",  "Cliente Pagador", "Cliente Destinatario", "Cidade de Entrega",
         "Bairro do Destinatario", "Previsao de Entrega", "Numero da Nota Fiscal",  "Status",
         "Entrega Programada", "Peso Real em Kg", "Peso Calculado em Kg", "Valor do Frete",
-        "Rota", "Regiao", "Data de Emissao", "Chave CT-e", "Data_Hora_Gerada" , "CNPJ Destinatario",
+        "Rota", "Regiao", "Data de Emissao", "Chave CT-e", "Data_Hora_Gerada" , 
         "Particularidade", "Codigo da Ultima Ocorrencia", "Cubagem em m³", "Quantidade de Volumes", "status_retorno"
 ]
 
@@ -4840,7 +4776,7 @@ def pagina_aprovacao_custos():
         "Serie_Numero_CTRC",  "Cliente Pagador", "Cliente Destinatario", "Cidade de Entrega",
         "Bairro do Destinatario", "Previsao de Entrega", "Numero da Nota Fiscal",  "Status",
         "Entrega Programada", "Peso Real em Kg", "Peso Calculado em Kg", "Valor do Frete",
-        "Rota", "Regiao", "Data de Emissao", "Chave CT-e", "Data_Hora_Gerada","CNPJ Destinatario",
+        "Rota", "Regiao", "Data de Emissao", "Chave CT-e", "Data_Hora_Gerada",
         "Particularidade", "Codigo da Ultima Ocorrencia", "Cubagem em m³", "Quantidade de Volumes",
 ]
 
@@ -5450,7 +5386,7 @@ def pagina_cargas_aprovadas():
         "Serie_Numero_CTRC",  "Cliente Pagador", "Cliente Destinatario", "Cidade de Entrega",
         "Bairro do Destinatario", "Previsao de Entrega", "Numero da Nota Fiscal",  "Status",
         "Entrega Programada", "Peso Real em Kg", "Peso Calculado em Kg", "Valor do Frete",
-        "Rota", "Regiao", "Data de Emissao", "Chave CT-e","CNPJ Destinatario",
+        "Rota", "Regiao", "Data de Emissao", "Chave CT-e",
         "Particularidade", "Codigo da Ultima Ocorrencia", "Cubagem em m³", "Quantidade de Volumes",
         "valor_contratacao", "numero_carga", "motorista", "placa",
         "veiculo", "aprovador_custos_login", "data_aprovacao_custos", "Data_Hora_Gerada"
@@ -6238,7 +6174,7 @@ def pagina_cargas_fechadas():
         "Serie_Numero_CTRC", "Cliente Pagador", "Cliente Destinatario", "Cidade de Entrega",
         "Bairro do Destinatario", "Previsao de Entrega", "Numero da Nota Fiscal", "Status",
         "Entrega Programada", "Peso Real em Kg", "Peso Calculado em Kg", "Valor do Frete",
-        "Rota", "Regiao", "Data de Emissao", "Chave CT-e","CNPJ Destinatario",
+        "Rota", "Regiao", "Data de Emissao", "Chave CT-e",
         "Particularidade", "Codigo da Ultima Ocorrencia", "Cubagem em m³", "Quantidade de Volumes",
         "valor_contratacao", "numero_carga", "motorista", "placa", "veiculo",
         "data_fechamento", "situacao", "aprovador_custos_login", "data_aprovacao_custos",
