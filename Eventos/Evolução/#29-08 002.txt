@@ -1,4 +1,4 @@
-#28-08 004
+#29-08 002
 
 # 06-08 em produção após ajuste de cores logo
 
@@ -2178,9 +2178,14 @@ def aplicar_regras_e_preencher_tabelas():
 
 #------------------------------------------------------------------------------------------------------
 # Lista de colunas que devem ser salvas como tipo DATE (AAAA-MM-DD) no Supabase.
-
+GLOBAL_DB_DATE_COLS = ["Previsao de Entrega", "Entrega Programada", "Data de Emissao"]
 
 # Lista de colunas que devem ser salvas como tipo TIMESTAMP WITH TIME ZONE (ISO 8601) no Supabase.
+GLOBAL_DB_TIMESTAMP_COLS = [
+    "Data de Autorizacao", "Data de inclusao da Ultima Ocorrencia",
+    "Data da Ultima Ocorrencia", "Data da Entrega Realizada", "Data do Cancelamento",
+    "Data do Escaneamento", "Data_Hora_Gerada", "data_fechamento", "data_aprovacao_custos"
+]
 ###----------------------------------------------------------------------------------------------------
 # Nova função para aplicar formato de data APENAS (sem hora)
 def apply_brazilian_date_only_format_for_display(df_to_format, date_cols):
