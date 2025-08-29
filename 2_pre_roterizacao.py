@@ -2039,29 +2039,45 @@ def aplicar_regras_e_preencher_tabelas():
             df_part = pd.DataFrame(part)
             df_part.columns = df_part.columns.str.strip()
 
-            # >>> CORREÇÃO AQUI: Limpa o CNPJ da tabela de Particularidades ANTES do merge <<<
+            st.write("--- DEBUG Particularidade Merge ---")
+            st.write("Estado de df_processar['CNPJ Destinatario'] antes do merge:")
+            st.write(df_processar[['Serie_Numero_CTRC', 'CNPJ Destinatario']].head())
+            st.write(f"Count of non-empty CNPJ Destinatario in df_processar: {df_processar['CNPJ Destinatario'].astype(str).str.len().gt(0).sum()}")
+
+            # Certifique-se que 'CNPJ' existe em df_part e limpe-o
             if 'CNPJ' in df_part.columns:
                 df_part['CNPJ_LIMPO_PARA_MERGE'] = df_part['CNPJ'].astype(str).apply(_limpa_cnpj)
             else:
-                df_part['CNPJ_LIMPO_PARA_MERGE'] = '' # Garante que a coluna exista mesmo que vazia
-            # >>> FIM DA CORREÇÃO <<<
+                df_part['CNPJ_LIMPO_PARA_MERGE'] = '' # Garante que a coluna exista
 
+            st.write("Estado de df_part[['CNPJ', 'Particularidade', 'CNPJ_LIMPO_PARA_MERGE']] antes do merge:")
+            st.write(df_part[['CNPJ', 'Particularidade', 'CNPJ_LIMPO_PARA_MERGE']].head())
+            st.write(f"Count of non-empty CNPJ_LIMPO_PARA_MERGE in df_part: {df_part['CNPJ_LIMPO_PARA_MERGE'].astype(str).str.len().gt(0).sum()}")
+            st.write(f"Count of non-empty Particularidade in df_part: {df_part['Particularidade'].astype(str).str.len().gt(0).sum()}")
+
+            # Realiza o merge
             df_processar = df_processar.merge(
-                df_part[['CNPJ_LIMPO_PARA_MERGE', 'Particularidade']], # Use a coluna limpa de df_part
+                df_part[['CNPJ_LIMPO_PARA_MERGE', 'Particularidade']],
                 how='left',
-                left_on='CNPJ Destinatario', # Assume que CNPJ Destinatario já está limpo vindo de fBaseroter
-                right_on='CNPJ_LIMPO_PARA_MERGE', # Use a coluna limpa para o merge
-                suffixes=('', '_from_particularities_temp') # Sufixo temporário para evitar conflitos de nomes
+                left_on='CNPJ Destinatario',
+                right_on='CNPJ_LIMPO_PARA_MERGE',
+                suffixes=('', '_from_particularities_temp')
             )
             
-            # Se a particularidade foi mesclada, use-a. Caso contrário, mantenha o valor existente ou None.
+            # Atribui a Particularidade mesclada
             if 'Particularidade_from_particularities_temp' in df_processar.columns:
                 df_processar['Particularidade'] = df_processar['Particularidade_from_particularities_temp'].fillna(
-                    df_processar.get('Particularidade', pd.NA) # Preserve Particularidade original se merge for NaN
+                    df_processar.get('Particularidade', pd.NA)
                 )
-            # Limpa a coluna temporária criada para o merge
+            
+            # Limpa colunas temporárias
             df_processar.drop(columns=['Particularidade_from_particularities_temp'], errors='ignore', inplace=True)
             
+            st.write("Estado de df_processar[['Serie_Numero_CTRC', 'CNPJ Destinatario', 'Particularidade']] APÓS o merge:")
+            st.write(df_processar[['Serie_Numero_CTRC', 'CNPJ Destinatario', 'Particularidade']].head())
+            st.write(f"Count of non-empty Particularidade in df_processar AFTER merge: {df_processar['Particularidade'].astype(str).str.len().gt(0).sum()}")
+            st.write("--- FIM DEBUG Particularidade Merge ---")
+                
         else:
             df_processar['Particularidade'] = None
         #________________________________________________________________________________________________________________________
