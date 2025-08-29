@@ -2157,7 +2157,7 @@ def aplicar_regras_e_preencher_tabelas():
 
         colunas_finais = [
             'Serie_Numero_CTRC', 'Data de Emissao','Cliente Pagador', 'Chave CT-e', 'Cliente Destinatario',
-            'Cidade de Entrega', 'Bairro do Destinatario', 'Previsao de Entrega',
+            'Cidade de Entrega', 'Bairro do Destinatario', 'Previsao de Entrega', 'CNPJ Destinatario',
             'Numero da Nota Fiscal', 'Status', 'Entrega Programada', 'Particularidade',
             'Codigo da Ultima Ocorrencia', 'Peso Real em Kg', 'Peso Calculado em Kg',
             'Cubagem em m³', 'Quantidade de Volumes', 'Valor do Frete', 'Rota','Regiao',
