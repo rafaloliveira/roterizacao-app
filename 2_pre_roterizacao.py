@@ -1062,21 +1062,23 @@ def carregar_base_supabase():
             else:
                 df_part['CNPJ_LIMPO'] = '' # Garante que a coluna exista mesmo que vazia
 
+            base['CNPJ_DEST_LIMPO'] = base['CNPJ Destinatario'].astype(str).apply(_limpa_cnpj)
             base_merged_part = pd.merge(
                 base,
-                df_part[['CNPJ_LIMPO', 'Particularidade']], # Seleciona a coluna CNPJ limpa e a Particularidade de df_part
+                df_part[['CNPJ_LIMPO', 'Particularidade']],
                 how='left',
-                left_on='CNPJ Destinatario', # Usa o CNPJ original de base (agora limpo pela fonte)
-                right_on='CNPJ_LIMPO',       # Usa a coluna limpa de df_part
-                suffixes=('', '_part_merge_temp') # Sufixo temporário
+                left_on='CNPJ_DEST_LIMPO',   # << agora usa a chave limpa
+                right_on='CNPJ_LIMPO',
+                suffixes=('', '_part_merge_temp')
             )
 
             if 'Particularidade_part_merge_temp' in base_merged_part.columns:
-                base['Particularidade'] = base_merged_part['Particularidade_part_merge_temp'].fillna(
-                    base.get('Particularidade', pd.NA)
-                )
+                tmp_part = base_merged_part['Particularidade_part_merge_temp'] \
+                    .replace(r'^\s*$', pd.NA, regex=True)  # trata "" e "   " como ausente
+                base['Particularidade'] = tmp_part.combine_first(base.get('Particularidade', pd.NA))
             else:
                 base['Particularidade'] = base.get('Particularidade', pd.NA)
+
 
             # REMOVA A LINHA ABAIXO (ela se refere a uma coluna que não é mais gerada por essa lógica de merge)
             # base.drop(columns=['CNPJ_part_merge'], errors='ignore', inplace=True)
@@ -2065,10 +2067,10 @@ def aplicar_regras_e_preencher_tabelas():
             )
             
             # Atribui a Particularidade mesclada
-            if 'Particularidade_from_particularities_temp' in df_processar.columns:
-                df_processar['Particularidade'] = df_processar['Particularidade_from_particularities_temp'].fillna(
-                    df_processar.get('Particularidade', pd.NA)
-                )
+            tmp_part = df_processar['Particularidade_from_particularities_temp'] \
+                .replace(r'^\s*$', pd.NA, regex=True)
+            df_processar['Particularidade'] = tmp_part.combine_first(df_processar.get('Particularidade', pd.NA))
+
             
             # Limpa colunas temporárias
             df_processar.drop(columns=['Particularidade_from_particularities_temp'], errors='ignore', inplace=True)
