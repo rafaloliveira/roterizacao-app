@@ -1053,25 +1053,62 @@ def carregar_base_supabase():
         if part:
             df_part = pd.DataFrame(part)
             df_part.columns = df_part.columns.str.strip()
-            # Certifique-se que CNPJ Destinatario está como string antes do merge
-            if 'CNPJ Destinatario' in base.columns:
-                base['CNPJ Destinatario'] = base['CNPJ Destinatario'].astype(str).str.strip()
-            if 'CNPJ' in df_part.columns:
-                df_part['CNPJ'] = df_part['CNPJ'].astype(str).str.strip()
 
-            base_merged_part = pd.merge(base, df_part[['CNPJ', 'Particularidade']], how='left',
-            left_on='CNPJ Destinatario', right_on='CNPJ', suffixes=('', '_part_merge'))
-            if 'Particularidade_part_merge' in base_merged_part.columns:
-                # Prioriza a particularidade do merge, mas mantém a original se a do merge for nula
-                base['Particularidade'] = base_merged_part['Particularidade_part_merge'].fillna(base.get('Particularidade', pd.NA))
+
+
+            # >>> INÍCIO DO AJUSTE: PADRONIZAÇÃO DOS CNPJs ANTES DO MERGE <<<
+            # 1. Garante que as colunas CNPJ existam e limpa seus valores
+            if 'CNPJ Destinatario' in base.columns:
+                base['CNPJ_Destinatario_LIMPO'] = base['CNPJ Destinatario'].astype(str).apply(_limpa_cnpj)
             else:
-                base['Particularidade'] = base.get('Particularidade', pd.NA) # Garante que a coluna exista
-            base.drop(columns=['CNPJ_part_merge'], errors='ignore', inplace=True) # Renomeado para evitar conflito
+                base['CNPJ_Destinatario_LIMPO'] = '' # Cria coluna vazia se a original não existir
+
+            if 'CNPJ' in df_part.columns:
+                df_part['CNPJ_LIMPO'] = df_part['CNPJ'].astype(str).apply(_limpa_cnpj)
+            else:
+                df_part['CNPJ_LIMPO'] = '' # Cria coluna vazia se a original não existir
+            # >>> FIM DO AJUSTE <<<
+
+
+            
+
+
+            # Realiza o merge usando as colunas CNPJ padronizadas
+            base_merged_part = pd.merge(
+                base,
+                df_part[['CNPJ_LIMPO', 'Particularidade']], # Seleciona a coluna CNPJ limpa e a Particularidade de df_part
+                how='left',
+                left_on='CNPJ_Destinatario_LIMPO', # Usa a coluna limpa da base
+                right_on='CNPJ_LIMPO',             # Usa a coluna limpa de df_part
+                suffixes=('', '_part_merge_temp')  # Sufixo temporário para evitar conflitos de nomes, embora aqui o CNPJ não seja duplicado como coluna de dados
+            )
+
+            # Atribui a Particularidade mesclada à coluna 'Particularidade' principal
+            # Prefere a Particularidade do merge, preenchendo nulos com a Particularidade original se houver
+            if 'Particularidade_part_merge_temp' in base_merged_part.columns:
+                base['Particularidade'] = base_merged_part['Particularidade_part_merge_temp'].fillna(
+                    base.get('Particularidade', pd.NA) # Usa o valor existente se houver, ou NA
+                )
+            else:
+                # Se não houve merge (e não há 'Particularidade_part_merge_temp'), garante que a coluna exista
+                base['Particularidade'] = base.get('Particularidade', pd.NA)
+
+            # Remove as colunas temporárias de CNPJ criadas para o merge
+            base.drop(columns=['CNPJ_Destinatario_LIMPO'], errors='ignore', inplace=True)
+            # A coluna 'CNPJ_LIMPO' de df_part não foi adicionada a 'base_merged_part' como coluna de dados,
+            # então não precisa ser removida de 'base'.
+
+            # A linha abaixo era provavelmente um erro de renomeação ou um resquício de outra lógica.
+            # Ela foi removida, pois 'CNPJ_part_merge' não seria criada pelo merge acima.
+            # base.drop(columns=['CNPJ_part_merge'], errors='ignore', inplace=True)
 
         else:
+            # Se não há dados de Particularidades, garante que a coluna 'Particularidade' exista na base
             if 'Particularidade' not in base.columns:
                 base['Particularidade'] = None # Garante que a coluna exista mesmo sem merge
-        #: [carregar_base_supabase] Linhas após merge Particularidades: {len(base)}")
+
+
+
 
 
         # --- DEBUG 3: Após o merge com "Clientes_Entrega_Agendada" (AJUSTADO) ---
@@ -1173,8 +1210,6 @@ def carregar_base_supabase():
 
 
     
-
-
 # A função gerar_proximo_numero_carga()
 def gerar_proximo_numero_carga(supabase):
     """
