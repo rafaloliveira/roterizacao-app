@@ -1,7 +1,4 @@
-#28-08 01
-
-# 06-08 em produção após ajuste de cores logo
-
+#28-08 06
 
 
 #sincronização, Pré Roterização e Rotas Confirmadas funcionando
@@ -142,7 +139,6 @@ SYNCABLE_COLUMNS = [
     "Cliente Pagador",
     "Chave CT-e",
     "Cliente Destinatario",
-    "CNPJ Destinatario",
     "Cidade de Entrega",
     "Bairro do Destinatario",
     "Previsao de Entrega",
@@ -2051,16 +2047,16 @@ def aplicar_regras_e_preencher_tabelas():
                 how='left',
                 left_on='CNPJ Destinatario', # Assume que CNPJ Destinatario já está limpo vindo de fBaseroter
                 right_on='CNPJ_LIMPO_PARA_MERGE', # Use a coluna limpa para o merge
-                suffixes=('', '_from_particularities_temp') # Sufixo temporário para evitar conflitos de nomes
+                suffixes=('', '_from_particularidades') # Adiciona um sufixo para evitar conflitos de nomes
             )
             
             # Se a particularidade foi mesclada, use-a. Caso contrário, mantenha o valor existente ou None.
-            if 'Particularidade_from_particularities_temp' in df_processar.columns:
-                df_processar['Particularidade'] = df_processar['Particularidade_from_particularities_temp'].fillna(
+            if 'Particularidade_from_particularidades' in df_processar.columns:
+                df_processar['Particularidade'] = df_processar['Particularidade_from_particularidades'].fillna(
                     df_processar.get('Particularidade', pd.NA) # Preserve Particularidade original se merge for NaN
                 )
             # Limpa a coluna temporária criada para o merge
-            df_processar.drop(columns=['Particularidade_from_particularities_temp'], errors='ignore', inplace=True)
+            df_processar.drop(columns=['Particularidade_from_particularidades'], errors='ignore', inplace=True)
             
         else:
             df_processar['Particularidade'] = None
@@ -2685,7 +2681,7 @@ def pagina_confirmar_producao():
         "Serie_Numero_CTRC",  "Cliente Pagador", "Cliente Destinatario", "Cidade de Entrega",
         "Bairro do Destinatario", "Previsao de Entrega", "Numero da Nota Fiscal",  "Status",
         "Entrega Programada", "Peso Real em Kg", "Peso Calculado em Kg", "Valor do Frete",
-        "Rota", "Regiao", "Data de Emissao", "Chave CT-e","CNPJ Destinatario",
+        "Rota", "Regiao", "Data de Emissao", "Chave CT-e",
         "Particularidade", "Codigo da Ultima Ocorrencia", "Cubagem em m³", "Quantidade de Volumes",
         "Tipo_Tratativa_Especial" 
     ]
@@ -3545,7 +3541,7 @@ def pagina_pre_roterizacao():
             "Serie_Numero_CTRC",  "Cliente Pagador", "Cliente Destinatario", "Cidade de Entrega",
             "Previsao de Entrega","Entrega Programada","Peso Real em Kg", "Status","Bairro do Destinatario", 
             "Numero da Nota Fiscal", "Peso Calculado em Kg", "Valor do Frete",
-            "Rota", "Regiao", "Data de Emissao", "Chave CT-e","CNPJ Destinatario",
+            "Rota", "Regiao", "Data de Emissao", "Chave CT-e",
             "Particularidade", "Codigo da Ultima Ocorrencia", "Cubagem em m³", "Quantidade de Volumes",
             "Tipo_Tratativa_Especial" # Nova coluna para exibição
         ]
@@ -4052,7 +4048,7 @@ def pagina_cargas_geradas():
         "Serie_Numero_CTRC",  "Cliente Pagador", "Cliente Destinatario", "Cidade de Entrega",
         "Bairro do Destinatario", "Previsao de Entrega", "Numero da Nota Fiscal",  "Status",
         "Entrega Programada", "Peso Real em Kg", "Peso Calculado em Kg", "Valor do Frete",
-        "Rota", "Regiao", "Data de Emissao", "Chave CT-e", "Data_Hora_Gerada" , "CNPJ Destinatario",
+        "Rota", "Regiao", "Data de Emissao", "Chave CT-e", "Data_Hora_Gerada" , 
         "Particularidade", "Codigo da Ultima Ocorrencia", "Cubagem em m³", "Quantidade de Volumes", "status_retorno"
 ]
 
@@ -4822,7 +4818,7 @@ def pagina_aprovacao_custos():
         "Serie_Numero_CTRC",  "Cliente Pagador", "Cliente Destinatario", "Cidade de Entrega",
         "Bairro do Destinatario", "Previsao de Entrega", "Numero da Nota Fiscal",  "Status",
         "Entrega Programada", "Peso Real em Kg", "Peso Calculado em Kg", "Valor do Frete",
-        "Rota", "Regiao", "Data de Emissao", "Chave CT-e", "Data_Hora_Gerada","CNPJ Destinatario",
+        "Rota", "Regiao", "Data de Emissao", "Chave CT-e", "Data_Hora_Gerada",
         "Particularidade", "Codigo da Ultima Ocorrencia", "Cubagem em m³", "Quantidade de Volumes",
 ]
 
@@ -5432,7 +5428,7 @@ def pagina_cargas_aprovadas():
         "Serie_Numero_CTRC",  "Cliente Pagador", "Cliente Destinatario", "Cidade de Entrega",
         "Bairro do Destinatario", "Previsao de Entrega", "Numero da Nota Fiscal",  "Status",
         "Entrega Programada", "Peso Real em Kg", "Peso Calculado em Kg", "Valor do Frete",
-        "Rota", "Regiao", "Data de Emissao", "Chave CT-e","CNPJ Destinatario",
+        "Rota", "Regiao", "Data de Emissao", "Chave CT-e",
         "Particularidade", "Codigo da Ultima Ocorrencia", "Cubagem em m³", "Quantidade de Volumes",
         "valor_contratacao", "numero_carga", "motorista", "placa",
         "veiculo", "aprovador_custos_login", "data_aprovacao_custos", "Data_Hora_Gerada"
@@ -6220,7 +6216,7 @@ def pagina_cargas_fechadas():
         "Serie_Numero_CTRC", "Cliente Pagador", "Cliente Destinatario", "Cidade de Entrega",
         "Bairro do Destinatario", "Previsao de Entrega", "Numero da Nota Fiscal", "Status",
         "Entrega Programada", "Peso Real em Kg", "Peso Calculado em Kg", "Valor do Frete",
-        "Rota", "Regiao", "Data de Emissao", "Chave CT-e","CNPJ Destinatario",
+        "Rota", "Regiao", "Data de Emissao", "Chave CT-e",
         "Particularidade", "Codigo da Ultima Ocorrencia", "Cubagem em m³", "Quantidade de Volumes",
         "valor_contratacao", "numero_carga", "motorista", "placa", "veiculo",
         "data_fechamento", "situacao", "aprovador_custos_login", "data_aprovacao_custos",
