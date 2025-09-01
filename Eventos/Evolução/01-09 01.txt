@@ -1,3 +1,6 @@
+01-09 01
+
+
 #28-08 004
 
 # 06-08 em produção após ajuste de cores logo
@@ -2252,44 +2255,32 @@ def apply_brazilian_date_format_for_display(df_to_format):
                 else '' # Trata NaT e valores não-datetime
             )
     return df_copy
-#--------------------------------------------------------------------------------------------------------------
-
+#--------------------------------------------------------------------------------------------------------------------
 def _parse_date_robustly(date_series):
     """
-    Tenta converter uma série de valores para objetos datetime do Pandas de forma robusta.
-    Prioriza formatos ISO 8601 completos (com hora e fuso) antes de inferências ambíguas.
+    Tenta converter uma série de valores para objetos datetime do Pandas de forma robusta,
+    priorizando formatos explícitos e conhecidos antes de tentar inferências mais genéricas.
     """
     if not isinstance(date_series, pd.Series):
         date_series = pd.Series(date_series)
 
-    # Tentativa 1: Tenta inferir como ISO 8601 COMPLETO (com hora, fuso, etc.)
-    # Isso é crucial para Data_Hora_Gerada, data_aprovacao_custos, data_fechamento que são geradas via .isoformat()
-    # 'utc=True' é importante para que o Pandas saiba que é um timestamp com fuso, ou para converter para UTC se naive.
-    parsed = pd.to_datetime(date_series, errors='coerce', utc=True, infer_datetime_format=True)
+    # Tenta 1: Formato ISO AAAA-MM-DD (comum para dados vindos de bancos de dados)
+    parsed = pd.to_datetime(date_series, format='%Y-%m-%d', errors='coerce')
 
-    # Tentativa 2: Se ainda há NaNs, tenta formato ISO AAAA-MM-DD (para datas sem hora)
+    # Tenta 2: Se ainda há NaNs, tenta inferir assumindo dia-mês-ano (dayfirst=True),
+    # para formatos brasileiros como DD-MM-AAAA ou DD/MM/AAAA.
     nan_mask = parsed.isna()
     if nan_mask.any():
-        # Apenas tenta se o valor não for uma string vazia, para evitar erro na próxima linha para strings vazias
-        valid_strings_for_format = date_series.loc[nan_mask].astype(str).str.strip().replace('', np.nan).dropna()
-        if not valid_strings_for_format.empty:
-            # Tenta um formato de data estrito YYYY-MM-DD.
-            parsed.loc[valid_strings_for_format.index] = pd.to_datetime(valid_strings_for_format, format='%Y-%m-%d', errors='coerce')
+        parsed.loc[nan_mask] = pd.to_datetime(date_series.loc[nan_mask], errors='coerce', dayfirst=True)
 
-    # Tentativa 3: Se ainda há NaNs, e se a série original contiver o padrão DD-MM-YYYY ou DD/MM/YYYY
-    # Esta tentativa é para datas que sabidamente usam o formato brasileiro dia-primeiro.
+    # Tenta 3: Se ainda há NaNs, tenta a inferência automática do Pandas.
+    # Isso cobre formatos variados que não se encaixam nos anteriores, incluindo ISO 8601 completos.
     nan_mask = parsed.isna()
     if nan_mask.any():
-        valid_strings_for_dayfirst = date_series.loc[nan_mask].astype(str).str.strip().replace('', np.nan).dropna()
-        if not valid_strings_for_dayfirst.empty:
-            parsed.loc[valid_strings_for_dayfirst.index] = pd.to_datetime(valid_strings_for_dayfirst, errors='coerce', dayfirst=True)
-
-    # Tentativa 4: Último recurso - inferência genérica (se algo ainda não foi parseado)
-    nan_mask = parsed.isna()
-    if nan_mask.any():
-        parsed.loc[nan_mask] = pd.to_datetime(date_series.loc[nan_mask], errors='coerce')
+        parsed.loc[nan_mask] = pd.to_datetime(date_series.loc[nan_mask], errors='coerce', infer_datetime_format=True)
 
     return parsed
+
 
 #--------------------------------------------------------------------------------------------------------------
 
