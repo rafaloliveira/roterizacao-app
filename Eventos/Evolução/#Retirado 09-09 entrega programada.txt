@@ -1,6 +1,4 @@
-#28-08 004
-
-# 06-08 em produção após ajuste de cores logo
+#09-09 retirado para correção formato time zone página Pré Roteirização
 
 
 
@@ -58,14 +56,13 @@ DATE_DISPLAY_FORMAT_STRING = '%d-%m-%Y %H:%M'
 
 # Formato de exibição de data APENAS (sem hora) no padrão brasileiro (DD-MM-YYYY)
 DATE_ONLY_DISPLAY_FORMAT_STRING_BR = '%d-%m-%Y'
-ISO_DATE_ONLY_FORMAT_STRING = '%d-%m-%Y'
 
 ALLOWED_OCCURRENCE_CODES = [15, 17, 39, 78, 79, 80, 96, 97]
 
 #locale.setlocale(locale.LC_ALL, 'pt_BR.UTF-8')
 
 DATE_DISPLAY_FORMAT_STRING = '%d-%m-%Y %H:%M'
-
+DATE_ONLY_DISPLAY_FORMAT_STRING_BR = '%d-%m-%Y'
 # Lista de colunas que devem ser exibidas APENAS como data (DD-MM-YYYY), sem hora.
 GLOBAL_DATE_COLUMNS_DISPLAY_ONLY_DATE = [
 ]
@@ -1152,9 +1149,6 @@ def carregar_base_supabase():
         # Certifique-se de que df['Previsao de Entrega'] é datetime para esta comparação
         if 'Previsao de Entrega' in base.columns:
             base['Previsao de Entrega'] = pd.to_datetime(base['Previsao de Entrega'], errors='coerce')
-
-        if 'Entrega Programada' in base.columns:
-            base['Entrega Programada'] = pd.to_datetime(base['Entrega Programada'], errors='coerce')
         
         hoje = pd.Timestamp.today().normalize()
         d_mais_1 = hoje + pd.Timedelta(days=1)
@@ -2227,7 +2221,7 @@ def apply_brazilian_date_format_for_display(df_to_format):
             continue
 
         # --- Etapa 1: Localização do Fuso Horário e Determinação do Formato ---
-        format_str_for_python_conversion = None
+        format_str = None
         
         # Se a coluna é um TIMESTAMP (salvo como TIMESTAMP WITH TIME ZONE no DB)
         if col in GLOBAL_DB_TIMESTAMP_COLS:
@@ -2235,23 +2229,23 @@ def apply_brazilian_date_format_for_display(df_to_format):
                 lambda x: (
                     '' if pd.isna(x) or not isinstance(x, (datetime, pd.Timestamp)) else
                     (x.tz_localize(timezone.utc, ambiguous='NaT', nonexistent='NaT').astimezone(FUSO_BRASIL)
-                    if pd.notna(x) and x.tzinfo is None # Se tz-naive, assume UTC e converte
-                    else (x.astimezone(FUSO_BRASIL) if pd.notna(x) and x.tzinfo is not None else pd.NaT)) # Se tz-aware, apenas converte
+                     if pd.notna(x) and x.tzinfo is None # Se tz-naive, assume UTC e converte
+                     else (x.astimezone(FUSO_BRASIL) if pd.notna(x) and x.tzinfo is not None else pd.NaT)) # Se tz-aware, apenas converte
                 )
             )
-            format_str_for_python_conversion = DATE_DISPLAY_FORMAT_STRING # Para timestamps, usa HH:MM
+            format_str = DATE_DISPLAY_FORMAT_STRING # Para timestamps, usa HH:MM
         
         # Se a coluna é uma DATA (salvo como DATE no DB)
         elif col in GLOBAL_DB_DATE_COLS:
             df_copy[col] = df_copy[col].apply(
                 lambda x: x.replace(tzinfo=None) if pd.notna(x) and x.tzinfo is not None else x # Garante que seja tz-naive (sem info de fuso)
             )
-            format_str_for_python_conversion = ISO_DATE_ONLY_FORMAT_STRING
+            format_str = DATE_ONLY_DISPLAY_FORMAT_STRING_BR # Para datas, usa 
         
         # --- Etapa 2: Aplica a formatação final para strings ---
-        if format_str_for_python_conversion:
+        if format_str: # Aplica apenas se um formato foi determinado
             df_copy[col] = df_copy[col].apply(
-                lambda x: x.strftime(format_str_for_python_conversion)
+                lambda x: x.strftime(format_str)
                 if pd.notna(x) and isinstance(x, (pd.Timestamp, datetime))
                 else '' # Trata NaT e valores não-datetime
             )
@@ -5873,59 +5867,36 @@ def pagina_cargas_fechadas():
                     df_original = pd.DataFrame()
                 else:
                     
-
-
-
-
-
                     df_original = pd.DataFrame(dados)
-                    df_original.columns = df_original.columns.str.strip() # Garante que os nomes das colunas estejam limpos
 
-                    # --- INÍCIO DO BLOCO DE TRATAMENTO DE DATAS LOCALIZADO ---
-                    # 1. Colunas que são TIMESTAMPS (com hora e fuso)
+                    if 'Previsao de Entrega' in df_original.columns:
+                        df_original['Previsao de Entrega'] = df_original['Previsao de Entrega'].astype(str)
+
+                # 1. Colunas que são TIMESTAMPS (com hora e fuso)
+                # Estas colunas já vêm do Supabase como strings ISO 8601 (UTC)
+                  # --- CORREÇÃO AQUI: Iterar especificamente sobre as colunas de timestamp ---
                     timestamp_cols_in_df = [
                         col for col in GLOBAL_DB_TIMESTAMP_COLS
                         if col in df_original.columns
                     ]
                     for col in timestamp_cols_in_df:
-                        # Tenta parsear robustamente para datetime. Valores não-parseáveis viram NaT.
-                        df_original[col] = _parse_date_robustly(df_original[col])
-                        # Garante que, se algo não foi um datetime (e.g., ainda uma string ou outro tipo), seja forçado para NaT
-                        df_original[col] = df_original[col].apply(
-                            lambda x: x if pd.api.types.is_datetime64_any_dtype(x) else pd.NaT
+                    # pd.to_datetime é a função ideal e mais rápida para strings ISO 8601
+                        df_original[col] = df_original[col].astype(str).str.replace('Z', '+00:00').apply(
+                            lambda x: pd.to_datetime(x, format='%Y-%m-%dT%H:%M:%S%z', errors='coerce')
                         )
-                        # Localiza para UTC se for naive (geralmente Supabase ISO strings sem tz info), depois converte para Brasil TZ
-                        df_original[col] = df_original[col].apply(
-                            lambda x: (
-                                x.tz_localize('UTC', ambiguous='NaT', nonexistent='NaT').astimezone(FUSO_BRASIL)
-                                if pd.notna(x) and x.tzinfo is None # Se não tem fuso, assume UTC e converte
-                                else (x.astimezone(FUSO_BRASIL) if pd.notna(x) and x.tzinfo is not None else pd.NaT) # Se já tem fuso, converte; senão é NaT
-                            )
-                        )
+                        df_original[col] = pd.to_datetime(df_original[col], errors='coerce', utc=True)
 
-                    # 2. Colunas que são apenas DATAS (sem hora)
-                    date_cols_in_df = [
-                        col for col in GLOBAL_DB_DATE_COLS
-                        if col in df_original.columns
-                    ]
-                    for col in date_cols_in_df:
-                        # Tenta parsear robustamente para datetime. Valores não-parseáveis viram NaT.
-                        df_original[col] = _parse_date_robustly(df_original[col])
-                        # Garante que, se algo não foi um datetime, seja forçado para NaT
-                        df_original[col] = df_original[col].apply(
-                            lambda x: x if pd.api.types.is_datetime64_any_dtype(x) else pd.NaT
-                        )
-                        # Remove informação de fuso horário para datas puras (torna timezone-naive)
-                        df_original[col] = df_original[col].apply(
-                            lambda x: x.tz_localize(None) if pd.notna(x) and x.tzinfo is not None else x
-                        )
-                    # --- FIM DO BLOCO DE TRATAMENTO DE DATAS LOCALIZADO ---
+                # 2. Colunas que são apenas DATAS (sem hora)
+                date_cols_in_df = [
+                    col for col in GLOBAL_DB_DATE_COLS 
+                    if col in df_original.columns
+                ]
+                for col in date_cols_in_df:
+                    # Aqui usamos a função robusta, pois podem vir em formatos variados
+                    df_original[col] = _parse_date_robustly(df_original[col])
 
-
-
-
-
-
+                # Limpeza e tipagem para df_original (o restante do seu código)
+                df_original.columns = df_original.columns.str.strip()
                 numeric_cols_to_convert = [
                     'Peso Real em Kg', 'Peso Calculado em Kg', 'Cubagem em m³',
                     'Quantidade de Volumes', 'Valor do Frete', 'valor_contratacao'
