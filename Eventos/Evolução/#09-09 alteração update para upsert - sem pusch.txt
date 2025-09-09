@@ -1,4 +1,9 @@
-#09-09 retirado para correção formato time zone página Pré Roteirização
+#09-09 alteração update para upsert
+
+
+#28-08 004
+
+# 06-08 em produção após ajuste de cores logo
 
 
 
@@ -56,13 +61,14 @@ DATE_DISPLAY_FORMAT_STRING = '%d-%m-%Y %H:%M'
 
 # Formato de exibição de data APENAS (sem hora) no padrão brasileiro (DD-MM-YYYY)
 DATE_ONLY_DISPLAY_FORMAT_STRING_BR = '%d-%m-%Y'
+ISO_DATE_ONLY_FORMAT_STRING = '%d-%m-%Y'
 
 ALLOWED_OCCURRENCE_CODES = [15, 17, 39, 78, 79, 80, 96, 97]
 
 #locale.setlocale(locale.LC_ALL, 'pt_BR.UTF-8')
 
 DATE_DISPLAY_FORMAT_STRING = '%d-%m-%Y %H:%M'
-DATE_ONLY_DISPLAY_FORMAT_STRING_BR = '%d-%m-%Y'
+
 # Lista de colunas que devem ser exibidas APENAS como data (DD-MM-YYYY), sem hora.
 GLOBAL_DATE_COLUMNS_DISPLAY_ONLY_DATE = [
 ]
@@ -380,7 +386,7 @@ def _aprovar_carga_custos(selecionadas_para_aprovar, df_carga_original, carga_nu
     registros_para_cargas_aprovadas = [r for r in registros_para_cargas_aprovadas if r.get("Serie_Numero_CTRC")]
 
     if registros_para_cargas_aprovadas:
-        supabase.table("cargas_aprovadas").insert(registros_para_cargas_aprovadas).execute()
+        supabase.table("cargas_aprovadas").upsert(registros_para_cargas_aprovadas).execute()
 
         chaves_aprovadas = [r.get("Serie_Numero_CTRC") for r in registros_para_cargas_aprovadas if r.get("Serie_Numero_CTRC")]
         if chaves_aprovadas:
@@ -1149,6 +1155,9 @@ def carregar_base_supabase():
         # Certifique-se de que df['Previsao de Entrega'] é datetime para esta comparação
         if 'Previsao de Entrega' in base.columns:
             base['Previsao de Entrega'] = pd.to_datetime(base['Previsao de Entrega'], errors='coerce')
+
+        if 'Entrega Programada' in base.columns:
+            base['Entrega Programada'] = pd.to_datetime(base['Entrega Programada'], errors='coerce')
         
         hoje = pd.Timestamp.today().normalize()
         d_mais_1 = hoje + pd.Timedelta(days=1)
@@ -1761,7 +1770,7 @@ def inserir_em_lote(nome_tabela, df, lote=100, tentativas=3, pausa=0.2):
         sublote = dados[i:i + lote]
         for tentativa in range(tentativas):
             try:
-                supabase.table(nome_tabela).insert(sublote).execute()
+                supabase.table(nome_tabela).upsert(sublote).execute()
                 # st.info(f"[DEBUG] Inseridos {len(sublote)} registros na tabela '{nome_tabela}' (lote {i}–{i + len(sublote) - 1}).") # REMOVIDO
                 break
             except Exception as e:
@@ -1893,7 +1902,7 @@ def adicionar_entregas_a_carga(ctrcs_selecionados, numero_carga_destino):
 
         for tentativa in range(2): # Tenta inserir duas vezes em caso de falha temporária
             try:
-                insert_response = supabase.table("cargas_geradas").insert(dados_para_insercao).execute()
+                insert_response = supabase.table("cargas_geradas").upsert(dados_para_insercao).execute()
                 if insert_response and insert_response.data:
                     inserted_ctrcs = [r.get("Serie_Numero_CTRC") for r in insert_response.data if r.get("Serie_Numero_CTRC")]
                     insert_success = True
@@ -2221,7 +2230,7 @@ def apply_brazilian_date_format_for_display(df_to_format):
             continue
 
         # --- Etapa 1: Localização do Fuso Horário e Determinação do Formato ---
-        format_str = None
+        format_str_for_python_conversion = None
         
         # Se a coluna é um TIMESTAMP (salvo como TIMESTAMP WITH TIME ZONE no DB)
         if col in GLOBAL_DB_TIMESTAMP_COLS:
@@ -2229,23 +2238,23 @@ def apply_brazilian_date_format_for_display(df_to_format):
                 lambda x: (
                     '' if pd.isna(x) or not isinstance(x, (datetime, pd.Timestamp)) else
                     (x.tz_localize(timezone.utc, ambiguous='NaT', nonexistent='NaT').astimezone(FUSO_BRASIL)
-                     if pd.notna(x) and x.tzinfo is None # Se tz-naive, assume UTC e converte
-                     else (x.astimezone(FUSO_BRASIL) if pd.notna(x) and x.tzinfo is not None else pd.NaT)) # Se tz-aware, apenas converte
+                    if pd.notna(x) and x.tzinfo is None # Se tz-naive, assume UTC e converte
+                    else (x.astimezone(FUSO_BRASIL) if pd.notna(x) and x.tzinfo is not None else pd.NaT)) # Se tz-aware, apenas converte
                 )
             )
-            format_str = DATE_DISPLAY_FORMAT_STRING # Para timestamps, usa HH:MM
+            format_str_for_python_conversion = DATE_DISPLAY_FORMAT_STRING # Para timestamps, usa HH:MM
         
         # Se a coluna é uma DATA (salvo como DATE no DB)
         elif col in GLOBAL_DB_DATE_COLS:
             df_copy[col] = df_copy[col].apply(
                 lambda x: x.replace(tzinfo=None) if pd.notna(x) and x.tzinfo is not None else x # Garante que seja tz-naive (sem info de fuso)
             )
-            format_str = DATE_ONLY_DISPLAY_FORMAT_STRING_BR # Para datas, usa 
+            format_str_for_python_conversion = ISO_DATE_ONLY_FORMAT_STRING
         
         # --- Etapa 2: Aplica a formatação final para strings ---
-        if format_str: # Aplica apenas se um formato foi determinado
+        if format_str_for_python_conversion:
             df_copy[col] = df_copy[col].apply(
-                lambda x: x.strftime(format_str)
+                lambda x: x.strftime(format_str_for_python_conversion)
                 if pd.notna(x) and isinstance(x, (pd.Timestamp, datetime))
                 else '' # Trata NaT e valores não-datetime
             )
@@ -2889,7 +2898,7 @@ def pagina_confirmar_producao():
                             registros = [r for r in registros if r.get("Serie_Numero_CTRC")]
 
                             if registros: 
-                                supabase.table("aprovacao_diretoria").insert(registros).execute()
+                                supabase.table("aprovacao_diretoria").upsert(registros).execute()
                                 st.session_state["df_entregas_confirmadas"] = pd.DataFrame(registros)
                             
                             chaves = [r["Serie_Numero_CTRC"] for r in registros]
@@ -2964,7 +2973,7 @@ def pagina_aprovacao_diretoria():
                 registros = [r for r in registros if r.get("Serie_Numero_CTRC")]
 
                 if registros:
-                    supabase.table("pre_roterizacao").insert(registros).execute()
+                    supabase.table("pre_roterizacao").upsert(registros).execute()
                     chaves = [r["Serie_Numero_CTRC"] for r in registros]
                     supabase.table("aprovacao_diretoria").delete().in_("Serie_Numero_CTRC", chaves).execute()
 
@@ -5752,7 +5761,7 @@ def pagina_cargas_aprovadas():
                             # 4. Inserir em 'cargas_fechadas'
                             if records_to_insert:
                                 try:
-                                    supabase.table("cargas_fechadas").insert(records_to_insert).execute()
+                                    supabase.table("cargas_fechadas").upsert(records_to_insert).execute()
                                     st.success(f"Carga {carga} movida para Cargas Fechadas com sucesso!")
                                 except Exception as insert_error:
                                     st.error(f"Erro ao inserir dados na tabela cargas_fechadas: {insert_error}")
@@ -5867,36 +5876,59 @@ def pagina_cargas_fechadas():
                     df_original = pd.DataFrame()
                 else:
                     
+
+
+
+
+
                     df_original = pd.DataFrame(dados)
+                    df_original.columns = df_original.columns.str.strip() # Garante que os nomes das colunas estejam limpos
 
-                    if 'Previsao de Entrega' in df_original.columns:
-                        df_original['Previsao de Entrega'] = df_original['Previsao de Entrega'].astype(str)
-
-                # 1. Colunas que são TIMESTAMPS (com hora e fuso)
-                # Estas colunas já vêm do Supabase como strings ISO 8601 (UTC)
-                  # --- CORREÇÃO AQUI: Iterar especificamente sobre as colunas de timestamp ---
+                    # --- INÍCIO DO BLOCO DE TRATAMENTO DE DATAS LOCALIZADO ---
+                    # 1. Colunas que são TIMESTAMPS (com hora e fuso)
                     timestamp_cols_in_df = [
                         col for col in GLOBAL_DB_TIMESTAMP_COLS
                         if col in df_original.columns
                     ]
                     for col in timestamp_cols_in_df:
-                    # pd.to_datetime é a função ideal e mais rápida para strings ISO 8601
-                        df_original[col] = df_original[col].astype(str).str.replace('Z', '+00:00').apply(
-                            lambda x: pd.to_datetime(x, format='%Y-%m-%dT%H:%M:%S%z', errors='coerce')
+                        # Tenta parsear robustamente para datetime. Valores não-parseáveis viram NaT.
+                        df_original[col] = _parse_date_robustly(df_original[col])
+                        # Garante que, se algo não foi um datetime (e.g., ainda uma string ou outro tipo), seja forçado para NaT
+                        df_original[col] = df_original[col].apply(
+                            lambda x: x if pd.api.types.is_datetime64_any_dtype(x) else pd.NaT
                         )
-                        df_original[col] = pd.to_datetime(df_original[col], errors='coerce', utc=True)
+                        # Localiza para UTC se for naive (geralmente Supabase ISO strings sem tz info), depois converte para Brasil TZ
+                        df_original[col] = df_original[col].apply(
+                            lambda x: (
+                                x.tz_localize('UTC', ambiguous='NaT', nonexistent='NaT').astimezone(FUSO_BRASIL)
+                                if pd.notna(x) and x.tzinfo is None # Se não tem fuso, assume UTC e converte
+                                else (x.astimezone(FUSO_BRASIL) if pd.notna(x) and x.tzinfo is not None else pd.NaT) # Se já tem fuso, converte; senão é NaT
+                            )
+                        )
 
-                # 2. Colunas que são apenas DATAS (sem hora)
-                date_cols_in_df = [
-                    col for col in GLOBAL_DB_DATE_COLS 
-                    if col in df_original.columns
-                ]
-                for col in date_cols_in_df:
-                    # Aqui usamos a função robusta, pois podem vir em formatos variados
-                    df_original[col] = _parse_date_robustly(df_original[col])
+                    # 2. Colunas que são apenas DATAS (sem hora)
+                    date_cols_in_df = [
+                        col for col in GLOBAL_DB_DATE_COLS
+                        if col in df_original.columns
+                    ]
+                    for col in date_cols_in_df:
+                        # Tenta parsear robustamente para datetime. Valores não-parseáveis viram NaT.
+                        df_original[col] = _parse_date_robustly(df_original[col])
+                        # Garante que, se algo não foi um datetime, seja forçado para NaT
+                        df_original[col] = df_original[col].apply(
+                            lambda x: x if pd.api.types.is_datetime64_any_dtype(x) else pd.NaT
+                        )
+                        # Remove informação de fuso horário para datas puras (torna timezone-naive)
+                        df_original[col] = df_original[col].apply(
+                            lambda x: x.tz_localize(None) if pd.notna(x) and x.tzinfo is not None else x
+                        )
+                    # --- FIM DO BLOCO DE TRATAMENTO DE DATAS LOCALIZADO ---
 
-                # Limpeza e tipagem para df_original (o restante do seu código)
-                df_original.columns = df_original.columns.str.strip()
+
+
+
+
+
                 numeric_cols_to_convert = [
                     'Peso Real em Kg', 'Peso Calculado em Kg', 'Cubagem em m³',
                     'Quantidade de Volumes', 'Valor do Frete', 'valor_contratacao'
@@ -6512,7 +6544,7 @@ def pagina_cargas_fechadas():
 
                         # 4. Inserir em 'cargas_geradas'
                         if records_to_insert:
-                            supabase.table("cargas_geradas").insert(records_to_insert).execute()
+                            supabase.table("cargas_geradas").upsert(records_to_insert).execute()
                             st.success(f"Carga {carga} retornada para Cargas Geradas com sucesso! {len(records_to_insert)} entregas movidas.")
                         else:
                             st.warning(f"Nenhuma entrega restante para mover para Cargas Geradas após a filtragem de duplicidades.")
