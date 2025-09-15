@@ -1,5 +1,4 @@
-#12-09 07 Feitos todos ajustes de foramato de datas, botão para retornar de cargas encerradas para cargas geradas, retirada de paletizadores da confirmar produção
-
+#12-09 12
 
 #09-09 retirado para correção formato time zone página Pré Roteirização
 
@@ -57,11 +56,12 @@ from decimal import Decimal, ROUND_HALF_UP, getcontext
 FUSO_BRASIL = ZoneInfo("America/Sao_Paulo")
 # Formato de exibição de data e hora no padrão brasileiro (completo com horas, minutos, segundos)
 DATE_DISPLAY_FORMAT_STRING = '%d-%m-%Y %H:%M'
+DATE_ONLY_DISPLAY_FORMAT_STRING_BR = '%d-%m-%Y'
 
 DATE_ONLY_REPARSE_COLUMNS = ["Entrega Programada", "Data de Emissao", "Previsao de Entrega"]
 # Formato de exibição de data APENAS (sem hora) no padrão brasileiro (DD-MM-YYYY)
 
-DATE_ONLY_DISPLAY_FORMAT_STRING_BR = '%d-%m-%Y'
+
 # Esta constante é utilizada para formatação de exibição (DD-MM-YYYY), não é um formato ISO real.
 ISO_DATE_ONLY_FORMAT_STRING = '%d-%m-%Y'
 
@@ -83,8 +83,6 @@ ALLOWED_OCCURRENCE_CODES = [15, 17, 39, 78, 79, 80, 96, 97]
 
 #locale.setlocale(locale.LC_ALL, 'pt_BR.UTF-8')
 
-DATE_DISPLAY_FORMAT_STRING = '%d-%m-%Y %H:%M'
-
 # Lista de colunas que devem ser exibidas APENAS como data (DD-MM-YYYY), sem hora.
 GLOBAL_DATE_COLUMNS_DISPLAY_ONLY_DATE = [
 ]
@@ -92,14 +90,12 @@ GLOBAL_DATE_COLUMNS_DISPLAY_ONLY_DATE = [
 # Lista de colunas que DEVEM ser exibidas COM HORA (timestamp completo).
 GLOBAL_DATE_DISPLAY_COLUMNS = [
     "data_aprovacao_custos",
+    "data_aprovacao_diretoria",
     "Data_Hora_Gerada",
     "csv_downloaded_at",
     "data_fechamento",
-    "Data da Entrega Realizada",
-    "Data do Cancelamento",
-    "Data do Escaneamento",
     "data_aprovacao_diretoria",
-    "pdf_downloaded_at"
+    "pdf_downloaded_at",
 ]
 
 # Lista de colunas que devem ser salvas como tipo DATE (AAAA-MM-DD) no Supabase.
@@ -120,14 +116,12 @@ GLOBAL_DB_TIMESTAMP_COLS = [
     "Data de inclusao da Ultima Ocorrencia",
     "Data da Ultima Ocorrencia",
     "data_aprovacao_custos",
-    "Data_Hora_Gerada",
-    "csv_downloaded_at",
     "Data da Entrega Realizada",
     "Data do Cancelamento",
     "Data do Escaneamento",
     "data_fechamento",
-    "data_aprovacao_diretoria",
-    "pdf_downloaded_at"
+    
+
 ]
 
 # --- Fim das Definições de Constantes Globais ---
@@ -203,42 +197,60 @@ FLOW_TABLES = [
 # Adicione esta função em um local adequado, por exemplo, após apply_regras_e_preencher_tabelas()
 
 def sincronizar_fluxo_com_fbaseroter(supabase_client):
-    st.info("🔄 Iniciando sincronização do fluxo de trabalho com fBaseroter...")
+    st.info("Iniciando sincronização do fluxo de trabalho com fBaseroter...")
 
     try:
+        # 1. Obter todas as entregas ativas da fBaseroter (já filtradas por ocorrência)
+        # Assumimos que a fBaseroter já foi atualizada na etapa anterior da sincronização
         response_fbaseroter = supabase_client.table("fBaseroter").select("*").execute()
         df_fbaseroter_active = pd.DataFrame(response_fbaseroter.data)
 
+        # SE df_fbaseroter_active.empty (ou seja, o Excel importado não tem dados válidos)
+        # Não deletaremos nada do fluxo. As entregas só são removidas do fluxo por ações de usuário.
+        # A fBaseroter passa a ser uma fonte de "atualizações" e "novas entradas", e não de "deletar do fluxo".
         if df_fbaseroter_active.empty:
             st.warning("fBaseroter está vazia. Nenhuma entrega no fluxo será atualizada ou adicionada via sincronização de fluxo.")
-            return {}
+            # IMPORTANTE: Não deleta itens existentes das FLOW_TABLES.
+            # O sistema apenas não tem novas informações para inserir ou atualizar.
+            return
 
+        # Garante que as colunas SYNCABLE_COLUMNS estejam presentes na df_fbaseroter_active
+        # para o _prepare_df_for_supabase_insert e para o merge posterior.
         df_fbaseroter_active = df_fbaseroter_active[
             [col for col in SYNCABLE_COLUMNS if col in df_fbaseroter_active.columns]
         ].copy()
 
+        # Garante que 'Serie_Numero_CTRC' seja string e não tenha nulos para ser a chave principal
         df_fbaseroter_active['Serie_Numero_CTRC'] = df_fbaseroter_active['Serie_Numero_CTRC'].astype(str)
         df_fbaseroter_active.dropna(subset=['Serie_Numero_CTRC'], inplace=True)
 
         st.info(f"Total de entregas ativas em fBaseroter (filtradas): {len(df_fbaseroter_active)}.")
 
+        # Preparar df_fbaseroter_active para upsert no formato Supabase (datas em ISO, nulos em None)
         df_fbaseroter_active_prepared = _prepare_df_for_supabase_insert(df_fbaseroter_active)
 
+        # --- NOVA VERIFICAÇÃO ---
+        # Garante que a coluna crítica 'Serie_Numero_CTRC' exista no DataFrame preparado.
+        # Se não existir, algo deu muito errado, e devemos sair para evitar KeyErrors.
         if 'Serie_Numero_CTRC' not in df_fbaseroter_active_prepared.columns:
             st.error("Erro crítico: 'Serie_Numero_CTRC' não encontrada no DataFrame preparado da fBaseroter. A sincronização será interrompida.")
-            return {}
+            return
+        # --- FIM DA NOVA VERIFICAÇÃO ---
 
-        active_fbaseroter_ctrcs = set(df_fbaseroter_active_prepared['Serie_Numero_CTRC'].tolist())
+        # Define active_fbaseroter_ctrcs APÓS df_fbaseroter_active_prepared e sua validação
+        active_fbaseroter_ctrcs = set(df_fbaseroter_active_prepared['Serie_Numero_CTRC'].tolist()) # <--- Agora definida aqui, no lugar correto
 
-        updated_in_flow_tables = {}
-
+        # Iterar sobre cada tabela do fluxo de trabalho
         for table_name in FLOW_TABLES:
             st.write(f"Processando tabela: **{table_name}**")
             
             try:
+                # Inicializa variáveis para garantir que sempre estejam definidas, mesmo com 'continue'
+                # 'ctrcs_to_delete_from_flow_table' mantido para Pylance, mas não usado para deleção.
                 ctrcs_to_delete_from_flow_table = set() 
                 ctrcs_to_update = []
 
+                # Busca todas as colunas para que o upsert possa sobrescrever corretamente.
                 response_flow_table = supabase_client.table(table_name).select("*").execute() 
                 df_flow_table = pd.DataFrame(response_flow_table.data)
 
@@ -246,28 +258,42 @@ def sincronizar_fluxo_com_fbaseroter(supabase_client):
                     st.info(f"Tabela '{table_name}' está vazia. Nenhuma atualização ou deleção necessária por enquanto.")
                     continue
 
+                # Garante que 'Serie_Numero_CTRC' seja string e não tenha nulos para ser a chave principal
                 df_flow_table['Serie_Numero_CTRC'] = df_flow_table['Serie_Numero_CTRC'].astype(str)
                 df_flow_table.dropna(subset=['Serie_Numero_CTRC'], inplace=True)
 
                 current_flow_ctrcs = set(df_flow_table['Serie_Numero_CTRC'].tolist())
                 
+                # ***** LÓGICA DE DELEÇÃO REMOVIDA *****
+                # A intenção é que entregas no fluxo só saiam por ação do usuário (aprovar, rejeitar, etc.)
+                # e não por sumirem da planilha Excel.
+                # ctrcs_to_delete_from_flow_table = current_flow_ctrcs - active_fbaseroter_ctrcs
+                # if ctrcs_to_delete_from_flow_table:
+                #    st.info(f"Deletando {len(ctrcs_to_delete_from_flow_table)} entrega(s) de '{table_name}' (não mais ativas em fBaseroter)...")
+                #    supabase_client.table(table_name).delete().in_("Serie_Numero_CTRC", list(ctrcs_to_delete_from_flow_table)).execute()
+                # **************************************
+
+                # Identificar CTRCs a serem atualizados (existem em ambas: tabela do fluxo e fBaseroter_active)
                 ctrcs_to_update = list(current_flow_ctrcs.intersection(active_fbaseroter_ctrcs))
 
                 if ctrcs_to_update:
+                    # Filtra os dados da fBaseroter para apenas os que precisam de atualização
                     df_updates = df_fbaseroter_active_prepared[
                         df_fbaseroter_active_prepared['Serie_Numero_CTRC'].isin(ctrcs_to_update)
                     ].copy()
 
+                    # Transforma em lista de dicionários para UPSERT
                     records_to_update = df_updates.to_dict(orient='records')
 
                     if records_to_update:
                         st.info(f"Atualizando {len(records_to_update)} entrega(s) em '{table_name}'...")
-                        response = supabase_client.table(table_name).upsert(records_to_update).execute()
-                        if hasattr(response, 'data') and response.data:
-                            updated_in_flow_tables[table_name] = len(response.data)
-                    else:
-                        st.info(f"Nenhuma entrega em '{table_name}' para atualizar.")
+                        # Realiza UPSERT para atualizar os registros existentes.
+                        # As entregas que não estão em 'ctrcs_to_update' não são tocadas.
+                        supabase_client.table(table_name).upsert(records_to_update).execute()
+                else:
+                    st.info(f"Nenhuma entrega em '{table_name}' para atualizar.")
 
+                # Invalida o cache da tabela específica para forçar o recarregamento
                 if table_name == "confirmadas_producao": st.session_state.pop("df_confirmadas_cache", None)
                 if table_name == "aprovacao_diretoria": st.session_state.pop("df_aprovacao_diretoria_cache", None)
                 if table_name == "pre_roterizacao": st.session_state.pop("df_pre_roterizacao_cache", None)
@@ -276,6 +302,7 @@ def sincronizar_fluxo_com_fbaseroter(supabase_client):
                 if table_name == "cargas_aprovadas": st.session_state.pop("df_cargas_aprovadas_cache", None)
                 if table_name == "cargas_fechadas": st.session_state.pop("df_cargas_fechadas_cache", None)
                 
+                # E também as flags de reload
                 if table_name == "confirmadas_producao": st.session_state["reload_confirmadas_producao"] = True
                 if table_name == "aprovacao_diretoria": st.session_state["reload_aprovacao_diretoria"] = True
                 if table_name == "pre_roterizacao": st.session_state["reload_pre_roterizacao"] = True
@@ -286,16 +313,13 @@ def sincronizar_fluxo_com_fbaseroter(supabase_client):
 
             except Exception as e:
                 st.error(f"Erro ao sincronizar tabela '{table_name}': {e}")
-                st.exception(e)
+                st.exception(e) # Para ver o traceback
 
     except Exception as e:
         st.error(f"Erro crítico durante a sincronização do fluxo: {e}")
         st.exception(e)
-        return {}
 
     st.success("✅ Sincronização do fluxo de trabalho com fBaseroter concluída.")
-    return updated_in_flow_tables
-
 
 #-----------------------------------------------------------------------------------------------------------------------------------------------------------    
 def corrigir_tipos(df):
@@ -1374,7 +1398,8 @@ def salvar_historico_sincronizacao(username, num_new_fbaseroter, num_confirmadas
     except Exception as e:
         st.error(f"Erro ao salvar histórico de sincronização na tabela 'historico_sincronizacoes': {e}")
 
-#-------------------------------------------------------------------------------------------------------
+
+#-------------------------------------------------------------------------------------------------------------
 
 
 # Função auxiliar para executar a lógica principal de retorno da carga
@@ -1483,7 +1508,9 @@ def pagina_sincronizacao():
     st.markdown(f"🅿️ Entregas **Paletizadas**: **{st.session_state._qtd_paletizadas}**")
     st.markdown(f"➕ Novas em **Confirmar Produção (nesta sync)**: **{st.session_state._novas_confirmadas}**")
     st.markdown(f"➕ Novas em **Pré-Roterização (nesta sync)**: **{st.session_state._novas_pre_roterizacao}**")
-    
+
+
+
     # --- NOVO BLOCO DE COLUNAS para detalhes de atualização e botão de histórico ---
     # Usando as mesmas proporções da área de upload para consistência visual.
     col_details_and_history_area, _ = st.columns([0.4, 0.6]) 
@@ -1568,10 +1595,10 @@ def pagina_sincronizacao():
                             'Data/Hora Sinc.', 'Usuario', 'Status',
                             'Novas Entregas fBaseroter',
                             'Novas em Confirmar Producao (nesta Sync)', 
-                            'Novas em Pré-Roterizacao (nesta Sync)', 
-                            'Detalhes das Atualizaçoes', 
+                            'Novas em Pre-Roterizacao (nesta Sync)', 
+                            'Detalhes das Atualizacoes', 
                             'Entregas em Confirmar Producao (Total)', 
-                            'Entregas em Pre-Roterizacao (Total)', 
+                            'Entregas em Pré-Roterizacao (Total)', 
                             'Entregas Paletizadas (Total)', 
                             'Nome do Arquivo Excel', 'Hash do Arquivo'
                         ]
@@ -1591,9 +1618,8 @@ def pagina_sincronizacao():
             except Exception as e:
                 st.error(f"Erro ao preparar histórico para download: {e}")
                 st.exception(e)
-    # --- FIM DO BLOCO DE COLUNAS para detalhes de atualização e botão de histórico ---
 
-    st.markdown("---") # Separador visual (agora fora da coluna, ocupará a largura total)
+    st.markdown("---") # Separador visual
 
     # === INÍCIO: Coluna mais estreita para o uploader de arquivos ===
     col_uploader_area, _ = st.columns([0.4, 0.6]) 
@@ -1621,6 +1647,7 @@ def pagina_sincronizacao():
                     df_raw = pd.read_excel(arquivo_excel)
                     df_raw.columns = df_raw.columns.str.strip()
 
+                      # --- NOVA MEDIDA DE SEGURANÇA: Verifica se o DataFrame está vazio de dados ---
                     if df_raw.empty or len(df_raw) == 0:
                         st.warning("⚠️ Arquivo de Importação está vazio, verifique o conteúdo do arquivo.")
                         st.session_state.uploaded_sync_file_hash = None 
@@ -1628,8 +1655,10 @@ def pagina_sincronizacao():
                         st.session_state.df_for_sync_cache = None 
                         return 
 
+
                     st.session_state.df_for_sync_cache = df_raw
 
+               # Exibe mensagem de sucesso e botão SOMENTE SE um DataFrame válido estiver cacheado
                 if st.session_state.df_for_sync_cache is not None and not st.session_state.df_for_sync_cache.empty:
                     st.success(f"Arquivo '{arquivo_excel.name}' carregado com sucesso!")
                     st.write("Clique em 'Iniciar Sincronização' para começar o processo.")
@@ -1648,13 +1677,14 @@ def pagina_sincronizacao():
                 st.session_state.sync_triggered = False
                 st.session_state.df_for_sync_cache = None 
 
+        # Este bloco 'elif' é para quando arquivo_excel é None (nenhum arquivo selecionado ou arquivo foi limpo)
         elif not arquivo_excel and st.session_state.get("uploaded_sync_file_hash"):
             st.session_state.uploaded_sync_file_hash = None
             st.session_state.df_for_sync_cache = None
             st.session_state.sync_triggered = False
             st.info("Nenhum arquivo carregado. Faça o upload de um novo arquivo Excel para sincronizar.")
             return 
-        else: 
+        else: # Estado inicial ou após limpar o arquivo anterior, aguardando upload
             st.info("Aguardando o upload de um arquivo Excel para iniciar a sincronização.")
             st.session_state.sync_triggered = False 
             return
@@ -1688,9 +1718,12 @@ def pagina_sincronizacao():
             # --- NOVO BLOCO: Filtragem e Sincronização Completa para fBaseroter ---
             st.info("Verificando estado atual de 'fBaseroter' e aplicando filtro de ocorrência...")
 
+            # 1. Obter o estado atual de 'fBaseroter' no banco de dados
             existing_fbaseroter_data = supabase.table("fBaseroter").select("Serie_Numero_CTRC").execute().data
             existing_fbaseroter_ctrcs_set = {record["Serie_Numero_CTRC"] for record in existing_fbaseroter_data}
 
+            # 2. Filtrar o DataFrame de entrada com base no Codigo da Ultima Ocorrencia
+            # Garante que 'Codigo da Ultima Ocorrencia' seja numérico para o filtro
             if 'Codigo da Ultima Ocorrencia' in df_to_process.columns:
                 df_to_process['Codigo da Ultima Ocorrencia'] = pd.to_numeric(
                     df_to_process['Codigo da Ultima Ocorrencia'], errors='coerce'
@@ -1700,8 +1733,9 @@ def pagina_sincronizacao():
                 ].copy()
             else:
                 st.warning("Coluna 'Codigo da Ultima Ocorrencia' não encontrada. Todas as entregas do arquivo serão consideradas permitidas para 'fBaseroter'.")
-                df_incoming_allowed = df_to_process.copy()
+                df_incoming_allowed = df_to_process.copy() # Se a coluna não for encontrada, permite todas
 
+            # Garante que 'Serie_Numero_CTRC' seja string para comparações
             if 'Serie_Numero_CTRC' in df_incoming_allowed.columns:
                 df_incoming_allowed['Serie_Numero_CTRC'] = df_incoming_allowed['Serie_Numero_CTRC'].astype(str)
                 df_incoming_allowed.drop_duplicates(subset=['Serie_Numero_CTRC'], inplace=True) 
@@ -1711,6 +1745,7 @@ def pagina_sincronizacao():
 
             incoming_allowed_ctrcs_set = set(df_incoming_allowed['Serie_Numero_CTRC'].tolist())
 
+            # 3. Identificar CTRCs a serem DELETADOS de 'fBaseroter' (existentes no DB, mas não no arquivo filtrado)
             ctrcs_to_delete = existing_fbaseroter_ctrcs_set - incoming_allowed_ctrcs_set
 
             if ctrcs_to_delete:
@@ -1721,6 +1756,7 @@ def pagina_sincronizacao():
 
             progress_bar.progress(20)
 
+            # 4. Preparar o DataFrame para UPSERT (inserir novos ou atualizar existentes)
             df_final_for_upsert = _prepare_df_for_supabase_insert(df_incoming_allowed)
             records_to_upsert = df_final_for_upsert.to_dict(orient='records')
 
@@ -1734,15 +1770,21 @@ def pagina_sincronizacao():
             else:
                 st.info("Nenhuma entrega para UPSERT em 'fBaseroter' após filtragem e verificação de dados.")
 
+            # --- FIM NOVO BLOCO: Filtragem e Sincronização Completa para fBaseroter ---
+
             progress_bar.progress(30) 
 
+            # A função sincronizar_fluxo_com_fbaseroter agora retorna os counts de updates
             updated_flow_table_counts = sincronizar_fluxo_com_fbaseroter(supabase)
             progress_bar.progress(60) 
 
+            # A função aplicar_regras_e_preencher_tabelas() agora consultará a tabela 'fBaseroter'
+            # já filtrada e atualizada.
             num_inseridos_pre_roterizacao, num_inseridos_confirmadas = aplicar_regras_e_preencher_tabelas()
 
             progress_bar.progress(95)
 
+            # Recarregamento de caches (seu código existente)
             st.session_state["reload_confirmadas_producao"] = True
             st.session_state.pop("df_confirmadas_cache", None)
             st.session_state["reload_aprovacao_diretoria"] = True
@@ -1761,6 +1803,7 @@ def pagina_sincronizacao():
             progress_bar.progress(100)
 
             try:
+                # Contagens totais (seu código existente)
                 qtd_confirmadas = len(supabase.table("confirmadas_producao").select("Serie_Numero_CTRC").execute().data or [])
                 qtd_pre_roterizacao = len(supabase.table("pre_roterizacao").select("Serie_Numero_CTRC").execute().data or [])
 
@@ -1785,7 +1828,7 @@ def pagina_sincronizacao():
                     num_novas_pre_roterizacao=num_inseridos_pre_roterizacao,
                     file_name=arquivo_excel.name if arquivo_excel else None,
                     file_hash=current_file_hash,
-                    detailed_update_counts=updated_flow_table_counts
+                    detailed_update_counts=updated_flow_table_counts # <--- Novo parâmetro para o histórico
                 )
 
             except Exception as e:
@@ -2277,52 +2320,48 @@ def apply_brazilian_date_format_for_display(df_to_format):
         return df_copy
 
     # Consolidamos todas as colunas que são de data ou timestamp no DB
-    # para processar apenas elas e ignorar colunas que não são datas.
-    all_db_date_or_timestamp_cols = set(GLOBAL_DB_DATE_COLS) \
-        .union(GLOBAL_DB_TIMESTAMP_COLS)
+    all_db_date_or_timestamp_cols = set(GLOBAL_DB_DATE_COLS).union(GLOBAL_DB_TIMESTAMP_COLS)
 
     for col in all_db_date_or_timestamp_cols:
         if col not in df_copy.columns:
-            continue  # Pula se a coluna não existe no DataFrame
+            continue
 
-        # Converte para datetime robustamente primeiro, se ainda não for
-        # (Isso é um fallback, idealmente já vem como pd.Timestamp do _parse_date_robustly)
+        # Garante que a coluna é do tipo datetime.
+        # Para timestamps, assegura que é UTC-aware. Para datas, que é naive.
         if not pd.api.types.is_datetime64_any_dtype(df_copy[col]):
-            df_copy[col] = _parse_date_robustly(df_copy[col])
+            if col in GLOBAL_DB_TIMESTAMP_COLS:
+                # Carregamento já deveria ter feito isso, mas é uma segurança aqui
+                df_copy[col] = pd.to_datetime(df_copy[col], errors='coerce', utc=True)
+            else: # Colunas GLOBAL_DB_DATE_COLS
+                df_copy[col] = _parse_date_robustly(df_copy[col], col_name=col)
 
-        # Pula se a coluna continua sem ser um tipo datetime válido
+        # Se ainda não é um tipo datetime válido, pula
         if not pd.api.types.is_datetime64_any_dtype(df_copy[col]):
             continue
 
-        # --- Etapa 1: Localização do Fuso Horário e Determinação do Formato ---
+        # --- Etapa 1: Conversão para o Fuso Horário de Brasília ---
         format_str_for_python_conversion = None
 
-        # Se a coluna é um TIMESTAMP (salvo como TIMESTAMP WITH TIME ZONE no DB)
         if col in GLOBAL_DB_TIMESTAMP_COLS:
             df_copy[col] = df_copy[col].apply(
                 lambda x: (
                     ''
                     if pd.isna(x) or not isinstance(x, (datetime, pd.Timestamp)) else
                     (
-                        x.tz_localize(timezone.utc, ambiguous='NaT', nonexistent='NaT').astimezone(FUSO_BRASIL)
-                        if pd.notna(x) and x.tzinfo is None  # Se tz-naive, assume UTC e converte
-                        else (
-                            x.astimezone(FUSO_BRASIL)
-                            if pd.notna(x) and x.tzinfo is not None
-                            else pd.NaT
-                        )
+                        # Simplesmente converte para o fuso horário de Brasília.
+                        # Assumimos que 'x' já é um objeto datetime UTC-aware neste ponto.
+                        x.astimezone(FUSO_BRASIL)
                     )
                 )
             )
             format_str_for_python_conversion = DATE_DISPLAY_FORMAT_STRING  # Para timestamps, usa HH:MM
 
-        # Se a coluna é uma DATA (salvo como DATE no DB)
         elif col in GLOBAL_DB_DATE_COLS:
+            # Para colunas de data (sem hora), apenas garante que não tenham fuso e formata.
             df_copy[col] = df_copy[col].apply(
                 lambda x: x.replace(tzinfo=None) if pd.notna(x) and x.tzinfo is not None else x
-                # Garante que seja tz-naive (sem info de fuso)
             )
-            format_str_for_python_conversion = ISO_DATE_ONLY_FORMAT_STRING
+            format_str_for_python_conversion = ISO_DATE_ONLY_FORMAT_STRING # DD-MM-YYYY
 
         # --- Etapa 2: Aplica a formatação final para strings ---
         if format_str_for_python_conversion:
@@ -2331,7 +2370,7 @@ def apply_brazilian_date_format_for_display(df_to_format):
                     x.strftime(format_str_for_python_conversion)
                     if pd.notna(x) and isinstance(x, (pd.Timestamp, datetime))
                     else ''
-                )  # Trata NaT e valores não-datetime
+                )
             )
 
     return df_copy
@@ -2342,84 +2381,98 @@ def _parse_date_robustly(date_series, col_name=None):
     if not isinstance(date_series, pd.Series):
         date_series = pd.Series(date_series)
 
-    # 1. Garante que os elementos da série são strings e trata NaNs/strings vazias
-    cleaned_series = date_series.astype(str).str.strip().replace('', np.nan).replace('nan', np.nan)
-    cleaned_series = pd.Series(cleaned_series) # Garante que é uma Series para o .loc
+    # Garante que todos os elementos são strings e trata representações comuns de NaN/vazio
+    cleaned_series = date_series.astype(str).str.strip().replace('', np.nan).replace('nan', np.nan).replace('NaT', np.nan)
+    
+    # Inicializa a série de resultados com dtype 'datetime64[ns]' (naive, sem fuso horário)
+    parsed_dates = pd.Series(pd.NaT, index=cleaned_series.index, dtype='datetime64[ns]')
 
-    # Inicializa a série de resultados com NaT (Not a Time)
-    parsed_dates = pd.Series(pd.NaT, index=cleaned_series.index)
+    # Lista de formatos comuns para tentar sequencialmente. Isso é crucial para evitar o UserWarning.
+    # Priorize formatos com data e hora completas, depois apenas data.
+    formats_to_try = [
+        # Formatos ISO-like (com e sem fuso horário, diferentes separadores)
+        '%Y-%m-%dT%H:%M:%S%z', '%Y-%m-%dT%H:%M:%S', '%Y-%m-%dT%H:%M', '%Y-%m-%d', # YYYY-MM-DD
+        '%Y/%m/%d %H:%M:%S', '%Y/%m/%d %H:%M', '%Y/%m/%d',                       # YYYY/MM/DD
+        # Formatos Brasileiros (com e sem fuso horário, diferentes separadores)
+        '%d-%m-%Y %H:%M:%S%z', '%d-%m-%Y %H:%M:%S', '%d-%m-%Y %H:%M', '%d-%m-%Y', # DD-MM-YYYY
+        '%d/%m/%Y %H:%M:%S%z', '%d/%m/%Y %H:%M:%S', '%d/%m/%Y %H:%M', '%d/%m/%Y'  # DD/MM/YYYY
+    ]
 
-    # --- Estratégia: Tenta formatos específicos em uma ordem prioritária ---
+    for fmt in formats_to_try:
+        mask = parsed_dates.isna() # Reavalia a máscara para valores NaT restantes
+        if not mask.any(): # Se não há mais valores NaT, todas as datas foram parseadas
+            break 
 
-    # Tenta formatos ISO-like (YYYY-MM-DD, YYYY-MM-DD HH:MM:SS) - prioridade alta para dados de banco/Excel
+        # Tenta parsear com o formato atual
+        temp_parsed = pd.to_datetime(cleaned_series[mask], format=fmt, errors='coerce')
+        
+        # Antes de atribuir, garante que a série temporária parseada é naive (sem fuso horário).
+        # Isso resolve o FutureWarning explicitamente, convertendo para o dtype compatível.
+        # Usa .apply() para robustez, caso temp_parsed contenha NaT ou objetos não-datetime.
+        parsed_dates[mask] = temp_parsed.apply(lambda x: x.tz_localize(None) if pd.notna(x) and x.tzinfo is not None else x)
+
+    # Fallback final para quaisquer datas não parseadas usando inferência geral.
+    # Este passo ainda pode produzir o 'UserWarning' se os dados forem realmente bagunçados/inconsistentes,
+    # mas será para um subconjunto menor de dados.
     mask = parsed_dates.isna()
     if mask.any():
-        # Primeiro, YYYY-MM-DD
-        temp_parsed = pd.to_datetime(cleaned_series[mask], format='%Y-%m-%d', errors='coerce')
-        # Em seguida, YYYY-MM-DD com horas/minutos/segundos
-        temp_parsed = temp_parsed.fillna(pd.to_datetime(cleaned_series[mask], format='%Y-%m-%d %H:%M:%S', errors='coerce'))
-        temp_parsed = temp_parsed.fillna(pd.to_datetime(cleaned_series[mask], format='%Y-%m-%d %H:%M', errors='coerce'))
-        parsed_dates[mask] = temp_parsed
-
-    # Tenta formatos DD-MM-YYYY (comum para exibição/entrada de usuário no Brasil)
-    mask = parsed_dates.isna()
-    if mask.any():
-        # Primeiro, DD-MM-YYYY
-        temp_parsed = pd.to_datetime(cleaned_series[mask], format='%d-%m-%Y', errors='coerce')
-        # Em seguida, DD-MM-YYYY com horas/minutos/segundos
-        temp_parsed = temp_parsed.fillna(pd.to_datetime(cleaned_series[mask], format='%d-%m-%Y %H:%M:%S', errors='coerce'))
-        temp_parsed = temp_parsed.fillna(pd.to_datetime(cleaned_series[mask], format='%d-%m-%Y %H:%M', errors='coerce'))
-        parsed_dates[mask] = temp_parsed
-
-    # Tenta formatos DD/MM/YYYY (outro formato comum no Brasil)
-    mask = parsed_dates.isna()
-    if mask.any():
-        # Primeiro, DD/MM/YYYY
-        temp_parsed = pd.to_datetime(cleaned_series[mask], format='%d/%m/%Y', errors='coerce')
-        # Em seguida, DD/MM/YYYY com horas/minutos/segundos
-        temp_parsed = temp_parsed.fillna(pd.to_datetime(cleaned_series[mask], format='%d/%m/%Y %H:%M:%S', errors='coerce'))
-        temp_parsed = temp_parsed.fillna(pd.to_datetime(cleaned_series[mask], format='%d/%m/%Y %H:%M', errors='coerce'))
-        parsed_dates[mask] = temp_parsed
-
-    # Último recurso: inferência geral (para pegar ISO 8601 com 'Z', formatos ambíguos, etc.)
-    # Esta etapa é a mais "liberal" e pode ser menos performática, por isso fica no final.
-    mask = parsed_dates.isna()
-    if mask.any():
-        temp_parsed = pd.to_datetime(cleaned_series[mask], errors='coerce', infer_datetime_format=True)
-        parsed_dates[mask] = temp_parsed
+        temp_parsed = pd.to_datetime(cleaned_series[mask], errors='coerce', infer_datetime_format=True) 
+        
+        # Novamente, garante que seja naive antes de atribuir à série final.
+        parsed_dates[mask] = temp_parsed.apply(lambda x: x.tz_localize(None) if pd.notna(x) and x.tzinfo is not None else x)
 
     return parsed_dates
 #--------------------------------------------------------------------------------------------------------------
 
 def _prepare_df_for_supabase_insert(df_to_process):
-    if not isinstance(df_to_process, pd.DataFrame):
-        return pd.DataFrame()
+    # Garante que df_to_process é um DataFrame e não está vazio.
+    # Se for inválido ou vazio, retorna um DF vazio mas com as colunas originais, se possível.
+    if not isinstance(df_to_process, pd.DataFrame) or df_to_process.empty:
+        return pd.DataFrame(columns=df_to_process.columns if isinstance(df_to_process, pd.DataFrame) else [])
 
     df_copy = df_to_process.copy()
 
     try:
+        # Primeira passada: Lidar com conversões de data/timestamp
         for col in df_copy.columns:
-
             if col in GLOBAL_DB_DATE_COLS:
-                df_copy[col] = _parse_date_robustly(df_copy[col], col_name=col) # <--- col_name ADICIONADO AQUI
+                df_copy[col] = _parse_date_robustly(df_copy[col], col_name=col)
                 df_copy[col] = df_copy[col].apply(
                     lambda x: x.strftime('%Y-%m-%d') if pd.notna(x) else None
                 )
             elif col in GLOBAL_DB_TIMESTAMP_COLS:
-                df_copy[col] = _parse_date_robustly(df_copy[col], col_name=col) # <--- col_name ADICIONADO AQUI
+                df_copy[col] = _parse_date_robustly(df_copy[col], col_name=col)
+                df_copy[col] = df_copy[col].apply(tratar_data_para_utc)
+            elif pd.api.types.is_datetime64_any_dtype(df_copy[col]):
+                # Captura outras colunas datetime não listadas especificamente
+                df_copy[col] = _parse_date_robustly(df_copy[col], col_name=col)
                 df_copy[col] = df_copy[col].apply(tratar_data_para_utc)
 
-            # NOVO: Esta cláusula irá capturar QUALQUER outra coluna do tipo datetime
-            # que não foi explicitamente listada nas GLOBALS_DB_DATE/TIMESTAMP_COLS.
-            elif pd.api.types.is_datetime64_any_dtype(df_copy[col]):
-                df_copy[col] = df_copy[col].apply(tratar_data_para_utc) # Trata como timestamp
-                
-        result_df = df_copy.replace([np.nan, pd.NaT, np.inf, -np.inf, ""], None)
+        # Segunda passada: Lidar com outras substituições específicas para numéricos/strings
+        for col in df_copy.columns:
+            if pd.api.types.is_numeric_dtype(df_copy[col]):
+                # Substitui inf por nan. O fillna(None) será aplicado no final como um catch-all.
+                df_copy[col] = df_copy[col].replace([np.inf, -np.inf], np.nan)
+            elif pd.api.types.is_string_dtype(df_copy[col]):
+                # Substitui strings vazias por None
+                df_copy[col] = df_copy[col].replace("", None)
+        
+        # Etapa final de catch-all: Garante que qualquer np.nan ou pd.NaT restante em QUALQUER coluna
+        # seja convertido para None, para compatibilidade com o Supabase.
+        # Isso resolve o "Must specify a fill 'value' or 'method'" se NaNs permanecerem
+        # e alguma outra operação chamar fillna implicitamente.
+        result_df = df_copy.replace({np.nan: None, pd.NaT: None})
+        
         return result_df
 
     except Exception as e:
-        st.error(f"Erro ao preparar DataFrame para inserção no Supabase: {e}")
-        return pd.DataFrame()
+        st.error(f"Erro CRÍTICO ao preparar DataFrame para inserção no Supabase: {e}")
+        st.warning("Retornando DataFrame original com NaNs/NaTs substituídos por None para evitar KeyErrors. Verifique o erro acima para a causa raiz.")
+        # Se ocorrer um erro durante o processamento, é crucial retornar um DataFrame
+        # que ainda tenha as colunas originais (como 'Serie_Numero_CTRC') para evitar KeyErrors subsequentes.
+        # Retornamos o df_to_process original, mas com NaNs/NaTs já substituídos por None.
+        return df_to_process.replace({np.nan: None, pd.NaT: None})
+
 
 
 
@@ -2468,26 +2521,18 @@ def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, veiculo, valor_f
     df_entregas_formatted_for_pdf = apply_brazilian_date_format_for_display(df_entregas.copy())
     # ------------------------------------------------------------------
 
-    image_path = r"C:\Users\Rafael\Roteriza\Scripts\assets\Logo FA.png"
+    image_path = r"C:\Users\Rafael\Roteriza\Scripts\logo.png"
     img_width = 1.0 * inch
     img_height = 0.75 * inch
 
-    
-
     def draw_image_on_page(canvas_obj, doc):
-        print(f"DEBUG: draw_image_on_page foi chamada para a imagem: {image_path}") # <--- ADICIONE ESTA LINHA
-        print(f"DEBUG: O arquivo existe? {os.path.exists(image_path)}") # <--- E ESTA LINHA (requer 'import os' no topo do arquivo)
-
         page_width, page_height = landscape(letter)
         x_pos = doc.leftMargin
         y_pos = page_height - img_height - doc.topMargin
         try:
             canvas_obj.drawImage(image_path, x_pos, y_pos, width=img_width, height=img_height, preserveAspectRatio=True)
-            print(f"DEBUG: Imagem {image_path} desenhada com sucesso.") # <--- E ESTA LINHA
         except Exception as e:
             print(f"Erro ao desenhar imagem no PDF: {e}")
-
-
 
     doc = SimpleDocTemplate(
         buffer,
@@ -2713,13 +2758,25 @@ def pagina_confirmar_producao():
     with st.spinner("🔄 Carregando entregas para confirmar produção..."):
         try:
             recarregar = st.session_state.pop("reload_confirmadas_producao", False)
-            if recarregar or "df_confirmadas_cache" not in st.session_state:
+
+            if recarregar or "df_confirmadas_cache" not in st.session_state: # Exemplo para confirmar_producao
                 df = pd.DataFrame(supabase.table("confirmadas_producao").select("*").execute().data)
+
+                if not df.empty:
+                    # --- NOVO BLOCO: GARANTIA DE TIPAGEM DATETIME NO CARREGAMENTO (para esta página) ---
+                    for col_name in GLOBAL_DB_TIMESTAMP_COLS:
+                        if col_name in df.columns:
+                            df[col_name] = pd.to_datetime(df[col_name], errors='coerce', utc=True)
+                    for col_name in GLOBAL_DB_DATE_COLS:
+                        if col_name in df.columns:
+                            df[col_name] = _parse_date_robustly(df[col_name], col_name=col_name)
+                    # --- FIM DO BLOCO ---
+
                 st.session_state["df_confirmadas_cache"] = df
             else:
                 df = st.session_state["df_confirmadas_cache"]
 
-            if not df.empty:
+
                 # Garante que as colunas críticas existam e estejam no tipo correto
                 if 'Rota' in df.columns:
                     df['Rota'] = df['Rota'].fillna('').astype(str)
@@ -2754,7 +2811,8 @@ def pagina_confirmar_producao():
         "Bairro do Destinatario","Data de Emissao", "Previsao de Entrega","Entrega Programada", 
         "Numero da Nota Fiscal",  "Status","Peso Real em Kg", "Peso Calculado em Kg", "Valor do Frete",
         "Rota", "Regiao", "Chave CT-e","Particularidade", "Codigo da Ultima Ocorrencia", "Cubagem em m³", 
-        "Quantidade de Volumes","Tipo_Tratativa_Especial"
+        "Quantidade de Volumes",
+        "Tipo_Tratativa_Especial", # <<-- ADICIONADO
     ]
 
     # --- JsCode para destaque visual nos grids (MANTÉM o destaque de Paletizadas) ---
@@ -2766,7 +2824,7 @@ def pagina_confirmar_producao():
         const tipoTratativa = params.data['Tipo_Tratativa_Especial'];
 
         if (tipoTratativa === 'Paletizadas') {
-            return { 'background-color': '#CFE8FF', 'color': '#000', 'font-weight': 'bold' }; 
+            return { 'background-color': '#EBF2F7', 'color': '#000', 'font-weight': 'bold' }; 
         }
         
         const isEntregaEmpty = !entrega || (typeof entrega === 'string' && entrega.trim() === '');
@@ -2779,8 +2837,8 @@ def pagina_confirmar_producao():
         }
 
         return null;
-}
-""")
+    }
+    """)
 
 
     # =============================================================
@@ -3130,12 +3188,13 @@ def pagina_aprovacao_diretoria():
         return f"<span style='background:#eef2f7;border-radius:12px;padding:6px 12px;margin:4px;color:inherit;display:inline-block;'>{label}</span>"
 
     colunas_exibir = [
-    "Serie_Numero_CTRC",  "Cliente Pagador", "Cliente Destinatario", "Cidade de Entrega",
-    "Bairro do Destinatario","Data de Emissao", "Previsao de Entrega","Entrega Programada", 
-    "Numero da Nota Fiscal",  "Status","Peso Real em Kg", "Peso Calculado em Kg", "Valor do Frete",
-    "Rota", "Regiao", "Chave CT-e","Particularidade", "Codigo da Ultima Ocorrencia", "Cubagem em m³", 
-    "Quantidade de Volumes","Tipo_Tratativa_Especial"
-]
+        "Serie_Numero_CTRC",  "Cliente Pagador", "Cliente Destinatario", "Cidade de Entrega",
+        "Bairro do Destinatario","Data de Emissao", "Previsao de Entrega","Entrega Programada", 
+        "Numero da Nota Fiscal",  "Status","Peso Real em Kg", "Peso Calculado em Kg", "Valor do Frete",
+        "Rota", "Regiao", "Chave CT-e","Particularidade", "Codigo da Ultima Ocorrencia", "Cubagem em m³", 
+        "Quantidade de Volumes",
+        "Tipo_Tratativa_Especial", # <<-- ADICIONADO
+    ]
 
     linha_destacar = JsCode("""
     function(params) {
@@ -3546,9 +3605,6 @@ def pagina_pre_roterizacao():
                             time.sleep(2)
                             st.session_state["chaves_input_value"] = ""
 
-
-                        
-
                             st.session_state["nova_carga_em_criacao"] = False
                             st.session_state["numero_nova_carga"] = ""
                             st.session_state["chaves_input_value"] = "" 
@@ -3586,7 +3642,8 @@ def pagina_pre_roterizacao():
             # --- Garante que a coluna 'Tipo_Tratativa_Especial' exista e seja string ---
             if 'Tipo_Tratativa_Especial' not in df_visivel.columns:
                 df_visivel['Tipo_Tratativa_Especial'] = '' 
-                st.warning("A coluna 'Tipo_Tratativa_Especial' não foi encontrada. Por favor, realize uma nova sincronização para atualizar os dados.")
+
+                #st.warning("A coluna 'Tipo_Tratativa_Especial' não foi encontrada. Por favor, realize uma nova sincronização para atualizar os dados.")
             
             df_visivel['Tipo_Tratativa_Especial'] = df_visivel['Tipo_Tratativa_Especial'].fillna('').astype(str)
 
@@ -3594,8 +3651,7 @@ def pagina_pre_roterizacao():
                 excel_buffer = BytesIO()
                 with pd.ExcelWriter(excel_buffer, engine='xlsxwriter') as writer:
                     df_visivel.to_excel(writer, index=False, sheet_name="Pre-Roterizacao")
-                    writer.close()
-                excel_buffer.seek(0)
+                    # writer.close() <--- Linha removida
 
                 col_spacer, col_button = st.columns([1, 0.25])
 
@@ -3702,7 +3758,7 @@ def pagina_pre_roterizacao():
     if not df_paletizadores_group.empty:
         grupos_para_exibir["Paletizadores"] = {
             'df': df_paletizadores_group,
-            'header_title_content': "Paletizadores", # Conteúdo específico para o título
+            'header_title_content': "📦 Entregas de Clientes Paletizadoras", # Conteúdo específico para o título
             'is_paletizadoras_group': True    # Flag para lógica específica
         }
     
@@ -4019,21 +4075,25 @@ def pagina_cargas_geradas():
                 dados = supabase.table("cargas_geradas").select("*").execute().data
                 df = pd.DataFrame(dados)
 
-                # --- START Comprehensive Date/Timestamp Conversion ---
-                all_supabased_date_cols = list(set(
-                    GLOBAL_DATE_DISPLAY_COLUMNS +
-                    GLOBAL_DB_DATE_COLS + # Make sure these are converted too
-                    GLOBAL_DATE_COLUMNS_DISPLAY_ONLY_DATE + # And these
-                    ['pdf_downloaded_at', 'pdf_simplified_downloaded_at'] # Any other specific date/time columns from this table
-                ))
+                if not df.empty:
+                    # --- INÍCIO DO BLOCO DE TIPAGEM JÁ EXISTENTE ---
+                    for col_name in GLOBAL_DB_TIMESTAMP_COLS:
+                        if col_name in df.columns:
+                            df[col_name] = pd.to_datetime(df[col_name], errors='coerce', utc=True)
+                    for col_name in GLOBAL_DB_DATE_COLS:
+                        if col_name in df.columns:
+                            df[col_name] = _parse_date_robustly(df[col_name], col_name=col_name)
+                    # --- FIM DO BLOCO DE TIPAGEM JÁ EXISTENTE ---
 
-                for col_name in all_supabased_date_cols:
-                    if col_name in df.columns:
-                        df[col_name] = _parse_date_robustly(df[col_name], col_name=col_name) # <-- ADICIONADO col_name
-                        
-                        # Se tiver timezone, remove para compatibilidade com o resto do código
-                         
-                # --- END Comprehensive Date/Timestamp Conversion ---
+
+                    # --- INÍCIO: DEBUG Cargas Geradas - Pós-Carregamento ---
+                    st.subheader("DEBUG: Cargas Geradas - Pós-Carregamento")
+                    if "Data_Hora_Gerada" in df.columns and not df.empty:
+                        dhg_val = df["Data_Hora_Gerada"].iloc[0]
+                        st.write(f"Data_Hora_Gerada - Tipo: {type(dhg_val)}, Value: {dhg_val}, tzinfo: {getattr(dhg_val, 'tzinfo', 'N/A')}")
+                    st.markdown("---")
+                    # --- FIM: DEBUG Cargas Geradas - Pós-Carregamento ---
+
 
                 if 'numero_carga' in df.columns: # Garante que numero_carga é string
                     df['numero_carga'] = df['numero_carga'].astype(str)
@@ -4123,8 +4183,8 @@ def pagina_cargas_geradas():
         "Serie_Numero_CTRC",  "Cliente Pagador", "Cliente Destinatario", "Cidade de Entrega",
         "Bairro do Destinatario", "Data de Emissao", "Previsao de Entrega","Entrega Programada", "Numero da Nota Fiscal", 
          "Status","Peso Real em Kg", "Peso Calculado em Kg", "Valor do Frete",
-        "Rota", "Regiao", "Chave CT-e", "Data_Hora_Gerada" , "Tipo_Tratativa_Especial",
-        "Particularidade", "Codigo da Ultima Ocorrencia", "Cubagem em m³", "Quantidade de Volumes", "status_retorno"
+        "Rota", "Regiao", "Chave CT-e", "Data_Hora_Gerada" , 
+        "Particularidade", "Codigo da Ultima Ocorrencia", "Cubagem em m³", "Quantidade de Volumes", "status_retorno", "Tipo_Tratativa_Especial", # <<-- ADICIONADO
 ]
 
         cargas_unicas = sorted(df["numero_carga"].dropna().unique())
@@ -4426,7 +4486,17 @@ def pagina_cargas_geradas():
                                 dayfirst=True # Consistentemente lê como Dia-Mês-Ano
                             )
                     # Apply Brazilian date format for display on this specific DataFrame
-                    df_formatado = apply_brazilian_date_format_for_display(df_formatado)
+                    df_formatado = apply_brazilian_date_format_for_display(df_carga_raw.copy())
+
+                    # --- INÍCIO: DEBUG Cargas Geradas - Pré-AgGrid ---
+                    st.subheader("DEBUG: Cargas Geradas - Pré-AgGrid")
+                    if "Data_Hora_Gerada" in df_formatado.columns and not df_formatado.empty:
+                        dhg_val = df_formatado["Data_Hora_Gerada"].iloc[0]
+                        st.write(f"Data_Hora_Gerada - Tipo: {type(dhg_val)}, Value: {dhg_val}")
+                    st.markdown("---")
+                    # --- FIM: DEBUG Cargas Geradas - Pré-AgGrid ---
+
+
 
                     gb = GridOptionsBuilder.from_dataframe(df_formatado)
                     gb.configure_default_column(minWidth=145)
@@ -4434,6 +4504,7 @@ def pagina_cargas_geradas():
                     gb.configure_grid_options(paginationPageSize=12)
                     gb.configure_grid_options(alwaysShowHorizontalScroll=True)
                     gb.configure_grid_options(rowStyle={"font-size": "11px"})
+
                     gb.configure_grid_options(getRowStyle=JsCode("""
                         function(params) {
                             const status = params.data.Status;
@@ -4477,7 +4548,8 @@ def pagina_cargas_geradas():
                     allow_unsafe_jscode=True,
                     key=grid_key,
                     theme=AgGridTheme.MATERIAL,
-                    show_toolbar=False,
+                    show_toolbar=True,
+                    data_return_mode="AS_INPUT",
                     custom_css={
                         ".ag-theme-material .ag-cell": { "font-size": "11px", "line-height": "18px", "border-right": "1px solid #ccc", },
                         ".ag-theme-material .ag-row:last-child .ag-cell": { "border-bottom": "1px solid #ccc", },
@@ -4807,18 +4879,26 @@ def pagina_aprovacao_custos():
                 df = pd.DataFrame(dados)
 
                 if not df.empty:
-                    # --- NOVO BLOCO: Conversão Robusta de Data/Timestamp ao carregar ---
-                    for col_name in ALL_COLS_TO_PARSE_AS_DATE_OR_TIMESTAMP:
+                    # --- INÍCIO DO BLOCO DE TIPAGEM JÁ EXISTENTE ---
+                    for col_name in GLOBAL_DB_TIMESTAMP_COLS:
                         if col_name in df.columns:
-                            df[col_name] = _parse_date_robustly(df[col_name], col_name=col_name) # <-- ADICIONADO col_name
+                            df[col_name] = pd.to_datetime(df[col_name], errors='coerce', utc=True)
+                    for col_name in GLOBAL_DB_DATE_COLS:
+                        if col_name in df.columns:
+                            df[col_name] = _parse_date_robustly(df[col_name], col_name=col_name)
+                    # --- FIM DO BLOCO DE TIPAGEM JÁ EXISTENTE ---
+                    
+                    # --- INÍCIO: DEBUG Aprovação de Custos - Pós-Carregamento ---
+                    st.subheader("DEBUG: Aprovação Custos - Pós-Carregamento")
+                    if "Data_Hora_Gerada" in df.columns and not df.empty:
+                        dhg_val = df["Data_Hora_Gerada"].iloc[0]
+                        st.write(f"Data_Hora_Gerada - Tipo: {type(dhg_val)}, Value: {dhg_val}, tzinfo: {getattr(dhg_val, 'tzinfo', 'N/A')}")
+                    if "data_aprovacao_custos" in df.columns and not df.empty:
+                        dac_val = df["data_aprovacao_custos"].iloc[0]
+                        st.write(f"data_aprovacao_custos - Tipo: {type(dac_val)}, Value: {dac_val}, tzinfo: {getattr(dac_val, 'tzinfo', 'N/A')}")
+                    st.markdown("---")
+                    # --- FIM: DEBUG Aprovação de Custos - Pós-Carregamento ---
 
-
-                            # Para colunas de timestamp, ensure it's timezone-aware as UTC then localize for consistency before cache
-                            if col_name in GLOBAL_DB_TIMESTAMP_COLS and pd.api.types.is_datetime64_any_dtype(df[col_name]):
-                                df[col_name] = df[col_name].apply(
-                                    lambda x: x.tz_localize('UTC', ambiguous='NaT', nonexistent='NaT') if pd.notna(x) and x.tzinfo is None else x
-                                )
-                    # --- FIM NOVO BLOCO
                 
                     # ✅ Garante que 'numero_carga' seja string no cache
                     if 'numero_carga' in df.columns:
@@ -4894,9 +4974,9 @@ def pagina_aprovacao_custos():
         colunas_exibir = [
         "Serie_Numero_CTRC",  "Cliente Pagador", "Cliente Destinatario", "Cidade de Entrega",
         "Bairro do Destinatario","Data de Emissao", "Previsao de Entrega","Entrega Programada","Status", "Numero da Nota Fiscal",  
-        "Peso Real em Kg", "Peso Calculado em Kg", "Valor do Frete",
-        "Rota", "Regiao",  "Chave CT-e", "Data_Hora_Gerada","Tipo_Tratativa_Especial",
-        "Particularidade", "Codigo da Ultima Ocorrencia", "Cubagem em m³", "Quantidade de Volumes",
+         "Peso Real em Kg", "Peso Calculado em Kg", "Valor do Frete",
+        "Rota", "Regiao",  "Chave CT-e", "Data_Hora_Gerada", 'pdf_downloaded_at',
+        "Particularidade",  "Tipo_Tratativa_Especial", "Codigo da Ultima Ocorrencia", "Cubagem em m³", "Quantidade de Volumes",
 ]
 
         cargas_unicas = sorted(df["numero_carga"].dropna().unique())
@@ -5139,7 +5219,16 @@ def pagina_aprovacao_custos():
                     
                     df_formatado = df_carga[[col for col in colunas_exibir if col in df_carga.columns]].copy()
                     df_formatado = apply_brazilian_date_format_for_display(df_formatado)
-                    df_formatado = df_formatado.replace([np.nan, None], "")
+                    # --- INÍCIO: DEBUG Aprovação de Custos - Pré-AgGrid ---
+                    st.subheader("DEBUG: Aprovação Custos - Pré-AgGrid")
+                    if "Data_Hora_Gerada" in df_formatado.columns and not df_formatado.empty:
+                        dhg_val = df_formatado["Data_Hora_Gerada"].iloc[0]
+                        st.write(f"Data_Hora_Gerada - Tipo: {type(dhg_val)}, Value: {dhg_val}")
+                    if "data_aprovacao_custos" in df_formatado.columns and not df_formatado.empty:
+                        dac_val = df_formatado["data_aprovacao_custos"].iloc[0]
+                        st.write(f"data_aprovacao_custos - Tipo: {type(dac_val)}, Value: {dac_val}")
+                    st.markdown("---")
+                    # --- FIM: DEBUG Aprovação de Custos - Pré-AgGrid ---
 
                     gb = GridOptionsBuilder.from_dataframe(df_formatado)
                     gb.configure_default_column(minWidth=145)
@@ -5472,7 +5561,7 @@ def pagina_aprovacao_custos():
 def pagina_cargas_aprovadas():
     st.markdown("## Cargas Aprovadas")
         # --- NOVO BLOCO: Botão Aprovar e Fechar Todas ---
-    if st.button("✅ Salvar e Fechar Todas as Cargas da Página", key="btn_aprovar_fechar_todas_aprovadas"):
+    if st.button("✅ Salvar e Fechar Todas as Cargas Aprovadas", key="btn_aprovar_fechar_todas_aprovadas"):
         try:
             with st.spinner("🔄 Salvando e fechando todas as cargas aprovadas..."):
                 all_approved_data = supabase.table("cargas_aprovadas").select("*").execute().data
@@ -5541,17 +5630,27 @@ def pagina_cargas_aprovadas():
                 dados = supabase.table("cargas_aprovadas").select("*").execute().data
 
                 df = pd.DataFrame(dados)
+                
                 if not df.empty:
-                    # --- NOVO BLOCO: Conversão Robusta de Data/Timestamp ao carregar ---
-                    for col_name in ALL_COLS_TO_PARSE_AS_DATE_OR_TIMESTAMP:
+                # --- INÍCIO DO BLOCO DE TIPAGEM JÁ EXISTENTE ---
+                    for col_name in GLOBAL_DB_TIMESTAMP_COLS:
                         if col_name in df.columns:
-                            df[col_name] = _parse_date_robustly(df[col_name], col_name=col_name) # <-- ADICIONADO col_name
-                            
-                            # Para colunas de timestamp, ensure it's timezone-aware as UTC then localize for consistency before cache
-                            if col_name in GLOBAL_DB_TIMESTAMP_COLS and pd.api.types.is_datetime64_any_dtype(df[col_name]):
-                                df[col_name] = df[col_name].apply(
-                                    lambda x: x.tz_localize('UTC', ambiguous='NaT', nonexistent='NaT') if pd.notna(x) and x.tzinfo is None else x
-                                )
+                            df[col_name] = pd.to_datetime(df[col_name], errors='coerce', utc=True)
+                    for col_name in GLOBAL_DB_DATE_COLS:
+                        if col_name in df.columns:
+                            df[col_name] = _parse_date_robustly(df[col_name], col_name=col_name)
+                    # --- FIM DO BLOCO DE TIPAGEM JÁ EXISTENTE ---
+
+                    # --- INÍCIO: DEBUG Cargas Aprovadas - Pós-Carregamento ---
+                    st.subheader("DEBUG: Cargas Aprovadas - Pós-Carregamento")
+                    if "Data_Hora_Gerada" in df.columns and not df.empty:
+                        dhg_val = df["Data_Hora_Gerada"].iloc[0]
+                        st.write(f"Data_Hora_Gerada - Tipo: {type(dhg_val)}, Value: {dhg_val}, tzinfo: {getattr(dhg_val, 'tzinfo', 'N/A')}")
+                    if "data_aprovacao_custos" in df.columns and not df.empty:
+                        dac_val = df["data_aprovacao_custos"].iloc[0]
+                        st.write(f"data_aprovacao_custos - Tipo: {type(dac_val)}, Value: {dac_val}, tzinfo: {getattr(dac_val, 'tzinfo', 'N/A')}")
+                    st.markdown("---")
+                    # --- FIM: DEBUG Cargas Aprovadas - Pós-Carregamento ---                             
                                 
                 st.session_state["df_cargas_aprovadas_cache"] = df
             else:
@@ -5608,8 +5707,8 @@ def pagina_cargas_aprovadas():
         "Status","Peso Real em Kg", "Peso Calculado em Kg", "Valor do Frete",
         "Rota", "Regiao",  "Chave CT-e",
         "Particularidade", "Codigo da Ultima Ocorrencia", "Cubagem em m³", "Quantidade de Volumes",
-        "valor_contratacao", "numero_carga", "motorista", "placa","Tipo_Tratativa_Especial",
-        "veiculo", "aprovador_custos_login", "data_aprovacao_custos", "Data_Hora_Gerada"
+        "valor_contratacao", "numero_carga", "motorista", "placa",
+        "veiculo", "aprovador_custos_login", "data_aprovacao_custos", "Data_Hora_Gerada", "Tipo_Tratativa_Especial", # <<-- ADICIONADO
 ]
 
         cargas_unicas = sorted(df["numero_carga"].dropna().unique())
@@ -5828,8 +5927,18 @@ def pagina_cargas_aprovadas():
                     # NOVO: Formatter para exibir APENAS a parte da data (dd-mm-aaaa)
                    
                     df_formatado = df_carga[[col for col in colunas_exibir if col in df_carga.columns]].copy()
-                    df_formatado = apply_brazilian_date_format_for_display(df_formatado) # Aplica o formato completo (dd-mm-aaaa HH:MM:SS)
-                    df_formatado = df_formatado.replace([np.nan, None], "")
+                    df_formatado = apply_brazilian_date_format_for_display(df_formatado) # OK
+                    # --- INÍCIO: DEBUG Cargas Aprovadas - Pré-AgGrid ---
+                    st.subheader("DEBUG: Cargas Aprovadas - Pré-AgGrid")
+                    if "Data_Hora_Gerada" in df_formatado.columns and not df_formatado.empty:
+                        dhg_val = df_formatado["Data_Hora_Gerada"].iloc[0]
+                        st.write(f"Data_Hora_Gerada - Tipo: {type(dhg_val)}, Value: {dhg_val}")
+                    if "data_aprovacao_custos" in df_formatado.columns and not df_formatado.empty:
+                        dac_val = df_formatado["data_aprovacao_custos"].iloc[0]
+                        st.write(f"data_aprovacao_custos - Tipo: {type(dac_val)}, Value: {dac_val}")
+                    st.markdown("---")
+                    # --- FIM: DEBUG Cargas Aprovadas - Pré-AgGrid ---
+                        
                     selecionadas = df_formatado[df_formatado["Serie_Numero_CTRC"].notna()].copy().to_dict(orient="records")
 
                     gb = GridOptionsBuilder.from_dataframe(df_formatado)
@@ -6086,25 +6195,28 @@ def pagina_cargas_fechadas():
                 # 1. Colunas que são TIMESTAMPS (com hora e fuso)
                 # Estas colunas já vêm do Supabase como strings ISO 8601 (UTC)
                   # --- CORREÇÃO AQUI: Iterar especificamente sobre as colunas de timestamp ---
-                    timestamp_cols_in_df = [
-                        col for col in GLOBAL_DB_TIMESTAMP_COLS
-                        if col in df_original.columns
-                    ]
-                    for col in timestamp_cols_in_df:
-                    # pd.to_datetime é a função ideal e mais rápida para strings ISO 8601
-                        df_original[col] = df_original[col].astype(str).str.replace('Z', '+00:00').apply(
-                            lambda x: pd.to_datetime(x, format='%Y-%m-%dT%H:%M:%S%z', errors='coerce')
-                        )
-                        df_original[col] = pd.to_datetime(df_original[col], errors='coerce', utc=True)
 
-                # 2. Colunas que são apenas DATAS (sem hora)
-                date_cols_in_df = [
-                    col for col in GLOBAL_DB_DATE_COLS 
-                    if col in df_original.columns
-                ]
-                for col in date_cols_in_df:
-                    # Aqui usamos a função robusta, pois podem vir em formatos variados
-                    df_original[col] = _parse_date_robustly(df_original[col], col_name=col) # <-- ADICIONADO col_name
+
+                    # --- INÍCIO DO BLOCO DE TIPAGEM JÁ EXISTENTE ---
+                    for col_name in GLOBAL_DB_TIMESTAMP_COLS:
+                        if col_name in df_original.columns:
+                            df_original[col_name] = pd.to_datetime(df_original[col_name], errors='coerce', utc=True)
+                    for col_name in GLOBAL_DB_DATE_COLS:
+                        if col_name in df_original.columns:
+                            df_original[col_name] = _parse_date_robustly(df_original[col_name], col_name=col_name)
+                    # --- FIM DO BLOCO DE TIPAGEM JÁ EXISTENTE ---
+
+                    # --- INÍCIO: DEBUG Cargas Encerradas - Pós-Carregamento ---
+                    st.subheader("DEBUG: Cargas Encerradas - Pós-Carregamento")
+                    debug_cols_ce = ["Data_Hora_Gerada", "data_aprovacao_custos", "data_fechamento", "pdf_downloaded_at", "csv_downloaded_at"]
+                    for col in debug_cols_ce:
+                        if col in df_original.columns and not df_original.empty:
+                            val = df_original[col].iloc[0]
+                            st.write(f"{col} - Tipo: {type(val)}, Value: {val}, tzinfo: {getattr(val, 'tzinfo', 'N/A')}")
+                    st.markdown("---")
+                    # --- FIM: DEBUG Cargas Encerradas - Pós-Carregamento ---
+
+
 
                 # Limpeza e tipagem para df_original (o restante do seu código)
                 df_original.columns = pd.Index([str(col).strip() for col in df_original.columns])
@@ -6272,7 +6384,7 @@ def pagina_cargas_fechadas():
         "Bairro do Destinatario","Data de Emissao", "Previsao de Entrega", "Numero da Nota Fiscal", "Status",
         "Entrega Programada", "Peso Real em Kg", "Peso Calculado em Kg", "Valor do Frete",
         "Rota", "Regiao", "Particularidade", "Codigo da Ultima Ocorrencia",
-        "Cubagem em m³", "Quantidade de Volumes","Tipo_Tratativa_Especial",
+        "Cubagem em m³", "Quantidade de Volumes","Tipo_Tratativa_Especial", # <<-- ADICIONADO
         "valor_contratacao", "numero_carga", "motorista", "placa", "veiculo",
         "data_fechamento", "situacao", "aprovador_custos_login", "data_aprovacao_custos",
         "fechador_carga_login", "justificativa_aprovacao_custo",
@@ -6385,10 +6497,10 @@ def pagina_cargas_fechadas():
         "Serie_Numero_CTRC", "Cliente Pagador", "Cliente Destinatario", "Cidade de Entrega",
         "Bairro do Destinatario","Data de Emissao", "Previsao de Entrega","Entrega Programada", "Status",
         "Numero da Nota Fiscal", "Peso Real em Kg", "Peso Calculado em Kg", "Valor do Frete",
-        "Rota", "Regiao",  "Chave CT-e","Tipo_Tratativa_Especial",
+        "Rota", "Regiao",  "Chave CT-e",
         "Particularidade", "Codigo da Ultima Ocorrencia", "Cubagem em m³", "Quantidade de Volumes",
         "valor_contratacao", "numero_carga", "motorista", "placa", "veiculo",
-        "data_fechamento", "situacao", "aprovador_custos_login", "data_aprovacao_custos",
+        "data_fechamento", "situacao", "aprovador_custos_login", "data_aprovacao_custos", "Tipo_Tratativa_Especial", # <<-- ADICIONADO
         "fechador_carga_login", "justificativa_aprovacao_custo",
         "pdf_downloaded_at", "csv_downloaded_at"
     ]
@@ -6680,8 +6792,16 @@ def pagina_cargas_fechadas():
             with st.spinner("   Formatando entregas da carga fechada..."):
                 df_formatado = df_carga[[col for col in colunas_exibir if col in df_carga.columns]].copy()
                 df_formatado = apply_brazilian_date_format_for_display(df_formatado)
-                # Garante que NaT e None sejam substituídos por string vazia para exibição no grid
-                df_formatado = df_formatado.replace([np.nan, None, pd.NaT], "")
+                
+                # --- INÍCIO: DEBUG Cargas Encerradas - Pré-st.dataframe ---
+                st.subheader("DEBUG: Cargas Encerradas - Pré-st.dataframe")
+                debug_cols_ce_formatted = ["Data_Hora_Gerada", "data_aprovacao_custos", "data_fechamento", "pdf_downloaded_at", "csv_downloaded_at"]
+                for col in debug_cols_ce_formatted:
+                    if col in df_formatado.columns and not df_formatado.empty:
+                        val = df_formatado[col].iloc[0]
+                        st.write(f"{col} - Tipo: {type(val)}, Value: {val}")
+                st.markdown("---")
+                # --- FIM: DEBUG Cargas Encerradas - Pré-st.dataframe ---
 
                 if df_formatado.empty or df_formatado.shape[1] == 0:
                     st.warning(f"Atenção: A carga {carga} não possui dados ou colunas válidas para exibir. Pulando a renderização do grid para esta carga.")

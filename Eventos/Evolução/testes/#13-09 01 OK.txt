@@ -1,11 +1,10 @@
-#12-09 07 Feitos todos ajustes de foramato de datas, botão para retornar de cargas encerradas para cargas geradas, retirada de paletizadores da confirmar produção
+#13-09 01 ->
+
+# Feitos todos ajustes de formato de datas visualmente, botão para retornar de cargas encerradas para cargas geradas, 
+retirada Grid de paletizadores da confirmar produção,Entregas Atualizadas/Afetadas nas Etapas do Fluxo(mostra os CTRC atualizados na sincronização)
+Data_Hora_Gerada no Grid com formato ISO 8601 2025-09-13T03:09:31.000Z(Corrigir futuramente).
 
 
-#09-09 retirado para correção formato time zone página Pré Roteirização
-
-
-
-#sincronização, Pré Roterização e Rotas Confirmadas funcionando
 
 import streamlit as st
 st.set_page_config(
@@ -1552,26 +1551,26 @@ def pagina_sincronizacao():
 
                         df_historico.rename(columns={
                             'data_hora_sincronizacao': 'Data/Hora Sinc.',
-                            'usuario': 'Usuario',
+                            'usuario': 'Usuário',
                             'novas_entregas_fbaseroter': 'Novas Entregas fBaseroter',
-                            'qtd_confirmadas_producao': 'Entregas em Confirmar Producao (Total)',
-                            'qtd_pre_roterizacao': 'Entregas em Pre-Roterizacao (Total)',
+                            'qtd_confirmadas_producao': 'Entregas em Confirmar Produção (Total)',
+                            'qtd_pre_roterizacao': 'Entregas em Pré-Roterização (Total)',
                             'qtd_paletizadas': 'Entregas Paletizadas (Total)', 
-                            'novas_confirmadas_producao': 'Novas em Confirmar Producao (nesta Sync)', 
-                            'novas_pre_roterizacao': 'Novas em Pre-Roterizacao (nesta Sync)', 
+                            'novas_confirmadas_producao': 'Novas em Confirmar Produção (nesta Sync)', 
+                            'novas_pre_roterizacao': 'Novas em Pré-Roterização (nesta Sync)', 
                             'nome_arquivo_excel': 'Nome do Arquivo Excel',
                             'arquivo_excel_hash': 'Hash do Arquivo',
                             'status_sincronizacao': 'Status' 
                         }, inplace=True)
 
                         colunas_csv_ordenadas = [
-                            'Data/Hora Sinc.', 'Usuario', 'Status',
+                            'Data/Hora Sinc.', 'Usuário', 'Status',
                             'Novas Entregas fBaseroter',
-                            'Novas em Confirmar Producao (nesta Sync)', 
-                            'Novas em Pré-Roterizacao (nesta Sync)', 
-                            'Detalhes das Atualizaçoes', 
-                            'Entregas em Confirmar Producao (Total)', 
-                            'Entregas em Pre-Roterizacao (Total)', 
+                            'Novas em Confirmar Produção (nesta Sync)', 
+                            'Novas em Pré-Roterização (nesta Sync)', 
+                            'Detalhes das Atualizações', 
+                            'Entregas em Confirmar Produção (Total)', 
+                            'Entregas em Pré-Roterização (Total)', 
                             'Entregas Paletizadas (Total)', 
                             'Nome do Arquivo Excel', 'Hash do Arquivo'
                         ]
@@ -2468,26 +2467,18 @@ def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, veiculo, valor_f
     df_entregas_formatted_for_pdf = apply_brazilian_date_format_for_display(df_entregas.copy())
     # ------------------------------------------------------------------
 
-    image_path = r"C:\Users\Rafael\Roteriza\Scripts\assets\Logo FA.png"
+    image_path = r"C:\Users\Rafael\Roteriza\Scripts\logo.png"
     img_width = 1.0 * inch
     img_height = 0.75 * inch
 
-    
-
     def draw_image_on_page(canvas_obj, doc):
-        print(f"DEBUG: draw_image_on_page foi chamada para a imagem: {image_path}") # <--- ADICIONE ESTA LINHA
-        print(f"DEBUG: O arquivo existe? {os.path.exists(image_path)}") # <--- E ESTA LINHA (requer 'import os' no topo do arquivo)
-
         page_width, page_height = landscape(letter)
         x_pos = doc.leftMargin
         y_pos = page_height - img_height - doc.topMargin
         try:
             canvas_obj.drawImage(image_path, x_pos, y_pos, width=img_width, height=img_height, preserveAspectRatio=True)
-            print(f"DEBUG: Imagem {image_path} desenhada com sucesso.") # <--- E ESTA LINHA
         except Exception as e:
             print(f"Erro ao desenhar imagem no PDF: {e}")
-
-
 
     doc = SimpleDocTemplate(
         buffer,
