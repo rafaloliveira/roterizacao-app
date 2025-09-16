@@ -1,7 +1,4 @@
-#12-09 07 Feitos todos ajustes de foramato de datas, botão para retornar de cargas encerradas para cargas geradas, retirada de paletizadores da confirmar produção
-
-
-#09-09 retirado para correção formato time zone página Pré Roteirização
+#15-09 Atualização - Em produção
 
 
 
@@ -236,7 +233,7 @@ def sincronizar_fluxo_com_fbaseroter(supabase_client):
             st.write(f"Processando tabela: **{table_name}**")
             
             try:
-                
+                ctrcs_to_delete_from_flow_table = set() 
                 ctrcs_to_update = []
 
                 response_flow_table = supabase_client.table(table_name).select("*").execute() 
@@ -251,22 +248,6 @@ def sincronizar_fluxo_com_fbaseroter(supabase_client):
 
                 current_flow_ctrcs = set(df_flow_table['Serie_Numero_CTRC'].tolist())
                 
-                # --- INÍCIO: NOVA Lógica para Deletar registros do fluxo que não estão mais em fBaseroter ---
-                ctrcs_to_delete_from_flow_table = current_flow_ctrcs - active_fbaseroter_ctrcs
-                if ctrcs_to_delete_from_flow_table:
-                    st.info(f"Deletando {len(ctrcs_to_delete_from_flow_table)} registro(s) de '{table_name}' (não encontrados ou não elegíveis em fBaseroter)...")
-                    try:
-                        supabase_client.table(table_name).delete().in_("Serie_Numero_CTRC", list(ctrcs_to_delete_from_flow_table)).execute()
-                        st.success(f"✅ {len(ctrcs_to_delete_from_flow_table)} entrega(s) removida(s) de '{table_name}'.")
-                    except Exception as delete_e:
-                        st.error(f"❌ Erro ao deletar registros de '{table_name}': {delete_e}")
-                        st.exception(delete_e) # Para ver o traceback completo do erro
-                else:
-                    st.info(f"Nenhum registro para ser deletado de '{table_name}'.")
-                # --- FIM: NOVA Lógica para Deletar registros do fluxo ---
-
-
-
                 ctrcs_to_update = list(current_flow_ctrcs.intersection(active_fbaseroter_ctrcs))
 
                 if ctrcs_to_update:
