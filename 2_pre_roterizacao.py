@@ -9201,7 +9201,7 @@ if st.session_state.get("login", False):
 
                 with col_search_btn_local:
                     # REMOVIDA A LINHA st.write("<br>") AQUI para alinhar o botão ao campo.
-                    if st.button("🔎 Buscar", key="perform_search_button_local_page_search", width='stretch'):
+                    if st.button("🔎 Buscar", key="perform_search_button_local_another_context", width='stretch'):
                         # ... (lógica do botão - SEM ALTERAÇÕES) ...
                         st.session_state.search_ctrc_input_value = st.session_state.search_ctrc_input_local
                         st.session_state.search_results = find_ctrc_in_workflow(st.session_state.search_ctrc_input_value)
