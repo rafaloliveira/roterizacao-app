@@ -8946,7 +8946,7 @@ def pagina_cargas_fechadas():
                             "Justificativa" 
                         )
 
-                    st.dataframe(df_formatado, width='stretch', hide_index=True, column_config=column_configuration, height=400)
+                    st.dataframe(df_formatado, use_container_width=True, hide_index=True, column_config=column_configuration, height=400)
         
        
         col_buttons_below_grid = st.columns([1, 1]) # Duas colunas para os botões
