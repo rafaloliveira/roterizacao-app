@@ -9,7 +9,7 @@
 
 import streamlit as st
 st.set_page_config(
-    page_title="F4Rotas - ambiente teste",
+    page_title="F4Rotas - Sistema de Gerenciamento de Rotas F4Rotas",
     page_icon="assets/Logo-FA.ico",
     layout="wide"
 )
@@ -27,6 +27,7 @@ import streamlit as st
 import os
 import random
 import traceback
+import unicodedata
 from decimal import Decimal, ROUND_HALF_UP, getcontext, InvalidOperation 
 from uuid import uuid4
 from fpdf import FPDF
@@ -199,6 +200,110 @@ FLOW_TABLES = [
    
 ]
 
+# === DEFINIÇÃO DA VARIÁVEL GLOBAL NO TOPO DO SCRIPT ===
+TABLE_TO_PAGE_NAME_MAP = {
+    "fBaseroter": "fBaseroter (Base Master)",
+    "confirmadas_producao": "Confirmar Produção",
+    "aprovacao_diretoria": "Aprovação Diretoria",
+    "pre_roterizacao": "Pré Roterização",
+    "cargas_geradas": "Cargas Geradas",
+    "aprovacao_custos": "Aprovação de Custos",
+    "cargas_aprovadas": "Cargas Aprovadas",
+    "cargas_fechadas": "Cargas Encerradas"
+}
+# === FIM DA DEFINIÇÃO DA VARIÁVEL GLOBAL ===
+
+
+# --- NOVO: Definições de Esquemas de Tabela para o CRUD de Cadastros ---
+TABLE_SCHEMAS = {
+    "Rotas": {
+        "columns": {
+            # Definimos Cidade de Entrega e Bairro do Destinatario como chave primária COMPOSTA
+            # Marcar 'pk: True' em ambos instruirá a função 'get_pk_condition' a usar os dois para identificar um registro.
+            "Cidade de Entrega": {"type": "text", "required": True, "pk": True},
+            "Bairro do Destinatario": {"type": "text", "required": True, "pk": True},
+            "UF de Entrega": {"type": "text", "required": True},
+            "Rota": {"type": "text", "required": True},
+        },
+        # As colunas que serão exibidas na tabela principal para o usuário selecionar/visualizar
+        "display_cols": ["Cidade de Entrega", "Bairro do Destinatario", "UF de Entrega", "Rota"]
+    },
+    "RotasPortoAlegre": {
+    "columns": {
+        "Cidade de Entrega": {"type": "text", "required": True, "pk": True},
+        "Bairro do Destinatario": {"type": "text", "required": True, "pk": True},
+        "Rota": {"type": "text", "required": True},
+        "UF de Entrega": {"type": "text", "required": True},
+    },
+    "display_cols": ["Bairro do Destinatario", "Rota", "UF de Entrega"]
+
+
+        
+    },
+    "Clientes_Entrega_Agendada": {
+        "columns": {
+            "CNPJ": {"type": "cnpj", "required": True, "unique": True, "pk": True},
+            "Status de Agenda": {"type": "select", "options": ["AGENDAR", "NORMAL"], "required": True},
+        },
+        "display_cols": ["CNPJ", "Status de Agenda"]
+    },
+
+
+    "Micro_Regiao_por_data_embarque": {
+        "columns": {
+            # Use os nomes EXATOS das colunas do seu banco de dados Supabase aqui
+            "CIDADE DESTINO": {"type": "text", "required": True, "pk": True},
+            "REGIÃO": {"type": "text", "required": True},
+            "MICRO REGIÃO": {"type": "text", "required": True},
+            "ATENDIDO POR": {"type": "text", "required": True},
+            # Este nome também deve ser EXATO como no seu banco de dados
+            "Dia_relação_ao_entrega_prevista": {"type": "number", "required": True, "min_value": 0, "max_value": 99},
+        },
+        "display_cols": [
+            # Também use os nomes EXATOS para exibição no Streamlit
+            "CIDADE DESTINO", "REGIÃO", "MICRO REGIÃO", "ATENDIDO POR", "Dia_relação_ao_entrega_prevista"
+        ]
+    },
+
+
+    "Paletizadores": {
+        "columns": {
+            "CNPJ DESTINATARIO": {"type": "cnpj", "required": True, "unique": True, "pk": True},
+            "CLIENTE DESTINATARIO": {"type": "text", "required": True},
+            "GRANDE REDE": {"type": "select", "options": ["SIM", "NÃO"], "required": True},
+            "PALETIZADORA": {"type": "select", "options": ["SIM", "NÃO"], "required": True},
+        },
+        "display_cols": ["CNPJ DESTINATARIO", "CLIENTE DESTINATARIO", "GRANDE REDE", "PALETIZADORA"]
+    },
+
+
+    "Particularidades": {
+        "columns": {
+            "CNPJ": {"type": "cnpj", "required": True, "unique": True, "pk": True},
+            "Cliente": {"type": "text", "required": True}, 
+            "Particularidade": {"type": "text", "required": True},
+        },
+        "display_cols": ["CNPJ", "Cliente", "Particularidade"]
+    },
+
+
+    
+    "Motoristas": { # Ou "Motorista_Placa", se preferir manter o nome original da chave
+    "columns": {
+        "PLACA": {
+            "type": "text",
+            "required": True,
+            "unique": True,
+            "pk": True,
+            "regex": "^[A-Z]{3}[0-9]{4}$",  # Expressão regular para 3 letras maiúsculas e 4 números
+            "regex_description": "Formato ABC1234 (3 letras e 4 números)" # Descrição para o usuário
+        },
+        "MOTORISTA": {"type": "text", "required": True},
+    },
+    "display_cols": ["PLACA", "MOTORISTA"] # Colunas para exibição na tabela principal
+},
+}
+# --- FIM: Definições de Esquemas de Tabela ---
 #------------------------------------------------------------------------------------------------------------------------------------------
 # Adicione esta função em um local adequado, por exemplo, após apply_regras_e_preencher_tabelas()
 
@@ -236,7 +341,7 @@ def sincronizar_fluxo_com_fbaseroter(supabase_client):
             st.write(f"Processando tabela: **{table_name}**")
             
             try:
-                ctrcs_to_delete_from_flow_table = set() 
+                
                 ctrcs_to_update = []
 
                 response_flow_table = supabase_client.table(table_name).select("*").execute() 
@@ -251,6 +356,22 @@ def sincronizar_fluxo_com_fbaseroter(supabase_client):
 
                 current_flow_ctrcs = set(df_flow_table['Serie_Numero_CTRC'].tolist())
                 
+                # --- INÍCIO: NOVA Lógica para Deletar registros do fluxo que não estão mais em fBaseroter ---
+                ctrcs_to_delete_from_flow_table = current_flow_ctrcs - active_fbaseroter_ctrcs
+                if ctrcs_to_delete_from_flow_table:
+                    st.info(f"Deletando {len(ctrcs_to_delete_from_flow_table)} registro(s) de '{table_name}' (não encontrados ou não elegíveis em fBaseroter)...")
+                    try:
+                        supabase_client.table(table_name).delete().in_("Serie_Numero_CTRC", list(ctrcs_to_delete_from_flow_table)).execute()
+                        st.success(f"✅ {len(ctrcs_to_delete_from_flow_table)} entrega(s) removida(s) de '{table_name}'.")
+                    except Exception as delete_e:
+                        st.error(f"❌ Erro ao deletar registros de '{table_name}': {delete_e}")
+                        st.exception(delete_e) # Para ver o traceback completo do erro
+                else:
+                    st.info(f"Nenhum registro para ser deletado de '{table_name}'.")
+                # --- FIM: NOVA Lógica para Deletar registros do fluxo ---
+
+
+
                 ctrcs_to_update = list(current_flow_ctrcs.intersection(active_fbaseroter_ctrcs))
 
                 if ctrcs_to_update:
@@ -375,7 +496,7 @@ def _aprovar_carga_custos(selecionadas_para_aprovar, df_carga_original, carga_nu
 
     df_aprovar["aprovador_custos_login"] = st.session_state.get("username", "Desconhecido")
     df_aprovar["data_aprovacao_custos"] = data_hora_brasil_iso()
-    st.write(f"DEBUG - Gerado (string): {df_aprovar['data_aprovacao_custos'].iloc[0]} (Tipo: {type(df_aprovar['data_aprovacao_custos'].iloc[0])})")
+    #st.write(f"DEBUG - Gerado (string): {df_aprovar['data_aprovacao_custos'].iloc[0]} (Tipo: {type(df_aprovar['data_aprovacao_custos'].iloc[0])})")
 
     # Pega a justificativa do session_state apenas se a justificativa foi solicitada/era necessária
     justificativa_final = None
@@ -416,12 +537,12 @@ def _aprovar_carga_custos(selecionadas_para_aprovar, df_carga_original, carga_nu
 
 # ========== SUPABASE CONFIG ========== #
 # Base de Dados Projeto roteriza
-#url = "https://xhwotwefiqfwfabenwsi.supabase.co"
-#key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhod290d2VmaXFmd2ZhYmVud3NpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDgzNjc4NTMsImV4cCI6MjA2Mzk0Mzg1M30.3E2z-1SaABbCaV_HjQf0Rj8249mnPeGv7YkV4gOGhlg"  # Substitua pela sua chave real
+url = "https://xhwotwefiqfwfabenwsi.supabase.co"
+key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhod290d2VmaXFmd2ZhYmVud3NpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDgzNjc4NTMsImV4cCI6MjA2Mzk0Mzg1M30.3E2z-1SaABbCaV_HjQf0Rj8249mnPeGv7YkV4gOGhlg"  # Substitua pela sua chave real
 
 # Base de Dados Projeto F4Rotas
-url = "https://agiugsfojyansjeanfbz.supabase.co"
-key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFnaXVnc2ZvanlhbnNqZWFuZmJ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM4OTUzOTUsImV4cCI6MjA2OTQ3MTM5NX0.44w1wtOe3A8eQS6rINRdT9tDowZWwHM_H9Apr_B17I4"
+#url = "https://agiugsfojyansjeanfbz.supabase.co"
+#key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFnaXVnc2ZvanlhbnNqZWFuZmJ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM4OTUzOTUsImV4cCI6MjA2OTQ3MTM5NX0.44w1wtOe3A8eQS6rINRdT9tDowZWwHM_H9Apr_B17I4"
 
 
 
@@ -504,7 +625,7 @@ def controle_selecao(chave_estado, df_todos, grid_key, grid_options):
     update_mode=GridUpdateMode.SELECTION_CHANGED,
     fit_columns_on_grid_load=False,
     height=470,  # ⬅️ AUMENTE AQUI
-    use_container_width=True,
+    width='stretch', # <--- Alterada para 'width'
     allow_unsafe_jscode=True,
     key=grid_key
 )
@@ -772,7 +893,45 @@ if supabase is None:
     st.error("Não foi possível conectar ao Supabase. Verifique a URL e a chave de acesso.")
     st.stop()
 
+# ==============================================================================
+# FUNÇÃO AUXILIAR: find_ctrc_in_workflow
+# Busca um CTRC em todas as tabelas do workflow
+# ==============================================================================
+def find_ctrc_in_workflow(ctrc_to_find):
+    # Lista de todas as tabelas relevantes para a busca no workflow
+    search_tables = [
+        "fBaseroter", # Ponto de entrada original
+        "confirmadas_producao",
+        "aprovacao_diretoria",
+        "pre_roterizacao",
+        "cargas_geradas",
+        "aprovacao_custos",
+        "cargas_aprovadas",
+        "cargas_fechadas" # Inclui o final do workflow para histórico
+    ]
+    
+    found_in = []
+    normalized_ctrc = str(ctrc_to_find).strip() # Garante que é string e remove espaços
 
+    if not normalized_ctrc:
+        return {"status": "warning", "message": "Por favor, digite a Série/Número CT-e para buscar."}
+
+    for table_name in search_tables:
+        try:
+            # Consulta o Supabase para verificar a existência do CTRC na tabela
+            response = supabase.table(table_name).select("Serie_Numero_CTRC").eq("Serie_Numero_CTRC", normalized_ctrc).limit(1).execute()
+            if response.data:
+                found_in.append(table_name)
+        except Exception as e:
+            # Captura erros durante a consulta (ex: tabela não encontrada, problema de conexão)
+            return {"status": "error", "message": str(e)}
+
+    if found_in:
+        return {"status": "found", "ctrc": normalized_ctrc, "tables": found_in}
+    else:
+        return {"status": "not_found", "ctrc": normalized_ctrc}
+
+#-------------------------------------------------------------------------------------------------------------------------
 # Fuso horário padrão do Brasil (São Paulo)
 FUSO_BRASIL = ZoneInfo("America/Sao_Paulo")
 def data_hora_brasil_iso():
@@ -1046,6 +1205,140 @@ def formatar_brasileiro(valor):
 
 # ========== FIM DA FUNÇÃO formatar_brasileiro ==========
 
+
+
+# --- NOVO: Funções Auxiliares para o CRUD de Cadastros ---
+
+def _clean_input_value(value, col_type):
+    """
+    Limpa o valor de entrada com base no tipo da coluna.
+    - Para texto: padroniza em MAIÚSCULAS.
+    - Para CNPJ/CPF: remove não-dígitos. A validação de comprimento é feita em _validate_input_data.
+    """
+    if value is None:
+        return None
+    s_value = str(value).strip()
+    if not s_value:
+        return None
+
+    if col_type == "cnpj" or col_type == "cpf":
+        # ### CORREÇÃO: Apenas remove não-dígitos e retorna. A validação de comprimento
+        # ### é feita EXCLUSIVAMENTE em _validate_input_data.
+        return re.sub(r'\D', '', s_value)
+    elif col_type == "number":
+        try:
+            return float(s_value.replace(',', '.'))
+        except ValueError:
+            return None
+    elif col_type == "text":
+        # Padroniza texto para maiúsculas
+        return s_value.upper()
+    else:
+        return value # Para select/hidden etc.
+#--------------------------------------------------------------------
+
+def _validate_input_data(data, schema_cols):
+    errors = []
+    for col_name, col_info in schema_cols.items():
+        value = data.get(col_name)
+
+        # Validação de campo obrigatório (já existente no seu código)
+        if col_info.get("required") and (value is None or str(value).strip() == ""):
+            if col_info.get("type") != "hidden":
+                errors.append(f"O campo '{col_name}' é obrigatório.")
+
+        # Realiza validações apenas se o valor não for nulo ou vazio (e não é um campo hidden)
+        if value is not None and str(value).strip() != "" and col_info.get("type") != "hidden":
+            s_value = str(value).strip() # Usar uma versão limpa para validação
+
+            # Validação de formato/tipo para CNPJ/CPF (já existente no seu código)
+            if col_info.get("type") == "cnpj":
+                cleaned_cnpj = re.sub(r'\D', '', s_value)
+                if len(cleaned_cnpj) != 14:
+                    errors.append(f"O CNPJ '{col_name}' deve ter exatamente 14 dígitos numéricos.")
+            elif col_info.get("type") == "cpf":
+                cleaned_cpf = re.sub(r'\D', '', s_value)
+                if len(cleaned_cpf) != 11:
+                    errors.append(f"O CPF '{col_name}' deve ter exatamente 11 dígitos numéricos.")
+            elif col_info.get("type") == "number":
+                try:
+                    float(s_value.replace(',', '.'))
+                except ValueError:
+                    errors.append(f"O campo '{col_name}' deve ser um número válido.")
+
+            # >>> NOVO BLOCO: Validação de Expressão Regular (Regex) <<<
+            if col_info.get("regex"):
+                if not re.match(col_info["regex"], s_value):
+                    # Pega a descrição amigável se ela existir, caso contrário, usa a regex em si
+                    regex_desc = col_info.get('regex_description', col_info['regex'])
+                    errors.append(f"O formato do campo '{col_name}' está incorreto. Formato esperado: {regex_desc}.")
+            # >>> FIM DO NOVO BLOCO <<<
+
+    return errors
+# -----------------------------------------------------------------------------------------------------------
+def get_pk_condition(schema, record):
+    """Constrói a condição WHERE para a chave primária de um registro.
+    Retorna um dict pronto para passar a .match() do Supabase.
+    """
+    # Priorizar id quando presente (evita problemas se PK composta for editada)
+    if record.get("id") is not None:
+        return {"id": record.get("id")}
+
+    pk_condition = {}
+    for col_name, col_info in schema["columns"].items():
+        if col_info.get("pk"):
+            val = record.get(col_name)
+            # Ignorar None ou strings vazias
+            if val is not None and (not isinstance(val, str) or val.strip() != ""):
+                pk_condition[col_name] = val
+
+    return pk_condition
+
+#------------------------------------------------------------------------------------
+def render_form_fields(schema_cols, initial_data=None, form_key=""):
+    """Renderiza os campos do formulário com base no esquema da coluna."""
+    form_data = {}
+    for col_name, col_info in schema_cols.items():
+        if col_info.get("type") == "hidden":  # Não renderiza campos hidden
+            form_data[col_name] = initial_data.get(col_name) if initial_data else None
+            continue
+
+        default_value = initial_data.get(col_name) if initial_data else ""
+        # normaliza default_value para string
+        if default_value is None:
+            default_value = ""
+
+        # Padroniza exibição dos defaults (uppercase para text; remove não-dígitos para cnpj/cpf)
+        if col_info.get("type") == "text" and isinstance(default_value, str):
+            default_value = default_value.strip().upper()
+        elif col_info.get("type") in ("cnpj", "cpf") and isinstance(default_value, str):
+            default_value = re.sub(r'\D', '', default_value.strip())
+
+        field_key = f"{form_key}_{col_name}"  # Chave única para o widget Streamlit
+
+        if col_info["type"] in ("text", "cnpj", "cpf"):
+            form_data[col_name] = st.text_input(col_name, value=default_value, key=field_key)
+        elif col_info["type"] == "number":
+            # garantir valor numérico default
+            try:
+                num_def = float(default_value) if default_value != "" else 0.0
+            except Exception:
+                num_def = 0.0
+            form_data[col_name] = st.number_input(col_name, value=num_def, step=1.0 if float(num_def).is_integer() else 0.01, format="%.2f", key=field_key)
+        elif col_info["type"] == "select":
+            # Certifica que o valor padrão está entre as opções
+            if default_value not in col_info["options"]:
+                default_index = 0
+            else:
+                default_index = col_info["options"].index(default_value)
+            form_data[col_name] = st.selectbox(col_name, options=col_info["options"], index=default_index, key=field_key)
+    return form_data
+
+
+# --- FIM: Funções Auxiliares para o CRUD de Cadastros ---
+
+
+
 def carregar_base_supabase():
     try:
         # --- DEBUG 1: Após a primeira busca no Supabase ---
@@ -1173,9 +1466,6 @@ def carregar_base_supabase():
             #st.error("DEBUG: [carregar_base_supabase] Coluna 'Serie_Numero_CTRC' não encontrada no DataFrame 'base'. Isso pode causar problemas.")
             return pd.DataFrame() # Retorna vazio se a chave primária essencial estiver faltando
 
-        
-
-
         # --- DEBUG FINAL: Antes de retornar ---
         #st.write(f"DEBUG: [carregar_base_supabase] Linhas antes de retornar (base final): {len(base)}")
         return base
@@ -1184,10 +1474,6 @@ def carregar_base_supabase():
         st.error(f"DEBUG: [carregar_base_supabase] Erro ao consultar ou processar as tabelas do Supabase: {e}")
         st.exception(e)
         return pd.DataFrame()
-
-
-    
-
 
 # A função gerar_proximo_numero_carga()
 def gerar_proximo_numero_carga(supabase):
@@ -1235,6 +1521,8 @@ def gerar_proximo_numero_carga(supabase):
     # Se o loop terminar sem encontrar um número único após max_retries
     st.error(f"Não foi possível gerar um número de carga único após {max_retries} tentativas. O espaço de números pode estar saturado ou há um problema persistente na comunicação.")
     return None # Indica falha
+
+
 ################################################################
 GRID_RESIZE_JS_CODE = JsCode("""
 function(params) {
@@ -2702,6 +2990,1946 @@ def preparar_df_pre_roterizacao(df_pre, supabase_client):
 # ===========================================
 # # FIM DAS NOVAS FUNÇÕES PARA GERAÇÃO DE PDF
 # ===========================================
+
+# ==========================================================
+#     FUNÇÃO CENTRAL PARA A ABA DE CADASTROS
+# ==========================================================
+def pagina_cadastros():
+    st.title("🗄️ Cadastros")
+
+    # Obter os nomes das tabelas do TABLE_SCHEMAS, excluindo 'usuarios'
+    table_options = [key for key in TABLE_SCHEMAS.keys() if key != "usuarios"]
+    
+    # Adicionar um Radio button para o usuário escolher a tabela
+    selected_table = st.radio(
+        "Selecione a tabela para gerenciar:",
+        table_options,
+        horizontal=True,
+        key="cadastros_table_selector" # Chave única para este widget de rádio
+    )
+
+    # --- Gerenciamento de Chaves para Evitar Duplicidade ---
+    # Este bloco é crucial para lidar com o StreamlitDuplicateElementKey
+    if "crud_last_selected_table" not in st.session_state:
+        st.session_state.crud_last_selected_table = None
+    
+    for option_table_name in table_options:
+        if f"crud_key_counter_{option_table_name}" not in st.session_state:
+            st.session_state[f"crud_key_counter_{option_table_name}"] = 0
+
+    if st.session_state.crud_last_selected_table != selected_table:
+        st.session_state[f"crud_key_counter_{selected_table}"] += 1
+        st.session_state.crud_last_selected_table = selected_table
+        st.rerun()
+
+    # --- FIM Gerenciamento de Chaves ---
+
+    # Obter a chave para a tabela selecionada (incluindo o contador para unicidade)
+    current_key_prefix = f"crud_{selected_table}_{st.session_state[f'crud_key_counter_{selected_table}']}"
+
+    # Chamar a função de UI específica para a tabela selecionada, passando o prefixo de chave
+    if selected_table == "Rotas":
+        gerenciar_rotas_ui(selected_table, TABLE_SCHEMAS[selected_table], supabase, current_key_prefix)
+    # ... aqui virão as chamadas para as outras páginas de cadastro ...
+    if selected_table == "RotasPortoAlegre":
+        gerenciar_rotas_pa_ui(selected_table, TABLE_SCHEMAS[selected_table], supabase, current_key_prefix)
+
+    elif selected_table == "Clientes_Entrega_Agendada":
+        gerenciar_clientes_agendados_ui(selected_table, TABLE_SCHEMAS[selected_table], supabase, current_key_prefix)
+
+    elif selected_table == "Micro_Regiao_por_data_embarque":
+        gerenciar_micro_regioes_ui(selected_table, TABLE_SCHEMAS[selected_table], supabase, current_key_prefix)
+
+    elif selected_table == "Paletizadores":
+        gerenciar_paletizadores_ui(selected_table, TABLE_SCHEMAS[selected_table], supabase, current_key_prefix)
+    
+    elif selected_table == "Particularidades":
+        gerenciar_particularidades_ui(selected_table, TABLE_SCHEMAS[selected_table], supabase, current_key_prefix)
+
+    elif selected_table == "Motoristas":
+        gerenciar_motorista_placa_ui(selected_table, TABLE_SCHEMAS[selected_table], supabase, current_key_prefix)
+
+# FIM da função pagina_cadastros()
+#-------------------------------------------------------------------------------
+
+
+@st.cache_data(ttl=60)
+def load_table_data(t_name, _supabase_client):
+    """
+    Carrega dados de uma tabela do Supabase.
+    NÃO altera os nomes das colunas do DataFrame. Assume que o DB já os fornece corretamente.
+    Aplica pré-processamento nos VALORES das colunas baseando-se no schema fornecido.
+    """
+    try:
+        response = _supabase_client.table(t_name).select("*").execute()
+        df = pd.DataFrame(response.data)
+
+        #st.warning(f"DEBUG: Colunas originais da tabela '{t_name}': {df.columns.tolist()}")
+
+        # ### CORREÇÃO CRÍTICA: Não altere os nomes das colunas aqui.
+        # ### Apenas remova espaços extras dos nomes se houver (muito raro em nomes de coluna do DB)
+        # ### Mas NÃO normaliza para underscore ou remove acentos, pois o TABLE_SCHEMAS deve
+        # ### conter os nomes EXATOS do DB.
+        # df.columns = [str(col).strip() for col in df.columns] # Comentei esta linha ou remova se existir.
+
+        # Processa os VALORES das colunas com base no schema.
+        # col_name_in_schema aqui será o nome EXATO do DB (ex: "CIDADE DESTINO")
+        schema_cols = TABLE_SCHEMAS.get(t_name, {}).get("columns", {})
+        for col_name_in_schema, col_info in schema_cols.items():
+            if col_name_in_schema in df.columns: # Verifica se a coluna existe no DataFrame
+                # Aqui você aplica as transformações aos *valores* da coluna, não ao nome da coluna
+                if col_info.get("type") == "cnpj":
+                    # Limpa o valor para CNPJ (apenas dígitos)
+                    df[col_name_in_schema] = df[col_name_in_schema].astype(str).str.strip().apply(lambda x: re.sub(r'\D', '', x))
+                elif col_info.get("type") == "cpf":
+                    # Limpa o valor para CPF (apenas dígitos)
+                    df[col_name_in_schema] = df[col_name_in_schema].astype(str).str.strip().apply(lambda x: re.sub(r'\D', '', x))
+                elif col_info.get("type") == "text":
+                    # Converte o VALOR para maiúsculas (se for texto)
+                    df[col_name_in_schema] = df[col_name_in_schema].astype(str).str.strip().str.upper()
+                elif col_info.get("type") == "number":
+                    # Converte o VALOR para numérico
+                    df[col_name_in_schema] = pd.to_numeric(df[col_name_in_schema], errors='coerce')
+        return df
+    except Exception as e:
+        st.error(f"Erro ao carregar dados da tabela '{t_name}': {e}")
+        return pd.DataFrame()
+
+#---------------------------------------------------------------------------
+#
+# PAGINA CADASTRO DE ROTAS
+#
+#---------------------------------------------------------------------------
+def gerenciar_rotas_ui(table_name, schema, supabase_client, key_prefix): 
+    """
+    UI para gerenciar a tabela 'Rotas' (exibição, adição, edição/atualização e exclusão).
+    """
+    st.header("Rotas ")
+    is_admin = st.session_state.get("is_admin", False) # Verificação de admin para edição
+
+    # --- Exibição de Mensagens Persistentes ---
+    if 'last_action_message_type' in st.session_state and 'last_action_message_text' in st.session_state:
+        message_type = st.session_state.pop('last_action_message_type')
+        message_text = st.session_state.pop('last_action_message_text')
+        
+        if message_type == 'success':
+            st.success(message_text)
+        elif message_type == 'error':
+            st.error(message_text)
+        elif message_type == 'warning':
+            st.warning(message_text)
+
+    # Carrega os dados da tabela
+    df_data = load_table_data(table_name, supabase_client)
+
+    # --- GRID EXIBINDO OS REGISTROS EXISTENTES ---
+    st.subheader("Registros Existentes")
+    if not df_data.empty:
+        display_cols_for_grid = [
+            "Cidade de Entrega",
+            "Bairro do Destinatario",
+            "UF de Entrega",
+            "Rota"
+        ]
+        df_display_for_grid = df_data[[col for col in display_cols_for_grid if col in df_data.columns]].copy()
+        st.dataframe(df_display_for_grid, width='stretch')
+    else:
+        st.info(f"Nenhum registro na tabela '{table_name}' para exibir.")
+
+    st.markdown("---")
+
+    # --- FUNCIONALIDADE DE ADICIONAR NOVA ROTA ---
+    if is_admin:
+        with st.expander("➕ Adicionar Nova Rota", expanded=True):
+            with st.form(key=f"{key_prefix}_add_form"):
+                st.markdown("##### Preencha os campos para adicionar uma nova rota:")
+                
+                new_cidade = st.text_input(
+                    "Cidade de Entrega:",
+                    key=f"{key_prefix}_add_cidade"
+                ).upper()
+
+                new_bairro = st.text_input(
+                    "Bairro do Destinatário:",
+                    key=f"{key_prefix}_add_bairro"
+                ).upper()
+
+                new_uf = st.text_input(
+                    "UF de Entrega (Ex: SP, RJ):",
+                    max_chars=2,
+                    key=f"{key_prefix}_add_uf"
+                ).upper()
+
+                new_rota_val = st.text_input(
+                    "Rota:",
+                    key=f"{key_prefix}_add_rota"
+                ).upper()
+
+                add_submitted = st.form_submit_button("➕ Adicionar Rota")
+
+                if add_submitted:
+                    new_data_payload = {
+                        "Cidade de Entrega": new_cidade,
+                        "Bairro do Destinatario": new_bairro,
+                        "UF de Entrega": new_uf,
+                        "Rota": new_rota_val
+                    }
+
+                    errors = _validate_input_data(new_data_payload, schema["columns"])
+                    if errors:
+                        st.session_state['last_action_message_type'] = 'error'
+                        st.session_state['last_action_message_text'] = f"❌ Erro(s) na validação: {', '.join(errors)}"
+                        st.rerun()
+                    else:
+                        cleaned_new_data = {
+                            k: _clean_input_value(v, schema["columns"][k]["type"])
+                            for k, v in new_data_payload.items()
+                        }
+
+                        try:
+                            existing = supabase_client.table(table_name) \
+                                .select("id") \
+                                .eq("Cidade de Entrega", cleaned_new_data["Cidade de Entrega"]) \
+                                .eq("Bairro do Destinatario", cleaned_new_data["Bairro do Destinatario"]) \
+                                .limit(1).execute()
+
+                            if existing.data:
+                                st.session_state['last_action_message_type'] = 'error'
+                                st.session_state['last_action_message_text'] = "❌ Erro: Já existe um registro com a mesma Cidade e Bairro do Destinatário."
+                                st.rerun()
+                            else:
+                                supabase_client.table(table_name).insert(cleaned_new_data).execute()
+                                
+                                st.session_state['last_action_message_type'] = 'success'
+                                st.session_state['last_action_message_text'] = "✅ Nova rota adicionada com sucesso!"
+                                
+                                load_table_data.clear()
+                                st.session_state[f"crud_key_counter_{table_name}"] += 1
+                                st.rerun()
+
+                        except Exception as e:
+                            st.session_state['last_action_message_type'] = 'error'
+                            st.session_state['last_action_message_text'] = f"❌ Erro ao adicionar nova rota: {e}"
+                            st.rerun()
+
+    else:
+        st.info("Apenas administradores podem adicionar novas rotas.")
+
+    st.markdown("---")
+
+    # --- FUNCIONALIDADE DE EDITAR/ATUALIZAR ROTAS ---
+    if is_admin:
+        with st.expander("✏️ Editar/Atualizar Rota", expanded=True):
+            if df_data.empty:
+                st.warning("Nenhum registro para editar ou atualizar.")
+                return
+
+            display_options_select = []
+            for idx, row in df_data.iterrows():
+                display_str = (
+                    f"{row.get('Cidade de Entrega', 'N/A')} - "
+                    f"{row.get('Bairro do Destinatario', 'N/A')} | "
+                    f"UF: {row.get('UF de Entrega', 'N/A')} | "
+                    f"Rota: {row.get('Rota', 'N/A')}"
+                )
+                display_options_select.append(f"({idx}) {display_str}")
+
+            selected_display_with_idx = st.selectbox(
+                "Selecione uma Rota para editar:",
+                options=[""] + display_options_select,
+                key=f"{key_prefix}_select_edit_record"
+            )
+
+            selected_record = None
+            if selected_display_with_idx:
+                original_idx = int(selected_display_with_idx.split(')')[0].strip('('))
+                selected_record = df_data.iloc[original_idx].to_dict()
+
+            if selected_record:
+                st.markdown("##### Edite os campos abaixo:")
+                edit_form_key_prefix = f"{key_prefix}_edit_form"
+
+                with st.form(key=edit_form_key_prefix):
+                    edited_cidade = st.text_input(
+                        "Cidade de Entrega:",
+                        value=(selected_record.get("Cidade de Entrega") or "").upper(),
+                        key=f"{edit_form_key_prefix}_cidade"
+                    )
+                    edited_bairro = st.text_input(
+                        "Bairro do Destinatário:",
+                        value=(selected_record.get("Bairro do Destinatario") or "").upper(),
+                        key=f"{edit_form_key_prefix}_bairro"
+                    )
+                    edited_uf = st.text_input(
+                        "UF de Entrega (Ex: SP, RJ):",
+                        value=(selected_record.get("UF de Entrega") or "").upper(),
+                        max_chars=2,
+                        key=f"{edit_form_key_prefix}_uf"
+                    )
+                    edited_rota = st.text_input(
+                        "Rota:",
+                        value=(selected_record.get("Rota") or "").upper(),
+                        key=f"{edit_form_key_prefix}_rota"
+                    )
+
+                    save_submitted = st.form_submit_button("✅ Salvar Alterações")
+
+                    if save_submitted:
+                        edited_data_payload = {
+                            "Cidade de Entrega": edited_cidade,
+                            "Bairro do Destinatario": edited_bairro,
+                            "UF de Entrega": edited_uf,
+                            "Rota": edited_rota
+                        }
+
+                        errors = _validate_input_data(edited_data_payload, schema["columns"])
+                        if errors:
+                            st.session_state['last_action_message_type'] = 'error'
+                            st.session_state['last_action_message_text'] = f"❌ Erro(s) na validação: {', '.join(errors)}"
+                            st.rerun()
+                        else:
+                            cleaned_edited_data = {
+                                k: _clean_input_value(v, schema["columns"][k]["type"])
+                                for k, v in edited_data_payload.items()
+                            }
+
+                            try:
+                                pk_condition = get_pk_condition(schema, selected_record)
+
+                                if pk_condition:
+                                    supabase_client.table(table_name).update(cleaned_edited_data).match(pk_condition).execute()
+                                    
+                                    st.session_state['last_action_message_type'] = 'success'
+                                    st.session_state['last_action_message_text'] = "✅ Alterações salvas com sucesso!"
+                                    
+                                    load_table_data.clear()
+                                    st.session_state[f"crud_key_counter_{table_name}"] += 1
+                                    st.rerun()
+                                else:
+                                    st.session_state['last_action_message_type'] = 'error'
+                                    st.session_state['last_action_message_text'] = "Erro: Não foi possível identificar a chave primária para atualização."
+                                    st.rerun()
+                            except Exception as e:
+                                st.session_state['last_action_message_type'] = 'error'
+                                st.session_state['last_action_message_text'] = f"❌ Erro ao salvar alterações: {e}"
+                                st.rerun()
+            else:
+                st.info("Selecione uma rota no campo acima para editar.")
+    else:
+        st.info("Apenas administradores podem editar ou atualizar registros.")
+
+    st.markdown("---")
+
+    # --- FUNCIONALIDADE DE EXCLUIR ROTA ---
+    if is_admin:
+        with st.expander("🗑️ Excluir Rota", expanded=True): # Começa recolhido
+            if df_data.empty:
+                st.warning("Nenhum registro para excluir.")
+                return
+
+            display_options_delete = []
+            # Usaremos o index para recuperar o registro original
+            for idx, row in df_data.iterrows():
+                display_str = (
+                    f"{row.get('Cidade de Entrega', 'N/A')} - "
+                    f"{row.get('Bairro do Destinatario', 'N/A')} | "
+                    f"UF: {row.get('UF de Entrega', 'N/A')} | "
+                    f"Rota: {row.get('Rota', 'N/A')}"
+                )
+                display_options_delete.append(f"({idx}) {display_str}") # Guardamos o índice do dataframe
+
+            # Selectbox para selecionar o registro a ser excluído
+            selected_display_with_idx_delete = st.selectbox(
+                "Selecione uma Rota para excluir:",
+                options=[""] + display_options_delete, # Opção vazia no início
+                key=f"{key_prefix}_select_delete_record"
+            )
+
+            selected_record_delete = None
+            if selected_display_with_idx_delete:
+                # Extrai o índice do registro original do DataFrame
+                original_idx_delete = int(selected_display_with_idx_delete.split(')')[0].strip('('))
+                selected_record_delete = df_data.iloc[original_idx_delete].to_dict()
+
+            if selected_record_delete:
+                st.markdown(f"""
+                <p style='color:red;'>⚠️ Você está prestes a excluir o registro:</p>
+                <p>
+                    <b>Cidade:</b> {selected_record_delete.get('Cidade de Entrega', 'N/A')}<br>
+                    <b>Bairro:</b> {selected_record_delete.get('Bairro do Destinatario', 'N/A')}<br>
+                    <b>UF:</b> {selected_record_delete.get('UF de Entrega', 'N/A')}<br>
+                    <b>Rota:</b> {selected_record_delete.get('Rota', 'N/A')}
+                </p>
+                """, unsafe_allow_html=True)
+                
+                # Confirmação antes da exclusão
+                confirm_delete = st.checkbox(
+                    "Marque para confirmar a exclusão desta rota.",
+                    key=f"{key_prefix}_confirm_delete"
+                )
+
+                if confirm_delete:
+                    # Botão para executar a exclusão
+                    if st.button("🗑️ Excluir Rota Definitivamente", key=f"{key_prefix}_delete_button"):
+                        try:
+                            pk_condition = get_pk_condition(schema, selected_record_delete)
+
+                            if pk_condition:
+                                # Realiza a exclusão no Supabase
+                                supabase_client.table(table_name).delete().match(pk_condition).execute()
+                                
+                                st.session_state['last_action_message_type'] = 'success'
+                                st.session_state['last_action_message_text'] = "✅ Rota excluída com sucesso!"
+                                
+                                load_table_data.clear()
+                                st.session_state[f"crud_key_counter_{table_name}"] += 1
+                                st.rerun()
+                            else:
+                                st.session_state['last_action_message_type'] = 'error'
+                                st.session_state['last_action_message_text'] = "Erro: Não foi possível identificar a chave primária para exclusão."
+                                st.rerun()
+                        except Exception as e:
+                            st.session_state['last_action_message_type'] = 'error'
+                            st.session_state['last_action_message_text'] = f"❌ Erro ao excluir rota: {e}"
+                            st.rerun()
+            else:
+                st.info("Selecione uma rota no campo acima para excluir.")
+    else:
+        st.info("Apenas administradores podem excluir registros.")
+#---------------------------------------------------------------------------
+#
+# PAGINA CADASTRO DE RotasPortoAlegre
+#
+#---------------------------------------------------------------------------
+
+# NOVO: Variável de estado para controlar a chave do formulário de adição
+if 'rotas_pa_add_form_key_counter' not in st.session_state:
+    st.session_state.rotas_pa_add_form_key_counter = 0
+
+def gerenciar_rotas_pa_ui(table_name, schema, supabase_client, key_prefix="rotas_pa"):
+    """
+    UI específica para RotasPortoAlegre:
+    - Adicionar nova rota (Cidade fixada como PORTO ALEGRE, UF fixada como RS)
+    - Editar rota pelo Bairro do Destinatário
+    - Excluir rota também pelo Bairro do Destinatário
+    """
+    st.header("Rotas - Porto Alegre")
+    st.caption("Cidade de Entrega: PORTO ALEGRE (fixo) | UF: RS (fixo)")
+
+    # --- Exibição de Mensagens Persistentes ---
+    if 'last_action_message_type' in st.session_state and 'last_action_message_text' in st.session_state:
+        message_type = st.session_state.pop('last_action_message_type')
+        message_text = st.session_state.pop('last_action_message_text')
+        
+        if message_type == 'success':
+            st.success(message_text)
+        elif message_type == 'error':
+            st.error(message_text)
+        elif message_type == 'warning':
+            st.warning(message_text)
+    # --- FIM NOVO BLOCO ---
+
+    # Carrega os registros da tabela
+    df_data = load_table_data(table_name, supabase_client)
+
+    # --- Exibição da tabela de registros já existentes ---
+    st.subheader("Registros existentes")
+    display_cols = schema.get("display_cols", list(schema["columns"].keys()))
+    if not df_data.empty:
+        st.dataframe(df_data[display_cols])
+    else:
+        st.info("Nenhum registro encontrado.")
+
+    # --- Adicionar nova rota ---
+    st.markdown("---")
+    st.subheader("Adicionar Nova Rota (Em Porto Alegre)")
+
+    # Passamos a nova chave dinâmica para o formulário
+    with st.form(key=f"{key_prefix}_add_form_{st.session_state.rotas_pa_add_form_key_counter}"):
+        novo_bairro = st.text_input("Bairro do Destinatário", key=f"{key_prefix}_new_bairro_{st.session_state.rotas_pa_add_form_key_counter}")
+        nova_rota = st.text_input("Rota", key=f"{key_prefix}_new_rota_{st.session_state.rotas_pa_add_form_key_counter}")
+        add_submitted = st.form_submit_button("Adicionar Rota")
+
+        if add_submitted:
+            payload = {
+                "Cidade de Entrega": "PORTO ALEGRE",
+                "UF de Entrega": "RS",
+                "Bairro do Destinatario": novo_bairro.upper().strip(),
+                "Rota": nova_rota.upper().strip()
+            }
+
+            # Validação de campos obrigatórios e lógica de inserção
+            errors = _validate_input_data(payload, schema["columns"])
+            if errors:
+                st.session_state['last_action_message_type'] = 'error'
+                st.session_state['last_action_message_text'] = f"❌ Erro(s) na validação: {', '.join(errors)}"
+                st.rerun()
+            else:
+                try:
+                    # Verifica se o registro já existe
+                    existing = supabase_client.table(table_name).select("id").eq(
+                        "Bairro do Destinatario", payload["Bairro do Destinatario"]
+                    ).limit(1).execute()
+
+                    if existing.data:
+                        st.session_state['last_action_message_type'] = 'warning'
+                        st.session_state['last_action_message_text'] = "Rota já cadastrada para este Bairro do Destinatário."
+                        st.rerun()
+                    else:
+                        supabase_client.table(table_name).insert(payload).execute()
+                        st.session_state['last_action_message_type'] = 'success'
+                        st.session_state['last_action_message_text'] = "Nova rota adicionada com sucesso!"
+                        
+                        load_table_data.clear()
+                        
+                        # INCREMENTA O CONTADOR DA CHAVE DO FORMULÁRIO PARA LIMPÁ-LO
+                        st.session_state.rotas_pa_add_form_key_counter += 1
+                        
+                        st.rerun()
+
+                except Exception as e:
+                    st.session_state['last_action_message_type'] = 'error'
+                    st.session_state['last_action_message_text'] = f"Erro ao adicionar rota: {e}"
+                    st.rerun()
+
+    # --- Editar rota ---
+    st.markdown("---")
+    st.subheader("Editar ou Atualizar Rota")
+
+    bairros_disponiveis = sorted(df_data["Bairro do Destinatario"].dropna().unique()) if "Bairro do Destinatario" in df_data.columns else []
+    bairro_selecionado = st.selectbox("Selecione o Bairro do Destinatário para Editar:", options=[""] + bairros_disponiveis, key=f"{key_prefix}_select_edit")
+
+    if bairro_selecionado:
+        # Obtém o registro correspondente
+        registro_a_editar = df_data[df_data["Bairro do Destinatario"] == bairro_selecionado].iloc[0].to_dict()
+        with st.form(key=f"{key_prefix}_edit_form"):
+            bairro_editado = st.text_input("Bairro do Destinatário", value=registro_a_editar["Bairro do Destinatario"], key=f"{key_prefix}_edit_bairro")
+            rota_editada = st.text_input("Rota", value=registro_a_editar["Rota"], key=f"{key_prefix}_edit_rota")
+            save_edit = st.form_submit_button("Salvar Alterações")
+
+            if save_edit:
+                # --- CORREÇÃO AQUI ---
+                payload_update = {
+                    "Cidade de Entrega": "PORTO ALEGRE",  # FIXO
+                    "UF de Entrega": "RS",                # FIXO
+                    "Bairro do Destinatario": bairro_editado.upper().strip(),
+                    "Rota": rota_editada.upper().strip()
+                }
+                # --- FIM CORREÇÃO ---
+
+                # Checa erros de validação
+                errors = _validate_input_data(payload_update, schema["columns"])
+                if errors:
+                    st.session_state['last_action_message_type'] = 'error'
+                    st.session_state['last_action_message_text'] = f"❌ Erro(s) na validação: {', '.join(errors)}"
+                    st.rerun()
+                else:
+                    try:
+                        # A pk_condition para RotasPortoAlegre usa o bairro original e a cidade fixa
+                        pk_condition = {
+                            "Cidade de Entrega": "PORTO ALEGRE", 
+                            "Bairro do Destinatario": registro_a_editar["Bairro do Destinatario"]
+                        }
+                        supabase_client.table(table_name).update(payload_update).match(pk_condition).execute()
+                        st.session_state['last_action_message_type'] = 'success'
+                        st.session_state['last_action_message_text'] = "Rota atualizada com sucesso!"
+                        
+                        load_table_data.clear()
+                        st.rerun()
+
+                    except Exception as e:
+                        st.session_state['last_action_message_type'] = 'error'
+                        st.session_state['last_action_message_text'] = f"Erro ao atualizar rota: {e}"
+                        st.rerun()
+
+    # --- Excluir rota ---
+    st.markdown("---")
+    st.subheader("Excluir Rota")
+
+    bairros_disponiveis_delete = sorted(df_data["Bairro do Destinatario"].dropna().unique()) if "Bairro do Destinatario" in df_data.columns else []
+    bairro_a_excluir = st.selectbox(
+        "Selecione o Bairro do Destinatário para Excluir:",
+        options=[""] + bairros_disponiveis_delete,
+        key=f"{key_prefix}_select_delete"
+    )
+
+    selected_record_delete = None
+    if bairro_a_excluir: # Se um bairro foi selecionado (não é a opção "")
+        selected_record_delete = df_data[df_data["Bairro do Destinatario"] == bairro_a_excluir].iloc[0].to_dict()
+
+    if selected_record_delete:
+        st.markdown(f"""
+        <p style='color:red;'>⚠️ Você está prestes a excluir o registro:</p>
+        <p>
+            <b>Bairro:</b> {selected_record_delete.get('Bairro do Destinatario', 'N/A')}<br>
+            <b>Rota:</b> {selected_record_delete.get('Rota', 'N/A')}
+        </p>
+        """, unsafe_allow_html=True)
+        
+        # Confirmação antes da exclusão
+        confirm_delete = st.checkbox(
+            "Marque para confirmar a exclusão desta rota.",
+            key=f"{key_prefix}_confirm_delete"
+        )
+
+        if confirm_delete:
+            # Botão para executar a exclusão (habilitado apenas após a confirmação)
+            if st.button("🗑️ Excluir Rota Definitivamente", key=f"{key_prefix}_delete_button"):
+                try:
+                    # A condição de chave primária para RotasPortoAlegre é composta: Cidade de Entrega e Bairro
+                    # A Cidade de Entrega é fixa "PORTO ALEGRE" e o Bairro é o selecionado.
+                    pk_condition = {
+                        "Cidade de Entrega": "PORTO ALEGRE",
+                        "Bairro do Destinatario": selected_record_delete["Bairro do Destinatario"]
+                    }
+                    
+                    supabase_client.table(table_name).delete().match(pk_condition).execute()
+                    st.session_state['last_action_message_type'] = 'success'
+                    st.session_state['last_action_message_text'] = f"Rota do Bairro '{selected_record_delete['Bairro do Destinatario']}' excluída com sucesso!"
+                    
+                    load_table_data.clear()
+                    st.rerun()
+                except Exception as e:
+                    st.session_state['last_action_message_type'] = 'error'
+                    st.session_state['last_action_message_text'] = f"❌ Erro ao excluir rota: {e}"
+                    st.rerun()
+    else:
+        st.info("Selecione uma rota no campo acima para excluir.")
+
+    return # Boa prática para indicar o fim da função
+
+
+#---------------------------------------------------------------------------
+#
+# PAGINA CADASTRO DE Cliente entrega agendada
+#
+#---------------------------------------------------------------------------
+
+# NOVO: Variável de estado para controlar a chave do formulário de adição de clientes agendados
+if 'clientes_agendados_add_form_key_counter' not in st.session_state:
+    st.session_state.clientes_agendados_add_form_key_counter = 0
+
+def gerenciar_clientes_agendados_ui(table_name, schema, supabase_client, key_prefix="clientes_agendados"):
+    """
+    UI para gerenciar a tabela 'Clientes_Entrega_Agendada'.
+    Permite adicionar, editar e excluir clientes agendados.
+    """
+    st.header("Clientes com Entrega Agendada")
+    st.caption("Gerencie o CNPJ dos clientes que necessitam de agendamento de entrega.")
+
+    # --- Exibição de Mensagens Persistentes ---
+    if 'last_action_message_type' in st.session_state and 'last_action_message_text' in st.session_state:
+        message_type = st.session_state.pop('last_action_message_type')
+        message_text = st.session_state.pop('last_action_message_text')
+        
+        if message_type == 'success':
+            st.success(message_text)
+        elif message_type == 'error':
+            st.error(message_text)
+        elif message_type == 'warning':
+            st.warning(message_text)
+    # --- FIM NOVO BLOCO ---
+
+    # Carrega os registros da tabela
+    df_data = load_table_data(table_name, supabase_client)
+
+    # --- Exibição da tabela de registros já existentes ---
+    st.subheader("Registros Existentes")
+    display_cols = schema.get("display_cols", list(schema["columns"].keys()))
+    if not df_data.empty:
+        st.dataframe(df_data[display_cols], width='stretch')
+    else:
+        st.info("Nenhum cliente agendado encontrado.")
+
+    st.markdown("---")
+
+    # --- FUNCIONALIDADE DE ADICIONAR NOVO CLIENTE ---
+    with st.expander("➕ Adicionar Novo Cliente Agendado", expanded=True):
+        # Usamos o contador para forçar a limpeza do formulário após submissão bem-sucedida
+        with st.form(key=f"{key_prefix}_add_form_{st.session_state.clientes_agendados_add_form_key_counter}"):
+            novo_cnpj = st.text_input(
+                "CNPJ (somente números):", 
+                max_chars=14, 
+                key=f"{key_prefix}_new_cnpj_{st.session_state.clientes_agendados_add_form_key_counter}"
+            )
+            novo_status_agendar = st.checkbox(
+                "Marcar como 'AGENDAR'?", 
+                value=True, # Por padrão, já vem marcado
+                key=f"{key_prefix}_new_status_{st.session_state.clientes_agendados_add_form_key_counter}"
+            )
+            add_submitted = st.form_submit_button("➕ Adicionar Cliente")
+
+            if add_submitted:
+                status_agenda_val = "AGENDAR" if novo_status_agendar else "NORMAL"
+                payload = {
+                    "CNPJ": novo_cnpj.strip(),
+                    "Status de Agenda": status_agenda_val
+                }
+
+                # Validação
+                errors = _validate_input_data(payload, schema["columns"])
+                if errors:
+                    st.session_state['last_action_message_type'] = 'error'
+                    st.session_state['last_action_message_text'] = f"❌ Erro(s) na validação: {', '.join(errors)}"
+                    st.rerun()
+                else:
+                    try:
+                        # Verifica se o CNPJ já existe (unique: True no schema)
+                        existing = supabase_client.table(table_name).select("CNPJ").eq("CNPJ", payload["CNPJ"]).limit(1).execute()
+
+                        if existing.data:
+                            st.session_state['last_action_message_type'] = 'warning'
+                            st.session_state['last_action_message_text'] = f"❌ Erro: O CNPJ '{payload['CNPJ']}' já está cadastrado."
+                            st.rerun()
+                        else:
+                            supabase_client.table(table_name).insert(payload).execute()
+                            st.session_state['last_action_message_type'] = 'success'
+                            st.session_state['last_action_message_text'] = "✅ Cliente agendado adicionado com sucesso!"
+                            
+                            load_table_data.clear() # Limpa o cache
+                            st.session_state.clientes_agendados_add_form_key_counter += 1 # Incrementa contador para limpar form
+                            st.rerun()
+
+                    except Exception as e:
+                        st.session_state['last_action_message_type'] = 'error'
+                        st.session_state['last_action_message_text'] = f"❌ Erro ao adicionar cliente: {e}"
+                        st.rerun()
+
+    st.markdown("---")
+
+    # --- FUNCIONALIDADE DE EDITAR/ATUALIZAR CLIENTE ---
+    with st.expander("✏️ Editar/Atualizar Cliente Agendado", expanded=True):
+        if df_data.empty:
+            st.warning("Nenhum cliente agendado para editar ou atualizar.")
+            return
+
+        cnpjs_disponiveis = sorted(df_data["CNPJ"].dropna().unique())
+        cnpj_selecionado = st.selectbox(
+            "Selecione o CNPJ do cliente para editar:",
+            options=[""] + cnpjs_disponiveis,
+            key=f"{key_prefix}_select_edit_record"
+        )
+
+        selected_record = None
+        if cnpj_selecionado:
+            selected_record = df_data[df_data["CNPJ"] == cnpj_selecionado].iloc[0].to_dict()
+
+        if selected_record:
+            st.markdown("##### Edite os campos abaixo:")
+            edit_form_key_prefix = f"{key_prefix}_edit_form"
+
+
+            with st.form(key=edit_form_key_prefix):
+                edited_cnpj = st.text_input(
+                    "CNPJ (somente números):", 
+                    value=selected_record.get("CNPJ", ""), 
+                    max_chars=14, # ADICIONADO: Limite de 14 caracteres
+                    key=f"{edit_form_key_prefix}_cnpj_input" 
+                )
+                
+                initial_status = selected_record.get("Status de Agenda", "NORMAL")
+                edited_status_agendar = st.checkbox(
+                    "Marcar como 'AGENDAR'?", 
+                    value=(initial_status == "AGENDAR"), # Define o estado inicial do checkbox
+                    key=f"{edit_form_key_prefix}_edited_status"
+                )
+                save_submitted = st.form_submit_button("✅ Salvar Alterações")
+
+                if save_submitted:
+                    edited_status_val = "AGENDAR" if edited_status_agendar else "NORMAL"
+
+                    payload_update = {
+                        "CNPJ": edited_cnpj.strip(), # <-- AGORA USA O VALOR EDITADO PELO USUÁRIO!
+                        "Status de Agenda": edited_status_val
+                    }
+
+                    # Validação (principalmente para 'required' e tipo, embora CNPJ já venha validado e fixo)
+                    errors = _validate_input_data(payload_update, schema["columns"])
+                    if errors:
+                        st.session_state['last_action_message_type'] = 'error'
+                        st.session_state['last_action_message_text'] = f"❌ Erro(s) na validação: {', '.join(errors)}"
+                        st.rerun()
+                    else:
+                        try:
+                            # A pk_condition usa o CNPJ original do registro selecionado
+                            pk_condition = {"CNPJ": selected_record.get("CNPJ")}
+                            supabase_client.table(table_name).update(payload_update).match(pk_condition).execute()
+                            st.session_state['last_action_message_type'] = 'success'
+                            st.session_state['last_action_message_text'] = "✅ Cliente agendado atualizado com sucesso!"
+                            
+                            load_table_data.clear()
+                            st.rerun()
+
+                        except Exception as e:
+                            st.session_state['last_action_message_type'] = 'error'
+                            st.session_state['last_action_message_text'] = f"❌ Erro ao salvar alterações: {e}"
+                            st.rerun()
+        else:
+            st.info("Selecione um cliente no campo acima para editar.")
+
+    st.markdown("---")
+
+    # --- FUNCIONALIDADE DE EXCLUIR CLIENTE ---
+    with st.expander("🗑️ Excluir Cliente Agendado", expanded=True):
+        if df_data.empty:
+            st.warning("Nenhum cliente agendado para excluir.")
+            return
+
+        cnpjs_disponiveis_delete = sorted(df_data["CNPJ"].dropna().unique())
+        cnpj_a_excluir = st.selectbox(
+            "Selecione o CNPJ do cliente para excluir:",
+            options=[""] + cnpjs_disponiveis_delete,
+            key=f"{key_prefix}_select_delete"
+        )
+
+        selected_record_delete = None
+        if cnpj_a_excluir:
+            selected_record_delete = df_data[df_data["CNPJ"] == cnpj_a_excluir].iloc[0].to_dict()
+
+        if selected_record_delete:
+            st.markdown(f"""
+            <p style='color:red;'>⚠️ Você está prestes a excluir o registro:</p>
+            <p>
+                <b>CNPJ:</b> {selected_record_delete.get('CNPJ', 'N/A')}<br>
+                <b>Status:</b> {selected_record_delete.get('Status de Agenda', 'N/A')}
+            </p>
+            """, unsafe_allow_html=True)
+            
+            # Confirmação antes da exclusão
+            confirm_delete = st.checkbox(
+                "Marque para confirmar a exclusão deste cliente.",
+                key=f"{key_prefix}_confirm_delete"
+            )
+
+            if confirm_delete:
+                if st.button("🗑️ Excluir Cliente Definitivamente", key=f"{key_prefix}_delete_button"):
+                    try:
+                        pk_condition = {"CNPJ": selected_record_delete["CNPJ"]}
+                        
+                        supabase_client.table(table_name).delete().match(pk_condition).execute()
+                        st.session_state['last_action_message_type'] = 'success'
+                        st.session_state['last_action_message_text'] = f"✅ Cliente '{selected_record_delete['CNPJ']}' excluído com sucesso!"
+                        
+                        load_table_data.clear()
+                        st.rerun()
+                    except Exception as e:
+                        st.session_state['last_action_message_type'] = 'error'
+                        st.session_state['last_action_message_text'] = f"❌ Erro ao excluir cliente: {e}"
+                        st.rerun()
+        else:
+            st.info("Selecione um cliente no campo acima para excluir.")
+
+    return
+#---------------------------------------------------------------------------
+#
+# PAGINA CADASTRO DE Micro Regiao por data de embarque
+#
+#---------------------------------------------------------------------------
+
+
+def gerenciar_micro_regioes_ui(table_name, schema, supabase_client, key_prefix):
+    st.header("Micro Região por Data de Embarque ")
+    is_admin = st.session_state.get("is_admin", False)
+
+    # --- Lógica de Exibição de Mensagens Persistentes ---
+    if 'last_action_message_type' in st.session_state and 'last_action_message_text' in st.session_state:
+        message_type = st.session_state.pop('last_action_message_type')
+        message_text = st.session_state.pop('last_action_message_text')
+        
+        if message_type == 'success':
+            st.success(message_text)
+        elif message_type == 'error':
+            st.error(message_text)
+        elif message_type == 'warning':
+            st.warning(message_text)
+
+    # Carrega os dados da tabela
+    df_data = load_table_data(table_name, supabase_client)
+
+    # --- Exibição dos Registros Existentes ---
+    st.subheader("Registros Existentes")
+    if not df_data.empty:
+        # display_cols já virá com os nomes exatos do TABLE_SCHEMAS
+        st.dataframe(df_data[schema["display_cols"]], width='stretch')
+    else:
+        st.info(f"Nenhum registro na tabela '{table_name}' para exibir.")
+
+    st.markdown("---")
+
+    # --- Funcionalidade de Adicionar Novo Registro ---
+    if is_admin:
+        with st.expander("➕ Adicionar Novo Registro", expanded=True):
+            with st.form(key=f"{key_prefix}_add_form"):
+                st.markdown("##### Preencha os campos para adicionar um novo registro:")
+                
+                new_cidade_destino = st.text_input(
+                    "CIDADE DESTINO:", # Label amigável para o usuário
+                    key=f"{key_prefix}_add_cidade_destino"
+                )
+                new_regiao = st.text_input(
+                    "REGIÃO:", # Label amigável para o usuário
+                    key=f"{key_prefix}_add_regiao"
+                )
+                new_micro_regiao = st.text_input(
+                    "MICRO REGIÃO:", # Label amigável para o usuário
+                    key=f"{key_prefix}_add_micro_regiao"
+                )
+                new_atendido_por = st.text_input(
+                    "ATENDIDO POR:", # Label amigável para o usuário
+                    key=f"{key_prefix}_add_atendido_por"
+                )
+                new_dia_relacao = st.number_input(
+                    "Dia_relação_ao_entrega_prevista (0-99):", # Label amigável para o usuário
+                    min_value=0,
+                    max_value=99,
+                    step=1,
+                    key=f"{key_prefix}_add_dia_relacao"
+                )
+
+                add_submitted = st.form_submit_button("➕ Adicionar Registro")
+
+                if add_submitted:
+                    new_data_payload = {
+                        "CIDADE DESTINO": new_cidade_destino, # Use o nome EXATO do DB como chave
+                        "REGIÃO": new_regiao,                 # Use o nome EXATO do DB como chave
+                        "MICRO REGIÃO": new_micro_regiao,     # Use o nome EXATO do DB como chave
+                        "ATENDIDO POR": new_atendido_por,     # Use o nome EXATO do DB como chave
+                        "Dia_relação_ao_entrega_prevista": new_dia_relacao # Use o nome EXATO do DB como chave
+                    }
+
+                    errors = _validate_input_data(new_data_payload, schema["columns"])
+                    if errors:
+                        st.session_state['last_action_message_type'] = 'error'
+                        st.session_state['last_action_message_text'] = f"❌ Erro(s) na validação: {', '.join(errors)}"
+                        st.rerun()
+                    else:
+                        cleaned_new_data = {
+                            k: _clean_input_value(v, schema["columns"][k]["type"])
+                            for k, v in new_data_payload.items()
+                        }
+                        # Garante que Dia_relação_ao_entrega_prevista seja int (caso tenha vindo como float de number_input)
+                        if isinstance(cleaned_new_data["Dia_relação_ao_entrega_prevista"], float):
+                            cleaned_new_data["Dia_relação_ao_entrega_prevista"] = int(cleaned_new_data["Dia_relação_ao_entrega_prevista"])
+
+                        try:
+                            # Verifica duplicidade da CIDADE DESTINO (chave primária)
+                            # Referencie a coluna EXATAMENTE como no DB
+                            existing = supabase_client.table(table_name) \
+                                .select("id") \
+                                .eq("CIDADE DESTINO", cleaned_new_data["CIDADE DESTINO"]) \
+                                .limit(1).execute()
+
+                            if existing.data:
+                                st.session_state['last_action_message_type'] = 'error'
+                                st.session_state['last_action_message_text'] = "❌ Erro: Já existe um registro com a mesma CIDADE DESTINO."
+                                st.rerun()
+                            else:
+                                supabase_client.table(table_name).insert(cleaned_new_data).execute()
+                                
+                                st.session_state['last_action_message_type'] = 'success'
+                                st.session_state['last_action_message_text'] = "✅ Novo registro adicionado com sucesso!"
+                                
+                                load_table_data.clear() # Limpa o cache para recarregar dados
+                                st.session_state[f"crud_key_counter_{table_name}"] += 1 # Força reset do formulário
+                                st.rerun()
+
+                        except Exception as e:
+                            st.session_state['last_action_message_type'] = 'error'
+                            st.session_state['last_action_message_text'] = f"❌ Erro ao adicionar novo registro: {e}"
+                            st.rerun()
+    else:
+        st.info("Apenas administradores podem adicionar novos registros.")
+
+    st.markdown("---")
+
+    # --- Funcionalidade de Editar/Atualizar Registro ---
+    if is_admin:
+        with st.expander("✏️ Editar/Atualizar Registro", expanded=True):
+            if df_data.empty:
+                st.warning("Nenhum registro para editar ou atualizar.")
+                return
+
+            # Referencie a coluna EXATAMENTE como no DB
+            cidades_destino_options = sorted(df_data["CIDADE DESTINO"].dropna().unique())
+            selected_cidade_destino = st.selectbox(
+                "Selecione a CIDADE DESTINO para editar:",
+                options=[""] + cidades_destino_options,
+                key=f"{key_prefix}_select_edit_record"
+            )
+
+            selected_record = None
+            if selected_cidade_destino:
+                # Referencie a coluna EXATAMENTE como no DB
+                selected_record = df_data[df_data["CIDADE DESTINO"] == selected_cidade_destino].iloc[0].to_dict()
+
+            if selected_record:
+                st.markdown("##### Edite os campos abaixo:")
+                edit_form_key_prefix = f"{key_prefix}_edit_form"
+
+                with st.form(key=edit_form_key_prefix):
+                    # CIDADE DESTINO é chave primária, exibida mas não editável diretamente
+                    st.text_input(
+                        "CIDADE DESTINO (Não Editável):",
+                        # Acesse o valor do record com o nome EXATO do DB
+                        value=(selected_record.get("CIDADE DESTINO") or "").upper(), 
+                        disabled=True,
+                        key=f"{edit_form_key_prefix}_cidade_destino_display"
+                    )
+                    edited_regiao = st.text_input(
+                        "REGIÃO:",
+                        # Acesse o valor do record com o nome EXATO do DB
+                        value=(selected_record.get("REGIÃO") or "").upper(), 
+                        key=f"{edit_form_key_prefix}_regiao"
+                    )
+                    edited_micro_regiao = st.text_input(
+                        "MICRO REGIÃO:",
+                        # Acesse o valor do record com o nome EXATO do DB
+                        value=(selected_record.get("MICRO REGIÃO") or "").upper(), 
+                        key=f"{edit_form_key_prefix}_micro_regiao"
+                    )
+                    edited_atendido_por = st.text_input(
+                        "ATENDIDO POR:",
+                        # Acesse o valor do record com o nome EXATO do DB
+                        value=(selected_record.get("ATENDIDO POR") or "").upper(), 
+                        key=f"{edit_form_key_prefix}_atendido_por"
+                    )
+                    edited_dia_relacao = st.number_input(
+                        "Dia_relação_ao_entrega_prevista (0-99):",
+                        min_value=0,
+                        max_value=99,
+                        step=1,
+                        # Acesse o valor do record com o nome EXATO do DB
+                        value=int(selected_record.get("Dia_relação_ao_entrega_prevista") or 0), 
+                        key=f"{edit_form_key_prefix}_dia_relacao"
+                    )
+
+                    save_submitted = st.form_submit_button("✅ Salvar Alterações")
+
+                    if save_submitted:
+                        edited_data_payload = {
+                            "CIDADE DESTINO": selected_cidade_destino, # Use o nome EXATO do DB como chave
+                            "REGIÃO": edited_regiao,                 # Use o nome EXATO do DB como chave
+                            "MICRO REGIÃO": edited_micro_regiao,     # Use o nome EXATO do DB como chave
+                            "ATENDIDO POR": edited_atendido_por,     # Use o nome EXATO do DB como chave
+                            "Dia_relação_ao_entrega_prevista": edited_dia_relacao # Use o nome EXATO do DB como chave
+                        }
+
+                        errors = _validate_input_data(edited_data_payload, schema["columns"])
+                        if errors:
+                            st.session_state['last_action_message_type'] = 'error'
+                            st.session_state['last_action_message_text'] = f"❌ Erro(s) na validação: {', '.join(errors)}"
+                            st.rerun()
+                        else:
+                            cleaned_edited_data = {
+                                k: _clean_input_value(v, schema["columns"][k]["type"])
+                                for k, v in edited_data_payload.items()
+                            }
+                            if isinstance(cleaned_edited_data["Dia_relação_ao_entrega_prevista"], float):
+                                cleaned_edited_data["Dia_relação_ao_entrega_prevista"] = int(cleaned_edited_data["Dia_relação_ao_entrega_prevista"])
+
+                            try:
+                                pk_condition = get_pk_condition(schema, selected_record)
+
+                                if pk_condition:
+                                    supabase_client.table(table_name).update(cleaned_edited_data).match(pk_condition).execute()
+                                    
+                                    st.session_state['last_action_message_type'] = 'success'
+                                    st.session_state['last_action_message_text'] = "✅ Alterações salvas com sucesso!"
+                                    
+                                    load_table_data.clear()
+                                    st.session_state[f"crud_key_counter_{table_name}"] += 1
+                                    st.rerun()
+                                else:
+                                    st.session_state['last_action_message_type'] = 'error'
+                                    st.session_state['last_action_message_text'] = "Erro: Não foi possível identificar a chave primária para atualização."
+                                    st.rerun()
+                            except Exception as e:
+                                st.session_state['last_action_message_type'] = 'error'
+                                st.session_state['last_action_message_text'] = f"❌ Erro ao salvar alterações: {e}"
+                                st.rerun()
+            else:
+                st.info("Selecione um registro no campo acima para editar.")
+    else:
+        st.info("Apenas administradores podem editar ou atualizar registros.")
+
+    st.markdown("---")
+
+    # --- Funcionalidade de Excluir Registro ---
+    if is_admin:
+        with st.expander("🗑️ Excluir Registro", expanded=True):
+            if df_data.empty:
+                st.warning("Nenhum registro para excluir.")
+                return
+
+            # Referencie a coluna EXATAMENTE como no DB
+            cidades_destino_delete_options = sorted(df_data["CIDADE DESTINO"].dropna().unique())
+            selected_cidade_destino_delete = st.selectbox(
+                "Selecione a CIDADE DESTINO para excluir:",
+                options=[""] + cidades_destino_delete_options,
+                key=f"{key_prefix}_select_delete_record"
+            )
+
+            selected_record_delete = None
+            if selected_cidade_destino_delete:
+                # Referencie a coluna EXATAMENTE como no DB
+                selected_record_delete = df_data[df_data["CIDADE DESTINO"] == selected_cidade_destino_delete].iloc[0].to_dict()
+
+            if selected_record_delete:
+                st.markdown(f"""
+                <p style='color:red;'>⚠️ Você está prestes a excluir o registro:</p>
+                <p>
+                    <b>CIDADE DESTINO:</b> {selected_record_delete.get('CIDADE DESTINO', 'N/A')}<br> 
+                    <b>REGIÃO:</b> {selected_record_delete.get('REGIÃO', 'N/A')}<br>             
+                    <b>MICRO REGIÃO:</b> {selected_record_delete.get('MICRO REGIÃO', 'N/A')}<br> 
+                    <b>ATENDIDO POR:</b> {selected_record_delete.get('ATENDIDO POR', 'N/A')}<br> 
+                    <b>Dia_relação_ao_entrega_prevista:</b> {selected_record_delete.get('Dia_relação_ao_entrega_prevista', 'N/A')} 
+                </p>
+                """, unsafe_allow_html=True)
+                
+                confirm_delete = st.checkbox(
+                    "Marque para confirmar a exclusão deste registro.",
+                    key=f"{key_prefix}_confirm_delete"
+                )
+
+                if confirm_delete:
+                    if st.button("🗑️ Excluir Registro Definitivamente", key=f"{key_prefix}_delete_button"):
+                        try:
+                            pk_condition = get_pk_condition(schema, selected_record_delete)
+
+                            if pk_condition:
+                                supabase_client.table(table_name).delete().match(pk_condition).execute()
+                                
+                                st.session_state['last_action_message_type'] = 'success'
+                                st.session_state['last_action_message_text'] = "✅ Registro excluído com sucesso!"
+                                
+                                load_table_data.clear()
+                                st.session_state[f"crud_key_counter_{table_name}"] += 1
+                                st.rerun()
+                            else:
+                                st.session_state['last_action_message_type'] = 'error'
+                                st.session_state['last_action_message_text'] = "Erro: Não foi possível identificar a chave primária para exclusão."
+                                st.rerun()
+                        except Exception as e:
+                            st.session_state['last_action_message_type'] = 'error'
+                            st.session_state['last_action_message_text'] = f"❌ Erro ao excluir registro: {e}"
+                            st.rerun()
+            else:
+                st.info("Selecione um registro no campo acima para excluir.")
+    else:
+        st.info("Apenas administradores podem excluir registros.")
+
+
+
+#---------------------------------------------------------------------------
+#
+# PAGINA CADASTRO DE Paletizadores
+#
+#---------------------------------------------------------------------------
+
+def gerenciar_paletizadores_ui(table_name, schema, supabase_client, key_prefix):
+    st.header("Paletizadores ")
+    is_admin = st.session_state.get("is_admin", False)
+
+    # --- NOVO TRECHO DE DEBUGGING CRÍTICO ---
+    #st.write(f"DEBUG: Schema recebido para {table_name}:")
+    #st.json(schema) # Isso exibirá o JSON do schema no seu app Streamlit
+    # --- FIM DO NOVO TRECHO ---
+
+    # --- Lógica de Exibição de Mensagens Persistentes ---
+    if 'last_action_message_type' in st.session_state and 'last_action_message_text' in st.session_state:
+        message_type = st.session_state.pop('last_action_message_type')
+        message_text = st.session_state.pop('last_action_message_text')
+        
+        if message_type == 'success':
+            st.success(message_text)
+        elif message_type == 'error':
+            st.error(message_text)
+        elif message_type == 'warning':
+            st.warning(message_text)
+
+    # Carrega os dados da tabela. load_table_data está configurada para manter os nomes originais do DB.
+    df_data = load_table_data(table_name, supabase_client)
+
+    # --- Exibição dos Registros Existentes ---
+    st.subheader("Registros Existentes")
+    if not df_data.empty:
+        # schema["display_cols"] contém os nomes exatos das colunas do DB, conforme definido em TABLE_SCHEMAS.
+        st.dataframe(df_data[schema["display_cols"]], width='stretch')
+    else:
+        st.info(f"Nenhum registro na tabela '{table_name}' para exibir.")
+
+    st.markdown("---")
+
+    # --- Funcionalidade de Adicionar Novo Registro ---
+    if is_admin: # Apenas administradores podem adicionar registros
+        with st.expander("➕ Adicionar Novo Paletizador", expanded=True):
+            with st.form(key=f"{key_prefix}_add_form"):
+                st.markdown("##### Preencha os campos para adicionar um novo registro de paletizador:")
+                
+                # Campos de entrada para o novo registro
+                new_cnpj_destinatario = st.text_input(
+                    "CNPJ DESTINATARIO (somente números):",
+                    max_chars=14, # Limita o input visualmente (validação real no backend)
+                    key=f"{key_prefix}_add_cnpj_destinatario"
+                )
+                new_cliente_destinatario = st.text_input(
+                    "CLIENTE DESTINATARIO:",
+                    key=f"{key_prefix}_add_cliente_destinatario"
+                )
+                new_grande_rede = st.selectbox(
+                    "GRANDE REDE:",
+                    options=["SIM", "NÃO"],
+                    key=f"{key_prefix}_add_grande_rede"
+                )
+                new_paletizadora = st.selectbox(
+                    "PALETIZADORA:",
+                    options=["SIM", "NÃO"],
+                    key=f"{key_prefix}_add_paletizadora"
+                )
+
+                add_submitted = st.form_submit_button("➕ Adicionar Paletizador")
+
+                # A lógica de processamento do formulário só é executada se o botão for clicado
+                if add_submitted:
+                    # Cria o payload com os nomes EXATOS das colunas do DB
+                    new_data_payload = {
+                        "CNPJ DESTINATARIO": new_cnpj_destinatario,
+                        "CLIENTE DESTINATARIO": new_cliente_destinatario,
+                        "GRANDE REDE": new_grande_rede,
+                        "PALETIZADORA": new_paletizadora
+                    }
+
+                    # Valida os dados de entrada usando o esquema da tabela
+                    errors = _validate_input_data(new_data_payload, schema["columns"])
+                    if errors:
+                        st.session_state['last_action_message_type'] = 'error'
+                        st.session_state['last_action_message_text'] = f"❌ Erro(s) na validação: {', '.join(errors)}"
+                        st.rerun() # Recarrega a página para exibir a mensagem de erro
+                    else:
+                        # Limpa e pré-processa os valores de entrada antes de enviar para o DB
+                        # (ex: CNPJ só números, texto em maiúsculas)
+                        cleaned_new_data = {
+                            k: _clean_input_value(v, schema["columns"][k]["type"])
+                            for k, v in new_data_payload.items()
+                        }
+
+                        try:
+                            # Verifica se o CNPJ DESTINATARIO já existe para evitar duplicatas (unique=True no schema)
+                            existing = supabase_client.table(table_name) \
+                                .select("id") \
+                                .eq("CNPJ DESTINATARIO", cleaned_new_data["CNPJ DESTINATARIO"]) \
+                                .limit(1).execute()
+
+                            if existing.data:
+                                st.session_state['last_action_message_type'] = 'error'
+                                st.session_state['last_action_message_text'] = "❌ Erro: Já existe um registro com o mesmo CNPJ DESTINATARIO."
+                                st.rerun()
+                            else:
+                                # Insere o novo registro no Supabase
+                                supabase_client.table(table_name).insert(cleaned_new_data).execute()
+                                
+                                st.session_state['last_action_message_type'] = 'success'
+                                st.session_state['last_action_message_text'] = "✅ Novo paletizador adicionado com sucesso!"
+                                
+                                load_table_data.clear() # Limpa o cache para forçar recarregamento dos dados na próxima execução
+                                st.session_state[f"crud_key_counter_{table_name}"] += 1 # Incrementa o contador para resetar o formulário
+                                st.rerun() # Recarrega a página para refletir as mudanças
+
+                        except Exception as e:
+                            st.session_state['last_action_message_type'] = 'error'
+                            st.session_state['last_action_message_text'] = f"❌ Erro ao adicionar novo paletizador: {e}"
+                            st.rerun()
+    else:
+        st.info("Apenas administradores podem adicionar novos registros.")
+
+    st.markdown("---")
+
+    # --- Funcionalidade de Editar/Atualizar Registro ---
+    if is_admin: # Apenas administradores podem editar registros
+        with st.expander("✏️ Editar/Atualizar Paletizador", expanded=True):
+            if df_data.empty:
+                st.warning("Nenhum registro para editar ou atualizar.")
+                return
+
+            cnpjs_disponiveis = sorted(df_data["CNPJ DESTINATARIO"].dropna().unique())
+            selected_cnpj_destinatario = st.selectbox(
+                "Selecione o CNPJ DESTINATARIO para editar:",
+                options=[""] + cnpjs_disponiveis,
+                key=f"{key_prefix}_select_edit_record"
+            )
+
+            selected_record = None
+            if selected_cnpj_destinatario:
+                # Recupera todos os dados do registro selecionado para preencher o formulário
+                selected_record = df_data[df_data["CNPJ DESTINATARIO"] == selected_cnpj_destinatario].iloc[0].to_dict()
+
+            if selected_record:
+                st.markdown("##### Edite os campos abaixo:")
+                edit_form_key_prefix = f"{key_prefix}_edit_form"
+
+                with st.form(key=edit_form_key_prefix):
+                    # O CNPJ DESTINATARIO é a chave primária, então é exibido, mas não editável
+                    st.text_input(
+                        "CNPJ DESTINATARIO (Não Editável):",
+                        value=(selected_record.get("CNPJ DESTINATARIO") or "").upper(),
+                        disabled=True,
+                        key=f"{edit_form_key_prefix}_cnpj_destinatario_display"
+                    )
+                    edited_cliente_destinatario = st.text_input(
+                        "CLIENTE DESTINATARIO:",
+                        value=(selected_record.get("CLIENTE DESTINATARIO") or "").upper(),
+                        key=f"{edit_form_key_prefix}_cliente_destinatario"
+                    )
+                    # Selectbox para GRANDE REDE, pré-selecionando o valor atual do registro
+                    edited_grande_rede = st.selectbox(
+                        "GRANDE REDE:",
+                        options=["SIM", "NÃO"],
+                        index=0 if (selected_record.get("GRANDE REDE") or "").upper() == "SIM" else 1,
+                        key=f"{edit_form_key_prefix}_grande_rede"
+                    )
+                    # Selectbox para PALETIZADORA, pré-selecionando o valor atual do registro
+                    edited_paletizadora = st.selectbox(
+                        "PALETIZADORA:",
+                        options=["SIM", "NÃO"],
+                        index=0 if (selected_record.get("PALETIZADORA") or "").upper() == "SIM" else 1,
+                        key=f"{key_prefix}_edit_paletizadora"
+                    )
+
+                    save_submitted = st.form_submit_button("✅ Salvar Alterações")
+
+                    # A lógica de processamento do formulário só é executada se o botão for clicado
+                    if save_submitted:
+                        # Cria o payload de atualização com os nomes EXATOS das colunas do DB
+                        edited_data_payload = {
+                            "CNPJ DESTINATARIO": selected_cnpj_destinatario, # A PK para o 'match' é o CNPJ selecionado originalmente
+                            "CLIENTE DESTINATARIO": edited_cliente_destinatario,
+                            "GRANDE REDE": edited_grande_rede,
+                            "PALETIZADORA": edited_paletizadora
+                        }
+
+                        # Valida os dados de entrada
+                        errors = _validate_input_data(edited_data_payload, schema["columns"])
+                        if errors:
+                            st.session_state['last_action_message_type'] = 'error'
+                            st.session_state['last_action_message_text'] = f"❌ Erro(s) na validação: {', '.join(errors)}"
+                            st.rerun()
+                        else:
+                            # Limpa e pré-processa os valores de entrada
+                            cleaned_edited_data = {
+                                k: _clean_input_value(v, schema["columns"][k]["type"])
+                                for k, v in edited_data_payload.items()
+                            }
+
+                            try:
+                                # Obtém a condição da chave primária para identificar o registro a ser atualizado
+                                pk_condition = get_pk_condition(schema, selected_record)
+
+                                if pk_condition:
+                                    # Atualiza o registro no Supabase
+                                    supabase_client.table(table_name).update(cleaned_edited_data).match(pk_condition).execute()
+                                    
+                                    st.session_state['last_action_message_type'] = 'success'
+                                    st.session_state['last_action_message_text'] = "✅ Alterações salvas com sucesso!"
+                                    
+                                    load_table_data.clear() # Limpa o cache e força recarregamento
+                                    st.session_state[f"crud_key_counter_{table_name}"] += 1 # Força reset do formulário
+                                    st.rerun() # Recarrega a página para refletir as mudanças
+                                else:
+                                    st.session_state['last_action_message_type'] = 'error'
+                                    st.session_state['last_action_message_text'] = "Erro: Não foi possível identificar a chave primária para atualização."
+                                    st.rerun()
+                            except Exception as e:
+                                st.session_state['last_action_message_type'] = 'error'
+                                st.session_state['last_action_message_text'] = f"❌ Erro ao salvar alterações: {e}"
+                                st.rerun()
+            else:
+                st.info("Selecione um registro no campo acima para editar.")
+    else:
+        st.info("Apenas administradores podem editar ou atualizar registros.")
+
+    st.markdown("---")
+
+    # --- Funcionalidade de Excluir Registro ---
+    if is_admin: # Apenas administradores podem excluir registros
+        with st.expander("🗑️ Excluir Paletizador", expanded=True):
+            if df_data.empty:
+                st.warning("Nenhum registro para excluir.")
+                return
+
+            # Cria uma lista de opções para o selectbox, usando o CNPJ DESTINATARIO
+            cnpjs_disponiveis_delete = sorted(df_data["CNPJ DESTINATARIO"].dropna().unique())
+            selected_cnpj_destinatario_delete = st.selectbox(
+                "Selecione o CNPJ DESTINATARIO para excluir:",
+                options=[""] + cnpjs_disponiveis_delete,
+                key=f"{key_prefix}_select_delete_record"
+            )
+
+            selected_record_delete = None
+            if selected_cnpj_destinatario_delete:
+                # Recupera todos os dados do registro selecionado
+                selected_record_delete = df_data[df_data["CNPJ DESTINATARIO"] == selected_cnpj_destinatario_delete].iloc[0].to_dict()
+
+            if selected_record_delete:
+                # Exibe um resumo do registro a ser excluído para confirmação
+                st.markdown(f"""
+                <p style='color:red;'>⚠️ Você está prestes a excluir o registro:</p>
+                <p>
+                    <b>CNPJ DESTINATARIO:</b> {selected_record_delete.get('CNPJ DESTINATARIO', 'N/A')}<br>
+                    <b>CLIENTE DESTINATARIO:</b> {selected_record_delete.get('CLIENTE DESTINATARIO', 'N/A')}<br>
+                    <b>GRANDE REDE:</b> {selected_record_delete.get('GRANDE REDE', 'N/A')}<br>
+                    <b>PALETIZADORA:</b> {selected_record_delete.get('PALETIZADORA', 'N/A')}
+                </p>
+                """, unsafe_allow_html=True)
+                
+                # Checkbox de confirmação antes da exclusão definitiva
+                confirm_delete = st.checkbox(
+                    "Marque para confirmar a exclusão deste registro.",
+                    key=f"{key_prefix}_confirm_delete"
+                )
+
+                if confirm_delete:
+                    # Botão para executar a exclusão definitiva (habilitado apenas após a confirmação)
+                    if st.button("🗑️ Excluir Paletizador Definitivamente", key=f"{key_prefix}_delete_button"):
+                        try:
+                            # Obtém a condição da chave primária para identificar o registro a ser excluído
+                            pk_condition = get_pk_condition(schema, selected_record_delete)
+
+                            if pk_condition:
+                                # Realiza a exclusão no Supabase
+                                supabase_client.table(table_name).delete().match(pk_condition).execute()
+                                
+                                st.session_state['last_action_message_type'] = 'success'
+                                st.session_state['last_action_message_text'] = "✅ Registro excluído com sucesso!"
+                                
+                                load_table_data.clear() # Limpa o cache e força recarregamento
+                                st.session_state[f"crud_key_counter_{table_name}"] += 1 # Força reset do formulário
+                                st.rerun() # Recarrega a página para refletir as mudanças
+                            else:
+                                st.session_state['last_action_message_type'] = 'error'
+                                st.session_state['last_action_message_text'] = "Erro: Não foi possível identificar a chave primária para exclusão."
+                                st.rerun()
+                        except Exception as e:
+                            st.session_state['last_action_message_type'] = 'error'
+                            st.session_state['last_action_message_text'] = f"❌ Erro ao excluir registro: {e}"
+                            st.rerun()
+            else:
+                st.info("Selecione um registro no campo acima para excluir.")
+    else:
+        st.info("Apenas administradores podem excluir registros.")
+#---------------------------------------------------------------------------
+#
+# PAGINA CADASTRO DE Particularidades
+#
+#---------------------------------------------------------------------------
+
+def gerenciar_particularidades_ui(table_name, schema, supabase_client, key_prefix):
+    st.header("Particularidades ")
+    is_admin = st.session_state.get("is_admin", False)
+
+
+    st.markdown("---") # Separador visual para o debug
+    # --- FIM DO NOVO TRECHO ---
+
+    # --- Lógica de Exibição de Mensagens Persistentes ---
+    if 'last_action_message_type' in st.session_state and 'last_action_message_text' in st.session_state:
+        message_type = st.session_state.pop('last_action_message_type')
+        message_text = st.session_state.pop('last_action_message_text')
+        
+        if message_type == 'success':
+            st.success(message_text)
+        elif message_type == 'error':
+            st.error(message_text)
+        elif message_type == 'warning':
+            st.warning(message_text)
+
+    # Carrega os dados da tabela
+    df_data = load_table_data(table_name, supabase_client)
+
+    # --- Exibição dos Registros Existentes ---
+    st.subheader("Registros Existentes")
+    if not df_data.empty:
+        st.dataframe(df_data[schema["display_cols"]], width='stretch')
+    else:
+        st.info(f"Nenhum registro na tabela '{table_name}' para exibir.")
+
+    st.markdown("---")
+
+    # --- Funcionalidade de Adicionar Novo Registro ---
+    if is_admin:
+        with st.expander("➕ Adicionar Nova Particularidade", expanded=True):
+            with st.form(key=f"{key_prefix}_add_form"):
+                st.markdown("##### Preencha os campos para adicionar uma nova particularidade:")
+                
+                new_cnpj = st.text_input(
+                    "CNPJ (somente números):",
+                    max_chars=14,
+                    key=f"{key_prefix}_add_cnpj"
+                )
+                new_cliente = st.text_input(
+                    "Cliente:",
+                    key=f"{key_prefix}_add_cliente"
+                )
+                new_particularidade = st.text_area(
+                    "Particularidade (descrição):",
+                    key=f"{key_prefix}_add_particularidade",
+                    height=100
+                )
+
+                add_submitted = st.form_submit_button("➕ Adicionar Particularidade")
+
+                if add_submitted:
+                    new_data_payload = {
+                        "CNPJ": new_cnpj,
+                        "Cliente": new_cliente,
+                        "Particularidade": new_particularidade
+                    }
+
+                    errors = _validate_input_data(new_data_payload, schema["columns"])
+                    if errors:
+                        st.session_state['last_action_message_type'] = 'error'
+                        st.session_state['last_action_message_text'] = f"❌ Erro(s) na validação: {', '.join(errors)}"
+                        st.rerun()
+                    else:
+                        cleaned_new_data = {
+                            k: _clean_input_value(v, schema["columns"][k]["type"])
+                            for k, v in new_data_payload.items()
+                        }
+
+                        try:
+                            # Verifica duplicidade do CNPJ (chave primária)
+                            existing = supabase_client.table(table_name) \
+                                .select("id") \
+                                .eq("CNPJ", cleaned_new_data["CNPJ"]) \
+                                .limit(1).execute()
+
+                            if existing.data:
+                                st.session_state['last_action_message_type'] = 'error'
+                                st.session_state['last_action_message_text'] = "❌ Erro: Já existe um registro com este CNPJ."
+                                st.rerun()
+                            else:
+                                supabase_client.table(table_name).insert(cleaned_new_data).execute()
+                                
+                                st.session_state['last_action_message_type'] = 'success'
+                                st.session_state['last_action_message_text'] = "✅ Nova particularidade adicionada com sucesso!"
+                                
+                                load_table_data.clear()
+                                st.session_state[f"crud_key_counter_{table_name}"] += 1
+                                st.rerun()
+
+                        except Exception as e:
+                            st.session_state['last_action_message_type'] = 'error'
+                            st.session_state['last_action_message_text'] = f"❌ Erro ao adicionar particularidade: {e}"
+                            st.rerun()
+    else:
+        st.info("Apenas administradores podem adicionar novas particularidades.")
+
+    st.markdown("---")
+
+    # --- Funcionalidade de Editar/Atualizar Registro ---
+    if is_admin:
+        with st.expander("✏️ Editar/Atualizar Particularidade", expanded=True):
+            if df_data.empty:
+                st.warning("Nenhum registro para editar ou atualizar.")
+                return
+
+            cnpjs_disponiveis = sorted(df_data["CNPJ"].dropna().unique())
+            selected_cnpj = st.selectbox(
+                "Selecione o CNPJ da particularidade para editar:",
+                options=[""] + cnpjs_disponiveis,
+                key=f"{key_prefix}_select_edit_record"
+            )
+
+            selected_record = None
+            if selected_cnpj:
+                selected_record = df_data[df_data["CNPJ"] == selected_cnpj].iloc[0].to_dict()
+
+            if selected_record:
+                st.markdown("##### Edite os campos abaixo:")
+                edit_form_key_prefix = f"{key_prefix}_edit_form"
+
+                with st.form(key=edit_form_key_prefix):
+                    # CNPJ é chave primária, exibido mas não editável
+                    st.text_input(
+                        "CNPJ (Não Editável):",
+                        value=(selected_record.get("CNPJ") or "").upper(),
+                        disabled=True,
+                        key=f"{edit_form_key_prefix}_cnpj_display"
+                    )
+                    edited_cliente = st.text_input(
+                        "Cliente:",
+                        value=(selected_record.get("Cliente") or "").upper(),
+                        key=f"{edit_form_key_prefix}_cliente"
+                    )
+                    edited_particularidade = st.text_area(
+                        "Particularidade (descrição):",
+                        value=(selected_record.get("Particularidade") or "").upper(),
+                        key=f"{edit_form_key_prefix}_particularidade",
+                        height=100
+                    )
+
+                    save_submitted = st.form_submit_button("✅ Salvar Alterações")
+
+                    if save_submitted:
+                        edited_data_payload = {
+                            "CNPJ": selected_cnpj, # PK original
+                            "Cliente": edited_cliente,
+                            "Particularidade": edited_particularidade
+                        }
+
+                        errors = _validate_input_data(edited_data_payload, schema["columns"])
+                        if errors:
+                            st.session_state['last_action_message_type'] = 'error'
+                            st.session_state['last_action_message_text'] = f"❌ Erro(s) na validação: {', '.join(errors)}"
+                            st.rerun()
+                        else:
+                            cleaned_edited_data = {
+                                k: _clean_input_value(v, schema["columns"][k]["type"])
+                                for k, v in edited_data_payload.items()
+                            }
+
+                            try:
+                                pk_condition = get_pk_condition(schema, selected_record)
+
+                                if pk_condition:
+                                    supabase_client.table(table_name).update(cleaned_edited_data).match(pk_condition).execute()
+                                    
+                                    st.session_state['last_action_message_type'] = 'success'
+                                    st.session_state['last_action_message_text'] = "✅ Alterações salvas com sucesso!"
+                                    
+                                    load_table_data.clear()
+                                    st.session_state[f"crud_key_counter_{table_name}"] += 1
+                                    st.rerun()
+                                else:
+                                    st.session_state['last_action_message_type'] = 'error'
+                                    st.session_state['last_action_message_text'] = "Erro: Não foi possível identificar a chave primária para atualização."
+                                    st.rerun()
+                            except Exception as e:
+                                st.session_state['last_action_message_type'] = 'error'
+                                st.session_state['last_action_message_text'] = f"❌ Erro ao salvar alterações: {e}"
+                                st.rerun()
+            else:
+                st.info("Selecione um registro no campo acima para editar.")
+    else:
+        st.info("Apenas administradores podem editar ou atualizar registros.")
+
+    st.markdown("---")
+
+    # --- Funcionalidade de Excluir Registro ---
+    if is_admin:
+        with st.expander("🗑️ Excluir Particularidade", expanded=True):
+            if df_data.empty:
+                st.warning("Nenhum registro para excluir.")
+                return
+
+            cnpjs_disponiveis_delete = sorted(df_data["CNPJ"].dropna().unique())
+            selected_cnpj_delete = st.selectbox(
+                "Selecione o CNPJ da particularidade para excluir:",
+                options=[""] + cnpjs_disponiveis_delete,
+                key=f"{key_prefix}_select_delete_record"
+            )
+
+            selected_record_delete = None
+            if selected_cnpj_delete:
+                selected_record_delete = df_data[df_data["CNPJ"] == selected_cnpj_delete].iloc[0].to_dict()
+
+            if selected_record_delete:
+                st.markdown(f"""
+                <p style='color:red;'>⚠️ Você está prestes a excluir o registro:</p>
+                <p>
+                    <b>CNPJ:</b> {selected_record_delete.get('CNPJ', 'N/A')}<br>
+                    <b>Cliente:</b> {selected_record_delete.get('Cliente', 'N/A')}<br>
+                    <b>Particularidade:</b> {selected_record_delete.get('Particularidade', 'N/A')}
+                </p>
+                """, unsafe_allow_html=True)
+                
+                confirm_delete = st.checkbox(
+                    "Marque para confirmar a exclusão desta particularidade.",
+                    key=f"{key_prefix}_confirm_delete"
+                )
+
+                if confirm_delete:
+                    if st.button("🗑️ Excluir Particularidade Definitivamente", key=f"{key_prefix}_delete_button"):
+                        try:
+                            pk_condition = get_pk_condition(schema, selected_record_delete)
+
+                            if pk_condition:
+                                supabase_client.table(table_name).delete().match(pk_condition).execute()
+                                
+                                st.session_state['last_action_message_type'] = 'success'
+                                st.session_state['last_action_message_text'] = "✅ Registro excluído com sucesso!"
+                                
+                                load_table_data.clear()
+                                st.session_state[f"crud_key_counter_{table_name}"] += 1
+                                st.rerun()
+                            else:
+                                st.session_state['last_action_message_type'] = 'error'
+                                st.session_state['last_action_message_text'] = "Erro: Não foi possível identificar a chave primária para exclusão."
+                                st.rerun()
+                        except Exception as e:
+                            st.session_state['last_action_message_type'] = 'error'
+                            st.session_state['last_action_message_text'] = f"❌ Erro ao excluir registro: {e}"
+                            st.rerun()
+            else:
+                st.info("Selecione um registro no campo acima para excluir.")
+    else:
+        st.info("Apenas administradores podem excluir registros.")
+
+#---------------------------------------------------------------------------
+#
+# PAGINA CADASTRO DE Motoristas (Motorista_Placa)
+#
+#---------------------------------------------------------------------------
+
+def gerenciar_motorista_placa_ui(table_name, schema, supabase_client, key_prefix):
+    st.header("Motoristas (Registro de Placas) ")
+    is_admin = st.session_state.get("is_admin", False)
+
+    # --- Lógica de Exibição de Mensagens Persistentes ---
+    if 'last_action_message_type' in st.session_state and 'last_action_message_text' in st.session_state:
+        message_type = st.session_state.pop('last_action_message_type')
+        message_text = st.session_state.pop('last_action_message_text')
+        
+        if message_type == 'success':
+            st.success(message_text)
+        elif message_type == 'error':
+            st.error(message_text)
+        elif message_type == 'warning':
+            st.warning(message_text)
+
+    # Carrega os dados da tabela
+    df_data = load_table_data(table_name, supabase_client)
+
+    # --- Exibição dos Registros Existentes ---
+    st.subheader("Registros Existentes")
+    if not df_data.empty:
+        st.dataframe(df_data[schema["display_cols"]], width='stretch')
+    else:
+        st.info(f"Nenhum registro na tabela '{table_name}' para exibir.")
+
+    st.markdown("---\n")
+
+    # --- Funcionalidade de Adicionar Novo Registro ---
+    if is_admin:
+        with st.expander("➕ Adicionar Nova Placa de Motorista", expanded=True):
+            with st.form(key=f"{key_prefix}_add_form"):
+                st.markdown("##### Preencha os campos para adicionar uma nova placa de motorista:")
+                
+                new_placa = st.text_input(
+                    "PLACA (formato ABC1234, somente letras e números):", # Atualizei a descrição para clareza
+                    max_chars=7, # Adicione este parâmetro para limitar a 7 caracteres no input
+                    key=f"{key_prefix}_add_placa"
+                ).upper().strip() # Mantenha .upper().strip() para consistência com a regex
+
+                new_motorista = st.text_input(
+                    "Nome do MOTORISTA:",
+                    key=f"{key_prefix}_add_motorista"
+                ).upper().strip() # Converte para maiúsculas e remove espaços
+
+                add_submitted = st.form_submit_button("➕ Adicionar Registro")
+
+                if add_submitted:
+                    new_data_payload = {
+                        "PLACA": new_placa,
+                        "MOTORISTA": new_motorista,
+                    }
+
+                    errors = _validate_input_data(new_data_payload, schema["columns"])
+                    if errors:
+                        st.session_state['last_action_message_type'] = 'error'
+                        st.session_state['last_action_message_text'] = f"❌ Erro(s) na validação: {', '.join(errors)}"
+                        st.rerun()
+                    else:
+                        # Limpa valores para garantir consistência (ex: maiúsculas)
+                        cleaned_new_data = {
+                            k: _clean_input_value(v, schema["columns"][k]["type"])
+                            for k, v in new_data_payload.items()
+                        }
+
+                        try:
+                            # Verifica duplicidade da PLACA (chave primária)
+                            existing = supabase_client.table(table_name) \
+                                .select("PLACA") \
+                                .eq("PLACA", cleaned_new_data["PLACA"]) \
+                                .limit(1).execute()
+
+                            if existing.data:
+                                st.session_state['last_action_message_type'] = 'error'
+                                st.session_state['last_action_message_text'] = "❌ Erro: Já existe um registro com esta PLACA."
+                                st.rerun()
+                            else:
+                                supabase_client.table(table_name).insert(cleaned_new_data).execute()
+                                
+                                st.session_state['last_action_message_type'] = 'success'
+                                st.session_state['last_action_message_text'] = "✅ Novo registro de motorista/placa adicionado com sucesso!"
+                                
+                                load_table_data.clear() # Limpa o cache
+                                st.session_state[f"crud_key_counter_{table_name}"] += 1 # Reseta o formulário
+                                st.rerun()
+
+                        except Exception as e:
+                            st.session_state['last_action_message_type'] = 'error'
+                            st.session_state['last_action_message_text'] = f"❌ Erro ao adicionar registro: {e}"
+                            st.rerun()
+    else:
+        st.info("Apenas administradores podem adicionar novos registros.")
+
+    st.markdown("---\n")
+
+    # --- Funcionalidade de Editar/Atualizar Registro ---
+    if is_admin:
+        with st.expander("✏️ Editar/Atualizar Registro de Placa de Motorista", expanded=True):
+            if df_data.empty:
+                st.warning("Nenhum registro para editar ou atualizar.")
+                return
+
+            # Cria opções de seleção únicas para o selectbox: "MOTORISTA - PLACA"
+            display_options_edit = sorted([
+                f"{row.get('MOTORISTA', 'N/A')} - {row.get('PLACA', 'N/A')}"
+                for _, row in df_data.iterrows()
+            ])
+            selected_display_edit = st.selectbox(
+                "Selecione o Motorista/Placa para editar:",
+                options=[""] + display_options_edit,
+                key=f"{key_prefix}_select_edit_record"
+            )
+
+            selected_record = None
+            if selected_display_edit:
+                # Extrai a PLACA da string selecionada (assumindo formato "MOTORISTA - PLACA")
+                selected_placa_from_display = selected_display_edit.split(' - ')[-1].strip()
+                selected_record = df_data[df_data["PLACA"] == selected_placa_from_display].iloc[0].to_dict()
+
+            if selected_record:
+                st.markdown("##### Edite os campos abaixo:")
+                edit_form_key_prefix = f"{key_prefix}_edit_form"
+
+                with st.form(key=edit_form_key_prefix):
+                    # PLACA é chave primária, exibida mas não editável
+                    st.text_input(
+                        "PLACA (Não Editável):",
+                        value=(selected_record.get("PLACA") or "").upper(),
+                        disabled=True,
+                        key=f"{edit_form_key_prefix}_placa_display"
+                    )
+                    edited_motorista = st.text_input(
+                        "Nome do MOTORISTA:",
+                        value=(selected_record.get("MOTORISTA") or "").upper(),
+                        key=f"{edit_form_key_prefix}_motorista"
+                    )
+
+                    save_submitted = st.form_submit_button("✅ Salvar Alterações")
+
+                    if save_submitted:
+                        edited_data_payload = {
+                            "PLACA": selected_record.get("PLACA"), # PLACA original para o match
+                            "MOTORISTA": edited_motorista,
+                        }
+
+                        errors = _validate_input_data(edited_data_payload, schema["columns"])
+                        if errors:
+                            st.session_state['last_action_message_type'] = 'error'
+                            st.session_state['last_action_message_text'] = f"❌ Erro(s) na validação: {', '.join(errors)}"
+                            st.rerun()
+                        else:
+                            cleaned_edited_data = {
+                                k: _clean_input_value(v, schema["columns"][k]["type"])
+                                for k, v in edited_data_payload.items()
+                            }
+
+                            try:
+                                # A condição de chave primária usará a PLACA original do registro
+                                pk_condition = get_pk_condition(schema, selected_record)
+
+                                if pk_condition:
+                                    supabase_client.table(table_name).update(cleaned_edited_data).match(pk_condition).execute()
+                                    
+                                    st.session_state['last_action_message_type'] = 'success'
+                                    st.session_state['last_action_message_text'] = "✅ Alterações salvas com sucesso!"
+                                    
+                                    load_table_data.clear() # Limpa o cache
+                                    st.session_state[f"crud_key_counter_{table_name}"] += 1 # Força reset do formulário
+                                    st.rerun()
+                                else:
+                                    st.session_state['last_action_message_type'] = 'error'
+                                    st.session_state['last_action_message_text'] = "Erro: Não foi possível identificar a chave primária para atualização."
+                                    st.rerun()
+                            except Exception as e:
+                                st.session_state['last_action_message_type'] = 'error'
+                                st.session_state['last_action_message_text'] = f"❌ Erro ao salvar alterações: {e}"
+                                st.rerun()
+            else:
+                st.info("Selecione um registro no campo acima para editar.")
+    else:
+        st.info("Apenas administradores podem editar ou atualizar registros.")
+
+    st.markdown("---\n")
+
+    # --- Funcionalidade de Excluir Registro ---
+    if is_admin:
+        with st.expander("🗑️ Excluir Registro de Placa de Motorista", expanded=True):
+            if df_data.empty:
+                st.warning("Nenhum registro para excluir.")
+                return
+
+            # Cria opções de seleção únicas para o selectbox: "MOTORISTA - PLACA"
+            display_options_delete = sorted([
+                f"{row.get('MOTORISTA', 'N/A')} - {row.get('PLACA', 'N/A')}"
+                for _, row in df_data.iterrows()
+            ])
+            selected_display_delete = st.selectbox(
+                "Selecione o Motorista/Placa para excluir:",
+                options=[""] + display_options_delete,
+                key=f"{key_prefix}_select_delete_record"
+            )
+
+            selected_record_delete = None
+            if selected_display_delete:
+                # Extrai a PLACA da string selecionada
+                selected_placa_from_display = selected_display_delete.split(' - ')[-1].strip()
+                selected_record_delete = df_data[df_data["PLACA"] == selected_placa_from_display].iloc[0].to_dict()
+
+            if selected_record_delete:
+                st.markdown(f"""
+                <p style='color:red;'>⚠️ Você está prestes a excluir o registro:</p>
+                <p>
+                    <b>PLACA:</b> {selected_record_delete.get('PLACA', 'N/A')}<br>
+                    <b>MOTORISTA:</b> {selected_record_delete.get('MOTORISTA', 'N/A')}<br>
+                </p>
+                """, unsafe_allow_html=True)
+                
+                confirm_delete = st.checkbox(
+                    "Marque para confirmar a exclusão deste registro.",
+                    key=f"{key_prefix}_confirm_delete"
+                )
+
+                if confirm_delete:
+                    if st.button("🗑️ Excluir Registro Definitivamente", key=f"{key_prefix}_delete_button"):
+                        try:
+                            # A condição de chave primária usará a PLACA original do registro
+                            pk_condition = get_pk_condition(schema, selected_record_delete)
+
+                            if pk_condition:
+                                supabase_client.table(table_name).delete().match(pk_condition).execute()
+                                
+                                st.session_state['last_action_message_type'] = 'success'
+                                st.session_state['last_action_message_text'] = "✅ Registro excluído com sucesso!"
+                                
+                                load_table_data.clear() # Limpa o cache
+                                st.session_state[f"crud_key_counter_{table_name}"] += 1 # Força reset do formulário
+                                st.rerun()
+                            else:
+                                st.session_state['last_action_message_type'] = 'error'
+                                st.session_state['last_action_message_text'] = "Erro: Não foi possível identificar a chave primária para exclusão."
+                                st.rerun()
+                        except Exception as e:
+                            st.session_state['last_action_message_type'] = 'error'
+                            st.session_state['last_action_message_text'] = f"❌ Erro ao excluir registro: {e}"
+                            st.rerun()
+            else:
+                st.info("Selecione um registro no campo acima para excluir.")
+    else:
+        st.info("Apenas administradores podem excluir registros.")
+
 ##########################################
 
 # PÁGINA Confirmar Produção
@@ -6714,13 +8942,7 @@ def pagina_cargas_fechadas():
                             "Justificativa" 
                         )
 
-                    st.dataframe(
-                        df_formatado,
-                        use_container_width=True,
-                        hide_index=True,
-                        column_config=column_configuration, 
-                        height=400
-                    )
+                    st.dataframe(df_formatado, width='stretch', hide_index=True, column_config=column_configuration, height=400)
         
        
         col_buttons_below_grid = st.columns([1, 1]) # Duas colunas para os botões
@@ -6895,7 +9117,10 @@ def pagina_cargas_fechadas():
         )
 
       
-    
+if "search_ctrc_input_value" not in st.session_state:
+    st.session_state.search_ctrc_input_value = ""
+if "search_results" not in st.session_state:
+    st.session_state.search_results = None
 # ========== EXECUÇÃO PRINCIPAL ========== #
 
 login()  # Garante que o usuário esteja logado
@@ -6931,16 +9156,14 @@ if st.session_state.get("login", False):
 
     # Definir as abas principais
     # Adicionei uma aba para "Administração e Configurações" para agrupar as opções de usuário.
-    abas = ["Sincronização", "Operações", "Administração e Configurações"]
+    abas = ["Sincronização", "Operações", "Cadastros", "Administração e Configurações"]
     aba_selecionada = st.radio("Selecione uma aba:", abas, horizontal=True)
 
     if aba_selecionada == "Sincronização":
         pagina_sincronizacao()
 
     elif aba_selecionada == "Operações":
-        # Criamos colunas para o st.radio e para o botão de Atualizar
-        # A proporção [8, 1] significa que o rádio terá 8 partes da largura e o botão 1 parte.
-        # Você pode ajustar essa proporção (ex: [10, 1] ou [6, 1]) conforme o layout desejado.
+        
         col_radio, col_refresh_button = st.columns([8, 1])
 
         with col_radio:
@@ -6951,10 +9174,73 @@ if st.session_state.get("login", False):
             # Adicionado uma 'key' para o st.radio para melhor gerenciamento do estado
             sub_aba = st.radio("Selecione a sub-aba:", sub_abas, horizontal=True, key='sub_aba_operations_radio')
 
+
+
+              # === NOVO BLOCO: CAMPO DE BUSCA E BOTÃO "BUSCAR" ===
+            st.markdown("<br>", unsafe_allow_html=True) # Espaçamento
+            with st.container():
+                # AQUI ESTÃO AS MUDANÇAS:
+                # - col_filter_input_local: 0.35 (35% da largura, campo de texto)
+                # - col_search_btn_local: 0.08 (8% da largura, botão 'Buscar' menor)
+                # - col_vazia: 0.57 (57% da largura, espaçador à direita)
+                col_filter_input_local, col_search_btn_local, col_vazia = st.columns([0.2, 0.15, 0.55]) 
+
+                with col_filter_input_local:
+                    st.text_input(
+                        "Buscar Série/Número CT-e:", # Título do input
+                        key="search_ctrc_input_local", # Chave única
+                        value=st.session_state.search_ctrc_input_value, # Valor inicial
+                        placeholder="Ex: I92155811-1",
+                        help="Digite a Série/Número CT-e para localizar onde ela está no fluxo de trabalho.",
+                        label_visibility="collapsed" # Esconde o label acima do input
+                    )
+
+                with col_search_btn_local:
+                    # REMOVIDA A LINHA st.write("<br>") AQUI para alinhar o botão ao campo.
+                    if st.button("🔎 Buscar", key="perform_search_button_local", width='stretch'):
+                        # ... (lógica do botão - SEM ALTERAÇÕES) ...
+                        st.session_state.search_ctrc_input_value = st.session_state.search_ctrc_input_local
+                        st.session_state.search_results = find_ctrc_in_workflow(st.session_state.search_ctrc_input_value)
+                        st.rerun()
+
+                with col_vazia: # Esta coluna não precisa de conteúdo, serve apenas para espaçamento
+                    pass
+
+            # === Exibir os resultados da busca (dentro da aba Operações) ===
+            if st.session_state.get("search_results"):
+                results = st.session_state.search_results
+                
+                # Criamos uma coluna para a mensagem e outra vazia para o restante da largura
+                col_message, col_empty_space = st.columns([0.25, 0.75]) # A mensagem ocupará 1/4 da largura
+                
+                with col_message: # Todas as mensagens serão exibidas dentro desta coluna
+                    if results["status"] == "found":
+                        # Mapeia os nomes das tabelas para os nomes das páginas
+                        friendly_page_names = [TABLE_TO_PAGE_NAME_MAP.get(table_name, table_name) for table_name in results['tables']]
+                        st.success(f"📦 A Série/Número CT-e '{results['ctrc']}' foi encontrada nas seguintes etapas: **{', '.join(friendly_page_names)}**")
+                    elif results["status"] == "not_found":
+                        st.info(f"🔍 A Série/Número CT-e '{results['ctrc']}' não foi encontrada em nenhuma etapa do workflow.")
+                    elif results["status"] == "warning":
+                        st.warning(results["message"])
+                    elif results["status"] == "error":
+                        st.error(f"❌ Ocorreu um erro ao buscar a Série/Número CT-e: {results['message']}")
+                
+                # Opcional: Limpar os resultados da busca após exibição. 
+                # Se não comentar, a mensagem persiste. Se comentar, desaparece após um rerun.
+                # st.session_state.search_results = None 
+            st.markdown("---") # Separador visual abaixo da busca
+
+            # === FIM DO NOVO BLOCO: CAMPO DE BUSCA E BOTÃO "BUSCAR" ===
+
+
+
+
         with col_refresh_button:
             # Adiciona um pequeno espaço vertical para alinhar o botão com o rádio
             st.write("<br>", unsafe_allow_html=True)
             if st.button("🔄 Atualizar", key="refresh_operations_page_button"):
+
+                
                 # Baseado na sub-aba selecionada, invalida o cache correto para forçar o recarregamento dos dados
                 if sub_aba == "Confirmar Produção":
                     st.session_state["reload_confirmadas_producao"] = True
@@ -6975,12 +9261,17 @@ if st.session_state.get("login", False):
                     st.session_state["reload_cargas_aprovadas"] = True
                     st.session_state.pop("df_cargas_aprovadas_cache", None)
                 elif sub_aba == "Cargas Encerradas":
+
                     # Cargas Encerradas usa uma flag de recarga diferente
                     st.session_state["_force_reload_cargas_fechadas"] = True
                     st.session_state.pop("df_cargas_fechadas_cache", None)
 
+                st.session_state.search_results = None          # Limpa o resultado da busca
+                st.session_state.search_ctrc_input_value =""
+
                 st.rerun() # Força o Streamlit a re-executar o script para buscar os novos dados
 
+    
         # As chamadas às funções das páginas permanecem as mesmas
         if sub_aba == "Confirmar Produção":
             pagina_confirmar_producao()
@@ -6996,6 +9287,8 @@ if st.session_state.get("login", False):
             pagina_cargas_aprovadas()
         elif sub_aba == "Cargas Encerradas":
             pagina_cargas_fechadas()
+    elif aba_selecionada == "Cadastros":
+            pagina_cadastros()
 
     elif aba_selecionada == "Administração e Configurações":
         if st.session_state.get("is_admin", False):
