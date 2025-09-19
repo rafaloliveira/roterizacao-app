@@ -4706,7 +4706,7 @@ def gerenciar_motorista_placa_ui(table_name, schema, supabase_client, key_prefix
     # --- Exibição dos Registros Existentes ---
     st.subheader("Registros Existentes")
     if not df_data.empty:
-        st.dataframe(df_data[schema["display_cols"]], width='stretch')
+        st.dataframe(df_data[schema["display_cols"]], use_container_width=True)
     else:
         st.info(f"Nenhum registro na tabela '{table_name}' para exibir.")
 
