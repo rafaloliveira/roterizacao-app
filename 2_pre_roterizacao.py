@@ -3136,7 +3136,7 @@ def gerenciar_rotas_ui(table_name, schema, supabase_client, key_prefix):
             "Rota"
         ]
         df_display_for_grid = df_data[[col for col in display_cols_for_grid if col in df_data.columns]].copy()
-        st.dataframe(df_display_for_grid, width='stretch')
+        st.dataframe(df_display_for_grid, use_container_width=True)
     else:
         st.info(f"Nenhum registro na tabela '{table_name}' para exibir.")
 
@@ -3641,7 +3641,7 @@ def gerenciar_clientes_agendados_ui(table_name, schema, supabase_client, key_pre
     st.subheader("Registros Existentes")
     display_cols = schema.get("display_cols", list(schema["columns"].keys()))
     if not df_data.empty:
-        st.dataframe(df_data[display_cols], width='stretch')
+        st.dataframe(df_data[display_cols], use_container_width=True)
     else:
         st.info("Nenhum cliente agendado encontrado.")
 
@@ -3854,7 +3854,7 @@ def gerenciar_micro_regioes_ui(table_name, schema, supabase_client, key_prefix):
     st.subheader("Registros Existentes")
     if not df_data.empty:
         # display_cols já virá com os nomes exatos do TABLE_SCHEMAS
-        st.dataframe(df_data[schema["display_cols"]], width='stretch')
+        st.dataframe(df_data[schema["display_cols"]], use_container_width=True)
     else:
         st.info(f"Nenhum registro na tabela '{table_name}' para exibir.")
 
@@ -4158,7 +4158,7 @@ def gerenciar_paletizadores_ui(table_name, schema, supabase_client, key_prefix):
     st.subheader("Registros Existentes")
     if not df_data.empty:
         # schema["display_cols"] contém os nomes exatos das colunas do DB, conforme definido em TABLE_SCHEMAS.
-        st.dataframe(df_data[schema["display_cols"]], width='stretch')
+        st.dataframe(df_data[schema["display_cols"]], use_container_width=True)
     else:
         st.info(f"Nenhum registro na tabela '{table_name}' para exibir.")
 
@@ -4452,7 +4452,7 @@ def gerenciar_particularidades_ui(table_name, schema, supabase_client, key_prefi
     # --- Exibição dos Registros Existentes ---
     st.subheader("Registros Existentes")
     if not df_data.empty:
-        st.dataframe(df_data[schema["display_cols"]], width='stretch')
+        st.dataframe(df_data[schema["display_cols"]], use_container_width=True)
     else:
         st.info(f"Nenhum registro na tabela '{table_name}' para exibir.")
 
