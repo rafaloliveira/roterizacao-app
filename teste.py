@@ -533,7 +533,11 @@ def _aprovar_carga_custos(selecionadas_para_aprovar, df_carga_original, carga_nu
 
     st.rerun()
 
+# Carrega .env
+#load_dotenv()
 
+#url = os.getenv("SUPABASE_URL")
+#key = os.getenv("SUPABASE_KEY")
 
 # ========== SUPABASE CONFIG ========== #
 # Base de Dados Projeto roteriza
@@ -544,7 +548,7 @@ key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inho
 #url = "https://agiugsfojyansjeanfbz.supabase.co"
 #key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFnaXVnc2ZvanlhbnNqZWFuZmJ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM4OTUzOTUsImV4cCI6MjA2OTQ3MTM5NX0.44w1wtOe3A8eQS6rINRdT9tDowZWwHM_H9Apr_B17I4"
 
-
+#supabase = create_client(url, key)
 
 
 @st.cache_resource(show_spinner=False)
