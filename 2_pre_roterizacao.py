@@ -3051,7 +3051,7 @@ def preparar_df_pre_roterizacao(df_pre, supabase_client):
 # ===========================================
 
 
-@st.cache_data(ttl=3600) # O cache será invalidado a cada hora para garantir dados atualizados
+@st.cache_data(ttl=10) # O cache será invalidado a cada hora para garantir dados atualizados
 def load_motoristas_data():
     """
     Carrega todos os motoristas e suas placas da tabela 'Motoristas' do Supabase.
