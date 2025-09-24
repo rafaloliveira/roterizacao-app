@@ -1,11 +1,5 @@
-#12-09 07 Feitos todos ajustes de foramato de datas, botão para retornar de cargas encerradas para cargas geradas, retirada de paletizadores da confirmar produção
+#23-09 06
 
-
-#09-09 retirado para correção formato time zone página Pré Roteirização
-
-
-
-#sincronização, Pré Roterização e Rotas Confirmadas funcionando
 
 import streamlit as st
 st.set_page_config(
@@ -3049,25 +3043,6 @@ def preparar_df_pre_roterizacao(df_pre, supabase_client):
 # ===========================================
 # # FIM DAS NOVAS FUNÇÕES PARA GERAÇÃO DE PDF
 # ===========================================
-
-
-@st.cache_data(ttl=3600) # O cache será invalidado a cada hora para garantir dados atualizados
-def load_motoristas_data():
-    """
-    Carrega todos os motoristas e suas placas da tabela 'Motoristas' do Supabase.
-    Retorna um DataFrame com as colunas 'MOTORISTA' e 'PLACA',
-    com os valores em maiúsculas e sem espaços extras.
-    """
-    try:
-        response = supabase.table("Motoristas").select("PLACA, MOTORISTA").order("MOTORISTA", desc=False).execute()
-        df_motoristas = pd.DataFrame(response.data)
-        if not df_motoristas.empty:
-            df_motoristas['MOTORISTA'] = df_motoristas['MOTORISTA'].astype(str).str.strip().str.upper()
-            df_motoristas['PLACA'] = df_motoristas['PLACA'].astype(str).str.strip().str.upper()
-        return df_motoristas
-    except Exception as e:
-        st.error(f"Erro ao carregar dados de motoristas: {e}")
-        return pd.DataFrame(columns=["PLACA", "MOTORISTA"])
 
 # ==========================================================
 #     FUNÇÃO CENTRAL PARA A ABA DE CADASTROS
@@ -6499,12 +6474,6 @@ def pagina_cargas_geradas():
         'POA CAPITAL': 0.30   # 30%
     }
 
-    # --- Carrega os dados dos motoristas UMA VEZ para toda a página ---
-    df_motoristas_data = load_motoristas_data()
-    all_motoristas = sorted(df_motoristas_data['MOTORISTA'].unique().tolist()) if not df_motoristas_data.empty else []
-    motorista_options_general = ["Selecione o Motorista"] + all_motoristas
-    # --- FIM DO CARREGAMENTO DOS MOTORISTAS ---
-
     # --- NOVO: Lógica para exibir mensagem de sucesso/erro no topo ---
     if 'last_action_message_type' in st.session_state and 'last_action_message_text' in st.session_state:
         message_type = st.session_state.pop('last_action_message_type')
@@ -6644,10 +6613,9 @@ def pagina_cargas_geradas():
             # --- NOVO: Extração de informações de motorista, placa, veículo e valor_contratacao
             # Agora usando .iloc[0] após o preenchimento de NaNs para garantir um valor único (o primeiro)
             # para aquela carga. Isso é mais robusto que .dropna().unique()[0]
-            info_motorista = df_carga_raw["motorista"].iloc[0].upper().strip() if "motorista" in df_carga_raw.columns and not df_carga_raw.empty and pd.notna(df_carga_raw["motorista"].iloc[0]) else ""
-            info_placa = df_carga_raw["placa"].iloc[0].upper().strip() if "placa" in df_carga_raw.columns and not df_carga_raw.empty and pd.notna(df_carga_raw["placa"].iloc[0]) else ""
-            info_veiculo = df_carga_raw["veiculo"].iloc[0].upper().strip() if "veiculo" in df_carga_raw.columns and not df_carga_raw.empty and pd.notna(df_carga_raw["veiculo"].iloc[0]) else ""
-            
+            info_motorista = df_carga_raw["motorista"].iloc[0] if "motorista" in df_carga_raw.columns and not df_carga_raw.empty else ""
+            info_placa = df_carga_raw["placa"].iloc[0] if "placa" in df_carga_raw.columns and not df_carga_raw.empty else ""
+            info_veiculo = df_carga_raw["veiculo"].iloc[0] if "veiculo" in df_carga_raw.columns and not df_carga_raw.empty else "-"
             # Para valor_contratacao, garanta que seja numérico antes de formatar
             info_valor_contratacao_raw = df_carga_raw["valor_contratacao"].iloc[0] if "valor_contratacao" in df_carga_raw.columns and not df_carga_raw.empty else 0.0
             info_valor_contratacao = formatar_brasileiro(info_valor_contratacao_raw)
@@ -7128,68 +7096,25 @@ def pagina_cargas_geradas():
                     col_mot, col_placa, col_veiculo_tipo = st.columns([1.5, 1, 1.5]) # Renomeei col_veiculo para col_veiculo_tipo para evitar conflitos
 
                     with col_mot:
-                        # --- Motorista Selectbox ---
-                        # Use a informação do motorista carregada do DB como valor inicial, em maiúsculas e sem espaços
-                        initial_motorista_value_for_sb = info_motorista.upper().strip() if info_motorista else "Selecione o Motorista"
-                        
-                        try:
-                            # Tenta encontrar o índice do motorista atual no DB nas opções gerais
-                            default_motorista_index = motorista_options_general.index(initial_motorista_value_for_sb)
-                        except ValueError:
-                            # Se não encontrar (ex: motorista não existe mais no cadastro), assume a primeira opção ("Selecione o Motorista")
-                            default_motorista_index = 0
-
-                        selected_motorista = st.selectbox(
-                            "Nome do Motorista",
-                            options=motorista_options_general,
-                            index=default_motorista_index,
-                            key=f"motorista_selectbox_{carga}" # Chave única para cada selectbox de motorista
-                        )
-                        # Armazena o motorista selecionado no session_state para que a placa possa ser filtrada dinamicamente
-                        st.session_state[f"current_selected_motorista_{carga}"] = selected_motorista
-
-
+                        # Use info_motorista (que vem do DB) como valor inicial
+                        motorista = st.text_input("Nome do Motorista", value=info_motorista, key=f"motorista_input_{carga}")
                     with col_placa:
-                        # --- Placa Selectbox (dinâmica com base no motorista selecionado) ---
-                        dynamic_placa_options = ["Selecione a Placa"]
-                        current_motorista_selection = st.session_state.get(f"current_selected_motorista_{carga}", "Selecione o Motorista")
-
-                        # Filtra as placas se um motorista válido foi selecionado
-                        if current_motorista_selection != "Selecione o Motorista" and not df_motoristas_data.empty:
-                            plates_for_selected_motorista_df = df_motoristas_data[
-                                df_motoristas_data['MOTORISTA'] == current_motorista_selection
-                            ]
-                            if not plates_for_selected_motorista_df.empty:
-                                dynamic_placa_options.extend(sorted(plates_for_selected_motorista_df['PLACA'].tolist()))
-                        
-                        # Determina a seleção inicial para a placa
-                        initial_placa_value_for_sb = info_placa.upper().strip() if info_placa else "Selecione a Placa"
-                        try:
-                            default_placa_index = dynamic_placa_options.index(initial_placa_value_for_sb)
-                        except ValueError:
-                            default_placa_index = 0 # Fallback para "Selecione a Placa"
-
-                        selected_placa = st.selectbox(
-                            "Placa do Veículo",
-                            options=dynamic_placa_options,
-                            index=default_placa_index,
-                            key=f"placa_selectbox_{carga}" # Chave única para cada selectbox de placa
-                        )
-
+                        # Use info_placa (que vem do DB) como valor inicial
+                        placa = st.text_input("Placa do Veículo", value=info_placa, key=f"placa_input_{carga}")
                     with col_veiculo_tipo:
-                        # Re-using existing `vehicle_options_list`
-                        initial_veiculo_value = info_veiculo.upper().strip() if info_veiculo else ""
+                        # Encontra o índice da opção atual para pré-selecionar o selectbox
                         try:
-                            default_vehicle_index = vehicle_options_list.index(initial_veiculo_value)
+                            default_vehicle_index = vehicle_options_list.index(info_veiculo.upper().strip())
                         except ValueError:
-                            default_vehicle_index = 0 # Fallback to empty option
+                            default_vehicle_index = 0 # Default para a primeira (vazia) se não encontrado
 
                         veiculo_selected = st.selectbox(
                             "Tipo de Veículo",
                             options=vehicle_options_list,
                             index=default_vehicle_index,
-                            key=f"veiculo_input_{carga}" # Original key
+                            key=f"veiculo_input_{carga}"
                         )
+
                     st.subheader(f"Valor da Contratação da Carga {carga}")
 
                     if valor_sugerido_contratacao > 0:
@@ -7215,37 +7140,16 @@ def pagina_cargas_geradas():
                         disabled=selecionadas.empty # Mantido o 'disabled' já existente
                     )
 
-                    motorista_db_normalized = info_motorista if info_motorista else None
-                    placa_db_normalized = info_placa if info_placa else None
-                    veiculo_db_normalized = info_veiculo if info_veiculo else None
-                    valor_contratacao_db_normalized = info_valor_contratacao_raw
-
-                    motorista_ui_normalized = selected_motorista if selected_motorista != "Selecione o Motorista" else None
-                    placa_ui_normalized = selected_placa if selected_placa != "Selecione a Placa" else None
-                    veiculo_ui_normalized = veiculo_selected if veiculo_selected else None
-                    valor_contratacao_ui_normalized = valor_contratacao
-
-                    save_button_disabled = (
-                        motorista_ui_normalized == motorista_db_normalized and
-                        placa_ui_normalized == placa_db_normalized and
-                        veiculo_ui_normalized == veiculo_db_normalized and
-                        valor_contratacao_ui_normalized == valor_contratacao_db_normalized
-                    )
-
-                    motorista_to_save = selected_motorista if selected_motorista != "Selecione o Motorista" else None
-                    placa_to_save = selected_placa if selected_placa != "Selecione a Placa" else None
-                    veiculo_to_save = veiculo_selected if veiculo_selected else None
-
                     salvar_key = f"btn_salvar_info_{carga}"
-                    if st.button(f"💾 Salvar Informações", key=salvar_key, disabled=save_button_disabled):
+                    if st.button(f"💾 Salvar Informações", key=f"btn_salvar_{carga}", disabled=not (motorista or placa or veiculo_selected or valor_contratacao)):
                         
                         try:
                             with st.spinner("Salvando dados da carga..."):
 
                                 supabase.table("cargas_geradas").update({
-                                    "motorista": motorista_to_save,
-                                    "placa": placa_to_save,
-                                    "veiculo": veiculo_to_save,
+                                    "motorista": motorista.upper().strip(),
+                                    "placa": placa.upper().strip(),
+                                    "veiculo": veiculo_selected.upper().strip() if veiculo_selected else None,
                                     "valor_contratacao": valor_contratacao
                                 }).eq("numero_carga", carga).execute()
 
@@ -7295,16 +7199,20 @@ def pagina_cargas_geradas():
 
                                     df_aprovar_custos["numero_carga"] = carga
                                     
-                                    motorista_to_save_for_approval = selected_motorista if selected_motorista != "Selecione o Motorista" else None
-                                    placa_to_save_for_approval = selected_placa if selected_placa != "Selecione a Placa" else None
-                                    veiculo_to_save_for_approval = veiculo_selected if veiculo_selected else None
+                                    motorista_to_save = motorista.strip().upper() if isinstance(motorista, str) else ""
+                                    placa_to_save = placa.strip().upper() if isinstance(placa, str) else ""
+                                    veiculo_to_save = veiculo_selected.upper().strip() if veiculo_selected else None
 
                                     df_aprovar_custos["motorista"] = motorista_to_save
                                     df_aprovar_custos["placa"] = placa_to_save
                                     df_aprovar_custos["veiculo"] = veiculo_to_save
                                     df_aprovar_custos["valor_contratacao"] = valor_contratacao
 
-                                                                     
+                                    # --- INÍCIO DA CORREÇÃO E DEBUG LOCALIZADO ---
+                                    # Os DEBUGs (st.write) aqui foram mantidos para sua referência,
+                                    # mas podem ser removidos em produção.
+
+                                   
                                     df_aprovar_custos = _prepare_df_for_supabase_insert(df_aprovar_custos)
 
                                     registros_para_custos = df_aprovar_custos.to_dict(orient="records")

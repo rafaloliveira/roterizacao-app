@@ -1,11 +1,5 @@
-#12-09 07 Feitos todos ajustes de foramato de datas, botão para retornar de cargas encerradas para cargas geradas, retirada de paletizadores da confirmar produção
+# 23-09 05
 
-
-#09-09 retirado para correção formato time zone página Pré Roteirização
-
-
-
-#sincronização, Pré Roterização e Rotas Confirmadas funcionando
 
 import streamlit as st
 st.set_page_config(
@@ -3050,25 +3044,6 @@ def preparar_df_pre_roterizacao(df_pre, supabase_client):
 # # FIM DAS NOVAS FUNÇÕES PARA GERAÇÃO DE PDF
 # ===========================================
 
-
-@st.cache_data(ttl=3600) # O cache será invalidado a cada hora para garantir dados atualizados
-def load_motoristas_data():
-    """
-    Carrega todos os motoristas e suas placas da tabela 'Motoristas' do Supabase.
-    Retorna um DataFrame com as colunas 'MOTORISTA' e 'PLACA',
-    com os valores em maiúsculas e sem espaços extras.
-    """
-    try:
-        response = supabase.table("Motoristas").select("PLACA, MOTORISTA").order("MOTORISTA", desc=False).execute()
-        df_motoristas = pd.DataFrame(response.data)
-        if not df_motoristas.empty:
-            df_motoristas['MOTORISTA'] = df_motoristas['MOTORISTA'].astype(str).str.strip().str.upper()
-            df_motoristas['PLACA'] = df_motoristas['PLACA'].astype(str).str.strip().str.upper()
-        return df_motoristas
-    except Exception as e:
-        st.error(f"Erro ao carregar dados de motoristas: {e}")
-        return pd.DataFrame(columns=["PLACA", "MOTORISTA"])
-
 # ==========================================================
 #     FUNÇÃO CENTRAL PARA A ABA DE CADASTROS
 # ==========================================================
@@ -3764,47 +3739,20 @@ def gerenciar_clientes_agendados_ui(table_name, schema, supabase_client, key_pre
     # Carrega os registros da tabela
     df_data = load_table_data(table_name, supabase_client)
 
-    # --- Inicializa df_display e column_config_for_clientes aqui para garantir que sempre existam ---
-    df_display = pd.DataFrame() # Inicializa com um DataFrame vazio
-    column_config_for_clientes = {} # Inicializa o dicionário de configuração
-    # --- Fim da inicialização ---
-
     # --- Exibição da tabela de registros já existentes ---
     st.subheader("Registros Existentes")
     display_cols = schema.get("display_cols", list(schema["columns"].keys()))
-    
-    # --- CORREÇÃO AQUI: Popula df_display e aplica o tratamento de colunas ---
     if not df_data.empty:
-        df_display = df_data[[col for col in display_cols if col in df_data.columns]].copy()
-        
-        # --- NOVA LÓGICA: Substituir None/NaN por "" APENAS em colunas de texto (object) ---
-        for col in df_display.columns:
-            if pd.api.types.is_object_dtype(df_display[col]) and col != 'data_registro':
-                df_display[col] = df_display[col].replace([None, np.nan], "")
-        # --- FIM NOVA LÓGICA ---
 
-        # --- Configuração da coluna de data para st.dataframe ---
-        if 'data_registro' in df_display.columns:
-            column_config_for_clientes['data_registro'] = st.column_config.DatetimeColumn(
-                "Data de Registro", # Nome da coluna que aparece na interface
-                format="DD/MM/YYYY HH:mm", # O formato desejado
-                timezone="America/Sao_Paulo"  # O fuso horário para exibir a data
-            )
 
-    # --- CORREÇÃO AQUI: O st.dataframe AGORA É CHAMADO UMA ÚNICA VEZ FORA DO IF/ELSE ---
-    st.dataframe(
-        df_display, # df_display agora sempre será um DataFrame (vazio ou preenchido)
-        use_container_width=True,
-        column_config=column_config_for_clientes # Passe a configuração aqui
-    )
+        df_display = df_data[display_cols].copy() 
+        df_display = df_display.replace([None, np.nan, pd.NaT], "")
+        st.dataframe(df_data[display_cols], use_container_width=True)
 
-    if df_data.empty: # Esta condição agora é para exibir a mensagem informativa
+    else:
         st.info("Nenhum cliente agendado encontrado.")
 
     st.markdown("---")
-
-
-
 
     # --- FUNCIONALIDADE DE ADICIONAR NOVO CLIENTE ---
     with st.expander("➕ Adicionar Novo Cliente Agendado", expanded=True):
@@ -3862,8 +3810,6 @@ def gerenciar_clientes_agendados_ui(table_name, schema, supabase_client, key_pre
 
     st.markdown("---")
 
-
-
     # --- FUNCIONALIDADE DE EDITAR/ATUALIZAR CLIENTE ---
     with st.expander("✏️ Editar/Atualizar Cliente Agendado", expanded=True):
         if df_data.empty:
@@ -3918,10 +3864,9 @@ def gerenciar_clientes_agendados_ui(table_name, schema, supabase_client, key_pre
                         st.rerun()
                     else:
                         try:
-                            payload_with_audit = _add_audit_fields_to_payload(payload_update.copy(), "Editado")
                             # A pk_condition usa o CNPJ original do registro selecionado
                             pk_condition = {"CNPJ": selected_record.get("CNPJ")}
-                            supabase_client.table(table_name).update(payload_with_audit).match(pk_condition).execute()
+                            supabase_client.table(table_name).update(payload_update).match(pk_condition).execute()
                             st.session_state['last_action_message_type'] = 'success'
                             st.session_state['last_action_message_text'] = "✅ Cliente agendado atualizado com sucesso!"
                             
@@ -3999,6 +3944,7 @@ def gerenciar_clientes_agendados_ui(table_name, schema, supabase_client, key_pre
 def gerenciar_micro_regioes_ui(table_name, schema, supabase_client, key_prefix):
     st.header("Micro Região por Data de Embarque ")
     
+
     # --- Lógica de Exibição de Mensagens Persistentes ---
     if 'last_action_message_type' in st.session_state and 'last_action_message_text' in st.session_state:
         message_type = st.session_state.pop('last_action_message_type')
@@ -4014,45 +3960,17 @@ def gerenciar_micro_regioes_ui(table_name, schema, supabase_client, key_prefix):
     # Carrega os dados da tabela
     df_data = load_table_data(table_name, supabase_client)
 
-    # --- Inicializa df_display e column_config_for_micro_regioes aqui ---
-    df_display = pd.DataFrame() # Inicializa com um DataFrame vazio
-    column_config_for_micro_regioes = {} # Inicializa o dicionário de configuração
-    # --- Fim da inicialização ---
-
     # --- Exibição dos Registros Existentes ---
     st.subheader("Registros Existentes")
-    
-    # --- CORREÇÃO AQUI: Popula df_display e aplica o tratamento de colunas ---
     if not df_data.empty:
         df_display = df_data[schema["display_cols"]].copy() 
-        
-        # --- NOVA LÓGICA: Substituir None/NaN por "" APENAS em colunas de texto (object) ---
-        for col in df_display.columns:
-            if pd.api.types.is_object_dtype(df_display[col]) and col != 'data_registro':
-                df_display[col] = df_display[col].replace([None, np.nan], "")
-        # --- FIM NOVA LÓGICA ---
-
-        # --- Configuração da coluna de data para st.dataframe ---
-        if 'data_registro' in df_display.columns:
-            column_config_for_micro_regioes['data_registro'] = st.column_config.DatetimeColumn(
-                "Data de Registro", # Nome da coluna que aparece na interface
-                format="DD/MM/YYYY HH:mm", # O formato desejado
-                timezone="America/Sao_Paulo"  # O fuso horário para exibir a data
-            )
-
-    # --- CORREÇÃO AQUI: O st.dataframe AGORA É CHAMADO UMA ÚNICA VEZ FORA DO IF/ELSE ---
-    st.dataframe(
-        df_display, # df_display agora sempre será um DataFrame (vazio ou preenchido)
-        use_container_width=True,
-        column_config=column_config_for_micro_regioes # Passe a configuração aqui
-    )
-
-    if df_data.empty: # Esta condição agora é para exibir a mensagem informativa
+        df_display = df_display.replace([None, np.nan, pd.NaT], "")
+        # display_cols já virá com os nomes exatos do TABLE_SCHEMAS
+        st.dataframe(df_data[schema["display_cols"]], use_container_width=True)
+    else:
         st.info(f"Nenhum registro na tabela '{table_name}' para exibir.")
 
     st.markdown("---")
-
-
 
     # --- Funcionalidade de Adicionar Novo Registro ---
     
@@ -4170,23 +4088,27 @@ def gerenciar_micro_regioes_ui(table_name, schema, supabase_client, key_prefix):
                 # CIDADE DESTINO é chave primária, exibida mas não editável diretamente
                 st.text_input(
                     "CIDADE DESTINO (Não Editável):",
-                    value=(selected_record.get("CIDADE DESTINO") or "").upper(),
+                    # Acesse o valor do record com o nome EXATO do DB
+                    value=(selected_record.get("CIDADE DESTINO") or "").upper(), 
                     disabled=True,
                     key=f"{edit_form_key_prefix}_cidade_destino_display"
                 )
                 edited_regiao = st.text_input(
                     "REGIÃO:",
-                    value=(selected_record.get("REGIÃO") or "").upper(),
+                    # Acesse o valor do record com o nome EXATO do DB
+                    value=(selected_record.get("REGIÃO") or "").upper(), 
                     key=f"{edit_form_key_prefix}_regiao"
                 )
                 edited_micro_regiao = st.text_input(
                     "MICRO REGIÃO:",
-                    value=(selected_record.get("MICRO REGIÃO") or "").upper(),
+                    # Acesse o valor do record com o nome EXATO do DB
+                    value=(selected_record.get("MICRO REGIÃO") or "").upper(), 
                     key=f"{edit_form_key_prefix}_micro_regiao"
                 )
                 edited_atendido_por = st.text_input(
                     "ATENDIDO POR:",
-                    value=(selected_record.get("ATENDIDO POR") or "").upper(),
+                    # Acesse o valor do record com o nome EXATO do DB
+                    value=(selected_record.get("ATENDIDO POR") or "").upper(), 
                     key=f"{edit_form_key_prefix}_atendido_por"
                 )
                 edited_dia_relacao = st.number_input(
@@ -4194,7 +4116,8 @@ def gerenciar_micro_regioes_ui(table_name, schema, supabase_client, key_prefix):
                     min_value=0,
                     max_value=99,
                     step=1,
-                    value=int(selected_record.get("Dia_relação_ao_entrega_prevista") or 0),
+                    # Acesse o valor do record com o nome EXATO do DB
+                    value=int(selected_record.get("Dia_relação_ao_entrega_prevista") or 0), 
                     key=f"{edit_form_key_prefix}_dia_relacao"
                 )
 
@@ -4202,11 +4125,11 @@ def gerenciar_micro_regioes_ui(table_name, schema, supabase_client, key_prefix):
 
                 if save_submitted:
                     edited_data_payload = {
-                        "CIDADE DESTINO": selected_cidade_destino,
-                        "REGIÃO": edited_regiao,
-                        "MICRO REGIÃO": edited_micro_regiao,
-                        "ATENDIDO POR": edited_atendido_por,
-                        "Dia_relação_ao_entrega_prevista": edited_dia_relacao
+                        "CIDADE DESTINO": selected_cidade_destino, # Use o nome EXATO do DB como chave
+                        "REGIÃO": edited_regiao,                 # Use o nome EXATO do DB como chave
+                        "MICRO REGIÃO": edited_micro_regiao,     # Use o nome EXATO do DB como chave
+                        "ATENDIDO POR": edited_atendido_por,     # Use o nome EXATO do DB como chave
+                        "Dia_relação_ao_entrega_prevista": edited_dia_relacao # Use o nome EXATO do DB como chave
                     }
 
                     errors = _validate_input_data(edited_data_payload, schema["columns"])
@@ -4215,23 +4138,25 @@ def gerenciar_micro_regioes_ui(table_name, schema, supabase_client, key_prefix):
                         st.session_state['last_action_message_text'] = f"❌ Erro(s) na validação: {', '.join(errors)}"
                         st.rerun()
                     else:
-                        # --- ADICIONADO: Chame _add_audit_fields_to_payload AQUI ---
-                        payload_with_audit = _add_audit_fields_to_payload(edited_data_payload.copy(), "Editado")
+                        cleaned_edited_data = {
+                            k: _clean_input_value(v, schema["columns"][k]["type"])
+                            for k, v in edited_data_payload.items()
+                        }
 
-                        
-                        # Garante que Dia_relação_ao_entrega_prevista seja int (caso tenha vindo como float de number_input)
-                        if isinstance(payload_with_audit["Dia_relação_ao_entrega_prevista"], float):
-                            payload_with_audit["Dia_relação_ao_entrega_prevista"] = int(payload_with_audit["Dia_relação_ao_entrega_prevista"])
+                        cleaned_edited_data = _add_audit_fields_to_payload(cleaned_edited_data, "Editado")
 
+                        if isinstance(cleaned_edited_data["Dia_relação_ao_entrega_prevista"], float):
+                            cleaned_edited_data["Dia_relação_ao_entrega_prevista"] = int(cleaned_edited_data["Dia_relação_ao_entrega_prevista"])
 
                         try:
                             pk_condition = get_pk_condition(schema, selected_record)
 
                             if pk_condition:
-                                supabase_client.table(table_name).update(payload_with_audit).match(pk_condition).execute()
+                                supabase_client.table(table_name).update(cleaned_edited_data).match(pk_condition).execute()
+                                
                                 st.session_state['last_action_message_type'] = 'success'
                                 st.session_state['last_action_message_text'] = "✅ Alterações salvas com sucesso!"
-
+                                
                                 load_table_data.clear()
                                 st.session_state[f"crud_key_counter_{table_name}"] += 1
                                 st.rerun()
@@ -4322,7 +4247,12 @@ def gerenciar_micro_regioes_ui(table_name, schema, supabase_client, key_prefix):
 
 def gerenciar_paletizadores_ui(table_name, schema, supabase_client, key_prefix):
     st.header("Paletizadores ")
-    
+    is_admin = st.session_state.get("is_admin", False)
+
+    # --- NOVO TRECHO DE DEBUGGING CRÍTICO ---
+    #st.write(f"DEBUG: Schema recebido para {table_name}:")
+    #st.json(schema) # Isso exibirá o JSON do schema no seu app Streamlit
+    # --- FIM DO NOVO TRECHO ---
 
     # --- Lógica de Exibição de Mensagens Persistentes ---
     if 'last_action_message_type' in st.session_state and 'last_action_message_text' in st.session_state:
@@ -4339,44 +4269,17 @@ def gerenciar_paletizadores_ui(table_name, schema, supabase_client, key_prefix):
     # Carrega os dados da tabela. load_table_data está configurada para manter os nomes originais do DB.
     df_data = load_table_data(table_name, supabase_client)
 
-    df_display = pd.DataFrame() # Inicializa com um DataFrame vazio
-    column_config_for_paletizadores = {} # Inicializa o dicionário de configuração
-    # --- Fim da inicialização ---
-
     # --- Exibição dos Registros Existentes ---
     st.subheader("Registros Existentes")
-    
-    # --- CORREÇÃO AQUI: Popula df_display e aplica o tratamento de colunas ---
     if not df_data.empty:
         df_display = df_data[schema["display_cols"]].copy() 
-        
-        # --- NOVA LÓGICA: Substituir None/NaN por "" APENAS em colunas de texto (object) ---
-        for col in df_display.columns:
-            if pd.api.types.is_object_dtype(df_display[col]) and col != 'data_registro':
-                df_display[col] = df_display[col].replace([None, np.nan], "")
-        # --- FIM NOVA LÓGICA ---
-
-        # --- Configuração da coluna de data para st.dataframe ---
-        if 'data_registro' in df_display.columns:
-            column_config_for_paletizadores['data_registro'] = st.column_config.DatetimeColumn(
-                "Data de Registro", # Nome da coluna que aparece na interface
-                format="DD/MM/YYYY HH:mm", # O formato desejado
-                timezone="America/Sao_Paulo"  # O fuso horário para exibir a data
-            )
-
-    # --- CORREÇÃO AQUI: O st.dataframe AGORA É CHAMADO UMA ÚNICA VEZ FORA DO IF/ELSE ---
-    st.dataframe(
-        df_display, # df_display agora sempre será um DataFrame (vazio ou preenchido)
-        use_container_width=True,
-        column_config=column_config_for_paletizadores # Passe a configuração aqui
-    )
-
-    if df_data.empty: # Esta condição agora é para exibir a mensagem informativa
+        df_display = df_display.replace([None, np.nan, pd.NaT], "")
+        # schema["display_cols"] contém os nomes exatos das colunas do DB, conforme definido em TABLE_SCHEMAS.
+        st.dataframe(df_data[schema["display_cols"]], use_container_width=True)
+    else:
         st.info(f"Nenhum registro na tabela '{table_name}' para exibir.")
 
     st.markdown("---")
-
-
 
     # --- Funcionalidade de Adicionar Novo Registro ---
     
@@ -4526,28 +4429,35 @@ def gerenciar_paletizadores_ui(table_name, schema, supabase_client, key_prefix):
                         "PALETIZADORA": edited_paletizadora
                     }
 
+                    # Valida os dados de entrada
                     errors = _validate_input_data(edited_data_payload, schema["columns"])
                     if errors:
                         st.session_state['last_action_message_type'] = 'error'
                         st.session_state['last_action_message_text'] = f"❌ Erro(s) na validação: {', '.join(errors)}"
                         st.rerun()
                     else:
-                        # --- ADICIONADO: Chame _add_audit_fields_to_payload AQUI ---
-                        payload_with_audit = _add_audit_fields_to_payload(edited_data_payload.copy(), "Editado")
+                        # Limpa e pré-processa os valores de entrada
+                        cleaned_edited_data = {
+                            k: _clean_input_value(v, schema["columns"][k]["type"])
+                            for k, v in edited_data_payload.items()
+                        }
 
+                        cleaned_edited_data = _add_audit_fields_to_payload(cleaned_edited_data, "Editado")
 
                         try:
+                            # Obtém a condição da chave primária para identificar o registro a ser atualizado
                             pk_condition = get_pk_condition(schema, selected_record)
 
                             if pk_condition:
-                                supabase_client.table(table_name).update(payload_with_audit).match(pk_condition).execute()
-
+                                # Atualiza o registro no Supabase
+                                supabase_client.table(table_name).update(cleaned_edited_data).match(pk_condition).execute()
+                                
                                 st.session_state['last_action_message_type'] = 'success'
                                 st.session_state['last_action_message_text'] = "✅ Alterações salvas com sucesso!"
-
-                                load_table_data.clear()
-                                st.session_state[f"crud_key_counter_{table_name}"] += 1
-                                st.rerun()
+                                
+                                load_table_data.clear() # Limpa o cache e força recarregamento
+                                st.session_state[f"crud_key_counter_{table_name}"] += 1 # Força reset do formulário
+                                st.rerun() # Recarrega a página para refletir as mudanças
                             else:
                                 st.session_state['last_action_message_type'] = 'error'
                                 st.session_state['last_action_message_text'] = "Erro: Não foi possível identificar a chave primária para atualização."
@@ -4658,45 +4568,16 @@ def gerenciar_particularidades_ui(table_name, schema, supabase_client, key_prefi
     # Carrega os dados da tabela
     df_data = load_table_data(table_name, supabase_client)
 
-    # --- Inicializa df_display e column_config_for_particularidades aqui ---
-    df_display = pd.DataFrame() # Inicializa com um DataFrame vazio
-    column_config_for_particularidades = {} # Inicializa o dicionário de configuração
-    # --- Fim da inicialização ---
-
     # --- Exibição dos Registros Existentes ---
     st.subheader("Registros Existentes")
-    
-    # --- CORREÇÃO AQUI: Popula df_display e aplica o tratamento de colunas ---
     if not df_data.empty:
         df_display = df_data[schema["display_cols"]].copy() 
-        
-        # --- NOVA LÓGICA: Substituir None/NaN por "" APENAS em colunas de texto (object) ---
-        for col in df_display.columns:
-            if pd.api.types.is_object_dtype(df_display[col]) and col != 'data_registro':
-                df_display[col] = df_display[col].replace([None, np.nan], "")
-        # --- FIM NOVA LÓGICA ---
-
-        # --- Configuração da coluna de data para st.dataframe ---
-        if 'data_registro' in df_display.columns:
-            column_config_for_particularidades['data_registro'] = st.column_config.DatetimeColumn(
-                "Data de Registro", # Nome da coluna que aparece na interface
-                format="DD/MM/YYYY HH:mm", # O formato desejado
-                timezone="America/Sao_Paulo"  # O fuso horário para exibir a data
-            )
-
-    # --- CORREÇÃO AQUI: O st.dataframe AGORA É CHAMADO UMA ÚNICA VEZ FORA DO IF/ELSE ---
-    st.dataframe(
-        df_display, # df_display agora sempre será um DataFrame (vazio ou preenchido)
-        use_container_width=True,
-        column_config=column_config_for_particularidades # Passe a configuração aqui
-    )
-
-    if df_data.empty: # Esta condição agora é para exibir a mensagem informativa
+        df_display = df_display.replace([None, np.nan, pd.NaT], "")
+        st.dataframe(df_data[schema["display_cols"]], use_container_width=True)
+    else:
         st.info(f"Nenhum registro na tabela '{table_name}' para exibir.")
 
     st.markdown("---")
-
-
 
     # --- Funcionalidade de Adicionar Novo Registro ---
     
@@ -4827,18 +4708,22 @@ def gerenciar_particularidades_ui(table_name, schema, supabase_client, key_prefi
                         st.session_state['last_action_message_text'] = f"❌ Erro(s) na validação: {', '.join(errors)}"
                         st.rerun()
                     else:
-                        # --- ADICIONADO: Chame _add_audit_fields_to_payload AQUI ---
-                        payload_with_audit = _add_audit_fields_to_payload(edited_data_payload.copy(), "Editado")
+                        cleaned_edited_data = {
+                            k: _clean_input_value(v, schema["columns"][k]["type"])
+                            for k, v in edited_data_payload.items()
+                        }
 
+                        cleaned_edited_data = _add_audit_fields_to_payload(cleaned_edited_data, "Editado")
 
                         try:
                             pk_condition = get_pk_condition(schema, selected_record)
 
                             if pk_condition:
-                                supabase_client.table(table_name).update(payload_with_audit).match(pk_condition).execute()
+                                supabase_client.table(table_name).update(cleaned_edited_data).match(pk_condition).execute()
+                                
                                 st.session_state['last_action_message_type'] = 'success'
                                 st.session_state['last_action_message_text'] = "✅ Alterações salvas com sucesso!"
-
+                                
                                 load_table_data.clear()
                                 st.session_state[f"crud_key_counter_{table_name}"] += 1
                                 st.rerun()
@@ -4941,40 +4826,13 @@ def gerenciar_motorista_placa_ui(table_name, schema, supabase_client, key_prefix
     # Carrega os dados da tabela
     df_data = load_table_data(table_name, supabase_client)
 
-    # --- Inicializa df_display e column_config_for_motoristas aqui ---
-    df_display = pd.DataFrame() # Inicializa com um DataFrame vazio
-    column_config_for_motoristas = {} # Inicializa o dicionário de configuração
-    # --- Fim da inicialização ---
-
     # --- Exibição dos Registros Existentes ---
     st.subheader("Registros Existentes")
-    
-    # --- CORREÇÃO AQUI: Popula df_display e aplica o tratamento de colunas ---
     if not df_data.empty:
         df_display = df_data[schema["display_cols"]].copy() 
-        
-        # --- NOVA LÓGICA: Substituir None/NaN por "" APENAS em colunas de texto (object) ---
-        for col in df_display.columns:
-            if pd.api.types.is_object_dtype(df_display[col]) and col != 'data_registro':
-                df_display[col] = df_display[col].replace([None, np.nan], "")
-        # --- FIM NOVA LÓGICA ---
-
-        # --- Configuração da coluna de data para st.dataframe ---
-        if 'data_registro' in df_display.columns:
-            column_config_for_motoristas['data_registro'] = st.column_config.DatetimeColumn(
-                "Data de Registro", # Nome da coluna que aparece na interface
-                format="DD/MM/YYYY HH:mm", # O formato desejado
-                timezone="America/Sao_Paulo"  # O fuso horário para exibir a data
-            )
-
-    # --- CORREÇÃO AQUI: O st.dataframe AGORA É CHAMADO UMA ÚNICA VEZ FORA DO IF/ELSE ---
-    st.dataframe(
-        df_display, # df_display agora sempre será um DataFrame (vazio ou preenchido)
-        use_container_width=True,
-        column_config=column_config_for_motoristas # Passe a configuração aqui
-    )
-
-    if df_data.empty: # Esta condição agora é para exibir a mensagem informativa
+        df_display = df_display.replace([None, np.nan, pd.NaT], "")
+        st.dataframe(df_data[schema["display_cols"]], use_container_width=True)
+    else:
         st.info(f"Nenhum registro na tabela '{table_name}' para exibir.")
 
     st.markdown("---\n")
@@ -5103,24 +4961,25 @@ def gerenciar_motorista_placa_ui(table_name, schema, supabase_client, key_prefix
                         st.session_state['last_action_message_text'] = f"❌ Erro(s) na validação: {', '.join(errors)}"
                         st.rerun()
                     else:
-                        # --- ADICIONADO: Chame _add_audit_fields_to_payload AQUI ---
-                        payload_with_audit = _add_audit_fields_to_payload(edited_data_payload.copy(), "Editado")
+                        cleaned_edited_data = {
+                            k: _clean_input_value(v, schema["columns"][k]["type"])
+                            for k, v in edited_data_payload.items()
+                        }
 
-                        # --- DEBUG TEMPORÁRIO PARA VERIFICAR O PAYLOAD ---
-                        st.write("DEBUG: Payload sendo enviado para Supabase (edição - Motoristas):")
-                        st.json(payload_with_audit)
-                        # --- FIM DEBUG ---
+                        cleaned_edited_data = _add_audit_fields_to_payload(cleaned_edited_data, "Editado")
 
                         try:
+                            # A condição de chave primária usará a PLACA original do registro
                             pk_condition = get_pk_condition(schema, selected_record)
 
                             if pk_condition:
-                                supabase_client.table(table_name).update(payload_with_audit).match(pk_condition).execute()
+                                supabase_client.table(table_name).update(cleaned_edited_data).match(pk_condition).execute()
+                                
                                 st.session_state['last_action_message_type'] = 'success'
                                 st.session_state['last_action_message_text'] = "✅ Alterações salvas com sucesso!"
-
-                                load_table_data.clear()
-                                st.session_state[f"crud_key_counter_{table_name}"] += 1
+                                
+                                load_table_data.clear() # Limpa o cache
+                                st.session_state[f"crud_key_counter_{table_name}"] += 1 # Força reset do formulário
                                 st.rerun()
                             else:
                                 st.session_state['last_action_message_type'] = 'error'
@@ -6499,12 +6358,6 @@ def pagina_cargas_geradas():
         'POA CAPITAL': 0.30   # 30%
     }
 
-    # --- Carrega os dados dos motoristas UMA VEZ para toda a página ---
-    df_motoristas_data = load_motoristas_data()
-    all_motoristas = sorted(df_motoristas_data['MOTORISTA'].unique().tolist()) if not df_motoristas_data.empty else []
-    motorista_options_general = ["Selecione o Motorista"] + all_motoristas
-    # --- FIM DO CARREGAMENTO DOS MOTORISTAS ---
-
     # --- NOVO: Lógica para exibir mensagem de sucesso/erro no topo ---
     if 'last_action_message_type' in st.session_state and 'last_action_message_text' in st.session_state:
         message_type = st.session_state.pop('last_action_message_type')
@@ -6644,10 +6497,9 @@ def pagina_cargas_geradas():
             # --- NOVO: Extração de informações de motorista, placa, veículo e valor_contratacao
             # Agora usando .iloc[0] após o preenchimento de NaNs para garantir um valor único (o primeiro)
             # para aquela carga. Isso é mais robusto que .dropna().unique()[0]
-            info_motorista = df_carga_raw["motorista"].iloc[0].upper().strip() if "motorista" in df_carga_raw.columns and not df_carga_raw.empty and pd.notna(df_carga_raw["motorista"].iloc[0]) else ""
-            info_placa = df_carga_raw["placa"].iloc[0].upper().strip() if "placa" in df_carga_raw.columns and not df_carga_raw.empty and pd.notna(df_carga_raw["placa"].iloc[0]) else ""
-            info_veiculo = df_carga_raw["veiculo"].iloc[0].upper().strip() if "veiculo" in df_carga_raw.columns and not df_carga_raw.empty and pd.notna(df_carga_raw["veiculo"].iloc[0]) else ""
-            
+            info_motorista = df_carga_raw["motorista"].iloc[0] if "motorista" in df_carga_raw.columns and not df_carga_raw.empty else ""
+            info_placa = df_carga_raw["placa"].iloc[0] if "placa" in df_carga_raw.columns and not df_carga_raw.empty else ""
+            info_veiculo = df_carga_raw["veiculo"].iloc[0] if "veiculo" in df_carga_raw.columns and not df_carga_raw.empty else "-"
             # Para valor_contratacao, garanta que seja numérico antes de formatar
             info_valor_contratacao_raw = df_carga_raw["valor_contratacao"].iloc[0] if "valor_contratacao" in df_carga_raw.columns and not df_carga_raw.empty else 0.0
             info_valor_contratacao = formatar_brasileiro(info_valor_contratacao_raw)
@@ -7128,68 +6980,25 @@ def pagina_cargas_geradas():
                     col_mot, col_placa, col_veiculo_tipo = st.columns([1.5, 1, 1.5]) # Renomeei col_veiculo para col_veiculo_tipo para evitar conflitos
 
                     with col_mot:
-                        # --- Motorista Selectbox ---
-                        # Use a informação do motorista carregada do DB como valor inicial, em maiúsculas e sem espaços
-                        initial_motorista_value_for_sb = info_motorista.upper().strip() if info_motorista else "Selecione o Motorista"
-                        
-                        try:
-                            # Tenta encontrar o índice do motorista atual no DB nas opções gerais
-                            default_motorista_index = motorista_options_general.index(initial_motorista_value_for_sb)
-                        except ValueError:
-                            # Se não encontrar (ex: motorista não existe mais no cadastro), assume a primeira opção ("Selecione o Motorista")
-                            default_motorista_index = 0
-
-                        selected_motorista = st.selectbox(
-                            "Nome do Motorista",
-                            options=motorista_options_general,
-                            index=default_motorista_index,
-                            key=f"motorista_selectbox_{carga}" # Chave única para cada selectbox de motorista
-                        )
-                        # Armazena o motorista selecionado no session_state para que a placa possa ser filtrada dinamicamente
-                        st.session_state[f"current_selected_motorista_{carga}"] = selected_motorista
-
-
+                        # Use info_motorista (que vem do DB) como valor inicial
+                        motorista = st.text_input("Nome do Motorista", value=info_motorista, key=f"motorista_input_{carga}")
                     with col_placa:
-                        # --- Placa Selectbox (dinâmica com base no motorista selecionado) ---
-                        dynamic_placa_options = ["Selecione a Placa"]
-                        current_motorista_selection = st.session_state.get(f"current_selected_motorista_{carga}", "Selecione o Motorista")
-
-                        # Filtra as placas se um motorista válido foi selecionado
-                        if current_motorista_selection != "Selecione o Motorista" and not df_motoristas_data.empty:
-                            plates_for_selected_motorista_df = df_motoristas_data[
-                                df_motoristas_data['MOTORISTA'] == current_motorista_selection
-                            ]
-                            if not plates_for_selected_motorista_df.empty:
-                                dynamic_placa_options.extend(sorted(plates_for_selected_motorista_df['PLACA'].tolist()))
-                        
-                        # Determina a seleção inicial para a placa
-                        initial_placa_value_for_sb = info_placa.upper().strip() if info_placa else "Selecione a Placa"
-                        try:
-                            default_placa_index = dynamic_placa_options.index(initial_placa_value_for_sb)
-                        except ValueError:
-                            default_placa_index = 0 # Fallback para "Selecione a Placa"
-
-                        selected_placa = st.selectbox(
-                            "Placa do Veículo",
-                            options=dynamic_placa_options,
-                            index=default_placa_index,
-                            key=f"placa_selectbox_{carga}" # Chave única para cada selectbox de placa
-                        )
-
+                        # Use info_placa (que vem do DB) como valor inicial
+                        placa = st.text_input("Placa do Veículo", value=info_placa, key=f"placa_input_{carga}")
                     with col_veiculo_tipo:
-                        # Re-using existing `vehicle_options_list`
-                        initial_veiculo_value = info_veiculo.upper().strip() if info_veiculo else ""
+                        # Encontra o índice da opção atual para pré-selecionar o selectbox
                         try:
-                            default_vehicle_index = vehicle_options_list.index(initial_veiculo_value)
+                            default_vehicle_index = vehicle_options_list.index(info_veiculo.upper().strip())
                         except ValueError:
-                            default_vehicle_index = 0 # Fallback to empty option
+                            default_vehicle_index = 0 # Default para a primeira (vazia) se não encontrado
 
                         veiculo_selected = st.selectbox(
                             "Tipo de Veículo",
                             options=vehicle_options_list,
                             index=default_vehicle_index,
-                            key=f"veiculo_input_{carga}" # Original key
+                            key=f"veiculo_input_{carga}"
                         )
+
                     st.subheader(f"Valor da Contratação da Carga {carga}")
 
                     if valor_sugerido_contratacao > 0:
@@ -7215,37 +7024,16 @@ def pagina_cargas_geradas():
                         disabled=selecionadas.empty # Mantido o 'disabled' já existente
                     )
 
-                    motorista_db_normalized = info_motorista if info_motorista else None
-                    placa_db_normalized = info_placa if info_placa else None
-                    veiculo_db_normalized = info_veiculo if info_veiculo else None
-                    valor_contratacao_db_normalized = info_valor_contratacao_raw
-
-                    motorista_ui_normalized = selected_motorista if selected_motorista != "Selecione o Motorista" else None
-                    placa_ui_normalized = selected_placa if selected_placa != "Selecione a Placa" else None
-                    veiculo_ui_normalized = veiculo_selected if veiculo_selected else None
-                    valor_contratacao_ui_normalized = valor_contratacao
-
-                    save_button_disabled = (
-                        motorista_ui_normalized == motorista_db_normalized and
-                        placa_ui_normalized == placa_db_normalized and
-                        veiculo_ui_normalized == veiculo_db_normalized and
-                        valor_contratacao_ui_normalized == valor_contratacao_db_normalized
-                    )
-
-                    motorista_to_save = selected_motorista if selected_motorista != "Selecione o Motorista" else None
-                    placa_to_save = selected_placa if selected_placa != "Selecione a Placa" else None
-                    veiculo_to_save = veiculo_selected if veiculo_selected else None
-
                     salvar_key = f"btn_salvar_info_{carga}"
-                    if st.button(f"💾 Salvar Informações", key=salvar_key, disabled=save_button_disabled):
+                    if st.button(f"💾 Salvar Informações", key=f"btn_salvar_{carga}", disabled=not (motorista or placa or veiculo_selected or valor_contratacao)):
                         
                         try:
                             with st.spinner("Salvando dados da carga..."):
 
                                 supabase.table("cargas_geradas").update({
-                                    "motorista": motorista_to_save,
-                                    "placa": placa_to_save,
-                                    "veiculo": veiculo_to_save,
+                                    "motorista": motorista.upper().strip(),
+                                    "placa": placa.upper().strip(),
+                                    "veiculo": veiculo_selected.upper().strip() if veiculo_selected else None,
                                     "valor_contratacao": valor_contratacao
                                 }).eq("numero_carga", carga).execute()
 
@@ -7295,16 +7083,20 @@ def pagina_cargas_geradas():
 
                                     df_aprovar_custos["numero_carga"] = carga
                                     
-                                    motorista_to_save_for_approval = selected_motorista if selected_motorista != "Selecione o Motorista" else None
-                                    placa_to_save_for_approval = selected_placa if selected_placa != "Selecione a Placa" else None
-                                    veiculo_to_save_for_approval = veiculo_selected if veiculo_selected else None
+                                    motorista_to_save = motorista.strip().upper() if isinstance(motorista, str) else ""
+                                    placa_to_save = placa.strip().upper() if isinstance(placa, str) else ""
+                                    veiculo_to_save = veiculo_selected.upper().strip() if veiculo_selected else None
 
                                     df_aprovar_custos["motorista"] = motorista_to_save
                                     df_aprovar_custos["placa"] = placa_to_save
                                     df_aprovar_custos["veiculo"] = veiculo_to_save
                                     df_aprovar_custos["valor_contratacao"] = valor_contratacao
 
-                                                                     
+                                    # --- INÍCIO DA CORREÇÃO E DEBUG LOCALIZADO ---
+                                    # Os DEBUGs (st.write) aqui foram mantidos para sua referência,
+                                    # mas podem ser removidos em produção.
+
+                                   
                                     df_aprovar_custos = _prepare_df_for_supabase_insert(df_aprovar_custos)
 
                                     registros_para_custos = df_aprovar_custos.to_dict(orient="records")
