@@ -314,8 +314,8 @@ TABLE_SCHEMAS = {
             "required": True,
             "unique": True,
             "pk": True,
-            "regex": "^[A-Z]{3}[0-9]{4}$",  # Expressão regular para 3 letras maiúsculas e 4 números
-            "regex_description": "Formato ABC1234 (3 letras e 4 números)" # Descrição para o usuário
+            "regex": "^[A-Z0-9]{7}$",  # Permite qualquer combinação de letras e números (7 no total)
+            "regex_description": "Formato livre com 7 caracteres (letras ou números)"
 
         },
         "MOTORISTA": {"type": "text", "required": True},
