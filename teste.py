@@ -9077,7 +9077,7 @@ def pagina_cargas_fechadas():
         "valor_contratacao", "numero_carga", "motorista", "placa", "veiculo",
         "data_fechamento", "situacao", "aprovador_custos_login", "data_aprovacao_custos",
         "fechador_carga_login", "justificativa_aprovacao_custo",
-        "custo_percentual_frete", "rentabilidade_percentual", "situacao_custo_regional",
+        "custo_percentual_frete", "rentabilidade_percentual", "situacao_custo_regional","carga_transf_filial",
         "pdf_downloaded_at", "csv_downloaded_at","Data_Hora_Gerada", "valor_adicional_frete", "motivo_valor_adicional"
     ]
 
