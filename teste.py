@@ -6583,7 +6583,10 @@ def get_plates_by_motorista():
 
 plates_by_motorista_map = get_plates_by_motorista()
 ALL_COLS_TO_PARSE_AS_DATE_OR_TIMESTAMP = list(set(GLOBAL_DB_DATE_COLS + GLOBAL_DB_TIMESTAMP_COLS))
+
+
 def pagina_cargas_geradas():
+    st.markdown("## Cargas Geradas")
 
     # Define os limites de custo por região aqui, pois o cálculo será feito nesta página.
     MAX_COST_PER_REGION = {
