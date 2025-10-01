@@ -1,0 +1,313 @@
+def pagina_confirmar_producao():
+    st.markdown("## Confirmar Produção")
+
+    with st.spinner("🔄 Carregando entregas para confirmar produção..."):
+        try:
+            recarregar = st.session_state.pop("reload_confirmadas_producao", False)
+            if recarregar or "df_confirmadas_cache" not in st.session_state:
+                df = pd.DataFrame(supabase.table("confirmadas_producao").select("*").execute().data)
+                st.session_state["df_confirmadas_cache"] = df
+            else:
+                df = st.session_state["df_confirmadas_cache"]
+
+            if not df.empty:
+                # Garante que as colunas críticas existam e estejam no tipo correto
+                if 'Rota' in df.columns:
+                    df['Rota'] = df['Rota'].fillna('').astype(str)
+                if 'Status' in df.columns:
+                    df['Status'] = df['Status'].fillna('').astype(str)
+                if 'Entrega Programada' in df.columns:
+                    df['Entrega Programada'] = pd.to_datetime(df['Entrega Programada'], errors='coerce') 
+                if 'Particularidade' in df.columns:
+                    df['Particularidade'] = df['Particularidade'].fillna('').astype(str)
+                if 'Serie_Numero_CTRC' in df.columns:
+                    df['Serie_Numero_CTRC'] = df['Serie_Numero_CTRC'].astype(str)
+                if 'Cliente Pagador' in df.columns:
+                    df['Cliente Pagador'] = df['Cliente Pagador'].fillna('').astype(str)
+                
+                # --- Garante que a coluna 'Tipo_Tratativa_Especial' exista e seja string ---
+                if 'Tipo_Tratativa_Especial' not in df.columns:
+                    df['Tipo_Tratativa_Especial'] = '' 
+                    st.warning("A coluna 'Tipo_Tratativa_Especial' não foi encontrada. Por favor, realize uma nova sincronização para atualizar os dados.")
+                
+                df['Tipo_Tratativa_Especial'] = df['Tipo_Tratativa_Especial'].fillna('').astype(str)
+
+        except Exception as e:
+            st.error(f"Erro ao consultar o banco de dados: {e}")
+            return
+
+        if df.empty:
+            st.info("Nenhuma entrega disponível para confirmar produção.")
+            return
+
+    colunas_exibir = [
+        "Serie_Numero_CTRC",  "Cliente Pagador", "Cliente Destinatario", "Cidade de Entrega",
+        "Bairro do Destinatario","Data de Emissao", "Previsao de Entrega","Entrega Programada", 
+        "Numero da Nota Fiscal",  "Status","Peso Real em Kg", "Peso Calculado em Kg", "Valor do Frete",
+        "Rota", "Regiao", "Chave CT-e","Particularidade", "Codigo da Ultima Ocorrencia", "Cubagem em m³", 
+        "Quantidade de Volumes","Tipo_Tratativa_Especial"
+    ]
+
+    # --- JsCode para destaque visual nos grids (MANTÉM o destaque de Paletizadas) ---
+    linha_destacar = JsCode("""
+    function(params) {
+        const status = params.data['Status'];
+        const entrega = params.data['Entrega Programada'];
+        const particularidade = params.data['Particularidade'];
+        const tipoTratativa = params.data['Tipo_Tratativa_Especial'];
+
+        if (tipoTratativa === 'Paletizadas') {
+            return { 'background-color': '#CFE8FF', 'color': '#000', 'font-weight': 'bold' }; 
+        }
+        
+        const isEntregaEmpty = !entrega || (typeof entrega === 'string' && entrega.trim() === '');
+        if (status === 'AGENDAR' && isEntregaEmpty) {
+            return { 'background-color': '#FFA500', 'color': '#000' }; 
+        }
+
+        if (particularidade && typeof particularidade === 'string' && particularidade.trim() !== "") {
+            return { 'background-color': '#FFFF00', 'color': '#000' }; 
+        }
+
+        return null;
+}
+""")
+
+
+    # =============================================================
+    #           MÉTRICAS GERAIS E BADGES NO TOPO (mantidos)
+    # =============================================================
+    col_total_2, col_total_1, col_total_3, col_total_4, col_badge_agendar, col_badge_particularidade, spacer, col_conf_1, col_conf_2, col_conf_3 = st.columns([1, 1, 1, 1, 1.2, 1.2, 0.5, 1, 1, 1])
+
+    with col_total_2:
+        st.metric("📦 Total de Entregas", len(df))
+    with col_total_1:
+        st.metric("📦 Total de Clientes", df["Cliente Pagador"].nunique() if "Cliente Pagador" in df.columns else 0)
+    with col_total_3:
+        st.metric("⚖️ Peso Real (kg)", formatar_brasileiro(df['Peso Real em Kg'].sum()))
+    with col_total_4:
+        st.metric("📏 Peso Calculado (kg)", formatar_brasileiro(df['Peso Calculado em Kg'].sum()))
+
+    entregas_agendar_sem_programacao = df[
+        (df['Status'].astype(str).str.upper() == 'AGENDAR') & 
+        (df['Entrega Programada'].isnull() | (df['Entrega Programada'] == ''))
+    ]
+    qtd_agendar_sem_programacao = len(entregas_agendar_sem_programacao)
+
+    with col_badge_agendar:
+        st.markdown(badge(
+            f"📅 Total Agendas sem Data Prog.: {qtd_agendar_sem_programacao}", 
+            background_color="#FF4500", 
+            text_color="white"
+        ), unsafe_allow_html=True)
+
+    entregas_com_particularidade = df[
+        (df['Particularidade'].astype(str).str.strip() != '') & 
+        (df['Particularidade'].notna())
+    ]
+    qtd_com_particularidade = len(entregas_com_particularidade)
+
+    with col_badge_particularidade:
+        st.markdown(badge(
+            f"⚠️ Com Particularidade: {qtd_com_particularidade}",
+            background_color="#DAA520", 
+            text_color="white"
+        ), unsafe_allow_html=True)
+
+    try:
+        df_confirmadas_aprov = pd.DataFrame(supabase.table("aprovacao_diretoria").select("*").execute().data)
+    except Exception as e:
+        st.error(f"Erro ao carregar dados da aprovação da diretoria: {e}")
+        df_confirmadas_aprov = pd.DataFrame()
+
+    total_confirmadas = len(df_confirmadas_aprov)
+    peso_real_conf = df_confirmadas_aprov["Peso Real em Kg"].sum() if "Peso Real em Kg" in df_confirmadas_aprov else 0
+    peso_calc_conf = df_confirmadas_aprov["Peso Calculado em Kg"].sum() if "Peso Calculado em Kg" in df_confirmadas_aprov else 0
+
+    with col_conf_1:
+        st.metric("✅ Entregas Confirmadas", total_confirmadas)
+    with col_conf_2:
+        st.metric("✅ Peso Real Confirmado", formatar_brasileiro(peso_real_conf))
+    with col_conf_3:
+        st.metric("✅ Peso Calculado Confirmado", formatar_brasileiro(peso_calc_conf))
+    
+    st.markdown("---") # Separador visual
+
+    # =============================================================
+    #           NOVA ESTRUTURA DE ITERAÇÃO DE GRUPOS
+    # =============================================================
+
+    # Primeiro, preparamos os grupos que queremos exibir.
+    # Usaremos um dicionário para mapear o nome do grupo a ser exibido para o DataFrame correspondente.
+    grupos_para_exibir = {}
+
+    # 1. Grupo "Paletizadores"
+    
+
+    # 2. Grupos por Cliente Pagador
+    clientes_pagadores_unicos = sorted(df["Cliente Pagador"].dropna().unique()) if "Cliente Pagador" in df.columns else []
+    for cliente_pagador in clientes_pagadores_unicos:
+        df_cliente = df[df["Cliente Pagador"] == cliente_pagador].copy()
+        if not df_cliente.empty:
+            grupos_para_exibir[cliente_pagador] = df_cliente
+            df_cliente['Grupo_Especial_Action'] = 'cliente' # Marca como grupo normal de cliente
+
+    # Agora, iteramos sobre esses grupos para renderizar os grids
+    for nome_grupo, df_grupo in grupos_para_exibir.items():
+        # Determina o título e a cor da borda/fundo do cabeçalho do grupo
+        if nome_grupo == "Paletizadores":
+            header_title = "📦 Entregas de Clientes Paletizadoras"
+            header_background = "#BBDEFB"
+            header_border = "#2196F3"
+            header_text_color = "#2196F3"
+        else:
+            header_title = f"Cliente Pagador: {nome_grupo}"
+            header_background = "#333333"
+            header_border = "#6c757d"
+            header_text_color = "white"
+
+        st.markdown(f"""
+        <div style="margin-top:20px;padding:10px;background:{header_background};border-left:4px solid {header_border};border-radius:6px;display:inline-block;max-width:100%;">
+            <strong style="color:{header_text_color};">{header_title}</strong>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # Informações agregadas sobre o grupo (badges)
+        col_badge, col_check_placeholder = st.columns([5, 1])
+        with col_badge:
+            # Cálculos de métricas do grupo
+            peso_calc_sum = df_grupo['Peso Calculado em Kg'].sum() if 'Peso Calculado em Kg' in df_grupo.columns else 0
+            peso_real_sum = df_grupo['Peso Real em Kg'].sum() if 'Peso Real em Kg' in df_grupo.columns else 0
+            valor_frete_sum = df_grupo['Valor do Frete'].sum() if 'Valor do Frete' in df_grupo.columns else 0
+            cubagem_sum = df_grupo['Cubagem em m³'].sum() if 'Cubagem em m³' in df_grupo.columns else 0
+            volumes_sum = df_grupo['Quantidade de Volumes'].sum() if 'Quantidade de Volumes' in df_grupo.columns else 0
+
+            # Badges específicos (agendar sem prog, particularidade)
+            entregas_agendar_sem_programacao_grupo = df_grupo[
+                (df_grupo['Status'].astype(str).str.upper() == 'AGENDAR') &
+                (df_grupo['Entrega Programada'].isnull() | (df_grupo['Entrega Programada'] == ''))
+            ]
+            qtd_agendar_sem_programacao_grupo = len(entregas_agendar_sem_programacao_grupo)
+
+            entregas_com_particularidade_grupo = df_grupo[
+                (df_grupo['Particularidade'].astype(str).str.strip() != '') &
+                (df_grupo['Particularidade'].notna())
+            ]
+            qtd_com_particularidade_grupo = len(entregas_com_particularidade_grupo)
+
+            # Define a cor do badge com base no tipo de grupo
+            badge_background_color = header_background if nome_grupo == "Paletizadores" else "#333333"
+            badge_text_color = header_text_color if nome_grupo == "Paletizadores" else "white"
+
+            st.markdown(
+                f"<span style='background:{badge_background_color};border-radius:12px;padding:6px 12px;margin:4px;color:{badge_text_color};display:inline-block;'>{len(df_grupo)} entregas</span>"
+                f"<span style='background:{badge_background_color};border-radius:12px;padding:6px 12px;margin:4px;color:{badge_text_color};display:inline-block;'>{formatar_brasileiro(peso_calc_sum)} kg calc</span>"
+                f"<span style='background:{badge_background_color};border-radius:12px;padding:6px 12px;margin:4px;color:{badge_text_color};display:inline-block;'>{formatar_brasileiro(peso_real_sum)} kg real</span>"
+                f"<span style='background:{badge_background_color};border-radius:12px;padding:6px 12px;margin:4px;color:{badge_text_color};display:inline-block;'>Valor frete: R$ {formatar_brasileiro(valor_frete_sum)}</span>"
+                f"<span style='background:{badge_background_color};border-radius:12px;padding:6px 12px;margin:4px;color:{badge_text_color};display:inline-block;'>{formatar_brasileiro(cubagem_sum)} m³</span>"
+                f"<span style='background:{badge_background_color};border-radius:12px;padding:6px 12px;margin:4px;color:{badge_text_color};display:inline-block;'>{int(volumes_sum)} volumes</span>"
+                f"<span style='background:#e06200;border-radius:12px;padding:6px 12px;margin:4px;color:white;display:inline-block;'>📅Agendar s/ Prog.: {qtd_agendar_sem_programacao_grupo}</span>"
+                f"<span style='background:#b8860b;border-radius:12px;padding:6px 12px;margin:4px;color:white;display:inline-block;'>⚠️ Com Particularidade: {qtd_com_particularidade_grupo}</span>",
+                unsafe_allow_html=True
+            )
+
+        with st.expander(f"🔽 Selecionar entregas ({nome_grupo})", expanded=True):
+            checkbox_key = f"marcar_todas_conf_prod_{nome_grupo}"
+            if checkbox_key not in st.session_state:
+                st.session_state[checkbox_key] = False
+            marcar_todas = st.checkbox("Marcar todas", key=checkbox_key)
+
+            df_formatado = df_grupo[[col for col in colunas_exibir if col in df_grupo.columns]].copy()
+            df_formatado = apply_brazilian_date_format_for_display(df_formatado)
+            
+            if not df_formatado.empty:
+                gb = GridOptionsBuilder.from_dataframe(df_formatado)
+                gb.configure_default_column(minWidth=90)
+                gb.configure_selection("multiple", use_checkbox=True)
+                gb.configure_grid_options(paginationPageSize=12)
+                gb.configure_grid_options(alwaysShowHorizontalScroll=True)
+                gb.configure_grid_options(rowStyle={'font-size': '11px'})
+                gb.configure_grid_options(onGridReady=GRID_RESIZE_JS_CODE)
+                # NOVO: Aplica o formatador para as colunas de data
+                for col in DATE_ONLY_REPARSE_COLUMNS:
+                    if col in df_formatado.columns:
+                        gb.configure_column(col, valueFormatter=date_only_formatter)
+
+                grid_options = gb.build()
+                grid_options["getRowStyle"] = linha_destacar # Aplica o destaque, inclusive para Paletizadas
+
+                grid_key_id = f"grid_conf_prod_{nome_grupo}"
+                if grid_key_id not in st.session_state:
+                    st.session_state[grid_key_id] = str(uuid.uuid4())
+
+
+
+
+                grid_response = AgGrid(
+                    df_formatado,
+                    gridOptions=grid_options,
+                    update_mode=GridUpdateMode.SELECTION_CHANGED, 
+                    fit_columns_on_grid_load=False,
+                    width="100%",
+                    height=400,
+                    allow_unsafe_jscode=True,
+                    key=st.session_state[grid_key_id], 
+                    data_return_mode="AS_INPUT",
+                    theme=AgGridTheme.MATERIAL,
+                    show_toolbar=False,
+                    custom_css={
+                        ".ag-theme-material .ag-cell": { "font-size": "11px", "line-height": "18px", "border-right": "1px solid #ccc", },
+                        ".ag-theme-material .ag-row:last-child .ag-cell": { "border-bottom": "1px solid #ccc", },
+                        ".ag-theme-material .ag-header-cell": { "border-right": "1px solid #ccc", "border-bottom": "1px solid #ccc", },
+                        ".ag-theme-material .ag-root-wrapper": { "border": "1px solid black", "border-radius": "6px", "padding": "4px", },
+                        ".ag-theme-material .ag-header-cell-label": { "font-size": "11px", },
+                        ".ag-center-cols-viewport": { "overflow-x": "auto !important", "overflow-y": "hidden", },
+                        ".ag-center-cols-container": { "min-width": "100% !important", },
+                        "#gridToolBar": { "padding-bottom": "0px !important", }
+                    }
+                )
+
+                if marcar_todas:
+                    selecionadas = df_formatado[df_formatado["Serie_Numero_CTRC"].notna()].copy()
+                else:
+                    selecionadas = pd.DataFrame(grid_response.get("selected_rows", []))
+
+                qtd_sel = len(selecionadas)
+                peso_real_sel = selecionadas["Peso Real em Kg"].sum() if "Peso Real em Kg" in selecionadas else 0
+                peso_calc_sel = selecionadas["Peso Calculado em Kg"].sum() if "Peso Calculado em Kg" in selecionadas else 0
+
+                st.markdown(
+                    f"<span style='font-weight:bold;'>📦 Entregas selecionadas:</span> {qtd_sel} &nbsp;&nbsp; | &nbsp;&nbsp; "
+                    f"<span style='font-weight:bold;'>⚖️ Peso Real:</span> {formatar_brasileiro(peso_real_sel)} kg &nbsp;&nbsp; | &nbsp;&nbsp; "
+                    f"<span style='font-weight:bold;'>📏 Peso Calculado:</span> {formatar_brasileiro(peso_calc_sel)} kg",
+                    unsafe_allow_html=True
+                )
+
+                if not selecionadas.empty:
+                    # Ação do botão: A ação é a mesma, mas a key é diferente para cada grupo
+                    if st.button(f" Enviar para Aprovação ({nome_grupo})", key=f"enviar_aprovacao_{nome_grupo}"):
+                        try:
+                            df_confirmar = selecionadas.drop(columns=["_selectedRowNodeInfo"], errors="ignore").copy()
+                            df_confirmar = _prepare_df_for_supabase_insert(df_confirmar)
+                            registros = df_confirmar.to_dict(orient="records")
+                            registros = [r for r in registros if r.get("Serie_Numero_CTRC")]
+
+                            if registros: 
+                                supabase.table("aprovacao_diretoria").upsert(registros).execute()
+                                st.session_state["df_entregas_confirmadas"] = pd.DataFrame(registros)
+                            
+                            chaves = [r["Serie_Numero_CTRC"] for r in registros]
+                            if chaves: 
+                                supabase.table("confirmadas_producao").delete().in_("Serie_Numero_CTRC", chaves).execute()
+
+                            # Limpa os caches e keys para forçar a recarga
+                            st.session_state["reload_confirmadas_producao"] = True
+                            st.session_state.pop(f"grid_conf_prod_{nome_grupo}", None) # Limpa o grid deste grupo
+                            st.session_state.pop(f"marcar_todas_conf_prod_{nome_grupo}", None) # Limpa o checkbox deste grupo
+                            st.session_state["reload_aprovacao_diretoria"] = True
+                            
+                            st.success(f"✅ {len(chaves)} entregas do grupo '{nome_grupo}' foram enviadas para a próxima etapa (Aprovação da Diretoria).")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"❌ Erro ao confirmar produção do grupo '{nome_grupo}': {e}")
+        st.markdown("---") # Separador visual após cada grupo
