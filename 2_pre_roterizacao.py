@@ -1,11 +1,3 @@
-#12-09 07 Feitos todos ajustes de foramato de datas, botão para retornar de cargas encerradas para cargas geradas, retirada de paletizadores da confirmar produção
-
-
-#09-09 retirado para correção formato time zone página Pré Roteirização
-
-
-
-#sincronização, Pré Roterização e Rotas Confirmadas funcionando
 
 import streamlit as st
 st.set_page_config(
@@ -492,7 +484,7 @@ def aplicar_zoom_personalizado(percent=100):
 # FUNÇÃO AUXILIAR: _aprovar_carga_custos
 # ESTA FUNÇÃO DEVE ESTAR DEFINIDA ANTES DE pagina_aprovacao_custos NO SEU CÓDIGO
 # =====================================================================================================
-def _aprovar_carga_custos(selecionadas_para_aprovar, df_carga_original, carga_num, justificativa_necessaria_param, just_key_session_aprov_var, confirm_justify_key_session_aprov_var, just_key_session_rejeicao_var, confirm_justify_key_session_rejeicao_var, grid_key_var):
+def _aprovar_carga_custos(selecionadas_para_aprovar, df_carga_original, carga_num, justificativa_necessaria_param,selected_justification_text, new_observacao_aprovacao,  just_key_session_aprov_var, confirm_justify_key_session_aprov_var, just_key_session_rejeicao_var, confirm_justify_key_session_rejeicao_var, grid_key_var):
     # ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
     # ATENÇÃO: O parâmetro 'justificativa_necessaria' FOI REMOVIDO DAQUI.
     # A lógica interna da função continuará usando 'justificativa_necessaria_param' para verificar a necessidade.
@@ -592,7 +584,8 @@ def _aprovar_carga_custos(selecionadas_para_aprovar, df_carga_original, carga_nu
     if justificativa_necessaria_param: # AGORA USANDO O PARÂMETRO CORRETO
         justificativa_final = st.session_state.get(just_key_session_aprov_var, "").strip()
 
-    df_aprovar["justificativa_aprovacao_custo"] = justificativa_final
+    df_aprovar["justificativa_aprovacao_custo"] = selected_justification_text
+    df_aprovar["observacao_aprovacao"] = new_observacao_aprovacao
 
     # Prepara o DataFrame para inserção no Supabase (Datas e nulos)
     df_aprovar = _prepare_df_for_supabase_insert(df_aprovar)
@@ -1861,7 +1854,30 @@ if "_novas_pre_roterizacao" not in st.session_state:
 
 #---- sincronização do Arquivo fBaseroter  ----------
 def pagina_sincronizacao():
-    st.title("🔄 Sincronização de Dados")
+    col_title, col_button = st.columns([0.8, 0.2]) # Ajuste as proporções conforme necessário
+
+    with col_title:
+        st.title("🔄 Sincronização de Dados")
+
+    with col_button:
+        # Adiciona um pequeno espaço vertical para alinhar o botão ao título
+        st.write("") # Adiciona um espaço para alinhar verticalmente
+        st.write("") # Mais um espaço
+        if st.button("🔄 Atualizar", key="clear_sync_page_cache"):
+            # Limpa os caches relevantes para a página de sincronização
+            st.session_state.pop("df_for_sync_cache", None)
+            st.session_state.pop("uploaded_sync_file_hash", None)
+            st.session_state.pop("sync_triggered", None)
+            st.session_state.file_uploader_key += 1 # Força o `st.file_uploader` a resetar
+
+            # Limpa também as métricas exibidas para que sejam recarregadas
+            st.session_state.pop("_qtd_confirmadas", None)
+            st.session_state.pop("_qtd_pre_roterizacao", None)
+            st.session_state.pop("_qtd_paletizadas", None)
+            st.session_state.pop("_novas_confirmadas", None)
+            st.session_state.pop("_novas_pre_roterizacao", None)
+            
+            st.rerun()
 
     if "_qtd_confirmadas" not in st.session_state:
         try:
@@ -6583,6 +6599,8 @@ def get_plates_by_motorista():
 
 plates_by_motorista_map = get_plates_by_motorista()
 ALL_COLS_TO_PARSE_AS_DATE_OR_TIMESTAMP = list(set(GLOBAL_DB_DATE_COLS + GLOBAL_DB_TIMESTAMP_COLS))
+
+
 def pagina_cargas_geradas():
     st.markdown("## Cargas Geradas")
 
@@ -6730,12 +6748,17 @@ def pagina_cargas_geradas():
             info_motorista = df_carga_raw["motorista"].iloc[0].upper().strip() if "motorista" in df_carga_raw.columns and not df_carga_raw.empty and pd.notna(df_carga_raw["motorista"].iloc[0]) else ""
             info_placa = df_carga_raw["placa"].iloc[0].upper().strip() if "placa" in df_carga_raw.columns and not df_carga_raw.empty and pd.notna(df_carga_raw["placa"].iloc[0]) else ""
             info_veiculo = df_carga_raw["veiculo"].iloc[0].upper().strip() if "veiculo" in df_carga_raw.columns and not df_carga_raw.empty and pd.notna(df_carga_raw["veiculo"].iloc[0]) else ""
-            info_carga_transf_filial_raw = df_carga_raw["carga_transf_filial"].iloc[0] if "carga_transf_filial" in df_carga_raw.columns and not df_carga_raw["carga_transf_filial"].isnull().all() else "Não"
-
-            if str(info_carga_transf_filial_raw).strip().upper() == "SIM":
-                info_carga_transf_filial = "Sim"
-            else:
-                info_carga_transf_filial = "Não"
+            carga_transf_filial_from_db = None # Valor será 'Sim', 'Não' ou None (se DB for nulo/vazio)
+            if "carga_transf_filial" in df_carga_raw.columns and not df_carga_raw["carga_transf_filial"].isnull().all():
+                raw_value = str(df_carga_raw["carga_transf_filial"].iloc[0]).strip().upper()
+                if raw_value == "SIM":
+                    carga_transf_filial_from_db = "Sim"
+                elif raw_value == "NÃO" or raw_value == "NAO":
+                    carga_transf_filial_from_db = "Não"
+            
+            # info_carga_transf_filial_ui: O valor que o selectbox deve exibir inicialmente
+            # Será "Selecionar" se carga_transf_filial_from_db for None, ou o valor do DB
+            info_carga_transf_filial_ui = carga_transf_filial_from_db if carga_transf_filial_from_db else "Selecionar"
 
 
             # Para valor_contratacao, garanta que seja numérico antes de formatar
@@ -7193,12 +7216,19 @@ def pagina_cargas_geradas():
                             key=f"veiculo_input_{carga}"
                         )
 
-                        carga_transf_options = ["Não", "Sim"]
-                        default_carga_transf_index = carga_transf_options.index(info_carga_transf_filial)
+                        carga_transf_options_with_select = ["Selecionar", "Não", "Sim"]
+                        carga_transf_options_with_select = ["Selecionar", "Não", "Sim"]
+                        
+                        try:
+                            # Usa info_carga_transf_filial_ui (já normalizado) para encontrar o índice correto
+                            default_carga_transf_index = carga_transf_options_with_select.index(info_carga_transf_filial_ui)
+                        except ValueError:
+                            # Se o valor inicial não for encontrado, volta para "Selecionar"
+                            default_carga_transf_index = 0
 
                         carga_transf_selected = st.selectbox(
                             "Carga Transferência?",
-                            options=carga_transf_options,
+                            options=carga_transf_options_with_select, # Usa a lista com "Selecionar"
                             index=default_carga_transf_index,
                             key=f"carga_transf_selectbox_{carga}"
                         )
@@ -7351,7 +7381,7 @@ def pagina_cargas_geradas():
                                 st.session_state.pop(checkbox_key, None)
 
                                 st.session_state["reload_cargas_geradas"] = True
-                                st.session_state.messages_by_charge[carga] = {'type': 'error','text': f"❌ Ocorreu um erro inesperado ao retirar entregas da carga {carga}: {e}"}
+                                st.session_state.messages_by_charge[carga] = {'type': 'success','text': f"✅ Entregas removidas da carga {carga} com sucesso!"}
                                 st.rerun()
 
                         except Exception as e:
@@ -7367,7 +7397,9 @@ def pagina_cargas_geradas():
                     valor_contratacao_db_normalized = info_valor_contratacao_raw
                     valor_adicional_frete_db_normalized = info_valor_adicional_raw
                     motivo_valor_adicional_db_normalized = info_motivo_adicional if info_motivo_adicional else None
-                    carga_transf_filial_db_normalized = info_carga_transf_filial 
+                    # >>> MODIFICAÇÃO AQUI: Comparação do valor de transferência de filial do DB <<<
+                    carga_transf_filial_db_normalized = info_carga_transf_filial_ui if carga_transf_filial_from_db is None else carga_transf_filial_from_db
+                    # <<< FIM DA MODIFICAÇÃO >>>
 
                     motorista_ui_normalized = selected_motorista if selected_motorista != "Selecione o Motorista" else None
                     placa_ui_normalized = selected_placa if selected_placa != "Selecione a Placa" else None
@@ -7375,7 +7407,9 @@ def pagina_cargas_geradas():
                     valor_contratacao_ui_normalized = valor_contratacao
                     valor_adicional_frete_ui_normalized = valor_adicional_frete
                     motivo_valor_adicional_ui_normalized = motivo_valor_adicional if motivo_valor_adicional else None
-                    carga_transf_filial_ui_normalized = carga_transf_selected
+                    # >>> MODIFICAÇÃO AQUI: Comparação do valor de transferência de filial do UI <<<
+                    carga_transf_filial_ui_normalized = carga_transf_selected if carga_transf_selected != "Selecionar" else None # UI 'Selecionar' vira None
+                    # <<< FIM DA MODIFICAÇÃO >>>
 
                     save_button_disabled = (
                         motorista_ui_normalized == motorista_db_normalized and
@@ -7387,10 +7421,13 @@ def pagina_cargas_geradas():
                         carga_transf_filial_ui_normalized == carga_transf_filial_db_normalized
                     )
 
+                    # O valor a ser salvo no DB é 'Sim', 'Não' ou None (para 'Selecionar')
                     motorista_to_save = selected_motorista if selected_motorista != "Selecione o Motorista" else None
                     placa_to_save = selected_placa if selected_placa != "Selecione a Placa" else None
                     veiculo_to_save = veiculo_selected if veiculo_selected else None
-                    carga_transf_filial_to_save = carga_transf_selected 
+                    # >>> MODIFICAÇÃO AQUI: Valor para salvar no DB <<<
+                    carga_transf_filial_to_save = carga_transf_selected if carga_transf_selected != "Selecionar" else None
+                    # <<< FIM DA MODIFICAÇÃO >>>
 
                     salvar_key = f"btn_salvar_info_{carga}"
                     if st.button(f"💾 Salvar Informações", key=salvar_key, disabled=save_button_disabled):
@@ -7404,17 +7441,14 @@ def pagina_cargas_geradas():
                                     "valor_contratacao": valor_contratacao,
                                     "valor_adicional_frete": valor_adicional_frete,
                                     "motivo_valor_adicional": motivo_valor_adicional,
-                                    "carga_transf_filial": carga_transf_filial_to_save
+                                    "carga_transf_filial": carga_transf_filial_to_save # Salva 'Sim', 'Não' ou None
                                 }).eq("numero_carga", carga).execute()
 
                                 # --- INÍCIO DA MODIFICAÇÃO PARA MINIMIZAR O RERUN ---
-                                # 2. Atualiza o DataFrame em cache `df_cargas_cache` diretamente
                                 if "df_cargas_cache" in st.session_state and not st.session_state["df_cargas_cache"].empty:
                                     updated_cache_df = st.session_state["df_cargas_cache"].copy()
                                     mask = updated_cache_df["numero_carga"] == carga
 
-
-                                    # Aplica as atualizações nas colunas específicas para a carga em questão
                                     updated_cache_df.loc[mask, "motorista"] = motorista_to_save
                                     updated_cache_df.loc[mask, "placa"] = placa_to_save
                                     updated_cache_df.loc[mask, "veiculo"] = veiculo_to_save
@@ -7423,7 +7457,6 @@ def pagina_cargas_geradas():
                                     updated_cache_df.loc[mask, "motivo_valor_adicional"] = motivo_valor_adicional
                                     updated_cache_df.loc[mask, "carga_transf_filial"] = carga_transf_filial_to_save
                                     
-                                    # Re-atribui o DataFrame atualizado ao cache
                                     st.session_state["df_cargas_cache"] = updated_cache_df
                                 
                                 st.rerun()
@@ -7437,13 +7470,27 @@ def pagina_cargas_geradas():
 
                 with col_btn_enviar:
                     btn_aprovar_custos_key = f"btn_aprov_custos_{carga}"
+                    # --- AJUSTE AQUI: Habilitar/Desabilitar o botão de Enviar ---
+                    is_send_button_disabled = (
+                        selecionadas.empty or 
+                        (valor_contratacao <= 0) or 
+                        (carga_transf_selected == "Selecionar") # AGORA É OBRIGATÓRIO!
+                    )
+                    # --- FIM DO AJUSTE ---
                     if st.button(
                         f"➤ Enviar para Aprovação de Custos",
                         key=btn_aprovar_custos_key,
-                        disabled=selecionadas.empty or (valor_contratacao <= 0)
+                        disabled=is_send_button_disabled # Usa a nova variável de controle
                     ):
-                        if valor_contratacao <= 0:
+                        # --- AJUSTE AQUI: Validação antes de enviar ---
+                        if carga_transf_selected == "Selecionar":
+                            st.warning("⚠️ O campo 'Carga Transferência?' é obrigatório. Por favor, selecione 'Sim' ou 'Não'.")
+                            st.rerun() # Adicionado para exibir o warning e parar a execução antes do spinner
+                        # --- FIM DO AJUSTE ---
+                        elif valor_contratacao <= 0:
                             st.warning("Por favor, insira um valor de contratação válido (maior que zero).")
+
+
                         else:
                             try:
                                 with st.spinner(" Enviando entregas para aprovação de custos..."):
@@ -7460,13 +7507,13 @@ def pagina_cargas_geradas():
                                     motorista_to_save_for_approval = selected_motorista if selected_motorista != "Selecione o Motorista" else None
                                     placa_to_save_for_approval = selected_placa if selected_placa != "Selecione a Placa" else None
                                     veiculo_to_save_for_approval = veiculo_selected if veiculo_selected else None
-                                    df_aprovar_custos["motorista"] = motorista_to_save
+                                    df_aprovar_custos["motorista"] = motorista_to_save # Usando os valores to_save já normalizados
                                     df_aprovar_custos["placa"] = placa_to_save
                                     df_aprovar_custos["veiculo"] = veiculo_to_save
                                     df_aprovar_custos["valor_contratacao"] = valor_contratacao
                                     df_aprovar_custos["valor_adicional_frete"] = valor_adicional_frete
                                     df_aprovar_custos["motivo_valor_adicional"] = motivo_valor_adicional
-                                    df_aprovar_custos["carga_transf_filial"] = carga_transf_filial_to_save
+                                    df_aprovar_custos["carga_transf_filial"] = carga_transf_filial_to_save # Salva 'Sim', 'Não' ou None
                                                                     
                                     df_aprovar_custos = _prepare_df_for_supabase_insert(df_aprovar_custos)
 
@@ -7476,12 +7523,13 @@ def pagina_cargas_geradas():
                                         chaves_para_remover = [r.get("Serie_Numero_CTRC") for r in registros_para_custos if r.get("Serie_Numero_CTRC")]
                                         if chaves_para_remover:
                                             supabase.table("cargas_geradas").delete().in_("Serie_Numero_CTRC", chaves_para_remover).execute()
+                                            # Atualiza as informações da carga (motorista, placa, etc.) mesmo que ela esteja sendo movida
                                             supabase.table("cargas_geradas").update({
                                                 "motorista": motorista_to_save,
                                                 "placa": placa_to_save,
                                                 "veiculo": veiculo_to_save,
                                                 "valor_contratacao": valor_contratacao,
-                                                "carga_transf_filial": carga_transf_filial_to_save
+                                                "carga_transf_filial": carga_transf_filial_to_save # Salva 'Sim', 'Não' ou None
 
                                             }).eq("numero_carga", carga).execute()
 
@@ -7490,7 +7538,7 @@ def pagina_cargas_geradas():
 
                                         st.session_state.pop(grid_key_id, None)
 
-                                        st.session_state.messages_by_charge[carga] = {'type': 'success','text': f"✅ {len(registros_para_custos)} entregas da carga {carga} foram enviadas para Aprovação de Custos com valor de R$ {valor_contratacao:,.2f}."}
+                                        st.session_state.messages_by_charge[carga] = {'type': 'success','text': f"✅ {len(registros_para_custos)} entregas da carga {carga} foram enviadas para Aprovação de Custos com valor de R\$ {valor_contratacao:,.2f}."}
 
                                         st.rerun()
                                     else:
@@ -7498,6 +7546,7 @@ def pagina_cargas_geradas():
                             except Exception as e:
                                 st.session_state.messages_by_charge[carga] = {'type': 'error','text': f"❌ Erro ao enviar entregas da carga {carga} para aprovação de custos: {e}"}
                                 st.rerun()
+
 
 
 
@@ -7513,6 +7562,37 @@ def pagina_cargas_geradas():
 # ==============================================================================
 # FUNÇÃO: pagina_aprovacao_custos() - ATUALIZADA
 # ==============================================================================
+@st.cache_data(ttl=300) # Cache para evitar consultas desnecessárias ao banco
+def carregar_opcoes_justificativa():
+    """
+    Carrega as justificativas da tabela 'justificativasaprovacaocusto',
+    as 'humaniza' para exibição e cria um mapeamento para o valor original.
+    Retorna uma lista de nomes amigáveis e um dicionário de mapeamento.
+    """
+    try:
+        # Consulta a tabela no Supabase
+        response = supabase.table("justificativasaprovacaocusto").select("descricao_justificativa").execute()
+        
+        if response.data:
+            justificativas_raw = [item['descricao_justificativa'] for item in response.data if item['descricao_justificativa']]
+            
+            # Mapeamento para exibir um nome amigável, mas salvar o código original
+            display_options_map = {}
+            for raw_val in justificativas_raw:
+                # Converte 'agendamento_custo_brocker' para 'Agendamento - Custo Brocker'
+                display_name = raw_val.replace('_', ' ').replace('brocker', 'Broker').title().replace('Baly', 'Baly').replace('Extra Cliente', 'Extra Cliente')
+                display_options_map[display_name] = raw_val
+            
+            # Ordena os nomes amigáveis para exibição no selectbox
+            sorted_display_names = sorted(display_options_map.keys())
+            
+            return sorted_display_names, display_options_map
+        
+        return [], {} # Retorna listas/dicionários vazios se não houver dados
+    except Exception as e:
+        st.error(f"Erro ao carregar justificativas de custo: {e}")
+        return [], {}
+
 
 def pagina_aprovacao_custos():
 
@@ -7637,21 +7717,7 @@ def pagina_aprovacao_custos():
                         df_aprovar_todas["custo_percentual_frete"] = float(custo_percentual_frete_calc)
                         df_aprovar_todas["rentabilidade_percentual"] = float(rentabilidade_percentual_calc)
                         df_aprovar_todas["situacao_custo_regional"] = str(situacao_custo_regional_calc)
-                        # --- FIM DO NOVO BLOCO ---
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+                        # --- FIM DO NOVO BLOCO -
                         df_aprovar_todas = _prepare_df_for_supabase_insert(df_aprovar_todas)
                         registros = df_aprovar_todas.to_dict(orient="records")
 
@@ -7698,7 +7764,7 @@ def pagina_aprovacao_custos():
         "Serie_Numero_CTRC",  "Cliente Pagador", "Cliente Destinatario", "Cidade de Entrega",
         "Bairro do Destinatario","Data de Emissao", "Previsao de Entrega","Entrega Programada","Status", "Numero da Nota Fiscal",  
         "Peso Real em Kg", "Peso Calculado em Kg", "Valor do Frete",
-        "Rota", "Regiao",  "Chave CT-e", "Data_Hora_Gerada","Tipo_Tratativa_Especial",
+        "Rota", "Regiao",  "Chave CT-e", "Data_Hora_Gerada","Tipo_Tratativa_Especial","carga_transf_filial",
         "Particularidade", "Codigo da Ultima Ocorrencia", "Cubagem em m³", "Quantidade de Volumes",
 ]
 
@@ -8056,6 +8122,8 @@ def pagina_aprovacao_custos():
                                     df_carga, # Passa o DataFrame original da carga
                                     carga, 
                                     justificativa_necessaria_param=False, # Não se exige justificativa para esta ação
+                                    selected_justification_text=None, # <<< ADICIONADO: Nenhuma justificativa específica
+                                    new_observacao_aprovacao="", 
                                     just_key_session_aprov_var=just_key_session_aprov, 
                                     confirm_justify_key_session_aprov_var=confirm_justify_key_session_aprov,
                                     just_key_session_rejeicao_var=just_key_session_rejeicao,
@@ -8068,47 +8136,87 @@ def pagina_aprovacao_custos():
 
             # --- Bloco de Justificativa para APROVAÇÃO (aparece condicionalmente) ---
             if justificativa_necessaria and st.session_state.get(confirm_justify_key_session_aprov, False):
-                st.warning("⚠️ Custo da carga Acima do Limite Região. Por favor, justifique a aprovação.")
+            # Crie uma nova estrutura de colunas para a área da justificativa
+                # A primeira coluna (ex: 0.6) terá o conteúdo, a segunda (ex: 0.4) será um espaço em branco.
+                col_justificativa_container, _ = st.columns([0.1, 0.4]) 
                 
-                # O campo de texto da justificativa
-                st.session_state[just_key_session_aprov] = st.text_area(
-                    f"Justificativa para aprovação da Carga {carga}:",
-                    value=st.session_state[just_key_session_aprov],
-                    key=f"justificativa_area_aprov_{carga}", # Chave única para o text_area
-                    height=100
-                )
-                
-                col_justify_actions_aprov = st.columns(2)
-                with col_justify_actions_aprov[0]:
-                    # Botão "Confirmar Justificativa" agora aprova a carga diretamente
-                    if st.button(
-                        "Confirmar Justificativa",
-                        key=f"confirmar_justificativa_aprov_{carga}", # Chave única para o botão
-                        disabled=not st.session_state[just_key_session_aprov].strip() # Desabilita se a justificativa estiver vazia
-                    ):
-                        try:
-                            with st.spinner("✅ Confirmando justificativa e aprovando entregas..."):
-                                _aprovar_carga_custos(
-                                    selecionadas, 
-                                    df_carga, # Passa o DataFrame original da carga
-                                    carga, 
-                                    justificativa_necessaria_param=True, # Sinaliza que a justificativa é relevante para a função
-                                    just_key_session_aprov_var=just_key_session_aprov, 
-                                    confirm_justify_key_session_aprov_var=confirm_justify_key_session_aprov, # Passa o estado para a função
-                                    just_key_session_rejeicao_var=just_key_session_rejeicao,
-                                    confirm_justify_key_session_rejeicao_var=confirm_justify_key_session_rejeicao,
-                                    grid_key_var=grid_key
-                                )
-                                # A função _aprovar_carga_custos já contém o st.rerun()
-                        except Exception as e:
-                            st.error(f"❌ Erro ao aprovar carga com justificativa: {e}")
+                with col_justificativa_container:
+                    st.warning("⚠️ Custo da carga Acima do Limite Região. Por favor, justifique a aprovação.")
+                    
+                    # Carregar as opções de justificativa
+                    display_options, options_map = carregar_opcoes_justificativa()
+                    default_option_placeholder = "Selecione uma justificativa..."
+                    full_options = [default_option_placeholder] + display_options
+                    current_selection_display = st.session_state.get(just_key_session_aprov, default_option_placeholder)
+                    try:
+                        default_index = full_options.index(current_selection_display)
+                    except ValueError:
+                        default_index = 0 
 
-                with col_justify_actions_aprov[1]:
-                    if st.button("Cancelar Aprovação", key=f"cancelar_justificativa_aprov_{carga}"): # Chave única
-                        # Limpa o estado da justificativa e força um rerun para esconder o campo
-                        st.session_state[confirm_justify_key_session_aprov] = False
-                        st.session_state[just_key_session_aprov] = ""
-                        st.rerun()
+                    st.markdown(f"**Selecione a Justificativa para Aprovação da Carga {carga}:**")
+                    selected_justification_display = st.selectbox(
+                        " ", 
+                        options=full_options,
+                        index=default_index,
+                        key=f"justificativa_selectbox_aprov_{carga}",
+                        label_visibility="collapsed"
+                    )
+                    st.session_state[just_key_session_aprov] = selected_justification_display
+                    justification_to_save_raw = None
+                    if selected_justification_display != default_option_placeholder:
+                        justification_to_save_raw = options_map.get(selected_justification_display)
+                    
+                    # <<<< NOVO CAMPO: Observação Aprovação >>>>
+                    # Usa um st.session_state para persistir o texto
+                    observacao_aprovacao_key = f"observacao_aprovacao_aprov_{carga}"
+                    if observacao_aprovacao_key not in st.session_state:
+                        st.session_state[observacao_aprovacao_key] = "" # Inicializa vazio
+
+                    #st.markdown("---") # Separador visual
+                    st.markdown(f"**Observação para Aprovação da Carga {carga}:**")
+                    
+                    # --- AQUI É A MUDANÇA: TROCA DE st.text_area PARA st.text_input ---
+                    current_observacao_aprovacao = st.text_input(
+                        " ", # Label vazio para usar o markdown acima
+                        value=st.session_state[observacao_aprovacao_key],
+                        key=f"observacao_aprovacao_textinput_aprov_{carga}", # Chave atualizada para text_input
+                        label_visibility="collapsed",
+                        placeholder="..."
+                    )
+                    st.session_state[observacao_aprovacao_key] = current_observacao_aprovacao # Atualiza o session_state
+                    # <<<< FIM NOVO CAMPO >>>>
+
+                    col_justify_actions_aprov = st.columns(2)
+                    with col_justify_actions_aprov[0]:
+                        if st.button(
+                            "Confirmar Justificativa",
+                            key=f"confirmar_justificativa_aprov_{carga}",
+                            disabled=(justification_to_save_raw is None) # Desabilita se nenhuma justificativa válida for selecionada
+                        ):
+                            try:
+                                with st.spinner("✅ Confirmando justificativa e aprovando entregas..."):
+                                    _aprovar_carga_custos(
+                                        selecionadas, 
+                                        df_carga,
+                                        carga, 
+                                        justificativa_necessaria_param=True,
+                                        selected_justification_text=justification_to_save_raw,
+                                        new_observacao_aprovacao=current_observacao_aprovacao, # <<<< PASSA O VALOR DA OBSERVAÇÃO
+                                        just_key_session_aprov_var=just_key_session_aprov, 
+                                        confirm_justify_key_session_aprov_var=confirm_justify_key_session_aprov,
+                                        just_key_session_rejeicao_var=just_key_session_rejeicao,
+                                        confirm_justify_key_session_rejeicao_var=confirm_justify_key_session_rejeicao,
+                                        grid_key_var=grid_key
+                                    )
+                            except Exception as e:
+                                st.error(f"❌ Erro ao aprovar carga com justificativa: {e}")
+
+                    with col_justify_actions_aprov[1]:
+                        if st.button("Cancelar Aprovação", key=f"cancelar_justificativa_aprov_{carga}"):
+                            st.session_state[confirm_justify_key_session_aprov] = False
+                            st.session_state[just_key_session_aprov] = default_option_placeholder
+                            st.session_state[observacao_aprovacao_key] = "" # Limpa a observação também
+                            st.rerun()
 
 
             # --- FIM Bloco de Justificativa para APROVAÇÃO ---
@@ -8429,7 +8537,7 @@ def pagina_cargas_aprovadas():
         "Rota", "Regiao",  "Chave CT-e",
         "Particularidade", "Codigo da Ultima Ocorrencia", "Cubagem em m³", "Quantidade de Volumes",
         "valor_contratacao",   "valor_adicional_frete",
-        "motivo_valor_adicional","numero_carga", "motorista", "placa","Tipo_Tratativa_Especial",
+        "motivo_valor_adicional","numero_carga", "motorista", "placa","Tipo_Tratativa_Especial","carga_transf_filial",
         "veiculo", "aprovador_custos_login", "data_aprovacao_custos", "Data_Hora_Gerada",
         "custo_percentual_frete", "rentabilidade_percentual", "situacao_custo_regional" 
 ]
@@ -8544,7 +8652,6 @@ def pagina_cargas_aprovadas():
 
 
 
-
                  # Novos cálculos por carga
                 entregas_agendar_sem_programacao_carga = df_carga[
                     (df_carga['Status'].astype(str).str.upper() == 'AGENDAR') &
@@ -8557,9 +8664,6 @@ def pagina_cargas_aprovadas():
                     (df_carga['Particularidade'].notna())
                 ]
                 qtd_com_particularidade_carga = len(entregas_com_particularidade_carga)
-
-                all_badges_html_list.append(badge(f'📅  Agenda s/ Prog.: {qtd_agendar_sem_programacao_carga}', background_color='#e06200', text_color='white'))
-                all_badges_html_list.append(badge(f'⚠️ Com Particularidade: {qtd_com_particularidade_carga}', background_color='#b8860b', text_color='white'))
 
 
                 # Junte todos os HTMLs dos badges em uma única string
