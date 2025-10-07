@@ -1,3 +1,13 @@
+#02-10 06
+
+#12-09 07 Feitos todos ajustes de foramato de datas, botão para retornar de cargas encerradas para cargas geradas, retirada de paletizadores da confirmar produção
+
+
+#09-09 retirado para correção formato time zone página Pré Roteirização
+
+
+
+#sincronização, Pré Roterização e Rotas Confirmadas funcionando
 
 import streamlit as st
 st.set_page_config(
@@ -20,6 +30,11 @@ import os
 import random
 import traceback
 import unicodedata
+import plotly.express as px
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+import calendar
+from collections import defaultdict
 from decimal import Decimal, ROUND_HALF_UP, getcontext, InvalidOperation 
 from uuid import uuid4
 from fpdf import FPDF
@@ -625,12 +640,12 @@ def _aprovar_carga_custos(selecionadas_para_aprovar, df_carga_original, carga_nu
 
 # ========== SUPABASE CONFIG ========== #
 # Base de Dados Projeto roteriza
-url = "https://xhwotwefiqfwfabenwsi.supabase.co"
-key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhod290d2VmaXFmd2ZhYmVud3NpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDgzNjc4NTMsImV4cCI6MjA2Mzk0Mzg1M30.3E2z-1SaABbCaV_HjQf0Rj8249mnPeGv7YkV4gOGhlg"  # Substitua pela sua chave real
+#url = "https://xhwotwefiqfwfabenwsi.supabase.co"
+#key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhod290d2VmaXFmd2ZhYmVud3NpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDgzNjc4NTMsImV4cCI6MjA2Mzk0Mzg1M30.3E2z-1SaABbCaV_HjQf0Rj8249mnPeGv7YkV4gOGhlg"  # Substitua pela sua chave real
 
 # Base de Dados Projeto F4Rotas
-#url = "https://agiugsfojyansjeanfbz.supabase.co"
-#key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFnaXVnc2ZvanlhbnNqZWFuZmJ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM4OTUzOTUsImV4cCI6MjA2OTQ3MTM5NX0.44w1wtOe3A8eQS6rINRdT9tDowZWwHM_H9Apr_B17I4"
+url = "https://agiugsfojyansjeanfbz.supabase.co"
+key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFnaXVnc2ZvanlhbnNqZWFuZmJ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM4OTUzOTUsImV4cCI6MjA2OTQ3MTM5NX0.44w1wtOe3A8eQS6rINRdT9tDowZWwHM_H9Apr_B17I4"
 
 #supabase = create_client(url, key)
 
@@ -3029,14 +3044,13 @@ def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, veiculo, valor_f
         "Peso Calculado em Kg": "Peso<br/>Calculado<br/>(Kg)",
         "Peso Real em Kg": "Peso Real<br/>(Kg)",
         "Cubagem em m³": "Cubagem<br/>(m³)",
-        "Particularidade": "Particularidade",
         "Serie_Numero_CTRC": "Série/Nº<br/>CTRC"
     }
 
     requested_order_keys = [
         "Numero da Nota Fiscal", "Cliente Pagador", "Cidade de Entrega", "Quantidade de Volumes",
         "Cliente Destinatario", "Bairro do Destinatario", "Previsao de Entrega",
-        "Entrega Programada", "Peso Calculado em Kg", "Peso Real em Kg", "Cubagem em m³","Particularidade",
+        "Entrega Programada", "Peso Calculado em Kg", "Peso Real em Kg", "Cubagem em m³",
         "Serie_Numero_CTRC"
     ]
 
@@ -3079,7 +3093,6 @@ def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, veiculo, valor_f
             0.6 * inch,
             0.9 * inch,
             0.7 * inch,
-            0.9 * inch,
             0.7 * inch,
             0.7 * inch,
             0.7 * inch,
@@ -3104,7 +3117,6 @@ def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, veiculo, valor_f
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
             ('LEFTPADDING', (0, 0), (-1, -1), 2),
             ('RIGHTPADDING', (0, 0), (-1, -1), 2),
-            ('WORDWRAP', (0,1), (-1,-1), True),
         ]))
         elements.append(table)
 
@@ -9767,6 +9779,905 @@ if "search_results" not in st.session_state:
     st.session_state.search_results = None
 # ========== EXECUÇÃO PRINCIPAL ========== #
 
+
+
+
+#-----------------------------------01 ---------------------------------------------------------------------------------------------
+def preparar_dados_estatisticas(df_combined):
+    """Prepara e limpa os dados para análise estatística"""
+    
+    if df_combined.empty:
+        return pd.DataFrame()
+    
+    df = df_combined.copy()
+    
+    # Converter datas
+    date_columns = ['data_fechamento', 'data_aprovacao_custos', 'Data_Hora_Gerada']
+    for col in date_columns:
+        if col in df.columns:
+            df[col] = pd.to_datetime(df[col], errors='coerce', utc=True)
+    
+    # Criar coluna de mês/ano para agrupamento
+    if 'data_fechamento' in df.columns:
+        df['mes_ano'] = df['data_fechamento'].dt.strftime('%Y-%m')
+    elif 'data_aprovacao_custos' in df.columns:
+        df['mes_ano'] = df['data_aprovacao_custos'].dt.strftime('%Y-%m')
+    else:
+        df['mes_ano'] = pd.Timestamp.now().strftime('%Y-%m')
+    
+    # Limpar e padronizar dados
+    numeric_cols = ['custo_percentual_frete', 'rentabilidade_percentual', 'valor_contratacao', 'Valor do Frete']
+    for col in numeric_cols:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+    
+    string_cols = ['Rota', 'Regiao', 'justificativa_aprovacao_custo', 'situacao_custo_regional']
+    for col in string_cols:
+        if col in df.columns:
+            df[col] = df[col].astype(str).str.strip().replace('nan', '').replace('None', '')
+    
+    # Classificar cargas por target de custo
+    df['dentro_target'] = df.apply(classificar_target_custo, axis=1)
+    
+    # Classificar justificativas
+    df['categoria_justificativa'] = df['justificativa_aprovacao_custo'].apply(classificar_justificativa)
+    
+    return df
+
+
+#------------------------------------02----------------------------------------------------------------------------------------------------
+
+def aplicar_filtros_estatisticas(df, mes_selecionado, regiao_selecionada):
+    """Aplica os filtros selecionados pelo usuário"""
+    df_filtrado = df.copy()
+    
+    if mes_selecionado != "Todos os Meses":
+        df_filtrado = df_filtrado[df_filtrado['mes_ano'] == mes_selecionado]
+    
+    if regiao_selecionada != "Todas as Regiões":
+        df_filtrado = df_filtrado[df_filtrado['Regiao'] == regiao_selecionada]
+    
+    return df_filtrado
+
+
+#------------------------------------03---------------------------------------------------------------------------------------------------
+def exportar_relatorio_estatisticas(df_stats_unfiltered, filtros_aplicados):
+    """Gera relatório em Excel com todas as estatísticas, aplicando os filtros."""
+
+    output = BytesIO()
+
+    # 1. Extrair os valores dos filtros do dicionário filtros_aplicados
+    mes_selecionado = filtros_aplicados.get('mes')
+    regiao_selecionada = filtros_aplicados.get('regiao')
+
+    # 2. Aplicar os filtros ao DataFrame base antes de gerar as abas
+    # Reutilizamos a função aplicar_filtros_estatisticas já existente
+    df_filtered_for_export = aplicar_filtros_estatisticas(df_stats_unfiltered, mes_selecionado, regiao_selecionada)
+
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        workbook = writer.book
+
+        # Formatos para o Excel (mantidos do seu código)
+        header_format = workbook.add_format({
+            'bold': True,
+            'text_wrap': True,
+            'valign': 'top',
+            'fg_color': '#D7E4BC',
+            'border': 1
+        })
+        percent_format = workbook.add_format({'num_format': '0.0%'})
+        currency_format = workbook.add_format({'num_format': 'R\$ #,##0.00'})
+
+        # Aba 1: Resumo Executivo
+        # Usamos df_filtered_for_export e adicionamos um tratamento para DataFrame vazio
+        if not df_filtered_for_export.empty:
+            resumo = df_filtered_for_export.groupby(['Regiao', 'Rota']).agg({
+                'numero_carga': 'nunique',
+                'custo_percentual_frete': 'mean',
+                'dentro_target': lambda x: x.sum() / len(x) if len(x) > 0 else 0,
+                'valor_contratacao': 'sum',
+                'Valor do Frete': 'sum'
+            }).reset_index()
+            resumo.to_excel(writer, sheet_name='Resumo Executivo', index=False)
+            worksheet = writer.sheets['Resumo Executivo']
+            worksheet.set_column('A:G', 15)
+        else:
+            pd.DataFrame({'Mensagem': ['Nenhum dado encontrado com os filtros aplicados.']}).to_excel(writer, sheet_name='Resumo Executivo', index=False)
+
+
+        # Aba 2: Justificativas Detalhadas
+        # Usamos df_filtered_for_export e adicionamos um tratamento para DataFrame vazio
+        if not df_filtered_for_export.empty:
+            justificativas = df_filtered_for_export.groupby(['categoria_justificativa', 'Regiao']).agg({
+                'numero_carga': 'nunique',
+                'custo_percentual_frete': 'mean'
+            }).reset_index()
+            justificativas.to_excel(writer, sheet_name='Justificativas', index=False)
+        else:
+            pd.DataFrame({'Mensagem': ['Nenhum dado encontrado com os filtros aplicados.']}).to_excel(writer, sheet_name='Justificativas', index=False)
+
+
+        # Aba 3: Evolução Temporal
+        # Usamos df_filtered_for_export e adicionamos um tratamento para DataFrame vazio
+        if not df_filtered_for_export.empty:
+            evolucao = df_filtered_for_export.groupby(['mes_ano', 'Regiao']).agg({
+                'numero_carga': 'nunique',
+                'custo_percentual_frete': 'mean',
+                'dentro_target': lambda x: x.sum() / len(x) if len(x) > 0 else 0
+            }).reset_index()
+            evolucao.to_excel(writer, sheet_name='Evolução Temporal', index=False)
+        else:
+            pd.DataFrame({'Mensagem': ['Nenhum dado encontrado com os filtros aplicados.']}).to_excel(writer, sheet_name='Evolução Temporal', index=False)
+
+
+        # Aba 4: Dados Brutos (amostra)
+        # Usamos df_filtered_for_export e adicionamos um tratamento para DataFrame vazio
+        if not df_filtered_for_export.empty:
+            amostra = df_filtered_for_export.sample(min(1000, len(df_filtered_for_export))) if len(df_filtered_for_export) > 1000 else df_filtered_for_export
+            colunas_relevantes = [
+                'numero_carga', 'Rota', 'Regiao', 'custo_percentual_frete',
+                'rentabilidade_percentual', 'categoria_justificativa', 'dentro_target',
+                'mes_ano', 'valor_contratacao', 'Valor do Frete'
+            ]
+            # Garante que as colunas relevantes existem antes de tentar selecioná-las
+            existing_relevant_cols = [col for col in colunas_relevantes if col in amostra.columns]
+            amostra[existing_relevant_cols].to_excel(writer, sheet_name='Dados Brutos', index=False)
+        else:
+            pd.DataFrame({'Mensagem': ['Nenhum dado encontrado com os filtros aplicados.']}).to_excel(writer, sheet_name='Dados Brutos', index=False)
+
+    output.seek(0)
+    return output.getvalue()
+
+def renderizar_visao_geral(df_filtrado):
+    """Renderiza a aba de visão geral com métricas principais"""
+    st.markdown("### 📊 Métricas Gerais")
+    
+    # Métricas principais
+    col1, col2, col3, col4 = st.columns(4)
+    
+    total_cargas = df_filtrado['numero_carga'].nunique()
+    total_entregas = len(df_filtrado)
+    cargas_dentro_target = df_filtrado[df_filtrado['dentro_target'] == True]['numero_carga'].nunique()
+    cargas_fora_target = total_cargas - cargas_dentro_target
+    
+    with col1:
+        st.metric(
+            "Total de Cargas",
+            f"{total_cargas:,}",
+            help="Número total de cargas no período selecionado"
+        )
+    
+    with col2:
+        st.metric(
+            "Total de Entregas",
+            f"{total_entregas:,}",
+            help="Número total de entregas no período selecionado"
+        )
+    
+    with col3:
+        perc_dentro_target = (cargas_dentro_target / total_cargas * 100) if total_cargas > 0 else 0
+        st.metric(
+            "Dentro do Target",
+            f"{cargas_dentro_target:,} ({perc_dentro_target:.1f}%)",
+            delta=f"{perc_dentro_target:.1f}%",
+            delta_color="normal" if perc_dentro_target >= 70 else "inverse",
+            help="Cargas que atingiram o target de custo da região"
+        )
+    
+    with col4:
+        perc_fora_target = (cargas_fora_target / total_cargas * 100) if total_cargas > 0 else 0
+        st.metric(
+            "Fora do Target",
+            f"{cargas_fora_target:,} ({perc_fora_target:.1f}%)",
+            delta=f"-{perc_fora_target:.1f}%",
+            delta_color="inverse" if perc_fora_target > 30 else "normal",
+            help="Cargas que não atingiram o target de custo da região"
+        )
+    
+    st.markdown("---")
+    
+    # Gráficos de visão geral
+    col_grafico1, col_grafico2 = st.columns(2)
+    
+    with col_grafico1:
+        # Gráfico de pizza - Distribuição por Rota
+        if not df_filtrado.empty:
+            cargas_por_rota = df_filtrado.groupby('Rota')['numero_carga'].nunique().reset_index()
+            cargas_por_rota.columns = ['Rota', 'Quantidade']
+            cargas_por_rota = cargas_por_rota.sort_values('Quantidade', ascending=False).head(10)
+            
+            fig_pizza = px.pie(
+                cargas_por_rota,
+                values='Quantidade',
+                names='Rota',
+                title="📦 Distribuição de Cargas por Rota (Top 10)",
+                color_discrete_sequence=px.colors.qualitative.Set3
+            )
+            fig_pizza.update_traces(textposition='inside', textinfo='percent+label')
+            fig_pizza.update_layout(height=400)
+            st.plotly_chart(fig_pizza, use_container_width=True)
+    
+    with col_grafico2:
+        # Gráfico de barras - Target vs Realizado por Região
+        if not df_filtrado.empty:
+            target_por_regiao = df_filtrado.groupby('Regiao').agg({
+                'numero_carga': 'nunique',
+                'dentro_target': 'sum'
+            }).reset_index()
+            target_por_regiao.columns = ['Regiao', 'Total_Cargas', 'Dentro_Target']
+            target_por_regiao['Fora_Target'] = target_por_regiao['Total_Cargas'] - target_por_regiao['Dentro_Target']
+            target_por_regiao['Perc_Dentro_Target'] = (target_por_regiao['Dentro_Target'] / target_por_regiao['Total_Cargas'] * 100).round(1)
+            
+            fig_barras = go.Figure()
+            fig_barras.add_trace(go.Bar(
+                name='Dentro do Target',
+                x=target_por_regiao['Regiao'],
+                y=target_por_regiao['Dentro_Target'],
+                marker_color='#28a745',
+                text=target_por_regiao['Dentro_Target'],
+                textposition='inside'
+            ))
+            fig_barras.add_trace(go.Bar(
+                name='Fora do Target',
+                x=target_por_regiao['Regiao'],
+                y=target_por_regiao['Fora_Target'],
+                marker_color='#dc3545',
+                text=target_por_regiao['Fora_Target'],
+                textposition='inside'
+            ))
+            
+            fig_barras.update_layout(
+                title="🎯 Performance de Target por Região",
+                barmode='stack',
+                height=400,
+                xaxis_title="Região",
+                yaxis_title="Quantidade de Cargas"
+            )
+            st.plotly_chart(fig_barras, use_container_width=True)
+
+
+# No final da função pagina_estatisticas(), adicione:
+
+st.markdown("---")
+st.markdown("### 📥 Exportar Relatório")
+
+col_export1, col_export2, col_export3 = st.columns([1, 1, 2])
+
+with col_export1:
+    if st.button("📊 Exportar Excel Completo", key="export_excel_stats"):
+        try:
+            excel_data = exportar_relatorio_estatisticas(st.session_state.df_stats, {
+                'mes': st.session_state.mes_selecionado_stats,
+                'regiao': st.session_state.regiao_selecionada_stats
+            })
+            
+            st.download_button(
+                label="⬇️ Baixar Relatório Excel",
+                data=excel_data,
+                file_name=f"relatorio_estatisticas_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                key="download_excel_stats"
+            )
+            st.success("✅ Relatório Excel gerado com sucesso!")
+        except Exception as e:
+            st.error(f"❌ Erro ao gerar relatório Excel: {e}")
+
+with col_export2:
+    if st.button("📋 Exportar CSV Resumo", key="export_csv_stats"):
+        try:
+            resumo_csv = st.session_state.df_filtrado_stats.groupby(['Rota', 'Regiao']).agg({
+                'numero_carga': 'nunique',
+                'custo_percentual_frete': 'mean',
+                'dentro_target': lambda x: (x.sum() / len(x) * 100) if len(x) > 0 else 0
+            }).reset_index()
+            csv_data = resumo_csv.to_csv(index=False, sep=';', encoding='utf-8-sig')
+            
+            st.download_button(
+                label="⬇️ Baixar CSV Resumo",
+                data=csv_data,
+                file_name=f"resumo_estatisticas_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+                mime="text/csv",
+                key="download_csv_stats"
+            )
+            st.success("✅ CSV de resumo gerado com sucesso!")
+        except Exception as e:
+            st.error(f"❌ Erro ao gerar CSV: {e}")
+
+with col_export3:
+    st.info("💡 **Dica:** O relatório Excel contém múltiplas abas com análises detalhadas, enquanto o CSV fornece um resumo executivo para análises rápidas.")
+
+
+#---------------------------------------------04--------------------------------------------------------------------------------------
+
+def renderizar_analise_custos(df_filtrado):
+    """Renderiza a aba de análise detalhada de custos"""
+    st.markdown("### 🎯 Análise Detalhada de Custos")
+    
+    if df_filtrado.empty:
+        st.info("Nenhum dado disponível para análise de custos.")
+        return
+    
+    # Análise de justificativas
+    st.markdown("#### 📋 Distribuição de Justificativas")
+    
+    justificativas_stats = df_filtrado.groupby('categoria_justificativa').agg({
+        'numero_carga': 'nunique',
+        'custo_percentual_frete': 'mean'
+    }).reset_index()
+    justificativas_stats.columns = ['Justificativa', 'Quantidade_Cargas', 'Custo_Medio']
+    justificativas_stats['Percentual'] = (justificativas_stats['Quantidade_Cargas'] / justificativas_stats['Quantidade_Cargas'].sum() * 100).round(1)
+    justificativas_stats = justificativas_stats.sort_values('Quantidade_Cargas', ascending=False)
+    
+    col_tabela, col_grafico = st.columns([1, 1])
+    
+    with col_tabela:
+        # Tabela de justificativas
+        st.dataframe(
+            justificativas_stats.style.format({
+                'Quantidade_Cargas': '{:,}',
+                'Custo_Medio': '{:.1f}%',
+                'Percentual': '{:.1f}%'
+            }),
+            use_container_width=True,
+            height=400
+        )
+    
+    with col_grafico:
+        # Gráfico de barras horizontais das justificativas
+        fig_just = px.bar(
+            justificativas_stats.head(10),
+            x='Quantidade_Cargas',
+            y='Justificativa',
+            orientation='h',
+            title="🔍 Top 10 Justificativas por Quantidade",
+            color='Custo_Medio',
+            color_continuous_scale='RdYlGn_r',
+            text='Quantidade_Cargas'
+        )
+        fig_just.update_traces(textposition='inside')
+        fig_just.update_layout(height=400)
+        st.plotly_chart(fig_just, use_container_width=True)
+    
+    st.markdown("---")
+    
+    # Análise de custos por região
+    st.markdown("#### 🗺️ Análise de Custos por Região")
+    
+    custos_regiao = df_filtrado.groupby('Regiao').agg({
+        'numero_carga': 'nunique',
+        'custo_percentual_frete': ['mean', 'median', 'std'],
+        'rentabilidade_percentual': 'mean',
+        'valor_contratacao': 'sum',
+        'Valor do Frete': 'sum'
+    }).round(2)
+    
+    custos_regiao.columns = ['Qtd_Cargas', 'Custo_Medio', 'Custo_Mediano', 'Custo_Desvio', 'Rentab_Media', 'Valor_Contrat_Total', 'Valor_Frete_Total']
+    custos_regiao = custos_regiao.reset_index()
+    
+    # Adicionar targets de referência
+    targets_ref = {'INTERIOR 1': 35, 'INTERIOR 2': 45, 'POA CAPITAL': 30}
+    custos_regiao['Target_Regiao'] = custos_regiao['Regiao'].map(targets_ref).fillna(50)
+    custos_regiao['Desvio_Target'] = custos_regiao['Custo_Medio'] - custos_regiao['Target_Regiao']
+    
+    st.dataframe(
+        custos_regiao.style.format({
+            'Qtd_Cargas': '{:,}',
+            'Custo_Medio': '{:.1f}%',
+            'Custo_Mediano': '{:.1f}%',
+            'Custo_Desvio': '{:.1f}%',
+            'Rentab_Media': '{:.1f}%',
+            'Target_Regiao': '{:.0f}%',
+            'Desvio_Target': '{:+.1f}%',
+            'Valor_Contrat_Total': 'R\$ {:,.2f}',
+            'Valor_Frete_Total': 'R\$ {:,.2f}'
+        }).background_gradient(subset=['Desvio_Target'], cmap='RdYlGn_r'),
+        use_container_width=True
+    )
+
+
+#---------------------------------------------------05----------------------------------------------------------------------
+
+# --- renderizar_evolucao_temporal ---
+def renderizar_evolucao_temporal(df_stats, mes_selecionado, regiao_selecionada, df_filtrado):
+    """Renderiza a aba de evolução temporal"""
+    st.markdown("###    Evolução Temporal de Custos")
+    
+    # Usaremos df_stats como base para a evolução temporal, mas aplicaremos o filtro de região
+    df_base_para_evolucao = df_stats.copy()
+    
+    if regiao_selecionada != "Todos as Regiões": # Use 'Todos as Regiões' conforme o selectbox
+        df_base_para_evolucao = df_base_para_evolucao[df_base_para_evolucao['Regiao'] == regiao_selecionada]
+    
+    if df_base_para_evolucao.empty:
+        st.info("Nenhum dado disponível para análise temporal.")
+        return
+    
+    # Evolução mensal
+    evolucao_mensal = df_base_para_evolucao.groupby('mes_ano').agg({
+        'numero_carga': 'nunique',
+        'custo_percentual_frete': 'mean',
+        'rentabilidade_percentual': 'mean',
+        'dentro_target': lambda x: (x.sum() / len(x) * 100) if len(x) > 0 else 0
+    }).reset_index()
+    evolucao_mensal.columns = ['Mes_Ano', 'Qtd_Cargas', 'Custo_Medio', 'Rentab_Media', 'Perc_Dentro_Target']
+    evolucao_mensal = evolucao_mensal.sort_values('Mes_Ano')
+    
+    if len(evolucao_mensal) > 1:
+        # Gráfico de linha dupla - Custo e Target
+        fig_evolucao = make_subplots(
+            rows=2, cols=1,
+            subplot_titles=('Evolução do Custo Médio (%)', 'Quantidade de Cargas e % Dentro do Target'),
+            vertical_spacing=0.15
+        )
+        
+        # Linha de custo médio
+        fig_evolucao.add_trace(
+            go.Scatter(
+                x=evolucao_mensal['Mes_Ano'],
+                y=evolucao_mensal['Custo_Medio'],
+                mode='lines+markers',
+                name='Custo Médio (%)',
+                line=dict(color='#ff6b6b', width=3),
+                marker=dict(size=8)
+            ),
+            row=1, col=1
+        )
+        
+        # Barras de quantidade de cargas
+        fig_evolucao.add_trace(
+            go.Bar(
+                x=evolucao_mensal['Mes_Ano'],
+                y=evolucao_mensal['Qtd_Cargas'],
+                name='Qtd Cargas',
+                marker_color='#74b9ff',
+                yaxis='y3'
+            ),
+            row=2, col=1
+        )
+        
+        # Linha de % dentro do target
+        fig_evolucao.add_trace(
+            go.Scatter(
+                x=evolucao_mensal['Mes_Ano'],
+                y=evolucao_mensal['Perc_Dentro_Target'],
+                mode='lines+markers',
+                name='% Dentro Target',
+                line=dict(color='#00b894', width=3),
+                marker=dict(size=8),
+                yaxis='y4'
+            ),
+            row=2, col=1
+        )
+        
+        fig_evolucao.update_layout(
+            height=600,
+            title_text="📊 Evolução Temporal de Performance",
+            showlegend=True
+        )
+        
+        fig_evolucao.update_xaxes(title_text="Período", row=2, col=1)
+        fig_evolucao.update_yaxes(title_text="Custo (%)", row=1, col=1)
+        fig_evolucao.update_yaxes(title_text="Quantidade", row=2, col=1)
+        
+        st.plotly_chart(fig_evolucao, use_container_width=True)
+    else:
+        st.info("Dados insuficientes para análise temporal. Necessário pelo menos 2 períodos.")
+    
+    # Tabela de evolução
+    st.markdown("#### 📋 Tabela de Evolução Mensal")
+    if not evolucao_mensal.empty:
+        st.dataframe(
+            evolucao_mensal.style.format({
+                'Qtd_Cargas': '{:,}',
+                'Custo_Medio': '{:.1f}%',
+                'Rentab_Media': '{:.1f}%',
+                'Perc_Dentro_Target': '{:.1f}%'
+            }),
+            use_container_width=True
+        )
+
+# --- renderizar_detalhamento_rotas ---
+def renderizar_detalhamento_rotas(df_filtrado):
+    """Renderiza a aba de detalhamento por rota"""
+    st.markdown("### 🔍 Detalhamento por Rota")
+    
+    if df_filtrado.empty:
+        st.info("Nenhum dado disponível para detalhamento por rota.")
+        return
+    
+    # Seletor de rota
+    rotas_disponiveis = sorted(df_filtrado['Rota'].dropna().unique())
+    rota_selecionada = st.selectbox(
+        "🛣️ Selecionar Rota para Análise Detalhada:",
+        options=["Todas as Rotas"] + rotas_disponiveis,
+        key="filtro_rota_detalhada"
+    )
+    
+    # Filtrar por rota se selecionada
+    if rota_selecionada != "Todas as Rotas":
+        df_rota = df_filtrado[df_filtrado['Rota'] == rota_selecionada]
+    else:
+        df_rota = df_filtrado
+    
+    # Análise detalhada por rota
+    detalhamento_rotas = df_rota.groupby('Rota').agg({
+        'numero_carga': 'nunique',
+        'custo_percentual_frete': ['mean', 'min', 'max', 'std'],
+        'rentabilidade_percentual': 'mean',
+        'valor_contratacao': ['sum', 'mean'],
+        'Valor do Frete': ['sum', 'mean'],
+        'dentro_target': lambda x: (x.sum() / len(x) * 100) if len(x) > 0 else 0
+    }).round(2)
+    
+    detalhamento_rotas.columns = [
+        'Qtd_Cargas', 'Custo_Medio', 'Custo_Min', 'Custo_Max', 'Custo_Desvio',
+        'Rentab_Media', 'Contrat_Total', 'Contrat_Media', 'Frete_Total', 'Frete_Medio', 'Perc_Target'
+    ]
+    detalhamento_rotas = detalhamento_rotas.reset_index().sort_values('Qtd_Cargas', ascending=False)
+    
+    # Ranking de rotas
+    st.markdown("#### 🏆 Ranking de Rotas por Performance")
+    
+    col_rank1, col_rank2 = st.columns(2)
+    
+    with col_rank1:
+        st.markdown("**🥇 Top 10 - Maior Volume de Cargas**")
+        top_volume = detalhamento_rotas.head(10)[['Rota', 'Qtd_Cargas', 'Perc_Target']]
+        st.dataframe(
+            top_volume.style.format({
+                'Qtd_Cargas': '{:,}',
+                'Perc_Target': '{:.1f}%'
+            }),
+            use_container_width=True,
+            height=350
+        )
+    
+    with col_rank2:
+        st.markdown("**🎯 Top 10 - Melhor Performance de Target**")
+        top_performance = detalhamento_rotas.sort_values('Perc_Target', ascending=False).head(10)[['Rota', 'Qtd_Cargas', 'Perc_Target']]
+        st.dataframe(
+            top_performance.style.format({
+                'Qtd_Cargas': '{:,}',
+                'Perc_Target': '{:.1f}%'
+            }).background_gradient(subset=['Perc_Target'], cmap='RdYlGn'),
+            use_container_width=True,
+            height=350
+        )
+    
+    st.markdown("---")
+    
+    # Gráfico scatter - Volume vs Performance
+    if len(detalhamento_rotas) > 1:
+        fig_scatter = px.scatter(
+            detalhamento_rotas,
+            x='Qtd_Cargas',
+            y='Perc_Target',
+            size='Frete_Total',
+            color='Custo_Medio',
+            hover_name='Rota',
+            hover_data=['Custo_Medio', 'Rentab_Media'],
+            title="   Volume vs Performance de Target por Rota",
+            labels={
+                'Qtd_Cargas': 'Quantidade de Cargas',
+                'Perc_Target': '% Dentro do Target',
+                'Frete_Total': 'Frete Total (R\$)',
+                'Custo_Medio': 'Custo Médio (%)'
+            },
+            color_continuous_scale='RdYlGn_r'
+        )
+        
+        # Adicionar linha de referência para 70% de target
+        fig_scatter.add_hline(y=70, line_dash="dash", line_color="red", 
+                             annotation_text="Meta: 70% dentro do target")
+        
+        fig_scatter.update_layout(height=500)
+        st.plotly_chart(fig_scatter, use_container_width=True)
+    
+    # Tabela completa de detalhamento
+    st.markdown("#### 📋 Tabela Completa de Detalhamento")
+    st.dataframe(
+        detalhamento_rotas.style.format({
+            'Qtd_Cargas': '{:,}',
+            'Custo_Medio': '{:.1f}%',
+            'Custo_Min': '{:.1f}%',
+            'Custo_Max': '{:.1f}%',
+            'Custo_Desvio': '{:.1f}%',
+            'Rentab_Media': '{:.1f}%',
+            'Contrat_Total': 'R\$ {:,.2f}',
+            'Contrat_Media': 'R\$ {:,.2f}',
+            'Frete_Total': 'R\$ {:,.2f}',
+            'Frete_Medio': 'R\$ {:,.2f}',
+            'Perc_Target': '{:.1f}%'
+        }).background_gradient(subset=['Perc_Target'], cmap='RdYlGn'),
+        use_container_width=True
+    )
+#---------------------------------------------07----------------------------------------------------------------
+
+
+
+
+
+
+#---------------------------------------------------------------------------------------------------------------    
+def criar_grafico_kpi_personalizado(dados, tipo_grafico, titulo, **kwargs):
+    """Cria gráficos personalizados para KPIs específicos"""
+    
+    if tipo_grafico == "gauge":
+        # Gráfico de velocímetro para percentuais
+        fig = go.Figure(go.Indicator(
+            mode = "gauge+number+delta",
+            value = kwargs.get('valor', 0),
+            domain = {'x': [0, 1], 'y': [0, 1]},
+            title = {'text': titulo},
+            delta = {'reference': kwargs.get('referencia', 0)},
+            gauge = {
+                'axis': {'range': [None, 100]},
+                'bar': {'color': kwargs.get('cor_barra', "darkblue")},
+                'steps': [
+                    {'range': [0, 50], 'color': "lightgray"},
+                    {'range': [50, 80], 'color': "yellow"},
+                    {'range': [80, 100], 'color': "green"}
+                ],
+                'threshold': {
+                    'line': {'color': "red", 'width': 4},
+                    'thickness': 0.75,
+                    'value': kwargs.get('meta', 90)
+                }
+            }
+        ))
+        
+    elif tipo_grafico == "waterfall":
+        # Gráfico de cascata para análise de custos
+        fig = go.Figure(go.Waterfall(
+            name = titulo,
+            orientation = "v",
+            measure = kwargs.get('medidas', []),
+            x = kwargs.get('categorias', []),
+            textposition = "outside",
+            text = kwargs.get('textos', []),
+            y = kwargs.get('valores', []),
+            connector = {"line":{"color":"rgb(63, 63, 63)"}},
+        ))
+        
+    elif tipo_grafico == "sunburst":
+        # Gráfico de sunburst para hierarquia de dados
+        fig = px.sunburst(
+            dados,
+            path=kwargs.get('hierarquia', []),
+            values=kwargs.get('valores_col', 'valores'),
+            title=titulo,
+            color_continuous_scale='RdYlGn'
+        )
+    
+    fig.update_layout(height=kwargs.get('altura', 400))
+    return fig
+
+#---------------------------------------------------------------------------------------------------
+
+
+
+
+
+#-----------------------------------------------------------------------------------------------------------------------------------
+def classificar_target_custo(row):
+    """Classifica se a carga está dentro do target de custo da região"""
+    targets = {
+        'INTERIOR 1': 35.0,
+        'INTERIOR 2': 45.0,
+        'POA CAPITAL': 30.0
+    }
+    
+    regiao = str(row.get('Regiao', '')).upper().strip()
+    custo_percentual = row.get('custo_percentual_frete', 0)
+    justificativa = str(row.get('justificativa_aprovacao_custo', '')).lower()
+    
+    # Cargas com justificativa "aprovados" sempre entram como dentro do target
+    if 'aprovado' in justificativa:
+        return True
+    
+    target_regiao = targets.get(regiao, 50.0)  # Default 50% se região não encontrada
+    
+    return custo_percentual <= target_regiao
+
+#--------------------------------------------------------------------------------------------------------------------------------------------------
+def classificar_justificativa(justificativa_raw):
+    """Classifica as justificativas em categorias padronizadas"""
+    if pd.isna(justificativa_raw) or str(justificativa_raw).strip() == '':
+        return 'Sem Justificativa'
+    
+    justificativa = str(justificativa_raw).lower().strip()
+    
+    # Mapeamento de justificativas para categorias
+    categorias = {
+        'agendamento': 'Agendamento',
+        'agendamento_custo_brocker': 'Agendamento e Custo Broker',
+        'custo_brocker': 'Custo Broker',
+        'aprovado_custo_extra_cliente': 'Aprovado Custo Extra pelo Cliente',
+        'baixa_volumetria_rota': 'Baixa Volumetria na Rota',
+        'custo_fixo_agregado': 'Custo Fixo de Agregado',
+        'entrega_agendada': 'Entrega Agendada',
+        'entrega_direta': 'Entrega Direta',
+        'frete_minimo': 'Frete Mínimo',
+        'leadtime': 'Leadtime',
+        'meio_truck_baly': 'Meio Truck Baly',
+        'negociacao_parceiro': 'Negociação Parceiro',
+        'rota_critica_agendamento': 'Rota Crítica com Agendamento',
+        'rota_direta_sem_parceiro': 'Rota Direta sem Parceiro',
+        'rota_direta_agendamento': 'Rota Direta com Agendamento',
+        'aprovado': 'Aprovados'
+    }
+    
+    for key, categoria in categorias.items():
+        if key in justificativa:
+            return categoria
+    
+    return 'Outros'
+
+#---------------------------------------------------------------------------------
+
+def pagina_estatisticas():
+    st.markdown("## 📊 Estatísticas e KPIs - Análise de Custos por Rota")
+    
+    # Aplicar zoom personalizado para melhor visualização dos gráficos
+    aplicar_zoom_personalizado(95)
+    
+    # --- INICIALIZAÇÃO E GARANTIA DE PERSISTÊNCIA VIA SESSION STATE ---
+    if 'df_stats' not in st.session_state:
+        st.session_state.df_stats = pd.DataFrame()
+    if 'mes_selecionado_stats' not in st.session_state:
+        st.session_state.mes_selecionado_stats = "Todos os Meses"
+    if 'regiao_selecionada_stats' not in st.session_state:
+        st.session_state.regiao_selecionada_stats = "Todas as Regiões"
+    if 'df_filtrado_stats' not in st.session_state:
+        st.session_state.df_filtrado_stats = pd.DataFrame()
+
+    try:
+        with st.spinner("🔄 Carregando dados para análise estatística..."):
+            # Carregar dados de cargas fechadas (histórico completo)
+            dados_cargas_fechadas = supabase.table("cargas_fechadas").select("*").execute().data
+            df_cargas_fechadas = pd.DataFrame(dados_cargas_fechadas) if dados_cargas_fechadas else pd.DataFrame()
+            
+            # Carregar dados de cargas aprovadas (em andamento)
+            dados_cargas_aprovadas = supabase.table("cargas_aprovadas").select("*").execute().data
+            df_cargas_aprovadas = pd.DataFrame(dados_cargas_aprovadas) if dados_cargas_aprovadas else pd.DataFrame()
+            
+            # Combinar os datasets para análise completa
+            df_combined = pd.concat([df_cargas_fechadas, df_cargas_aprovadas], ignore_index=True)
+            
+            if df_combined.empty:
+                st.info("ℹ️ Não há dados suficientes para gerar estatísticas. Execute algumas operações no sistema primeiro.")
+                return
+                
+            # Armazena df_stats no session_state
+            st.session_state.df_stats = preparar_dados_estatisticas(df_combined)
+            
+    except Exception as e:
+        st.error(f"❌ Erro ao carregar dados para estatísticas: {e}")
+        return
+    
+    # Filtros de período
+    col_filtros1, col_filtros2, col_filtros3 = st.columns([1, 1, 2])
+    
+    with col_filtros1:
+        # Filtro de mês
+        meses_disponiveis = sorted(st.session_state.df_stats['mes_ano'].unique(), reverse=True) if 'mes_ano' in st.session_state.df_stats.columns else []
+        st.session_state.mes_selecionado_stats = st.selectbox(
+            "📅 Selecionar Mês/Ano:",
+            options=["Todos os Meses"] + meses_disponiveis,
+            key="filtro_mes_stats"
+        )
+    
+    with col_filtros2:
+        # Filtro de região
+        regioes_disponiveis = sorted(st.session_state.df_stats['Regiao'].dropna().unique()) if 'Regiao' in st.session_state.df_stats.columns else []
+        st.session_state.regiao_selecionada_stats = st.selectbox(
+            "🗺️ Selecionar Região:",
+            options=["Todas as Regiões"] + regioes_disponiveis,
+            key="filtro_regiao_stats"
+        )
+    
+    with col_filtros3:
+        st.markdown("### 🎯 Targets de Custo por Região")
+        col_target1, col_target2, col_target3 = st.columns(3)
+        with col_target1:
+            st.metric("INTERIOR 1", "35%", delta=None)
+        with col_target2:
+            st.metric("INTERIOR 2", "45%", delta=None)
+        with col_target3:
+            st.metric("POA CAPITAL", "30%", delta=None)
+    
+    # Aplica os filtros e armazena o resultado no session_state
+    st.session_state.df_filtrado_stats = aplicar_filtros_estatisticas(
+        st.session_state.df_stats,
+        st.session_state.mes_selecionado_stats,
+        st.session_state.regiao_selecionada_stats
+    )
+    
+    if st.session_state.df_filtrado_stats.empty:
+        st.warning("⚠️ Nenhum dado encontrado com os filtros aplicados.")
+        return
+    
+    st.markdown("---")
+    
+    # Layout principal com abas
+    tab1, tab2, tab3, tab4 = st.tabs([
+        "📊 Visão Geral", 
+        "🎯 Análise de Custos", 
+        "📈 Evolução Temporal", 
+        "🔍 Detalhamento por Rota"
+    ])
+    
+    with tab1:
+        renderizar_visao_geral(st.session_state.df_filtrado_stats)
+    
+    with tab2:
+        renderizar_analise_custos(st.session_state.df_filtrado_stats)
+    
+    with tab3:
+        renderizar_evolucao_temporal(
+            st.session_state.df_stats,
+            st.session_state.mes_selecionado_stats,
+            st.session_state.regiao_selecionada_stats,
+            st.session_state.df_filtrado_stats
+        )
+    
+    with tab4:
+        renderizar_detalhamento_rotas(st.session_state.df_filtrado_stats)
+
+    st.markdown("---")
+    
+    # Exportar Relatório
+    st.markdown("### 📥 Exportar Relatório")
+
+    col_export1, col_export2, col_export3 = st.columns([1, 1, 2])
+
+    with col_export1:
+        if st.button("📊 Exportar Excel Completo", key="export_excel_stats"):
+            try:
+                # ✅ CORREÇÃO: Usar apenas 2 parâmetros
+                excel_data = exportar_relatorio_estatisticas(st.session_state.df_stats, {
+                        'mes': st.session_state.mes_selecionado_stats,
+                        'regiao': st.session_state.regiao_selecionada_stats
+                    })
+                
+                st.download_button(
+                    label="⬇️ Baixar Relatório Excel",
+                    data=excel_data,
+                    file_name=f"relatorio_estatisticas_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    key="download_excel_stats"
+                )
+                st.success("✅ Relatório Excel gerado com sucesso!")
+            except Exception as e:
+                st.error(f"❌ Erro ao gerar relatório Excel: {e}")
+
+    with col_export2:
+        if st.button("📋 Exportar CSV Resumo", key="export_csv_stats"):
+            try:
+                resumo_csv = st.session_state.df_filtrado_stats.groupby(['Rota', 'Regiao']).agg({
+                    'numero_carga': 'nunique',
+                    'custo_percentual_frete': 'mean',
+                    'dentro_target': lambda x: (x.sum() / len(x) * 100) if len(x) > 0 else 0
+                }).reset_index()
+                
+                csv_data = resumo_csv.to_csv(index=False, sep=';', encoding='utf-8-sig')
+                
+                st.download_button(
+                    label="⬇️ Baixar CSV Resumo",
+                    data=csv_data,
+                    file_name=f"resumo_estatisticas_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+                    mime="text/csv",
+                    key="download_csv_stats"
+                )
+                st.success("✅ CSV de resumo gerado com sucesso!")
+            except Exception as e:
+                st.error(f"❌ Erro ao gerar CSV: {e}")
+
+    with col_export3:
+        st.info("💡 **Dica:** O relatório Excel contém múltiplas abas com análises detalhadas, enquanto o CSV fornece um resumo executivo para análises rápidas.")
+
+
+
 login()  # Garante que o usuário esteja logado
 
 # Mostra welcome + botão sair no topo da página principal
@@ -9813,7 +10724,7 @@ if st.session_state.get("login", False):
         with col_radio:
             sub_abas = [
                 "Confirmar Produção", "Aprovação Diretoria", "Pré Roterização",
-                "Cargas Geradas", "Aprovação de Custos", "Cargas Aprovadas", "Cargas Encerradas"
+                "Cargas Geradas", "Aprovação de Custos", "Cargas Aprovadas", "Cargas Encerradas", "📊 Estatísticas"  
             ]
             # Adicionado uma 'key' para o st.radio para melhor gerenciamento do estado
             sub_aba = st.radio("Selecione a sub-aba:", sub_abas, horizontal=True, key='sub_aba_operations_radio')
