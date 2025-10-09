@@ -1,3 +1,5 @@
+#09-10 01
+
 
 import streamlit as st
 st.set_page_config(
@@ -625,12 +627,12 @@ def _aprovar_carga_custos(selecionadas_para_aprovar, df_carga_original, carga_nu
 
 # ========== SUPABASE CONFIG ========== #
 # Base de Dados Projeto roteriza
-#url = "https://xhwotwefiqfwfabenwsi.supabase.co"
-#key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhod290d2VmaXFmd2ZhYmVud3NpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDgzNjc4NTMsImV4cCI6MjA2Mzk0Mzg1M30.3E2z-1SaABbCaV_HjQf0Rj8249mnPeGv7YkV4gOGhlg"  # Substitua pela sua chave real
+url = "https://xhwotwefiqfwfabenwsi.supabase.co"
+key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhod290d2VmaXFmd2ZhYmVud3NpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDgzNjc4NTMsImV4cCI6MjA2Mzk0Mzg1M30.3E2z-1SaABbCaV_HjQf0Rj8249mnPeGv7YkV4gOGhlg"  # Substitua pela sua chave real
 
 # Base de Dados Projeto F4Rotas
-url = "https://agiugsfojyansjeanfbz.supabase.co"
-key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFnaXVnc2ZvanlhbnNqZWFuZmJ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM4OTUzOTUsImV4cCI6MjA2OTQ3MTM5NX0.44w1wtOe3A8eQS6rINRdT9tDowZWwHM_H9Apr_B17I4"
+#url = "https://agiugsfojyansjeanfbz.supabase.co"
+#key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFnaXVnc2ZvanlhbnNqZWFuZmJ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM4OTUzOTUsImV4cCI6MjA2OTQ3MTM5NX0.44w1wtOe3A8eQS6rINRdT9tDowZWwHM_H9Apr_B17I4"
 
 #supabase = create_client(url, key)
 
@@ -2894,7 +2896,7 @@ def formatar_brasileiro(valor):
 
 ############################## Gerar PDF ########################################################
 
-def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, veiculo, valor_frete, valor_contratacao, valor_sugerido_contratacao=None, for_print=False, data_hora_gerada=None):
+def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, veiculo, valor_frete, valor_contratacao, valor_sugerido_contratacao=None, for_print=False):
     buffer = BytesIO()
 
     # --- NOVO: Formata o DataFrame para exibição ANTES de usar no PDF ---
@@ -2926,7 +2928,7 @@ def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, veiculo, valor_f
         buffer,
         pagesize=landscape(letter),
         rightMargin=inch / 2,
-        leftMargin=inch / 10, # <--- Alterado para inch / 4 (0.25 polegadas)
+        leftMargin=inch / 2,
         topMargin=inch / 2,
         bottomMargin=inch / 2,
         onPage=draw_image_on_page
@@ -2965,8 +2967,7 @@ def gerar_pdf_carga(df_entregas, carga, rota, motorista, placa, veiculo, valor_f
             Paragraph(f"<b>Rota:</b> {rota}", styles['CustomNormal']),
             Paragraph(f"<b>Motorista:</b> {motorista if motorista and motorista.strip() else '<i>Não Informado</i>'}", styles['CustomNormal']),
             Paragraph(f"<b>Placa:</b> {placa if placa and placa.strip() else '<i>Não Informada</i>'}", styles['CustomNormal']),
-            # <--- Célula alterada para exibir a data/hora de geração
-            Paragraph(f"<b>Gerada em:</b> {formatar_data_hora_br(data_hora_gerada) if data_hora_gerada else '<i>Não Informado</i>'}", styles['CustomNormal'])
+            ""
         ],
         [
             Paragraph(f"<b>Tipo de Veículo:</b> {veiculo if veiculo and veiculo.strip() else '<i>Não Informado</i>'}", styles['CustomNormal']),
@@ -6986,8 +6987,7 @@ def pagina_cargas_geradas():
                                     veiculo=pdf_veiculo, 
                                     valor_frete=total_frete_carga,
                                     valor_contratacao=pdf_valor_contratacao,
-                                    valor_sugerido_contratacao=valor_sugerido_contratacao,
-                                    data_hora_gerada=info_data_hora_gerada
+                                    valor_sugerido_contratacao=valor_sugerido_contratacao
                                 )
 
                             data_pdf_download = datetime.now(timezone.utc).isoformat()
@@ -7032,8 +7032,7 @@ def pagina_cargas_geradas():
                                     veiculo=pdf_veiculo,
                                     valor_frete=total_frete_carga,
                                     valor_contratacao=pdf_valor_contratacao,
-                                    for_print=True,
-                                    data_hora_gerada=info_data_hora_gerada
+                                    for_print=True
                                 )
 
                             st.success(f"✅ PDF {carga} gerado com sucesso!")
@@ -7544,7 +7543,7 @@ def pagina_cargas_geradas():
 
                                         st.session_state.pop(grid_key_id, None)
 
-                                        st.session_state.messages_by_charge[carga] = {'type': 'success','text': f"✅ {len(registros_para_custos)} entregas da carga {carga} foram enviadas para Aprovação de Custos com valor de R$ {valor_contratacao:,.2f}."}
+                                        st.session_state.messages_by_charge[carga] = {'type': 'success','text': f"✅ {len(registros_para_custos)} entregas da carga {carga} foram enviadas para Aprovação de Custos com valor de R\$ {valor_contratacao:,.2f}."}
 
                                         st.rerun()
                                     else:
@@ -7991,8 +7990,7 @@ def pagina_aprovacao_custos():
                                 placa=pdf_placa,
                                 veiculo=pdf_veiculo,
                                 valor_frete=total_frete_carga,
-                                valor_contratacao=pdf_valor_contratacao,
-                                data_hora_gerada=info_data_hora_gerada
+                                valor_contratacao=pdf_valor_contratacao
                             )
 
                         st.success(f"✅ PDF da carga {carga} gerado com sucesso!")
