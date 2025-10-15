@@ -1,3 +1,6 @@
+#10-10 02
+
+
 
 import streamlit as st
 st.set_page_config(
@@ -6,7 +9,6 @@ st.set_page_config(
     layout="wide"
 )
 import locale
-import textwrap
 import pandas as pd
 import numpy as np
 import io
@@ -25,6 +27,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
+import io 
 import xlsxwriter 
 from decimal import Decimal, ROUND_HALF_UP, getcontext, InvalidOperation 
 from uuid import uuid4
@@ -536,7 +539,11 @@ def _aprovar_carga_custos(
             dayfirst=True # Garante consistente leitura Dia-Mês-Ano
         )
         
-       
+        MAX_COST_PER_REGION = {
+            'INTERIOR 1': 0.35,
+            'INTERIOR 2': 0.45,
+            'POA CAPITAL': 0.30
+        }
 
         # As informações de valor_contratacao e valor_adicional_frete são consistentes para toda a carga.
         # Assumimos que a primeira linha de df_aprovar_full_columns contém esses valores.
@@ -665,12 +672,12 @@ def _aprovar_carga_custos(
 
 # ========== SUPABASE CONFIG ========== #
 # Base de Dados Projeto roteriza
-url = "https://xhwotwefiqfwfabenwsi.supabase.co"
-key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhod290d2VmaXFmd2ZhYmVud3NpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDgzNjc4NTMsImV4cCI6MjA2Mzk0Mzg1M30.3E2z-1SaABbCaV_HjQf0Rj8249mnPeGv7YkV4gOGhlg"  # Substitua pela sua chave real
+#url = "https://xhwotwefiqfwfabenwsi.supabase.co"
+#key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhod290d2VmaXFmd2ZhYmVud3NpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDgzNjc4NTMsImV4cCI6MjA2Mzk0Mzg1M30.3E2z-1SaABbCaV_HjQf0Rj8249mnPeGv7YkV4gOGhlg"  # Substitua pela sua chave real
 
 # Base de Dados Projeto F4Rotas
-#url = "https://agiugsfojyansjeanfbz.supabase.co"
-#key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFnaXVnc2ZvanlhbnNqZWFuZmJ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM4OTUzOTUsImV4cCI6MjA2OTQ3MTM5NX0.44w1wtOe3A8eQS6rINRdT9tDowZWwHM_H9Apr_B17I4"
+url = "https://agiugsfojyansjeanfbz.supabase.co"
+key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFnaXVnc2ZvanlhbnNqZWFuZmJ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM4OTUzOTUsImV4cCI6MjA2OTQ3MTM5NX0.44w1wtOe3A8eQS6rINRdT9tDowZWwHM_H9Apr_B17I4"
 
 #supabase = create_client(url, key)
 
@@ -1930,13 +1937,6 @@ def preparar_dados_estatisticas(df_combined):
     
     df = df_combined.copy()
 
-    # --- NOVO TRECHO A SER INSERIDO AQUI: Garante que a coluna 'Rota' esteja limpa e padronizada ---
-    if 'Rota' in df.columns:
-        df['Rota'] = df['Rota'].astype(str).str.strip().str.upper().replace({'NAN': 'ROTA INDEFINIDA', '': 'ROTA INDEFINIDA'})
-    else:
-        df['Rota'] = 'ROTA INDEFINIDA' # Cria a coluna se não existir e atribui um valor padrão
-    # --- FIM DO NOVO TRECHO ---
-
     # --- NOVO BLOCO: GARANTIR QUE COLUNAS CRÍTICAS EXISTAM ---
     # As colunas 'custo_percentual_frete', 'rentabilidade_percentual', 'situacao_custo_regional'
     # e 'valor_adicional_frete' podem não existir em registros mais antigos ou
@@ -1990,19 +1990,19 @@ def preparar_dados_estatisticas(df_combined):
     return df
 
 
-#------------------------------------------------------------------------------------------------------------------------------------------
-
-def aplicar_filtros_estatisticas(df, mes_selecionado): # Removido 'regiao_selecionada'
+# ------------------------------------02----------------------------------------------------------------------------------------------------
+def aplicar_filtros_estatisticas(df, mes_selecionado, regiao_selecionada):
     df_filtrado = df.copy()
     
     if mes_selecionado != "Todos os Meses":
         df_filtrado = df_filtrado[df_filtrado['mes_ano'] == mes_selecionado]
     
-    # Removido filtro de região para simplificar conforme a descrição
-    # if regiao_selecionada != "Todas as Regiões": 
-    #     df_filtrado = df_filtrado[df_filtrado['Regiao'] == regiao_selecionada]
+    if regiao_selecionada != "Todas as Regiões": # <--- AQUI DEVE SER "Todas as Regiões"
+        df_filtrado = df_filtrado[df_filtrado['Regiao'] == regiao_selecionada]
     
     return df_filtrado
+
+
 # ------------------------------------03---------------------------------------------------------------------------------------------------
 def exportar_relatorio_estatisticas(df_stats_unfiltered, filtros_aplicados):
     """Gera relatório em Excel com todas as estatísticas, aplicando os filtros."""
@@ -2282,20 +2282,15 @@ def _first_existing(df, candidates, default=None):
 # ---------------------------
 # Preparação do DataFrame para o GRID
 # ---------------------------
-# NOVO/AJUSTADO TRECHO A SER INSERIDO (substituindo a versão existente de preparar_grid_detalhamento)
-# Localização: Substitua a função existente no seu código.
-
 def preparar_grid_detalhamento(df_fechadas: pd.DataFrame) -> pd.DataFrame:
     """
     Prepara o dataset de Detalhamento por Rota e Justificativa
     a partir exclusivamente de cargas_fechadas.
-    Calcula:
-    - Qtd de Cargas (únicas)
-    - Qtd de Entregas
-    - % do Custo de Contratação da Justificativa em relação ao Custo Total da Rota
+    Retorna colunas: ['Rota', 'Justificativas', 'Qtd de Cargas', 'Qtd de Entregas',
+                     'Custo Médio (%)', 'Custo Total Contratado (R$)', 'Frete Total (R$)']
     """
     if df_fechadas is None or df_fechadas.empty:
-        return pd.DataFrame(columns=['Rota', 'Justificativas', 'Qtd de Cargas', 'Qtd de Entregas', '% Custo Justificativa na Rota'])
+        return pd.DataFrame(columns=['Rota', 'Justificativas', 'Qtd de Cargas', 'Qtd de Entregas', 'Custo Médio (%)', 'Custo Total Contratado (R$)', 'Frete Total (R$)'])
 
     df = df_fechadas.copy()
 
@@ -2303,57 +2298,66 @@ def preparar_grid_detalhamento(df_fechadas: pd.DataFrame) -> pd.DataFrame:
     col_rota = 'Rota'
     if col_rota not in df.columns:
         df[col_rota] = 'Rota Não Definida' # Fallback se a coluna não existir
+    # Ensure all missing/empty/nan values in 'Rota' become 'Rota Não Definida' for consistent grouping
     df[col_rota] = df[col_rota].astype(str).str.strip().replace({'': 'Rota Não Definida', 'nan': 'Rota Não Definida', 'None': 'Rota Não Definida'})
 
     # --- Robustez para 'categoria_justificativa' ---
-    # Usamos 'categoria_justificativa' que já é padronizada pela 'preparar_dados_estatisticas'
     col_just = 'categoria_justificativa'
     if col_just not in df.columns:
         df[col_just] = 'Justificativa Não Definida' # Fallback se a coluna não existir
     df[col_just] = df[col_just].astype(str).str.strip().replace({'': 'Justificativa Não Definida', 'nan': 'Justificativa Não Definida', 'None': 'Justificativa Não Definida'})
 
-    # --- Robustez para 'numero_carga' (para contagem única de cargas) ---
+    # --- Robustez para 'numero_carga' ---
     col_num_carga = 'numero_carga'
     if col_num_carga not in df.columns:
         df[col_num_carga] = df.index.astype(str) + '_CARGA_ND' # Fallback com ID único por linha
     df[col_num_carga] = df[col_num_carga].astype(str) # Garante que seja string para contagem única
 
-    # --- Robustez para 'Serie_Numero_CTRC' (para contagem de entregas) ---
+    # --- Robustez para 'Serie_Numero_CTRC' ---
     col_ctrc = 'Serie_Numero_CTRC'
     if col_ctrc not in df.columns:
         df[col_ctrc] = df.index.astype(str) + '_CTRC_ND' # Fallback com ID único por linha
     df[col_ctrc] = df[col_ctrc].astype(str) # Garante que seja string para contagem
 
-    # --- Robustez para 'valor_contratacao' (para o cálculo do custo) ---
+    # --- Robustez para métricas numéricas ---
+    col_custo_percentual = 'custo_percentual_frete'
+    if col_custo_percentual not in df.columns:
+        df[col_custo_percentual] = 0.0
+    df[col_custo_percentual] = pd.to_numeric(df[col_custo_percentual], errors='coerce').fillna(0)
+
     col_valor_contratacao = 'valor_contratacao'
     if col_valor_contratacao not in df.columns:
         df[col_valor_contratacao] = 0.0
     df[col_valor_contratacao] = pd.to_numeric(df[col_valor_contratacao], errors='coerce').fillna(0)
 
-    # Agrupamento pela 'Rota' e 'Justificativas'
+    col_valor_frete = 'Valor do Frete'
+    if col_valor_frete not in df.columns:
+        df[col_valor_frete] = 0.0
+    df[col_valor_frete] = pd.to_numeric(df[col_valor_frete], errors='coerce').fillna(0)
+
+
+    # Agrupamento pela 'Rota' real e 'Justificativas'
     grp = df.groupby([col_rota, col_just], dropna=False).agg(
         Qtd_de_Cargas=(col_num_carga, 'nunique'),  # Contagem de cargas únicas por Rota-Justificativa
         Qtd_de_Entregas=(col_ctrc, 'count'),       # Contagem de entregas por Rota-Justificativa
-        # Custo_Total_Contratado_Justificativa é o total de valor_contratacao para aquela combinação
-        Custo_Total_Contratado_Justificativa=(col_valor_contratacao, 'sum')
+        Custo_Medio_Percentual=(col_custo_percentual, 'mean'), # Custo percentual médio
+        Custo_Total_Contratado=(col_valor_contratacao, 'sum'), # Soma do valor contratado
+        Frete_Total=(col_valor_frete, 'sum') # Soma do valor do frete das entregas
     ).reset_index()
-
-    grp['Total_Contratado_Por_Rota'] = grp.groupby(col_rota)['Custo_Total_Contratado_Justificativa'].transform('sum')
-
-    # Calcula a porcentagem do custo da justificativa em relação ao custo total da rota
-    # Trata divisão por zero, caso o custo total da rota seja 0
-    grp['% Custo Justificativa na Rota'] = (grp['Custo_Total_Contratado_Justificativa'] / grp['Total_Contratado_Por_Rota'] * 100).fillna(0)
 
     # Renomeia as colunas para os nomes de exibição finais no grid
     grp = grp.rename(columns={
-        col_rota: 'Rota',
-        col_just: 'Justificativas', 
+        col_rota: 'Rota', # Mantém 'Rota' como está, será o agrupador/filtro
+        col_just: 'Justificativas',
         'Qtd_de_Cargas': 'Qtd de Cargas',
-        'Qtd_de_Entregas': 'Qtd de Entregas'
+        'Qtd_de_Entregas': 'Qtd de Entregas',
+        'Custo_Medio_Percentual': 'Custo Médio (%)',
+        'Custo_Total_Contratado': 'Custo Total Contratado (R$)',
+        'Frete_Total': 'Frete Total (R$)'
     })
 
-    # Seleciona e ordena as colunas finais para exibição
-    grp = grp[['Rota', 'Justificativas', 'Qtd de Cargas', 'Qtd de Entregas', '% Custo Justificativa na Rota']]
+    # Garante a ordem correta das colunas para exibição
+    grp = grp[['Rota', 'Justificativas', 'Qtd de Cargas', 'Qtd de Entregas', 'Custo Médio (%)', 'Custo Total Contratado (R$)', 'Frete Total (R$)']]
     grp = grp.sort_values(by=['Rota', 'Justificativas'], kind='stable').reset_index(drop=True)
 
     return grp
@@ -4310,7 +4314,7 @@ def preparar_df_pre_roterizacao(df_pre, supabase_client):
 # ===========================================
 
 
-@st.cache_data(ttl=300) # O cache será invalidado a cada hora para garantir dados atualizados
+@st.cache_data(ttl=10) # O cache será invalidado a cada hora para garantir dados atualizados
 def load_motoristas_data():
     """
     Carrega todos os motoristas e suas placas da tabela 'Motoristas' do Supabase.
@@ -7416,7 +7420,8 @@ def pagina_pre_roterizacao():
     with col_dir_3:
         st.metric("✅ Peso Calculado", formatar_brasileiro(peso_calc_aprovado))
 
-
+    def badge(label):
+        return f"<span style='background:#eef2f7;border-radius:12px;padding:6px 12px;margin:4px;color:inherit;display:inline-block;'>{label}</span>"
 
     # --- JsCode para destaque visual nos grids (MANTIDO INALTERADO) ---
     linha_destacar = JsCode("""
@@ -7450,118 +7455,73 @@ def pagina_pre_roterizacao():
     # 1. Preparar os grupos que queremos exibir
     grupos_para_exibir = {}
 
-    # Garantir que as colunas de agrupamento existam e estejam limpas
-    if 'GrupoDeExibicao' not in df_visivel.columns: df_visivel['GrupoDeExibicao'] = ''
-    if 'Tipo_Tratativa_Especial' not in df_visivel.columns: df_visivel['Tipo_Tratativa_Especial'] = ''
-    df_visivel['GrupoDeExibicao'] = df_visivel['GrupoDeExibicao'].fillna('').astype(str).str.strip()
-    df_visivel['Tipo_Tratativa_Especial'] = df_visivel['Tipo_Tratativa_Especial'].fillna('').astype(str).str.strip()
-    df_visivel['Codigo da Ultima Ocorrencia'] = pd.to_numeric(df_visivel['Codigo da Ultima Ocorrencia'], errors='coerce').fillna(-1) # Usar -1 para não-39
-    df_visivel['Rota'] = df_visivel['Rota'].fillna('').astype(str).str.strip()
+    # Grupo "Paletizadores"
+    # Entregas que são Paletizadas e que ainda não têm uma Rota definida no Agrupamento principal (df_visivel)
+    # A prioridade é que entregas paletizadas sejam agrupadas em "Paletizadores".
+    # As entregas paletizadas que já têm uma rota definida na base, por exemplo,
+    # caso haja alguma exceção ou erro no fluxo, ainda apareceriam nos grupos de rota.
+    # df_paletizadas_apenas = df_visivel[df_visivel['Tipo_Tratativa_Especial'] == 'Paletizadas'].copy()
+    
+    # Nova lógica: Separar o DF em dois: um para Paletizadores e outro para o resto
+    df_paletizadores_group = df_visivel[df_visivel['Tipo_Tratativa_Especial'] == 'Paletizadas'].copy()
+    df_outros_grupos = df_visivel[df_visivel['Tipo_Tratativa_Especial'] != 'Paletizadas'].copy()
 
-
-    # Função auxiliar para atribuir o grupo de exibição final a cada linha,
-    # respeitando a hierarquia de prioridade.
-    def assign_display_group(row):
-        # Prioridade 1: GrupoDeExibicao definido pelo usuário (se não for vazio e não for um dos defaults especiais)
-        # Se o usuário moveu uma entrega para "Rota X", ela deve ir para "Rota X".
-        # Mesmo que fosse uma coleta ou paletizada, a ação do usuário tem precedência.
-        if row['GrupoDeExibicao'] and row['GrupoDeExibicao'] not in ['', 'Paletizadores', 'Coletas']:
-            return row['GrupoDeExibicao']
-        
-        # Prioridade 2: Paletizadores (se não foi movida explicitamente para uma rota)
-        if row['Tipo_Tratativa_Especial'] == 'Paletizadas':
-            return 'Paletizadores'
-        
-        # Prioridade 3: Coletas (se não foi movida explicitamente para uma rota ou não é Paletizada)
-        if row['Codigo da Ultima Ocorrencia'] == 39:
-            return 'Coletas'
-        
-        # Prioridade 4: Rota padrão (se nenhuma das anteriores se aplica)
-        return row['Rota'] if row['Rota'] else 'Indefinida'
-
-    # Aplica a função para criar uma nova coluna com a chave do grupo de exibição final
-    df_visivel['Display_Group_Key'] = df_visivel.apply(assign_display_group, axis=1)
-
-    # Agora, itere sobre as chaves de grupo únicas para criar os DataFrames de cada grupo
-    for group_key_name in sorted(df_visivel['Display_Group_Key'].unique()):
-        df_grupo = df_visivel[df_visivel['Display_Group_Key'] == group_key_name].copy()
-        if df_grupo.empty:
-            continue
-
-        header_title_content = ""
-        group_type = 'Rota' # Tipo padrão
-        
-        if group_key_name == 'Coletas':
-            header_title_content = "Coletas (Ocorrência 39)"
-            group_type = 'Coletas'
-        elif group_key_name == 'Paletizadores':
-            header_title_content = "Entregas de Clientes Paletizadoras"
-            group_type = 'Paletizadores'
-        else: # Grupos de rota regular ou movidos explicitamente pelo usuário
-            # Calcula a rota predominante e regiões para o cabeçalho
-            # Usar o group_key_name como rota predominante se for um grupo movido pelo usuário
-            rota_predominante = group_key_name if group_key_name != 'Indefinida' else "NÃO DEFINIDA"
-            
-            # Ajuste para garantir que "Rota" é string e não NaN para o value_counts
-            df_grupo_rotas_validas = df_grupo["Rota"].dropna().astype(str)
-            if not df_grupo_rotas_validas.empty:
-                # Se a chave do grupo de exibição for diferente da rota mais frequente do DF,
-                # priorize a chave de exibição (que pode ter sido definida pelo usuário).
-                if group_key_name not in ['Coletas', 'Paletizadores'] and group_key_name != df_grupo_rotas_validas.value_counts().idxmax():
-                    rota_predominante = group_key_name
-                else:
-                    rota_predominante = df_grupo_rotas_validas.value_counts().idxmax()
-            
-            regioes = df_grupo["Regiao"].dropna().unique()
-            regioes_limpas = [str(r).strip() for r in regioes if pd.notna(r)]
-            regiao_display = " / ".join(regioes_limpas) if len(regioes_limpas) > 1 else (regioes_limpas[0] if len(regioes_limpas) == 1 else "–")
-            header_title_content = f"<strong>Rota Predominante:</strong> {rota_predominante} &nbsp; | &nbsp; <strong>Região:</strong> {regiao_display}"
-            group_type = 'Rota'
-
-        grupos_para_exibir[group_key_name] = {
-            'df': df_grupo,
-            'header_title_content': header_title_content,
-            'is_special_group': (group_type in ['Coletas', 'Paletizadores']),
-            'group_type': group_type
+    if not df_paletizadores_group.empty:
+        grupos_para_exibir["Paletizadores"] = {
+            'df': df_paletizadores_group,
+            'header_title_content': "Paletizadores", # Conteúdo específico para o título
+            'is_paletizadoras_group': True    # Flag para lógica específica
         }
+    
+    # Entregas NÃO-Paletizadas, agrupadas por Rota
+    # Esta linha é necessária para a coluna Rota_Grupo ser corretamente criada antes do loop de rotas
+    df_outros_grupos["Rota_Grupo"] = df_outros_grupos["GrupoDeExibicao"].fillna(df_outros_grupos["Rota"])
 
-    # Ordenar os grupos para exibição: Coletas primeiro, depois Paletizadores, depois as Rotas.
-    grupos_ordenados = sorted(grupos_para_exibir.items(), key=lambda item: (
-        0 if item[0] == "Coletas" else (1 if item[0] == "Paletizadores" else 2), item[0]
-    ))
+    rotas_unicas = sorted(df_outros_grupos["Rota_Grupo"].dropna().unique())
+    for rota_visual in rotas_unicas:
+        df_rota = df_outros_grupos[df_outros_grupos["Rota_Grupo"] == rota_visual].copy()
+        if not df_rota.empty:
+            # --- Calcular a rota predominante (para exibir no cabeçalho) ---
+            rota_predominante = "NÃO DEFINIDA"
+            if 'Rota' in df_rota.columns and not df_rota['Rota'].empty:
+                rotas_validas = df_rota['Rota'].dropna()
+                if not rotas_validas.empty:
+                    rota_predominante = rotas_validas.value_counts().idxmax()
+                elif rota_visual and rota_visual != rota_predominante:
+                    rota_predominante = rota_visual
 
+            # Selecionar as Regiões associadas à Rota
+            regioes = df_rota["Regiao"].dropna().unique()
+            regioes_limpas = [str(r).strip() for r in regioes if pd.notna(r)] 
+            regiao_display = " / ".join(regioes_limpas) if len(regioes_limpas) > 1 else (regioes_limpas[0] if len(regioes_limpas) == 1 else "–")
 
+            header_title_content = f"<strong>Rota Predominante:</strong> {rota_predominante} &nbsp; | &nbsp; <strong>Região:</strong> {regiao_display}"
 
-
-
+            grupos_para_exibir[rota_visual] = {
+                'df': df_rota,
+                'header_title_content': header_title_content, # Conteúdo já com HTML
+                'is_paletizadoras_group': False
+            }
+    
+    # Ordenar os grupos para exibição (opcional, mas bom para consistência)
+    # Por exemplo, exibir "Paletizadores" sempre primeiro
+    grupos_ordenados = sorted(grupos_para_exibir.items(), key=lambda item: (0 if item[0] == "Paletizadores" else 1, item[0]))
 
 
     # Agora, iteramos sobre os grupos para renderizar os grids
     for nome_grupo, grupo_info in grupos_ordenados: # Itera sobre os itens ordenados
-
         df_grupo = grupo_info['df']
         header_title_content = grupo_info['header_title_content']
-        group_type = grupo_info['group_type'] # Usaremos 'group_type' para lógica de estilo
+        is_paletizadoras_group = grupo_info['is_paletizadoras_group']
 
-        # --- Lógica para Estilo do Cabeçalho do Grupo ---
-        header_background = "#333333" # Default para Rotas
-        header_border = "#6c757d"     # Default para Rotas
-        header_text_color = "white"   # Default para Rotas
-
-        if group_type == "Coletas":
-            header_background = "#FFF3CD" # Amarelo claro para Coletas
-            header_border = "#FFD700"     # Amarelo ouro
-            header_text_color = "black"
-        elif group_type == "Paletizadores":
-            header_background = "#BBDEFB" # Azul claro para Paletizadores
-            header_border = "#2196F3"     # Azul
-            header_text_color = "black"
-
+        # O título completo agora é construído dinamicamente
+        # Mantendo o estilo de cabeçalho consistente para todos os grupos (cinza escuro)
         st.markdown(f"""
-        <div style="margin-top:20px;padding:10px;background:{header_background};border-left:4px solid {header_border};border-radius:6px;display:inline-block;max-width:100%;">
-            <strong style="color:{header_text_color};">{header_title_content}</strong>
+        <div style="margin-top:20px;padding:10px;background:#333333;border-left:4px solid #6c757d;border-radius:6px;display:inline-block;max-width:100%;color:white;">
+            {header_title_content}
         </div>
         """, unsafe_allow_html=True)
+
 
         # Informações agregadas sobre o grupo (badges)
         col_badge, col_check_placeholder = st.columns([5, 1])
@@ -7584,40 +7544,21 @@ def pagina_pre_roterizacao():
             ]
             qtd_com_particularidade_grupo = len(entregas_com_particularidade_grupo)
             
-            # --- Lógica para Estilo dos Badges de Métrica ---
-            badge_background_color_metric = "#333333" # Default para Rotas
-            badge_text_color_metric = "white"
-
-            if group_type == "Coletas":
-                badge_background_color_metric = "#FFF8DC" # Amarelo bem claro para Coletas
-                badge_text_color_metric = "black"
-            elif group_type == "Paletizadores":
-                badge_background_color_metric = "#E3F2FD" # Azul bem claro para Paletizadores
-                badge_text_color_metric = "black"
-
-            html_fragments = [
-                badge(f'{len(df_grupo)} entregas', background_color=badge_background_color_metric, text_color=badge_text_color_metric),
-                badge(f'{formatar_brasileiro(peso_calc_sum)} kg calc', background_color=badge_background_color_metric, text_color=badge_text_color_metric),
-                badge(f'{formatar_brasileiro(peso_real_sum)} kg real', background_color=badge_background_color_metric, text_color=badge_text_color_metric),
-                badge(f'Valor frete: R$ {formatar_brasileiro(valor_frete_sum)}', background_color=badge_background_color_metric, text_color=badge_text_color_metric),
-                badge(f'{formatar_brasileiro(cubagem_sum)} m³', background_color=badge_background_color_metric, text_color=badge_text_color_metric),
-                badge(f'{int(volumes_sum)} volumes', background_color=badge_background_color_metric, text_color=badge_text_color_metric),
-                badge(f'📅  Agenda s/ Prog.: {qtd_agendar_sem_programacao_grupo}', background_color='#e06200', text_color='white'),
-                badge(f'⚠️ Com Particularidade: {qtd_com_particularidade_grupo}', background_color='#b8860b', text_color='white')
-            ]
-
+            # Todos os badges de métricas usam o mesmo estilo escuro
             st.markdown(
-                f"""
-                <div style='display: flex; flex-wrap: wrap; gap: 8px;'>
-                    {"".join(html_fragments)}
-                </div>
-                """,
+                f"<span style='background:#333333;border-radius:12px;padding:6px 12px;margin:4px;color:white;display:inline-block;'>{len(df_grupo)} entregas</span>"
+                f"<span style='background:#333333;border-radius:12px;padding:6px 12px;margin:4px;color:white;display:inline-block;'>{formatar_brasileiro(peso_calc_sum)} kg calc</span>"
+                f"<span style='background:#333333;border-radius:12px;padding:6px 12px;margin:4px;color:white;display:inline-block;'>{formatar_brasileiro(peso_real_sum)} kg real</span>"
+                f"<span style='background:#333333;border-radius:12px;padding:6px 12px;margin:4px;color:white;display:inline-block;'>Valor frete: R$ {formatar_brasileiro(valor_frete_sum)}</span>"
+                f"<span style='background:#333333;border-radius:12px;padding:6px 12px;margin:4px;color:white;display:inline-block;'>{formatar_brasileiro(cubagem_sum)} m³</span>"
+                f"<span style='background:#333333;border-radius:12px;padding:6px 12px;margin:4px;color:white;display:inline-block;'>{int(volumes_sum)} volumes</span>"
+                f"<span style='background:#e06200;border-radius:12px;padding:6px 12px;margin:4px;color:white;display:inline-block;'>📅  Agenda s/ Prog.: {qtd_agendar_sem_programacao_grupo}</span>"
+                f"<span style='background:#b8860b;border-radius:12px;padding:6px 12px;margin:4px;color:white;display:inline-block;'>⚠️ Com Particularidade: {qtd_com_particularidade_grupo}</span>",
                 unsafe_allow_html=True
             )
 
             # Custo parcial estimado (apenas para grupos de rota normais)
-            # Este bloco agora exclui "Coletas" e "Paletizadores"
-            if group_type == "Rota": # <-- Use group_type aqui
+            if not is_paletizadoras_group: # Só exibe para grupos que não são Paletizadores
                 percentuais_ideais = {
                     "INTERIOR 1": 0.35, "INTERIOR 2": 0.45, "POA CAPITAL": 0.30
                 }
@@ -7625,6 +7566,7 @@ def pagina_pre_roterizacao():
                 # Precisa pegar a Regiao do df_grupo, não da rota_visual, pois rota_visual é o nome da chave
                 regiao_chave_para_custo = [r.strip() for r in df_grupo["Regiao"].dropna().unique() if pd.notna(r)]
                 regiao_chave_para_custo = regiao_chave_para_custo[0] if regiao_chave_para_custo else None
+                
                 percentual_usado = percentuais_ideais.get(regiao_chave_para_custo, None)
                 if percentual_usado is not None and "Valor do Frete" in df_grupo.columns:
                     valor_frete_total_grupo = pd.to_numeric(df_grupo["Valor do Frete"], errors="coerce").sum()
@@ -7754,7 +7696,7 @@ def pagina_pre_roterizacao():
             st.button(
                 f"🟢Gerar Carga com entregas do grupo '{nome_grupo}'", 
                 key=f"btn_nova_carga_grupo_{nome_grupo}", 
-                disabled=selecionadas.empty # Removido 'or (group_type == "Coletas")'
+                disabled=selecionadas.empty
             )
             if st.session_state[f"btn_nova_carga_grupo_{nome_grupo}"]:
                 try:
@@ -7780,13 +7722,14 @@ def pagina_pre_roterizacao():
                     "🚚 Mover entregas selecionadas para outro grupo:",
                     options=["Selecionar..."] + rotas_disponiveis,
                     key=f"selectbox_mover_grupo_{nome_grupo}",
-                    disabled=selecionadas.empty # Removido 'or (group_type == "Coletas")'
+                    disabled=selecionadas.empty
                 )
 
                 st.button(
                     f"🔄 Mover entregas para o grupo '{nova_rota}'",
                     key=f"btn_mover_grupo_{nome_grupo}", 
-                    disabled=selecionadas.empty or nova_rota == "Selecionar..." # Removido 'or (group_type == "Coletas")'
+                    #disabled=selecionadas.empty or nova_rota == "Selecionar..." or is_paletizadoras_group
+                    disabled=selecionadas.empty or nova_rota == "Selecionar..."
                 )
                 if st.session_state[f"btn_mover_grupo_{nome_grupo}"]:
                     if nova_rota == "Selecionar...":
@@ -7814,15 +7757,15 @@ def pagina_pre_roterizacao():
 # FUNÇÃO: pagina_cargas_geradas()
 # ==============================================================================
 
-@st.cache_data(ttl=300) # Defina o mesmo TTL ou um TTL um pouco maior que load_motoristas_data
+@st.cache_data
 def get_all_motoristas_options():
-    df_motoristas_data = load_motoristas_data() # Esta já estaria cacheada pelo seu TTL
+    df_motoristas_data = load_motoristas_data() # Esta já estaria cacheada
     all_motoristas = sorted(df_motoristas_data['MOTORISTA'].unique().tolist()) if not df_motoristas_data.empty else []
     return ["Selecione o Motorista"] + all_motoristas
 
 motorista_options_general = get_all_motoristas_options()
 
-@st.cache_data(ttl=300) # Defina o mesmo TTL ou um TTL um pouco maior que load_motoristas_data
+@st.cache_data
 def get_plates_by_motorista():
     df_motoristas_data = load_motoristas_data()
     plates_map = {}
@@ -8163,7 +8106,6 @@ def pagina_cargas_geradas():
                 badge(f'Valor da Contratação: R$ {info_valor_contratacao}', background_color='#333333', text_color='white'),
                 pdf_badge_html_fragment, # Este já é gerado com sua cor
                 badge(f'Custo: {percentual_custo_texto}', background_color=cor_badge_custo, text_color=cor_texto_custo), # Este já é dinâmico
-               
                 badge(f'Valor Adicional: R$ {formatar_brasileiro(info_valor_adicional_raw)}', background_color='#333333', text_color='white'), 
 
                 # Novos badges com cores ajustadas
@@ -8741,8 +8683,12 @@ def pagina_cargas_geradas():
                                     
                                     st.session_state["df_cargas_cache"] = updated_cache_df
                                 # --- FIM DA MODIFICAÇÃO ---
+
+                                st.session_state.messages_by_charge[carga] = {
+                                    'type': 'success',
+                                    'text': f"✅ Informações da carga {carga} salvas com sucesso, incluindo os novos cálculos!"
+                                }
                                 st.rerun()
-                                
 
                         except Exception as e:
                             st.session_state.messages_by_charge[carga] = {
@@ -8927,14 +8873,15 @@ def carregar_opcoes_justificativa():
         return [], {}
 
 
-###########################################
-# APROVAÇÃO DE CUSTO
-###########################################
-
 def pagina_aprovacao_custos():
 
-    
     st.markdown("## Aprovação de Custos")
+
+    MAX_COST_PER_REGION = {
+        'INTERIOR 1': 0.35,
+        'INTERIOR 2': 0.45,
+        'POA CAPITAL': 0.30
+    }
 
     current_user_class = st.session_state.get("classe", "colaborador")
     is_user_aprovador = (current_user_class == "aprovador")
@@ -8995,67 +8942,62 @@ def pagina_aprovacao_custos():
                         df_aprovar_todas["justificativa_aprovacao_custo"] = None 
 
 
+                        MAX_COST_PER_REGION = {
+                            'INTERIOR 1': 0.35,
+                            'INTERIOR 2': 0.45,
+                            'POA CAPITAL': 0.30
+                        }
+
+                        # Calcular esses valores a nível da carga (todos os itens na carga têm os mesmos valores de contratação)
+                        valor_contratacao_carga_bruto = df_aprovar_todas["valor_contratacao"].iloc[0] if "valor_contratacao" in df_aprovar_todas.columns and not df_aprovar_todas.empty else 0.0
+                        valor_adicional_frete_carga_bruto = df_aprovar_todas["valor_adicional_frete"].iloc[0] if "valor_adicional_frete" in df_aprovar_todas.columns and not df_aprovar_todas.empty else 0.0
+                        
+                        total_frete_base_bruto = df_aprovar_todas["Valor do Frete"].sum() if "Valor do Frete" in df_aprovar_todas.columns else 0.0
+                        total_frete_carga_bruto = total_frete_base_bruto + valor_adicional_frete_carga_bruto
+
+                        valor_contratacao_limpo = np.nan_to_num(pd.to_numeric(valor_contratacao_carga_bruto, errors='coerce'), nan=0.0, posinf=0.0, neginf=0.0)
+                        total_frete_limpo = np.nan_to_num(pd.to_numeric(total_frete_carga_bruto, errors='coerce'), nan=0.0, posinf=0.0, neginf=0.0)
+
                         getcontext().prec = 28 # Garante precisão para cálculos decimais
+                        d_valor_contratacao_carga = Decimal(str(valor_contratacao_limpo))
+                        d_total_frete_carga = Decimal(str(total_frete_limpo))
 
-                        # Agrupa por numero_carga para obter os valores únicos por carga
-                        cargas_agrupadas = df_aprovar_todas.groupby('numero_carga').agg(
-                            valor_contratacao=('valor_contratacao', 'first'), # Pega o valor da primeira entrega da carga (deve ser o mesmo para toda a carga)
-                            valor_adicional_frete=('valor_adicional_frete', 'first'),
-                            # SOMA o valor do frete base de TODAS as entregas para obter o frete total da carga
-                            total_frete_base=('Valor do Frete', 'sum'),
-                            regiao=('Regiao', lambda x: x.mode()[0] if not x.mode().empty else 'NÃO DEFINIDA') # Pega a região mais comum ou 'NÃO DEFINIDA'
-                        ).reset_index()
+                        rentabilidade_percentual_calc = Decimal('0')
+                        custo_percentual_frete_calc = Decimal('0')
+                        situacao_custo_regional_calc = "N/A"
 
-                        # Aplica os cálculos a cada carga
-                        def calcular_metricas_por_carga(row):
-                            val_contratacao = Decimal(str(row['valor_contratacao']))
-                            val_adicional = Decimal(str(row['valor_adicional_frete']))
-                            total_frete_base_calc = Decimal(str(row['total_frete_base'])) # Mudei o nome para evitar confusão
-                            regiao_carga = row['regiao']
+                        if not d_total_frete_carga.is_zero() and d_total_frete_carga.is_finite() and not d_total_frete_carga.is_nan() and \
+                           d_valor_contratacao_carga.is_finite() and not d_valor_contratacao_carga.is_nan():
                             
-                            total_frete_com_adicional = total_frete_base_calc + val_adicional
+                            rentabilidade_percentual_calc = ((d_total_frete_carga - d_valor_contratacao_carga) / d_total_frete_carga * Decimal('100')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
                             
-                            rentabilidade_percentual_calc_local = Decimal('0') # Mudei o nome para evitar confusão com o erro anterior
-                            custo_percentual_frete_calc_local = Decimal('0') # Mudei o nome
-                            situacao_custo_regional_calc_local = "N/A" # Mudei o nome
+                            dominant_region = 'NÃO DEFINIDA'
+                            if 'Regiao' in df_aprovar_todas.columns and not df_aprovar_todas['Regiao'].empty:
+                                regions_to_consider = df_aprovar_todas['Regiao'][df_aprovar_todas['Regiao'] != 'NÃO DEFINIDA']
+                                if not regions_to_consider.empty:
+                                    dominant_region = regions_to_consider.value_counts().idxmax()
+                                elif not df_aprovar_todas['Regiao'].empty:
+                                    dominant_region = df_aprovar_todas['Regiao'].iloc[0]
 
-                            if not total_frete_com_adicional.is_zero() and total_frete_com_adicional.is_finite() and not total_frete_com_adicional.is_nan() and \
-                               val_contratacao.is_finite() and not val_contratacao.is_nan():
-                                
-                                rentabilidade_percentual_calc_local = ((total_frete_com_adicional - val_contratacao) / total_frete_com_adicional * Decimal('100')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-                                
-                                max_cost_allowed_decimal = Decimal(str(MAX_COST_PER_REGION.get(regiao_carga, 0))) # Usa MAX_COST_PER_REGION definido no topo do arquivo
-                                custo_receita_ratio = (val_contratacao / total_frete_com_adicional).quantize(Decimal('0.0001'), rounding=ROUND_HALF_UP)
-                                
-                                custo_percentual_frete_calc_local = (custo_receita_ratio * Decimal('100')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+                            max_cost_allowed = Decimal(str(MAX_COST_PER_REGION.get(dominant_region, 0)))
+                            custo_receita_ratio = (d_valor_contratacao_carga / d_total_frete_carga).quantize(Decimal('0.0001'), rounding=ROUND_HALF_UP)
+                            
+                            custo_percentual_frete_calc = (custo_receita_ratio * Decimal('100')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
 
-                                if custo_receita_ratio <= max_cost_allowed_decimal:
-                                    situacao_custo_regional_calc_local = f"Dentro do Limite ({(max_cost_allowed_decimal * 100).quantize(Decimal('1'), rounding=ROUND_HALF_UP)}%)"
-                                else:
-                                    situacao_custo_regional_calc_local = f"Acima do Limite Região ({(max_cost_allowed_decimal * 100).quantize(Decimal('1'), rounding=ROUND_HALF_UP)}%)"
-                            elif val_contratacao > 0:
-                                situacao_custo_regional_calc_local = "Frete total zero, Contratação > 0"
+                            if custo_receita_ratio <= max_cost_allowed:
+                                situacao_custo_regional_calc = f"Dentro do Limite ({(max_cost_allowed * 100).quantize(Decimal('1'), rounding=ROUND_HALF_UP)}%)"
                             else:
-                                situacao_custo_regional_calc_local = "Frete total zero, Contratação zero"
-                            
-                            return pd.Series({
-                                'custo_percentual_frete': float(custo_percentual_frete_calc_local),
-                                'rentabilidade_percentual': float(rentabilidade_percentual_calc_local),
-                                'situacao_custo_regional': str(situacao_custo_regional_calc_local)
-                            })
+                                situacao_custo_regional_calc = f"Acima do Limite Região ({(max_cost_allowed * 100).quantize(Decimal('1'), rounding=ROUND_HALF_UP)}%)"
+                        elif valor_contratacao_limpo > 0:
+                            situacao_custo_regional_calc = "Frete total zero, Contratação > 0"
+                        else:
+                            situacao_custo_regional_calc = "Frete total zero, Contratação zero"
 
-                        # Aplica a função para calcular as métricas por carga
-                        metricas_cargas = cargas_agrupadas.apply(calcular_metricas_por_carga, axis=1)
-                        cargas_agrupadas = pd.concat([cargas_agrupadas, metricas_cargas], axis=1)
-
-                        # Merge os resultados de volta ao df_aprovar_todas
-                        df_aprovar_todas = pd.merge(
-                            df_aprovar_todas,
-                            cargas_agrupadas[['numero_carga', 'custo_percentual_frete', 'rentabilidade_percentual', 'situacao_custo_regional']],
-                            on='numero_carga',
-                            how='left',
-                            suffixes=('', '_calculated_all') # Opcional, mas mantém os sufixos se houver colunas com o mesmo nome
-                        )
+                        df_aprovar_todas["custo_percentual_frete"] = float(custo_percentual_frete_calc)
+                        df_aprovar_todas["rentabilidade_percentual"] = float(rentabilidade_percentual_calc)
+                        df_aprovar_todas["situacao_custo_regional"] = str(situacao_custo_regional_calc)
+                        # --- FIM DO NOVO BLOCO -
+                        df_aprovar_todas = _prepare_df_for_supabase_insert(df_aprovar_todas)
                         registros = df_aprovar_todas.to_dict(orient="records")
 
                         registros = [r for r in registros if r.get("Serie_Numero_CTRC")]
@@ -9122,60 +9064,91 @@ def pagina_aprovacao_custos():
             info_motivo_adicional = df_carga["motivo_valor_adicional"].iloc[0] if "motivo_valor_adicional" in df_carga.columns and not df_carga.empty and pd.notna(df_carga["motivo_valor_adicional"].iloc[0]) else ""
             
             # --- 2. Cálculos de Rentabilidade e Custo por Região (onde situacao_custo_regional é definida) ---
-            total_frete_carga = df_carga["Valor do Frete"].sum() # <-- Esta variável será usada nas chamadas à _aprovar_carga_custos
+            total_frete_carga = df_carga["Valor do Frete"].sum()
 
-            # --- ADAPTAÇÃO DA LÓGICA DE CORES PARA USAR OS VALORES `_db` ---
-            # EXTRAI OS VALORES JÁ CALCULADOS E SALVOS NO DB
-            custo_percentual_frete_db = df_carga["custo_percentual_frete"].iloc[0] if "custo_percentual_frete" in df_carga.columns and pd.notna(df_carga["custo_percentual_frete"].iloc[0]) else 0.0
-            rentabilidade_percentual_db = df_carga["rentabilidade_percentual"].iloc[0] if "rentabilidade_percentual" in df_carga.columns and pd.notna(df_carga["rentabilidade_percentual"].iloc[0]) else 0.0
-            situacao_custo_regional_db = df_carga["situacao_custo_regional"].iloc[0] if "situacao_custo_regional" in df_carga.columns and pd.notna(df_carga["situacao_custo_regional"].iloc[0]) else 'N/A'
-            
-            # As variáveis para os badges de custo e rentabilidade AGORA usam SOMENTE os valores do DB.
-            percentual_custo_texto = f"{custo_percentual_frete_db:.2f}%"
-
-            # Lógica para cor do badge de custo % (usando custo_percentual_frete_db)
-            cor_badge_custo = "#6c757d" # Default
-            cor_texto_custo = "white"
-            if custo_percentual_frete_db <= 35.0:
-                cor_badge_custo = "#28a745"  # Verde - dentro da meta (até 35%)
-                cor_texto_custo = "white"
-            elif custo_percentual_frete_db <= 45.0:
-                cor_badge_custo = "#ffc107"  # Amarelo - aceitável (35.1% a 45%)
-                cor_texto_custo = "black"
-            elif custo_percentual_frete_db <= 50.0:
-                cor_badge_custo = "#fd7e14"  # Laranja - próximo ao limite (45.1% a 50%)
-                cor_texto_custo = "white"
-            else:
-                cor_badge_custo = "#dc3545"  # Vermelho - acima da meta (acima de 50%)
-                cor_texto_custo = "white"
-            
-            # Lógica para cor do badge de situação do custo (usando situacao_custo_regional_db)
+            rentabilidade_percentual = 0.0
+            situacao_custo_regional = "N/A" # Inicialização segura para 'situacao_custo_regional'
             cor_situacao = "gray"
-            if "Dentro do Limite" in situacao_custo_regional_db:
-                cor_situacao = "#28a745"  # Verde
-            elif "Acima do Limite" in situacao_custo_regional_db:
-                cor_situacao = "#dc3545"  # Vermelho
-            elif "Frete total zero, Contratação > 0" in situacao_custo_regional_db:
-                cor_situacao = "#dc3545" # Vermelho (se for essa situação, também é crítico)
-            # Se a situação for "Frete total zero, Contratação zero" ou "N/A", mantém cinza
 
-            # Determinar a Rota dominante para passar para a função _aprovar_carga_custos
-            dominant_region = 'NÃO DEFINIDA' # <--- DEFINIÇÃO DE dominant_region
-            if 'Regiao' in df_carga.columns and not df_carga['Regiao'].empty:
-                regions_to_consider = df_carga['Regiao'][df_carga['Regiao'] != 'NÃO DEFINIDA']
-                if not regions_to_consider.empty:
-                    dominant_region = regions_to_consider.value_counts().idxmax()
-                elif not df_carga['Regiao'].empty:
-                    dominant_region = df_carga['Regiao'].iloc[0]
+            # Inicialização das variáveis do badge de custo
+            percentual_custo_texto = "N/A"
+            cor_badge_custo = "#6c757d"  # Cinza padrão
+            cor_texto_custo = "white"
 
+            getcontext().prec = 6 # Garante precisão para cálculos decimais
 
+            if total_frete_carga > 0:
+                try:
+                    custo = Decimal(str(valor_contratacao_carga_existente))
+                    frete = Decimal(str(total_frete_carga))
+                    custo_receita_ratio = (custo / frete).quantize(Decimal('0.0001'), rounding=ROUND_HALF_UP)
 
+                    dominant_region = 'NÃO DEFINIDA'
+                    if 'Regiao' in df_carga.columns and not df_carga['Regiao'].empty:
+                        regions_to_consider = df_carga['Regiao'][df_carga['Regiao'] != 'NÃO DEFINIDA']
+                        if not regions_to_consider.empty:
+                            dominant_region = regions_to_consider.value_counts().idxmax()
+                        elif not df_carga['Regiao'].empty:
+                            dominant_region = df_carga['Regiao'].iloc[0]
 
+                    max_cost_allowed = Decimal(str(MAX_COST_PER_REGION.get(dominant_region, 0)))
 
+                    if custo_receita_ratio <= max_cost_allowed:
+                        situacao_custo_regional = f"Dentro do Limite ({(max_cost_allowed * 100):.0f}%)"
+                        cor_situacao = "#28a745"  # Verde
+                    else:
+                        situacao_custo_regional = f"Acima do Limite Região ({(max_cost_allowed * 100):.0f}%)"
+                        cor_situacao = "#dc3545"  # Vermelho
 
+                    rentabilidade_percentual = ((frete - custo) / frete * 100).quantize(Decimal('0.01'))
+
+                    # --- CÁLCULO DO PERCENTUAL DE CUSTO PARA BADGE ---
+                    percentual_custo = float((custo / frete * 100).quantize(Decimal('0.1')))
+                    percentual_custo_texto = f"{percentual_custo:.1f}%"
+                    
+                    # Determinar a cor do badge baseado nos limites fixos
+                    if percentual_custo <= 35.0:
+                        cor_badge_custo = "#28a745"  # Verde - dentro da meta (até 35%)
+                        cor_texto_custo = "white"
+                    elif percentual_custo <= 45.0:
+                        cor_badge_custo = "#ffc107"  # Amarelo - aceitável (35.1% a 45%)
+                        cor_texto_custo = "black"
+                    elif percentual_custo <= 50.0:
+                        cor_badge_custo = "#fd7e14"  # Laranja - próximo ao limite (45.1% a 50%)
+                        cor_texto_custo = "white"
+                    else:
+                        cor_badge_custo = "#dc3545"  # Vermelho - acima da meta (acima de 50%)
+                        cor_texto_custo = "white"
+
+                except Exception as e:
+                    situacao_custo_regional = f"Erro no cálculo: {e}"
+                    cor_situacao = "gray"
+                    rentabilidade_percentual = 0.0
+                    # Tratamento para caso de erro no cálculo do badge
+                    percentual_custo_texto = "Erro no cálculo"
+                    cor_badge_custo = "#6c757d"
+                    cor_texto_custo = "white"
+
+            else:
+                rentabilidade_percentual = 0.0
+                if valor_contratacao_carga_existente > 0:
+                    situacao_custo_regional = "Frete total zero, Contratação > 0"
+                    cor_situacao = "#dc3545"
+                    # Tratamento para frete zero com contratação
+                    percentual_custo_texto = "Frete R$ 0"
+                    cor_badge_custo = "#6c757d"
+                    cor_texto_custo = "white"
+                else:
+                    situacao_custo_regional = "Frete total zero, Contratação zero"
+                    cor_situacao = "gray"
+                    # Tratamento para ambos zero
+                    percentual_custo_texto = "Sem dados"
+                    cor_badge_custo = "#6c757d"
+                    cor_texto_custo = "white"
+
+            # --- 3. Inicialização de Variáveis de Estado da Justificativa (AGORA DEPOIS QUE situacao_custo_regional É GARANTIDA) ---
             justificativa_necessaria = False
-            # AGORA USA situacao_custo_regional_db que vem do DataFrame
-            if "Acima do Limite Região" in situacao_custo_regional_db or "Contratacao > 0" in situacao_custo_regional_db:
+            if "Acima do Limite Região" in situacao_custo_regional or "Contratacao > 0" in situacao_custo_regional:
                 justificativa_necessaria = True
             
             # VARIÁVEIS DE SESSÃO PARA JUSTIFICATIVA DE REJEIÇÃO
@@ -9195,8 +9168,6 @@ def pagina_aprovacao_custos():
                 st.session_state[just_key_session_aprov] = ""
             if confirm_justify_key_session_aprov not in st.session_state:
                 st.session_state[confirm_justify_key_session_aprov] = False
-
-
 
             # --- 4. Exibição de Informações da Carga (Badges) ---
             rota_dominante = "–"
@@ -9227,10 +9198,9 @@ def pagina_aprovacao_custos():
                 all_badges_html_list.append(badge(f'Placa: {placa_veiculo}', background_color='#333333', text_color='white'))
                 all_badges_html_list.append(badge(f'Veículo: {veiculo}', background_color='#333333', text_color='white'))
                 all_badges_html_list.append(badge(f'Gerada em: {formatar_data_hora_br(info_data_hora_gerada)}', background_color='#333333', text_color='white'))
-
                 all_badges_html_list.append(badge(f'Custo: {percentual_custo_texto}', background_color=cor_badge_custo, text_color=cor_texto_custo)) # Existing
-                all_badges_html_list.append(badge(f'Rentabilidade: {rentabilidade_percentual_db:.2f}%', background_color='#333333', text_color='white')) # <--- AGORA USA rentabilidade_percentual_db
-                all_badges_html_list.append(badge(f'Situação Custo: {situacao_custo_regional_db}', background_color='#333333', text_color='white')) # <--- AGORA USA situacao_custo_regional_db
+                all_badges_html_list.append(badge(f'Rentabilidade: {float(rentabilidade_percentual_calc):.2f}%', background_color='#333333', text_color='white')) # <--- NOVO
+                all_badges_html_list.append(badge(f'Situação Custo: {situacao_custo_regional_calc}', background_color='#333333', text_color='white')) # <--- NOVO
 
 
                 if info_valor_adicional_raw > 0:
@@ -9434,7 +9404,7 @@ def pagina_aprovacao_custos():
                                     df_carga, # Passa o DataFrame original da carga
                                     carga, 
                                     justificativa_necessaria_param=False, # Não se exige justificativa para esta ação
-                                    selected_justification_text=None, # Nenhuma justificativa específica
+                                    selected_justification_text=None, # <<< ADICIONADO: Nenhuma justificativa específica
                                     new_observacao_aprovacao="", 
                                     just_key_session_aprov_var=just_key_session_aprov, 
                                     confirm_justify_key_session_aprov_var=confirm_justify_key_session_aprov,
@@ -9444,13 +9414,11 @@ def pagina_aprovacao_custos():
                                     # --- NOVOS ARGUMENTOS PARA _aprovar_carga_custos ---
                                     info_valor_contratacao_raw=valor_contratacao_carga_existente,
                                     info_valor_adicional_raw=info_valor_adicional_raw,
-                                    
-                                    total_frete_base_carga=total_frete_carga, # <--- Corrigido para a variável que contém a soma do frete
+                                    total_frete_base_carga=total_frete_base_carga,
                                     dominant_region=dominant_region,
-                                    MAX_COST_PER_REGION_DICT=MAX_COST_PER_REGION
+                                    MAX_COST_PER_REGION_DICT=MAX_COST_PER_REGION # Usar o dicionário global
                                     # --- FIM NOVOS ARGUMENTOS ---
                                 )
-                                
                                 # A função _aprovar_carga_custos já contém o st.rerun()
                         except Exception as e:
                             st.error(f"❌ Erro ao aprovar carga: {e}")
@@ -9502,7 +9470,7 @@ def pagina_aprovacao_custos():
                         value=st.session_state[observacao_aprovacao_key],
                         key=f"observacao_aprovacao_textinput_aprov_{carga}", # Chave atualizada para text_input
                         label_visibility="collapsed",
-                        placeholder="Observação"
+                        placeholder="..."
                     )
                     st.session_state[observacao_aprovacao_key] = current_observacao_aprovacao # Atualiza o session_state
                     # <<<< FIM NOVO CAMPO >>>>
@@ -9510,7 +9478,7 @@ def pagina_aprovacao_custos():
                     col_justify_actions_aprov = st.columns(2)
                     with col_justify_actions_aprov[0]:
                         if st.button(
-                            "Confirmar",
+                            "Confirmar Justificativa",
                             key=f"confirmar_justificativa_aprov_{carga}",
                             disabled=(justification_to_save_raw is None) # Desabilita se nenhuma justificativa válida for selecionada
                         ):
@@ -9531,15 +9499,16 @@ def pagina_aprovacao_custos():
                                         # --- NOVOS ARGUMENTOS PARA _aprovar_carga_custos (aqui também) ---
                                         info_valor_contratacao_raw=valor_contratacao_carga_existente,
                                         info_valor_adicional_raw=info_valor_adicional_raw,
-                                        total_frete_base_carga=total_frete_carga, # <--- Corrigido para a variável que contém a soma do frete
+                                        total_frete_base_carga=total_frete_base_carga,
                                         dominant_region=dominant_region,
-                                        MAX_COST_PER_REGION_DICT=MAX_COST_PER_REGION
+                                        MAX_COST_PER_REGION_DICT=MAX_COST_PER_REGION # Usar o dicionário global
+                                        # --- FIM NOVOS ARGUMENTOS ---
                                     )
                             except Exception as e:
                                 st.error(f"❌ Erro ao aprovar carga com justificativa: {e}")
 
                     with col_justify_actions_aprov[1]:
-                        if st.button("Cancelar", key=f"cancelar_justificativa_aprov_{carga}"):
+                        if st.button("Cancelar Aprovação", key=f"cancelar_justificativa_aprov_{carga}"):
                             st.session_state[confirm_justify_key_session_aprov] = False
                             st.session_state[just_key_session_aprov] = default_option_placeholder
                             st.session_state[observacao_aprovacao_key] = "" # Limpa a observação também
@@ -9885,8 +9854,7 @@ def pagina_cargas_aprovadas():
             data_aprovacao_custos = df_carga["data_aprovacao_custos"].iloc[0] if "data_aprovacao_custos" in df_carga.columns and not df_carga["data_aprovacao_custos"].isnull().all() else None
             justificativa_aprovacao = df_carga["justificativa_aprovacao_custo"].iloc[0] if "justificativa_aprovacao_custo" in df_carga.columns and not df_carga["justificativa_aprovacao_custo"].isnull().all() else ''
             info_data_hora_gerada = df_carga["Data_Hora_Gerada"].iloc[0] if "Data_Hora_Gerada" in df_carga.columns and not df_carga.empty else None
-            info_valor_adicional_raw = df_carga["valor_adicional_frete"].iloc[0] if "valor_adicional_frete" in df_carga.columns and not df_carga.empty and pd.notna(df_carga["valor_adicional_frete"].iloc[0]) else 0.0
-            info_motivo_adicional = df_carga["motivo_valor_adicional"].iloc[0] if "motivo_valor_adicional" in df_carga.columns and not df_carga.empty and pd.notna(df_carga["motivo_valor_adicional"].iloc[0]) else ""
+
 
             custo_percentual_frete_db = df_carga["custo_percentual_frete"].iloc[0] if "custo_percentual_frete" in df_carga.columns and pd.notna(df_carga["custo_percentual_frete"].iloc[0]) else 0.0
             rentabilidade_percentual_db = df_carga["rentabilidade_percentual"].iloc[0] if "rentabilidade_percentual" in df_carga.columns and pd.notna(df_carga["rentabilidade_percentual"].iloc[0]) else 0.0
@@ -9952,23 +9920,15 @@ def pagina_cargas_aprovadas():
                 all_badges_html_list.append(badge(f'Gerada em: {formatar_data_hora_br(info_data_hora_gerada)}', background_color='#333333', text_color='white'))
                 
                 # --- AQUI ESTÃO OS BADGES USANDO OS VALORES DO DB ---
-                all_badges_html_list.append(badge(f'Custo: {percentual_custo_texto}', background_color=cor_badge_custo, text_color=cor_texto_custo)) # Existing
-                all_badges_html_list.append(badge(f'Rentabilidade: {rentabilidade_percentual_db:.2f}%', background_color='#333333', text_color='white')) # <--- AGORA USA rentabilidade_percentual_db
-                all_badges_html_list.append(badge(f'Situação Custo: {situacao_custo_regional_db}', background_color='#333333', text_color='white')) # <--- AGORA USA situacao_custo_regional_db
-
+                all_badges_html_list.append(badge(f'Custo: {percentual_custo_texto}', background_color=cor_badge_custo, text_color=cor_texto_custo))
+                all_badges_html_list.append(badge(f'Rentabilidade: {rentabilidade_percentual_db:.2f}%', background_color='#333333', text_color='white')) # Use _db aqui
+                all_badges_html_list.append(badge(f'Situação Custo: {situacao_custo_regional_db}', background_color=cor_situacao, text_color='white')) # Use _db aqui
                 all_badges_html_list.append(badge(f'Aprovado por: {aprovador_custos_login}', background_color='#333333', text_color='white'))
                 if pd.notna(data_aprovacao_custos):
                     all_badges_html_list.append(badge(f'Em: {formatar_data_hora_br(data_aprovacao_custos)}', background_color='#333333', text_color='white'))
 
-
                 if justificativa_aprovacao:
                     all_badges_html_list.append(badge(f'Justificativa: {justificativa_aprovacao}', background_color='#aed6f1', text_color='#333'))
-                
-                if info_valor_adicional_raw > 0:
-                    all_badges_html_list.append(badge(f'Adicional Frete: R$ {formatar_brasileiro(info_valor_adicional_raw)}', background_color='#d67b00', text_color='white'))
-                
-                if info_motivo_adicional:
-                    all_badges_html_list.append(badge(f'Motivo Adicional: {info_motivo_adicional}', background_color='#d67b00', text_color='white'))
 
                 # Novos cálculos por carga
                 entregas_agendar_sem_programacao_carga = df_carga[
@@ -10286,23 +10246,28 @@ def pagina_estatisticas():
         st.session_state.df_stats = pd.DataFrame()
     if 'mes_selecionado_stats' not in st.session_state:
         st.session_state.mes_selecionado_stats = "Todos os Meses"
-    if 'df_filtrado_stats' not in st.session_state: # df_filtrado_stats agora será filtrado apenas por mês
+    if 'regiao_selecionada_stats' not in st.session_state:
+        st.session_state.regiao_selecionada_stats = "Todas as Regiões" # <--- CORREÇÃO AQUI
+    if 'df_filtrado_stats' not in st.session_state:
         st.session_state.df_filtrado_stats = pd.DataFrame()
 
     try:
         with st.spinner("🔄 Carregando dados para análise estatística..."):
+            
             dados_cargas_fechadas = supabase.table("cargas_fechadas").select("*").execute().data
             df_cargas_fechadas = pd.DataFrame(dados_cargas_fechadas) if dados_cargas_fechadas else pd.DataFrame()
+
+
+            df_combined = df_cargas_fechadas
             
-            # Chama a função de preparação inicial que adiciona 'mes_ano', 'dentro_target', 'categoria_justificativa'
-            st.session_state.df_stats = preparar_dados_estatisticas(df_cargas_fechadas)
-            
-            if st.session_state.df_stats.empty:
+            if df_combined.empty:
                 st.info("ℹ️ Não há dados suficientes para gerar estatísticas. Execute algumas operações no sistema primeiro.")
                 st.session_state.df_stats = pd.DataFrame()
                 st.session_state.df_filtrado_stats = pd.DataFrame()
                 return # <-- IMPEDE A EXECUÇÃO ADIANTE SE NÃO HÁ DADOS
                 
+            st.session_state.df_stats = preparar_dados_estatisticas(df_combined)
+            
     except Exception as e:
         st.error(f"❌ Erro ao carregar dados para estatísticas: {e}")
         st.exception(e)
@@ -10310,398 +10275,141 @@ def pagina_estatisticas():
         st.session_state.df_filtrado_stats = pd.DataFrame()
         return # <-- RETORNA EM CASO DE ERRO
     
-    # --- FILTRO DE MÊS CENTRALIZADO ---
-    col_filtros1, col_filtros2 = st.columns([1, 3]) # Mês à esquerda, espaço à direita
-
+    # Filtros de período
+    col_filtros1, col_filtros2, col_filtros3 = st.columns([1, 1, 2])
+    
     with col_filtros1:
+        # Filtro de mês
         meses_disponiveis = sorted(st.session_state.df_stats['mes_ano'].dropna().unique(), reverse=True) if 'mes_ano' in st.session_state.df_stats.columns else []
         st.session_state.mes_selecionado_stats = st.selectbox(
-            "   Selecionar Mês/Ano:",
+            "📅 Selecionar Mês/Ano:",
             options=["Todos os Meses"] + meses_disponiveis,
             key="filtro_mes_stats"
         )
     
-    # Aplica o filtro de mês e armazena o resultado no session_state
+    with col_filtros2:
+        # Filtro de região
+        regioes_disponiveis = sorted(st.session_state.df_stats['Regiao'].dropna().unique()) if 'Regiao' in st.session_state.df_stats.columns else []
+        st.session_state.regiao_selecionada_stats = st.selectbox(
+            "🗺️ Selecionar Região:",
+            options=["Todas as Regiões"] + regioes_disponiveis, # <--- CORREÇÃO AQUI: Garante que o texto seja "Todas as Regiões"
+            key="filtro_regiao_stats"
+        ) 
+    with col_filtros3:
+        st.markdown("### 🎯 Targets de Custo por Região")
+        col_target1, col_target2, col_target3 = st.columns(3)
+        with col_target1:
+            st.metric("INTERIOR 1", f"{int(MAX_COST_PER_REGION.get('INTERIOR 1', 0)*100)}%", delta=None)
+        with col_target2:
+            st.metric("INTERIOR 2", f"{int(MAX_COST_PER_REGION.get('INTERIOR 2', 0)*100)}%", delta=None)
+        with col_target3:
+            st.metric("POA CAPITAL", f"{int(MAX_COST_PER_REGION.get('POA CAPITAL', 0)*100)}%", delta=None)
+    
+    # Aplica os filtros e armazena o resultado no session_state
     st.session_state.df_filtrado_stats = aplicar_filtros_estatisticas(
         st.session_state.df_stats,
-        st.session_state.mes_selecionado_stats
+        st.session_state.mes_selecionado_stats,
+        st.session_state.regiao_selecionada_stats
     )
     
     if st.session_state.df_filtrado_stats.empty:
-        st.warning("⚠️ Nenhum dado encontrado com os filtros aplicados. Ajuste o filtro ou verifique se há dados para o período.")
+        st.warning("⚠️ Nenhum dado encontrado com os filtros aplicados. Ajuste os filtros ou verifique se há dados para o período/região.")
         return # <-- IMPEDE A RENDERIZAÇÃO DA PÁGINA SE NÃO HÁ DADOS FILTRADOS
     
-    st.markdown("---") # Separador visual
-
-    # --- LAYOUT COM DUAS ABAS ---
-    tab1, tab2 = st.tabs([ 
-        "📋 Resumo Detalhado por Rota", # Aba 1
-        "📈 Análise Mensal de Desempenho"  # Aba 2
+    st.markdown("---")
+    
+    # Layout principal com abas
+    tab1, tab2, tab3, tab4, tab5 = st.tabs([ # ADICIONADA tab5
+        "📊 Visão Geral", 
+        "🎯 Análise de Custos", 
+        "📈 Evolução Temporal", 
+        "🔍 Detalhamento por Rota",
+        "📋 Resumo" # NOVA ABA
     ])
     
     with tab1:
-        st.markdown("## Resumo Detalhado por Rota")
-        st.markdown(
-            """
-            <small><i>Esta seção apresenta a representatividade percentual das justificativas em relação ao total de cargas e entregas, 
-            detalhada para cada rota.</i></small>
-            """, 
-            unsafe_allow_html=True
-        )
-
-        # Prepara o DataFrame agrupado que será a base para as tabelas por rota
-        df_detalhado_por_rota_justificativa = preparar_grid_detalhamento(st.session_state.df_filtrado_stats)
-
-        if df_detalhado_por_rota_justificativa.empty:
-            st.info('Nenhum dado detalhado por Rota e Justificativa encontrado para exibição com os filtros aplicados.')
-        else:
-            unique_rotas = df_detalhado_por_rota_justificativa['Rota'].unique()
-            
-            for rota in sorted(unique_rotas):
-                df_rota_especifica = df_detalhado_por_rota_justificativa[df_detalhado_por_rota_justificativa['Rota'] == rota].copy()
-                
-                # Calcula totais para a rota específica
-                total_cargas_na_rota = df_rota_especifica['Qtd de Cargas'].sum()
-                total_entregas_na_rota = df_rota_especifica['Qtd de Entregas'].sum()
-
-                st.markdown(f"#### Rota: {rota}")
-
-                # --- Tabela Por Cargas para a Rota ---
-                st.markdown(textwrap.dedent(f"""\
-                    ### 📦 Por Cargas (total = {total_cargas_na_rota})"""), unsafe_allow_html=True)
-                st.markdown(textwrap.dedent("""\
-                    Fórmula: `% Cargas = (Cargas_Categoria / Total_Cargas_na_Rota) * 100`\
-                    """), unsafe_allow_html=True)
-                
-                cargas_table_rows_buffer = io.StringIO()
-                for _, row in df_rota_especifica.iterrows():
-                    perc_cargas = (row['Qtd de Cargas'] / total_cargas_na_rota * 100) if total_cargas_na_rota > 0 else 0
-                    cargas_table_rows_buffer.write(textwrap.dedent(f"""\
-                        <tr>
-                          <td>{row['Justificativas']}</td>
-                          <td>{int(row['Qtd de Cargas'])}</td>
-                          <td>{f"{perc_cargas:.2f}".replace('.', ',')}%</td>
-                        </tr>\
-                    """))
-                # Linha Total para Cargas da Rota
-                cargas_table_rows_buffer.write(textwrap.dedent(f"""\
-                    <tr>
-                      <td><b>Total</b></td>
-                      <td><b>{int(total_cargas_na_rota)}</b></td>
-                      <td><b>100,00%</b></td>
-                    </tr>\
-                """))
-                cargas_table_rows = cargas_table_rows_buffer.getvalue()
-
-                # --- CORREÇÃO AQUI para `cargas_table_full_html` ---
-                cargas_table_full_html = textwrap.dedent(f"""\
-                    <table class="data-table">
-                      <thead>
-                        <tr>
-                          <th scope="col">Justificativa</th>
-                          <th scope="col">Cargas</th>
-                          <th scope="col">% sobre total de cargas</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-    {cargas_table_rows}
-                      </tbody>
-                    </table>\
-                """)
-                st.markdown(cargas_table_full_html, unsafe_allow_html=True)
-                # --- FIM DA CORREÇÃO ---
-
-                # --- Tabela Por Entregas para a Rota ---
-                st.markdown(textwrap.dedent(f"""\
-                    ### 🚚 Por Entregas (total = {total_entregas_na_rota})"""), unsafe_allow_html=True)
-                st.markdown(textwrap.dedent("""\
-                    Fórmula: `% Entregas = (Entregas_Categoria / Total_Entregas_na_Rota) * 100`\
-                    """), unsafe_allow_html=True)
-                
-                entregas_table_rows_buffer = io.StringIO()
-                for _, row in df_rota_especifica.iterrows():
-                    perc_entregas = (row['Qtd de Entregas'] / total_entregas_na_rota * 100) if total_entregas_na_rota > 0 else 0
-                    entregas_table_rows_buffer.write(textwrap.dedent(f"""\
-                        <tr>
-                          <td>{row['Justificativas']}</td>
-                          <td>{int(row['Qtd de Entregas'])}</td>
-                          <td>{f"{perc_entregas:.2f}".replace('.', ',')}%</td>
-                        </tr>\
-                    """))
-                # Linha Total para Entregas da Rota
-                entregas_table_rows_buffer.write(textwrap.dedent(f"""\
-                    <tr>
-                      <td><b>Total</b></td>
-                      <td><b>{int(total_entregas_na_rota)}</b></td>
-                      <td><b>100,00%</b></td>
-                    </tr>\
-                """))
-                entregas_table_rows = entregas_table_rows_buffer.getvalue()
-
-                # --- CORREÇÃO AQUI para `entregas_table_full_html` ---
-                entregas_table_full_html = textwrap.dedent(f"""\
-                    <table class="data-table">
-                      <thead>
-                        <tr>
-                          <th scope="col">Justificativa</th>
-                          <th scope="col">Entregas</th>
-                          <th scope="col">% sobre total de entregas</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-    {entregas_table_rows}
-                      </tbody>
-                    </table>\
-                """)
-                st.markdown(entregas_table_full_html, unsafe_allow_html=True)
-                # --- FIM DA CORREÇÃO ---
-
-                # --- Resumo Textual para a Rota ---
-                if not df_rota_especifica.empty:
-                    # Para cargas
-                    cargas_por_just_this_rota_calc = df_rota_especifica[['Justificativas', 'Qtd de Cargas', '% Custo Justificativa na Rota']].copy()
-                    cargas_por_just_this_rota_calc['% sobre total de cargas'] = (cargas_por_just_this_rota_calc['Qtd de Cargas'] / total_cargas_na_rota * 100) if total_cargas_na_rota > 0 else 0
-                    cargas_por_just_this_rota_calc['% sobre total de cargas'] = cargas_por_just_this_rota_calc['% sobre total de cargas'].fillna(0).round(2)
-                    
-                    max_cargas_just_rota = None
-                    if not cargas_por_just_this_rota_calc.empty and '% sobre total de cargas' in cargas_por_just_this_rota_calc.columns and not cargas_por_just_this_rota_calc['% sobre total de cargas'].empty:
-                        max_cargas_just_rota = cargas_por_just_this_rota_calc.loc[cargas_por_just_this_rota_calc['% sobre total de cargas'].idxmax()]
-                    
-                    # Para entregas
-                    entregas_por_just_this_rota_calc = df_rota_especifica[['Justificativas', 'Qtd de Entregas', '% Custo Justificativa na Rota']].copy()
-                    entregas_por_just_this_rota_calc['% sobre total de entregas'] = (entregas_por_just_this_rota_calc['Qtd de Entregas'] / total_entregas_na_rota * 100) if total_entregas_na_rota > 0 else 0
-                    entregas_por_just_this_rota_calc['% sobre total de entregas'] = entregas_por_just_this_rota_calc['% sobre total de entregas'].fillna(0).round(2)
-                    
-                    max_entregas_just_rota = None
-                    if not entregas_por_just_this_rota_calc.empty and '% sobre total de entregas' in entregas_por_just_this_rota_calc.columns and not entregas_por_just_this_rota_calc['% sobre total de entregas'].empty:
-                        max_entregas_just_rota = entregas_por_just_this_rota_calc.loc[entregas_por_just_this_rota_calc['% sobre total de entregas'].idxmax()]
-
-                    if max_cargas_just_rota is not None and max_entregas_just_rota is not None:
-                        st.markdown(textwrap.dedent(f"""\
-                            Analisando os resultados para a Rota **{rota}** no período selecionado ({st.session_state.mes_selecionado_stats if st.session_state.mes_selecionado_stats != 'Todos os Meses' else 'Todos os Meses'}):
-                            *   **Representatividade por Cargas:** A categoria com maior representatividade é "**{max_cargas_just_rota['Justificativas']}**", totalizando **{f"{max_cargas_just_rota['% sobre total de cargas']:.2f}".replace('.', ',')}%** das cargas nesta rota.
-                            *   **Representatividade por Entregas:** Similarmente, a categoria que mais se destaca nas entregas é "**{max_entregas_just_rota['Justificativas']}**", correspondendo a **{f"{max_entregas_just_rota['% sobre total de entregas']:.2f}".replace('.', ',')}%** do total de entregas nesta rota.\
-                            """), unsafe_allow_html=True)
-                    else:
-                        st.info(f"Não foi possível determinar a representatividade máxima para a Rota: {rota} (dados vazios ou incompletos para Justificativas).")
-                else:
-                    st.info(f"Nenhum dado detalhado para a Rota: {rota}")
-
-                st.markdown(textwrap.dedent("""\
-                    <hr style="border: 2px solid #2196F3; margin: 20px 0;">\
-                    """), unsafe_allow_html=True)
-        
-        with tab2:
-            st.markdown("### Análise Mensal de Desempenho")
-            st.markdown(
-                """
-                <small><i>Esta aba apresenta um resumo consolidado do desempenho do mês selecionado, 
-                incluindo o total de cargas e a performance em relação ao target de custo, 
-                além de uma distribuição detalhada por justificativa.</i></small>
-                """, 
-                unsafe_allow_html=True
-            )
-
-            df_loads_unique_filtered = st.session_state.df_filtrado_stats.groupby('numero_carga').agg(
-                Regiao=('Regiao', 'first'),
-                categoria_justificativa=('categoria_justificativa', 'first'),
-                custo_percentual_frete=('custo_percentual_frete', 'first'),
-                dentro_target=('dentro_target', 'first'),
-                Rota=('Rota', 'first') # Adiciona Rota para contagem de rotas únicas
-            ).reset_index()
-
-            # --- NOVA SEÇÃO: REPRESENTATIVIDADE PERCENTUAL POR CATEGORIA (GLOBAL) ---
-            st.markdown("## Representatividade Percentual por Categoria (Visão Geral)")
-
-            if not st.session_state.df_filtrado_stats.empty:
-                # Obter os totais de cargas e entregas do período filtrado
-                total_cargas = df_loads_unique_filtered['numero_carga'].nunique()
-                total_entregas = st.session_state.df_filtrado_stats['Serie_Numero_CTRC'].count()
-
-                # Calcular cargas por justificativa
-                cargas_por_just = df_loads_unique_filtered.groupby('categoria_justificativa')['numero_carga'].nunique().reset_index(name='Cargas')
-                cargas_por_just['% sobre total de cargas'] = (cargas_por_just['Cargas'] / total_cargas * 100) if total_cargas > 0 else 0
-                cargas_por_just['% sobre total de cargas'] = cargas_por_just['% sobre total de cargas'].fillna(0).round(2)
-                cargas_por_just = cargas_por_just.sort_values(by='% sobre total de cargas', ascending=False).reset_index(drop=True)
-
-                # Calcular entregas por justificativa
-                entregas_por_just = st.session_state.df_filtrado_stats.groupby('categoria_justificativa')['Serie_Numero_CTRC'].count().reset_index(name='Entregas')
-                entregas_por_just['% sobre total de entregas'] = (entregas_por_just['Entregas'] / total_entregas * 100) if total_entregas > 0 else 0
-                entregas_por_just['% sobre total de entregas'] = entregas_por_just['% sobre total de entregas'].fillna(0).round(2)
-                entregas_por_just = entregas_por_just.sort_values(by='% sobre total de entregas', ascending=False).reset_index(drop=True)
-
-                # --- Tabela de Cargas ---
-                st.markdown("---")
-                st.markdown(textwrap.dedent(f"""\
-                    ### 📦 Por Cargas (total = {total_cargas})"""), unsafe_allow_html=True)
-                st.markdown(textwrap.dedent("""\
-                    Fórmula: `% Cargas = (Cargas_Categoria / Total_Cargas) * 100`\
-                    """), unsafe_allow_html=True)
-                
-                cargas_table_rows_buffer = io.StringIO()
-                for _, row in cargas_por_just.iterrows():
-                    cargas_table_rows_buffer.write(textwrap.dedent(f"""\
-                        <tr>
-                          <td>{row['categoria_justificativa']}</td>
-                          <td>{int(row['Cargas'])}</td>
-                          <td>{f"{row['% sobre total de cargas']:.2f}".replace('.', ',')}%</td>
-                        </tr>\
-                    """))
-                cargas_table_rows_buffer.write(textwrap.dedent(f"""\
-                    <tr>
-                      <td><b>Total</b></td>
-                      <td><b>{int(total_cargas)}</b></td>
-                      <td><b>100,00%</b></td>
-                    </tr>\
-                """))
-                cargas_table_rows = cargas_table_rows_buffer.getvalue()
-
-                # --- CORREÇÃO AQUI para `cargas_table_full_html_tab2` ---
-                cargas_table_full_html_tab2 = textwrap.dedent(f"""\
-                    <table class="data-table">
-                      <thead>
-                        <tr>
-                          <th scope="col">Justificativa</th>
-                          <th scope="col">Cargas</th>
-                          <th scope="col">% sobre total de cargas</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-    {cargas_table_rows}
-                      </tbody>
-                    </table>\
-                """)
-                st.markdown(cargas_table_full_html_tab2, unsafe_allow_html=True)
-                # --- FIM DA CORREÇÃO ---
-
-                # --- Tabela de Entregas ---
-                st.markdown("---")
-                st.markdown(textwrap.dedent(f"""\
-                    ### 🚚 Por Entregas (total = {total_entregas})"""), unsafe_allow_html=True)
-                st.markdown(textwrap.dedent("""\
-                    Fórmula: `% Entregas = (Entregas_Categoria / Total_Entregas) * 100`\
-                    """), unsafe_allow_html=True)
-                
-                entregas_table_rows_buffer = io.StringIO()
-                for _, row in entregas_por_just.iterrows():
-                    perc_entregas = (row['Entregas'] / total_entregas * 100) if total_entregas > 0 else 0
-                    entregas_table_rows_buffer.write(textwrap.dedent(f"""\
-                        <tr>
-                          <td>{row['categoria_justificativa']}</td>
-                          <td>{int(row['Entregas'])}</td>
-                          <td>{f"{perc_entregas:.2f}".replace('.', ',')}%</td>
-                        </tr>\
-                    """))
-                entregas_table_rows_buffer.write(textwrap.dedent(f"""\
-                    <tr>
-                      <td><b>Total</b></td>
-                      <td><b>{int(total_entregas)}</b></td>
-                      <td><b>100,00%</b></td>
-                    </tr>\
-                """))
-                entregas_table_rows = entregas_table_rows_buffer.getvalue()
-
-                # --- CORREÇÃO AQUI para `entregas_table_full_html_tab2` ---
-                entregas_table_full_html_tab2 = textwrap.dedent(f"""\
-                    <table class="data-table">
-                      <thead>
-                        <tr>
-                          <th scope="col">Justificativa</th>
-                          <th scope="col">Entregas</th>
-                          <th scope="col">% sobre total de entregas</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-    {entregas_table_rows}
-                      </tbody>
-                    </table>\
-                """)
-                st.markdown(entregas_table_full_html_tab2, unsafe_allow_html=True)
-                # --- FIM DA CORREÇÃO ---
-
-                st.markdown("---")
-
-                # --- Resumo Textual (Global) ---
-                st.markdown("### Resumo Textual", unsafe_allow_html=True)
-                if not cargas_por_just.empty and not entregas_por_just.empty:
-                    max_cargas_just = None
-                    if not cargas_por_just.empty and '% sobre total de cargas' in cargas_por_just.columns and not cargas_por_just['% sobre total de cargas'].empty:
-                        max_cargas_just = cargas_por_just.loc[cargas_por_just['% sobre total de cargas'].idxmax()]
-                    max_entregas_just = None
-                    if not entregas_por_just.empty and '% sobre total de entregas' in entregas_por_just.columns and not entregas_por_just['% sobre total de entregas'].empty:
-                        max_entregas_just = entregas_por_just.loc[entregas_por_just['% sobre total de entregas'].idxmax()]
-
-                    if max_cargas_just is not None and max_entregas_just is not None:
-                        st.markdown(textwrap.dedent(f"""\
-                            Analisando os resultados para o período selecionado ({st.session_state.mes_selecionado_stats if st.session_state.mes_selecionado_stats != 'Todos os Meses' else 'Todos os Meses'}):
-
-                            *   **Representatividade por Cargas:** A categoria com maior representatividade é "**{max_cargas_just['categoria_justificativa']}**", totalizando **{f"{max_cargas_just['% sobre total de cargas']:.2f}".replace('.', ',')}%** das cargas.
-                            *   **Representatividade por Entregas:** Similarmente, a categoria que mais se destaca nas entregas é "**{max_entregas_just['categoria_justificativa']}**", correspondendo a **{f"{max_entregas_just['% sobre total de entregas']:.2f}".replace('.', ',')}%** do total de entregas.
-
-                            Isso indica que a vasta maioria das cargas e entregas se enquadram na justificativa de "{max_cargas_just['categoria_justificativa']}", enquanto outras justificativas contribuem com percentuais menores.\
-                            """), unsafe_allow_html=True)
-                    else:
-                        st.info("Não foi possível determinar a representatividade máxima para o resumo textual (dados vazios ou incompletos para Justificativas).")
-                else:
-                    st.info("Nenhum dado para resumo textual.")
-
-            st.markdown("---") # Separador visual
-
-            # --- CONTINUAÇÃO DOS KPIs GERAIS PARA O MÊS (JÁ EXISTENTES) ---
-            if not df_loads_unique_filtered.empty:
-                total_cargas_mes = df_loads_unique_filtered['numero_carga'].nunique()
-                total_rotas_unicas_mes = df_loads_unique_filtered['Rota'].nunique()
-                
-                cargas_dentro_target = df_loads_unique_filtered[df_loads_unique_filtered['dentro_target'] == True]['numero_carga'].nunique()
-                cargas_fora_target = total_cargas_mes - cargas_dentro_target
-
-                perc_dentro_target = (cargas_dentro_target / total_cargas_mes * 100) if total_cargas_mes > 0 else 0
-                perc_fora_target = (cargas_fora_target / total_cargas_mes * 100) if total_cargas_mes > 0 else 0
-
-                col_kpi1, col_kpi2, col_kpi3 = st.columns(3)
-                with col_kpi1:
-                    st.metric(
-                        "Total de Cargas no Mês",
-                        f"{total_cargas_mes:,}",
-                        help=f"Total de {total_rotas_unicas_mes} rotas únicas carregadas."
-                    )
-                with col_kpi2:
-                    st.metric(
-                        "Cargas Dentro do Target",
-                        f"{cargas_dentro_target:,}",
-                        f"{perc_dentro_target:.1f}%",
-                        delta_color="normal"
-                    )
-                with col_kpi3:
-                    st.metric(
-                        "Cargas Fora do Target",
-                        f"{cargas_fora_target:,}",
-                        f"{perc_fora_target:.1f}%",
-                        delta_color="inverse"
-                    )
-                
-                st.markdown("---")
-
-                # --- DETALHE POR JUSTIFICATIVA (JÁ EXISTENTE) ---
-                st.markdown("#### Detalhamento por Justificativa")
-                justificativas_stats = df_loads_unique_filtered.groupby('categoria_justificativa').agg(
-                    Total_Cargas=('numero_carga', 'nunique')
-                ).reset_index()
-                justificativas_stats['% Total Cargas Mês'] = (justificativas_stats['Total_Cargas'] / total_cargas_mes * 100) if total_cargas_mes > 0 else 0
-                justificativas_stats['% Total Cargas Mês'] = justificativas_stats['% Total Cargas Mês'].fillna(0).round(2)
-                justificativas_stats = justificativas_stats.sort_values(by='% Total Cargas Mês', ascending=False)
-
-                st.dataframe(
-                    justificativas_stats.style.format({
-                        'Total_Cargas': '{:,.0f}',
-                        '% Total Cargas Mês': '{:,.1f}%'
-                    }),
-                    use_container_width=True,
-                    hide_index=True
-                )
-            else:
-                st.info("Nenhum dado disponível para análise mensal de desempenho com os filtros aplicados.")
+        renderizar_visao_geral(st.session_state.df_filtrado_stats)
     
+    with tab2:
+        renderizar_analise_custos(st.session_state.df_filtrado_stats)
+    
+    with tab3:
+        renderizar_evolucao_temporal(
+            st.session_state.df_stats, # Passa o DF completo para a evolução (filtrado internamente por região)
+            st.session_state.mes_selecionado_stats,
+            st.session_state.regiao_selecionada_stats,
+            st.session_state.df_filtrado_stats
+        )
+    
+    with tab4:
+        renderizar_detalhamento_rotas(st.session_state.df_filtrado_stats)
+
+    with tab5: # NOVO BLOCO PARA A ABA RESUMO
+        renderizar_resumo_dinamico(st.session_state.df_filtrado_stats)
+
+    st.markdown("---")
+    
+    # Exportar Relatório
+    st.markdown("### ⬇️ Exportar Relatório")
+
+    col_export1, col_export2, col_export3 = st.columns([1, 1, 2])
+
+    with col_export1:
+        if st.button("📊 Exportar Excel Completo", key="export_excel_stats"):
+            try:
+                excel_data = exportar_relatorio_estatisticas(st.session_state.df_stats, {
+                        'mes': st.session_state.mes_selecionado_stats,
+                        'regiao': st.session_state.regiao_selecionada_stats
+                    })
+                
+                st.download_button(
+                    label="⬇️ Baixar Relatório Excel",
+                    data=excel_data,
+                    file_name=f"relatorio_estatisticas_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    key="download_excel_stats"
+                )
+                st.success("✅ Relatório Excel gerado com sucesso!")
+            except Exception as e:
+                st.error(f"❌ Erro ao gerar relatório Excel: {e}")
+                st.exception(e)
+
+    with col_export2:
+        if st.button("📋 Exportar CSV Resumo", key="export_csv_stats"):
+            try:
+                if not st.session_state.df_filtrado_stats.empty and 'Rota' in st.session_state.df_filtrado_stats.columns and 'Regiao' in st.session_state.df_filtrado_stats.columns:
+                    
+                    # Cargas únicas para o resumo CSV
+                    resumo_csv_loads = st.session_state.df_filtrado_stats.groupby('numero_carga').agg(
+                        Rota=('Rota', 'first'),
+                        Regiao=('Regiao', 'first'),
+                        custo_percentual_frete=('custo_percentual_frete', 'first'),
+                        dentro_target=('dentro_target', 'first')
+                    ).reset_index()
+
+                    resumo_csv = resumo_csv_loads.groupby(['Rota', 'Regiao']).agg(
+                        Qtd_Cargas_Unicas=('numero_carga', 'nunique'),
+                        Custo_Medio_Cargas=('custo_percentual_frete', 'mean'),
+                        Perc_Cargas_Dentro_Target=('dentro_target', lambda x: (x.sum() / len(x) * 100) if len(x) > 0 else 0)
+                    ).reset_index()
+                    
+                    csv_data = resumo_csv.to_csv(index=False, sep=';', encoding='utf-8-sig')
+                    st.download_button(
+                        label="⬇️ Baixar CSV Resumo",
+                        data=csv_data,
+                        file_name=f"resumo_estatisticas_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+                        mime="text/csv",
+                        key="download_csv_stats"
+                    )
+                    st.success("✅ CSV de resumo gerado com sucesso!")
+                else:
+                    st.warning("Nenhum dado filtrado para gerar o CSV de resumo.")
+            except Exception as e:
+                st.error(f"❌ Erro ao gerar CSV: {e}")
+                st.exception(e)
+
+    with col_export3:
+        st.info("💡 **Dica:** O relatório Excel contém múltiplas abas com análises detalhadas, enquanto o CSV fornece um resumo executivo para análises rápidas.")
 
 
 # ==============================================================================
@@ -10780,8 +10488,7 @@ def pagina_cargas_fechadas():
 
                 numeric_cols_to_convert = [
                     'Peso Real em Kg', 'Peso Calculado em Kg', 'Cubagem em m³',
-                    'Quantidade de Volumes', 'Valor do Frete', 'valor_contratacao',
-                    'custo_percentual_frete', 'rentabilidade_percentual'
+                    'Quantidade de Volumes', 'Valor do Frete', 'valor_contratacao'
                 ]
                 for col in numeric_cols_to_convert:
                     if col in df_original.columns:
@@ -11096,14 +10803,9 @@ def pagina_cargas_fechadas():
         fechador_carga_login = df_carga["fechador_carga_login"].iloc[0] if "fechador_carga_login" in df_carga.columns and not df_carga["fechador_carga_login"].isnull().all() else 'Desconhecido'
         justificativa_aprovacao_final = df_carga["justificativa_aprovacao_custo"].iloc[0] if "justificativa_aprovacao_custo" in df_carga.columns and pd.notna(df_carga["justificativa_aprovacao_custo"].iloc[0]) else ''
 
-        
-
         custo_percentual_frete_db = df_carga["custo_percentual_frete"].iloc[0] if "custo_percentual_frete" in df_carga.columns and pd.notna(df_carga["custo_percentual_frete"].iloc[0]) else 0.0
         rentabilidade_percentual_db = df_carga["rentabilidade_percentual"].iloc[0] if "rentabilidade_percentual" in df_carga.columns and pd.notna(df_carga["rentabilidade_percentual"].iloc[0]) else 0.0
         situacao_custo_regional_db = df_carga["situacao_custo_regional"].iloc[0] if "situacao_custo_regional" in df_carga.columns and pd.notna(df_carga["situacao_custo_regional"].iloc[0]) else 'N/A'
-
-        info_valor_adicional_raw = df_carga["valor_adicional_frete"].iloc[0] if "valor_adicional_frete" in df_carga.columns and not df_carga.empty and pd.notna(df_carga["valor_adicional_frete"].iloc[0]) else 0.0
-        info_motivo_adicional = df_carga["motivo_valor_adicional"].iloc[0] if "motivo_valor_adicional" in df_carga.columns and not df_carga.empty and pd.notna(df_carga["motivo_valor_adicional"].iloc[0]) else ""
 
 
         # --- NOVO: Sanitização para o nome do arquivo CSV ---
@@ -11207,7 +10909,7 @@ def pagina_cargas_fechadas():
             all_badges_html_list.append(badge(f'Veículo: {veiculo_carga}', background_color='#6c757d', text_color='white'))
             
             # --- BADGES PARA OS NOVOS VALORES PERSISTIDOS DO DB ---
-            all_badges_html_list.append(badge(f'Custo: {percentual_custo_texto}', background_color=cor_badge_custo, text_color=cor_texto_custo))
+            all_badges_html_list.append(badge(f'Custo % Frete: {custo_percentual_frete_db:.2f}%', background_color=cor_badge_custo, text_color=cor_texto_custo))
             all_badges_html_list.append(badge(f'Rentabilidade %: {rentabilidade_percentual_db:.2f}%', background_color='#6c757d', text_color='white'))
             all_badges_html_list.append(badge(f'Situação Custo: {situacao_custo_regional_db}', background_color=cor_situacao, text_color='white'))
             # --- FIM BADGES ---
@@ -11224,12 +10926,6 @@ def pagina_cargas_fechadas():
            
             if csv_downloaded_at_display:
                 all_badges_html_list.append(badge(f'CSV baixado em: {csv_downloaded_at_display}', background_color='#4a4a4a', text_color='white')) # Novo cinza escuro
-
-            if info_valor_adicional_raw > 0:
-                all_badges_html_list.append(badge(f'Adicional Frete: R\$ {formatar_brasileiro(info_valor_adicional_raw)}', background_color='#d67b00', text_color='white'))
-            
-            if info_motivo_adicional:
-                all_badges_html_list.append(badge(f'Motivo Adicional: {info_motivo_adicional}', background_color='#d67b00', text_color='white'))
 
             all_badges_html_list.append(badge(f'Situação: {situacao_carga}', background_color='#6c757d', text_color='white')) # Situação genérica cinza
             if justificativa_aprovacao_final:

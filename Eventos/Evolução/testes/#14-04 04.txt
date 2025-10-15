@@ -1,3 +1,5 @@
+#14-04 04
+
 
 import streamlit as st
 st.set_page_config(
@@ -6,7 +8,6 @@ st.set_page_config(
     layout="wide"
 )
 import locale
-import textwrap
 import pandas as pd
 import numpy as np
 import io
@@ -25,6 +26,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
+import io 
 import xlsxwriter 
 from decimal import Decimal, ROUND_HALF_UP, getcontext, InvalidOperation 
 from uuid import uuid4
@@ -1990,8 +1992,7 @@ def preparar_dados_estatisticas(df_combined):
     return df
 
 
-#------------------------------------------------------------------------------------------------------------------------------------------
-
+# ------------------------------------02----------------------------------------------------------------------------------------------------
 def aplicar_filtros_estatisticas(df, mes_selecionado): # Removido 'regiao_selecionada'
     df_filtrado = df.copy()
     
@@ -2003,6 +2004,8 @@ def aplicar_filtros_estatisticas(df, mes_selecionado): # Removido 'regiao_seleci
     #     df_filtrado = df_filtrado[df_filtrado['Regiao'] == regiao_selecionada]
     
     return df_filtrado
+
+
 # ------------------------------------03---------------------------------------------------------------------------------------------------
 def exportar_relatorio_estatisticas(df_stats_unfiltered, filtros_aplicados):
     """Gera relatório em Excel com todas as estatísticas, aplicando os filtros."""
@@ -10290,7 +10293,7 @@ def pagina_estatisticas():
         st.session_state.df_filtrado_stats = pd.DataFrame()
 
     try:
-        with st.spinner("🔄 Carregando dados para análise estatística..."):
+        with st.spinner("   Carregando dados para análise estatística..."):
             dados_cargas_fechadas = supabase.table("cargas_fechadas").select("*").execute().data
             df_cargas_fechadas = pd.DataFrame(dados_cargas_fechadas) if dados_cargas_fechadas else pd.DataFrame()
             
@@ -10316,7 +10319,7 @@ def pagina_estatisticas():
     with col_filtros1:
         meses_disponiveis = sorted(st.session_state.df_stats['mes_ano'].dropna().unique(), reverse=True) if 'mes_ano' in st.session_state.df_stats.columns else []
         st.session_state.mes_selecionado_stats = st.selectbox(
-            "   Selecionar Mês/Ano:",
+            "📅 Selecionar Mês/Ano:",
             options=["Todos os Meses"] + meses_disponiveis,
             key="filtro_mes_stats"
         )
@@ -10335,8 +10338,8 @@ def pagina_estatisticas():
 
     # --- LAYOUT COM DUAS ABAS ---
     tab1, tab2 = st.tabs([ 
-        "📋 Resumo Detalhado por Rota", # Aba 1
-        "📈 Análise Mensal de Desempenho"  # Aba 2
+        "   Resumo Detalhado por Rota", # Aba 1
+        "   Análise Mensal de Desempenho"  # Aba 2
     ])
     
     with tab1:
@@ -10350,6 +10353,7 @@ def pagina_estatisticas():
         )
 
         # Prepara o DataFrame agrupado que será a base para as tabelas por rota
+        # df_grid_tab1 já agrupa por Rota e Justificativas, com Qtd Cargas e Qtd Entregas
         df_detalhado_por_rota_justificativa = preparar_grid_detalhamento(st.session_state.df_filtrado_stats)
 
         if df_detalhado_por_rota_justificativa.empty:
@@ -10367,129 +10371,108 @@ def pagina_estatisticas():
                 st.markdown(f"#### Rota: {rota}")
 
                 # --- Tabela Por Cargas para a Rota ---
-                st.markdown(textwrap.dedent(f"""\
-                    ### 📦 Por Cargas (total = {total_cargas_na_rota})"""), unsafe_allow_html=True)
-                st.markdown(textwrap.dedent("""\
-                    Fórmula: `% Cargas = (Cargas_Categoria / Total_Cargas_na_Rota) * 100`\
-                    """), unsafe_allow_html=True)
+                st.markdown(f"### 📦 Por Cargas (total = {total_cargas_na_rota})")
+                st.markdown("Fórmula: `% Cargas = (Cargas_Categoria / Total_Cargas_na_Rota) * 100`")
                 
-                cargas_table_rows_buffer = io.StringIO()
+                cargas_table_rows = ""
                 for _, row in df_rota_especifica.iterrows():
                     perc_cargas = (row['Qtd de Cargas'] / total_cargas_na_rota * 100) if total_cargas_na_rota > 0 else 0
-                    cargas_table_rows_buffer.write(textwrap.dedent(f"""\
-                        <tr>
-                          <td>{row['Justificativas']}</td>
-                          <td>{int(row['Qtd de Cargas'])}</td>
-                          <td>{f"{perc_cargas:.2f}".replace('.', ',')}%</td>
-                        </tr>\
-                    """))
-                # Linha Total para Cargas da Rota
-                cargas_table_rows_buffer.write(textwrap.dedent(f"""\
+                    cargas_table_rows += f"""
                     <tr>
-                      <td><b>Total</b></td>
-                      <td><b>{int(total_cargas_na_rota)}</b></td>
-                      <td><b>100,00%</b></td>
-                    </tr>\
-                """))
-                cargas_table_rows = cargas_table_rows_buffer.getvalue()
-
-                # --- CORREÇÃO AQUI para `cargas_table_full_html` ---
-                cargas_table_full_html = textwrap.dedent(f"""\
-                    <table class="data-table">
-                      <thead>
-                        <tr>
-                          <th scope="col">Justificativa</th>
-                          <th scope="col">Cargas</th>
-                          <th scope="col">% sobre total de cargas</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-    {cargas_table_rows}
-                      </tbody>
-                    </table>\
-                """)
-                st.markdown(cargas_table_full_html, unsafe_allow_html=True)
-                # --- FIM DA CORREÇÃO ---
+                      <td>{row['Justificativas']}</td>
+                      <td>{int(row['Qtd de Cargas'])}</td>
+                      <td>{f"{perc_cargas:.2f}".replace('.', ',')}%</td>
+                    </tr>
+                    """
+                # Linha Total para Cargas da Rota
+                cargas_table_rows += f"""
+                <tr>
+                  <td><b>Total</b></td>
+                  <td><b>{int(total_cargas_na_rota)}</b></td>
+                  <td><b>100,00%</b></td>
+                </tr>
+                """
+                st.markdown(f"""
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th scope="col">Justificativa</th>
+                      <th scope="col">Cargas</th>
+                      <th scope="col">% sobre total de cargas</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {cargas_table_rows}
+                  </tbody>
+                </table>
+                """, unsafe_allow_html=True)
 
                 # --- Tabela Por Entregas para a Rota ---
-                st.markdown(textwrap.dedent(f"""\
-                    ### 🚚 Por Entregas (total = {total_entregas_na_rota})"""), unsafe_allow_html=True)
-                st.markdown(textwrap.dedent("""\
-                    Fórmula: `% Entregas = (Entregas_Categoria / Total_Entregas_na_Rota) * 100`\
-                    """), unsafe_allow_html=True)
+                st.markdown(f"### 🚚 Por Entregas (total = {total_entregas_na_rota})")
+                st.markdown("Fórmula: `% Entregas = (Entregas_Categoria / Total_Entregas_na_Rota) * 100`")
                 
-                entregas_table_rows_buffer = io.StringIO()
+                entregas_table_rows = ""
                 for _, row in df_rota_especifica.iterrows():
                     perc_entregas = (row['Qtd de Entregas'] / total_entregas_na_rota * 100) if total_entregas_na_rota > 0 else 0
-                    entregas_table_rows_buffer.write(textwrap.dedent(f"""\
-                        <tr>
-                          <td>{row['Justificativas']}</td>
-                          <td>{int(row['Qtd de Entregas'])}</td>
-                          <td>{f"{perc_entregas:.2f}".replace('.', ',')}%</td>
-                        </tr>\
-                    """))
-                # Linha Total para Entregas da Rota
-                entregas_table_rows_buffer.write(textwrap.dedent(f"""\
+                    entregas_table_rows += f"""
                     <tr>
-                      <td><b>Total</b></td>
-                      <td><b>{int(total_entregas_na_rota)}</b></td>
-                      <td><b>100,00%</b></td>
-                    </tr>\
-                """))
-                entregas_table_rows = entregas_table_rows_buffer.getvalue()
-
-                # --- CORREÇÃO AQUI para `entregas_table_full_html` ---
-                entregas_table_full_html = textwrap.dedent(f"""\
-                    <table class="data-table">
-                      <thead>
-                        <tr>
-                          <th scope="col">Justificativa</th>
-                          <th scope="col">Entregas</th>
-                          <th scope="col">% sobre total de entregas</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-    {entregas_table_rows}
-                      </tbody>
-                    </table>\
-                """)
-                st.markdown(entregas_table_full_html, unsafe_allow_html=True)
-                # --- FIM DA CORREÇÃO ---
+                      <td>{row['Justificativas']}</td>
+                      <td>{int(row['Qtd de Entregas'])}</td>
+                      <td>{f"{perc_entregas:.2f}".replace('.', ',')}%</td>
+                    </tr>
+                    """
+                # Linha Total para Entregas da Rota
+                entregas_table_rows += f"""
+                <tr>
+                  <td><b>Total</b></td>
+                  <td><b>{int(total_entregas_na_rota)}</b></td>
+                  <td><b>100,00%</b></td>
+                </tr>
+                """
+                st.markdown(f"""
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th scope="col">Justificativa</th>
+                      <th scope="col">Entregas</th>
+                      <th scope="col">% sobre total de entregas</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {entregas_table_rows}
+                  </tbody>
+                </table>
+                """, unsafe_allow_html=True)
 
                 # --- Resumo Textual para a Rota ---
                 if not df_rota_especifica.empty:
                     # Para cargas
-                    cargas_por_just_this_rota_calc = df_rota_especifica[['Justificativas', 'Qtd de Cargas', '% Custo Justificativa na Rota']].copy()
+                    cargas_por_just_this_rota_calc = df_rota_especifica[['Justificativas', 'Qtd de Cargas']].copy()
                     cargas_por_just_this_rota_calc['% sobre total de cargas'] = (cargas_por_just_this_rota_calc['Qtd de Cargas'] / total_cargas_na_rota * 100) if total_cargas_na_rota > 0 else 0
                     cargas_por_just_this_rota_calc['% sobre total de cargas'] = cargas_por_just_this_rota_calc['% sobre total de cargas'].fillna(0).round(2)
-                    
-                    max_cargas_just_rota = None
-                    if not cargas_por_just_this_rota_calc.empty and '% sobre total de cargas' in cargas_por_just_this_rota_calc.columns and not cargas_por_just_this_rota_calc['% sobre total de cargas'].empty:
-                        max_cargas_just_rota = cargas_por_just_this_rota_calc.loc[cargas_por_just_this_rota_calc['% sobre total de cargas'].idxmax()]
+                    max_cargas_just_rota = cargas_por_just_this_rota_calc.loc[cargas_por_just_this_rota_calc['% sobre total de cargas'].idxmax()]
                     
                     # Para entregas
-                    entregas_por_just_this_rota_calc = df_rota_especifica[['Justificativas', 'Qtd de Entregas', '% Custo Justificativa na Rota']].copy()
+                    entregas_por_just_this_rota_calc = df_rota_especifica[['Justificativas', 'Qtd de Entregas']].copy()
                     entregas_por_just_this_rota_calc['% sobre total de entregas'] = (entregas_por_just_this_rota_calc['Qtd de Entregas'] / total_entregas_na_rota * 100) if total_entregas_na_rota > 0 else 0
                     entregas_por_just_this_rota_calc['% sobre total de entregas'] = entregas_por_just_this_rota_calc['% sobre total de entregas'].fillna(0).round(2)
-                    
-                    max_entregas_just_rota = None
-                    if not entregas_por_just_this_rota_calc.empty and '% sobre total de entregas' in entregas_por_just_this_rota_calc.columns and not entregas_por_just_this_rota_calc['% sobre total de entregas'].empty:
-                        max_entregas_just_rota = entregas_por_just_this_rota_calc.loc[entregas_por_just_this_rota_calc['% sobre total de entregas'].idxmax()]
+                    max_entregas_just_rota = entregas_por_just_this_rota_calc.loc[entregas_por_just_this_rota_calc['% sobre total de entregas'].idxmax()]
 
-                    if max_cargas_just_rota is not None and max_entregas_just_rota is not None:
-                        st.markdown(textwrap.dedent(f"""\
-                            Analisando os resultados para a Rota **{rota}** no período selecionado ({st.session_state.mes_selecionado_stats if st.session_state.mes_selecionado_stats != 'Todos os Meses' else 'Todos os Meses'}):
-                            *   **Representatividade por Cargas:** A categoria com maior representatividade é "**{max_cargas_just_rota['Justificativas']}**", totalizando **{f"{max_cargas_just_rota['% sobre total de cargas']:.2f}".replace('.', ',')}%** das cargas nesta rota.
-                            *   **Representatividade por Entregas:** Similarmente, a categoria que mais se destaca nas entregas é "**{max_entregas_just_rota['Justificativas']}**", correspondendo a **{f"{max_entregas_just_rota['% sobre total de entregas']:.2f}".replace('.', ',')}%** do total de entregas nesta rota.\
-                            """), unsafe_allow_html=True)
-                    else:
-                        st.info(f"Não foi possível determinar a representatividade máxima para a Rota: {rota} (dados vazios ou incompletos para Justificativas).")
+                    st.markdown(f"""
+                    Analisando os resultados para a Rota **{rota}** no período selecionado ({st.session_state.mes_selecionado_stats if st.session_state.mes_selecionado_stats != 'Todos os Meses' else 'Todos os Meses'}):
+
+                    *   **Representatividade por Cargas:** A categoria com maior representatividade é "**{max_cargas_just_rota['Justificativas']}**", totalizando **{f"{max_cargas_just_rota['% sobre total de cargas']:.2f}".replace('.', ',')}%** das cargas nesta rota.
+                    *   **Representatividade por Entregas:** Similarmente, a categoria que mais se destaca nas entregas é "**{max_entregas_just_rota['Justificativas']}**", correspondendo a **{f"{max_entregas_just_rota['% sobre total de entregas']:.2f}".replace('.', ',')}%** do total de entregas nesta rota.
+                    """, unsafe_allow_html=True) # <<< ADICIONADO AQUI TAMBÉM
                 else:
                     st.info(f"Nenhum dado detalhado para a Rota: {rota}")
 
-                st.markdown(textwrap.dedent("""\
-                    <hr style="border: 2px solid #2196F3; margin: 20px 0;">\
-                    """), unsafe_allow_html=True)
+                st.markdown(
+                    """
+                    <hr style="border: 2px solid #2196F3; margin: 20px 0;">
+                    """,
+                    unsafe_allow_html=True
+                )
         
         with tab2:
             st.markdown("### Análise Mensal de Desempenho")
@@ -10520,134 +10503,108 @@ def pagina_estatisticas():
 
                 # Calcular cargas por justificativa
                 cargas_por_just = df_loads_unique_filtered.groupby('categoria_justificativa')['numero_carga'].nunique().reset_index(name='Cargas')
-                cargas_por_just['% sobre total de cargas'] = (cargas_por_just['Cargas'] / total_cargas * 100) if total_cargas > 0 else 0
-                cargas_por_just['% sobre total de cargas'] = cargas_por_just['% sobre total de cargas'].fillna(0).round(2)
-                cargas_por_just = cargas_por_just.sort_values(by='% sobre total de cargas', ascending=False).reset_index(drop=True)
+                cargas_por_just['% sobre total de cargas'] = (cargas_por_just['Cargas'] / total_cargas * 100).fillna(0).round(2)
+                cargas_por_just = cargas_por_just.sort_values(by='Cargas', ascending=False).reset_index(drop=True)
 
                 # Calcular entregas por justificativa
                 entregas_por_just = st.session_state.df_filtrado_stats.groupby('categoria_justificativa')['Serie_Numero_CTRC'].count().reset_index(name='Entregas')
-                entregas_por_just['% sobre total de entregas'] = (entregas_por_just['Entregas'] / total_entregas * 100) if total_entregas > 0 else 0
-                entregas_por_just['% sobre total de entregas'] = entregas_por_just['% sobre total de entregas'].fillna(0).round(2)
-                entregas_por_just = entregas_por_just.sort_values(by='% sobre total de entregas', ascending=False).reset_index(drop=True)
+                entregas_por_just['% sobre total de entregas'] = (entregas_por_just['Entregas'] / total_entregas * 100).fillna(0).round(2)
+                entregas_por_just = entregas_por_just.sort_values(by='Entregas', ascending=False).reset_index(drop=True)
 
                 # --- Tabela de Cargas ---
                 st.markdown("---")
-                st.markdown(textwrap.dedent(f"""\
-                    ### 📦 Por Cargas (total = {total_cargas})"""), unsafe_allow_html=True)
-                st.markdown(textwrap.dedent("""\
-                    Fórmula: `% Cargas = (Cargas_Categoria / Total_Cargas) * 100`\
-                    """), unsafe_allow_html=True)
+                st.markdown(f"### 📦 Por Cargas (total = {total_cargas})", unsafe_allow_html=True) # <<< ADICIONADO AQUI
+                st.markdown("Fórmula: `% Cargas = (Cargas_Categoria / Total_Cargas) * 100`", unsafe_allow_html=True) # <<< ADICIONADO AQUI
                 
-                cargas_table_rows_buffer = io.StringIO()
+                cargas_table_rows = ""
                 for _, row in cargas_por_just.iterrows():
-                    cargas_table_rows_buffer.write(textwrap.dedent(f"""\
-                        <tr>
-                          <td>{row['categoria_justificativa']}</td>
-                          <td>{int(row['Cargas'])}</td>
-                          <td>{f"{row['% sobre total de cargas']:.2f}".replace('.', ',')}%</td>
-                        </tr>\
-                    """))
-                cargas_table_rows_buffer.write(textwrap.dedent(f"""\
+                    cargas_table_rows += f"""
                     <tr>
-                      <td><b>Total</b></td>
-                      <td><b>{int(total_cargas)}</b></td>
-                      <td><b>100,00%</b></td>
-                    </tr>\
-                """))
-                cargas_table_rows = cargas_table_rows_buffer.getvalue()
-
-                # --- CORREÇÃO AQUI para `cargas_table_full_html_tab2` ---
-                cargas_table_full_html_tab2 = textwrap.dedent(f"""\
-                    <table class="data-table">
-                      <thead>
-                        <tr>
-                          <th scope="col">Justificativa</th>
-                          <th scope="col">Cargas</th>
-                          <th scope="col">% sobre total de cargas</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-    {cargas_table_rows}
-                      </tbody>
-                    </table>\
-                """)
-                st.markdown(cargas_table_full_html_tab2, unsafe_allow_html=True)
-                # --- FIM DA CORREÇÃO ---
+                      <td>{row['categoria_justificativa']}</td>
+                      <td>{int(row['Cargas'])}</td>
+                      <td>{f"{row['% sobre total de cargas']:.2f}".replace('.', ',')}%</td>
+                    </tr>
+                    """
+                cargas_table_rows += f"""
+                <tr>
+                  <td><b>Total</b></td>
+                  <td><b>{int(total_cargas)}</b></td>
+                  <td><b>100,00%</b></td>
+                </tr>
+                """
+                st.markdown(f"""
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th scope="col">Justificativa</th>
+                      <th scope="col">Cargas</th>
+                      <th scope="col">% sobre total de cargas</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {cargas_table_rows}
+                  </tbody>
+                </table>
+                """, unsafe_allow_html=True)
 
                 # --- Tabela de Entregas ---
                 st.markdown("---")
-                st.markdown(textwrap.dedent(f"""\
-                    ### 🚚 Por Entregas (total = {total_entregas})"""), unsafe_allow_html=True)
-                st.markdown(textwrap.dedent("""\
-                    Fórmula: `% Entregas = (Entregas_Categoria / Total_Entregas) * 100`\
-                    """), unsafe_allow_html=True)
+                st.markdown(f"### 🚚 Por Entregas (total = {total_entregas})", unsafe_allow_html=True) # <<< ADICIONADO AQUI
+                st.markdown("Fórmula: `% Entregas = (Entregas_Categoria / Total_Entregas) * 100`", unsafe_allow_html=True) # <<< ADICIONADO AQUI
                 
-                entregas_table_rows_buffer = io.StringIO()
+                entregas_table_rows = ""
                 for _, row in entregas_por_just.iterrows():
-                    perc_entregas = (row['Entregas'] / total_entregas * 100) if total_entregas > 0 else 0
-                    entregas_table_rows_buffer.write(textwrap.dedent(f"""\
-                        <tr>
-                          <td>{row['categoria_justificativa']}</td>
-                          <td>{int(row['Entregas'])}</td>
-                          <td>{f"{perc_entregas:.2f}".replace('.', ',')}%</td>
-                        </tr>\
-                    """))
-                entregas_table_rows_buffer.write(textwrap.dedent(f"""\
+                    entregas_table_rows += f"""
                     <tr>
-                      <td><b>Total</b></td>
-                      <td><b>{int(total_entregas)}</b></td>
-                      <td><b>100,00%</b></td>
-                    </tr>\
-                """))
-                entregas_table_rows = entregas_table_rows_buffer.getvalue()
-
-                # --- CORREÇÃO AQUI para `entregas_table_full_html_tab2` ---
-                entregas_table_full_html_tab2 = textwrap.dedent(f"""\
-                    <table class="data-table">
-                      <thead>
-                        <tr>
-                          <th scope="col">Justificativa</th>
-                          <th scope="col">Entregas</th>
-                          <th scope="col">% sobre total de entregas</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-    {entregas_table_rows}
-                      </tbody>
-                    </table>\
-                """)
-                st.markdown(entregas_table_full_html_tab2, unsafe_allow_html=True)
-                # --- FIM DA CORREÇÃO ---
-
+                      <td>{row['categoria_justificativa']}</td>
+                      <td>{int(row['Entregas'])}</td>
+                      <td>{f"{row['% sobre total de entregas']:.2f}".replace('.', ',')}%</td>
+                    </tr>
+                    """
+                entregas_table_rows += f"""
+                <tr>
+                  <td><b>Total</b></td>
+                  <td><b>{int(total_entregas)}</b></td>
+                  <td><b>100,00%</b></td>
+                </tr>
+                """
+                st.markdown(f"""
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th scope="col">Justificativa</th>
+                      <th scope="col">Entregas</th>
+                      <th scope="col">% sobre total de entregas</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {entregas_table_rows}
+                  </tbody>
+                </table>
+                """, unsafe_allow_html=True)
                 st.markdown("---")
 
                 # --- Resumo Textual (Global) ---
-                st.markdown("### Resumo Textual", unsafe_allow_html=True)
+                st.markdown("### Resumo Textual", unsafe_allow_html=True) # <<< ADICIONADO AQUI
                 if not cargas_por_just.empty and not entregas_por_just.empty:
-                    max_cargas_just = None
-                    if not cargas_por_just.empty and '% sobre total de cargas' in cargas_por_just.columns and not cargas_por_just['% sobre total de cargas'].empty:
-                        max_cargas_just = cargas_por_just.loc[cargas_por_just['% sobre total de cargas'].idxmax()]
-                    max_entregas_just = None
-                    if not entregas_por_just.empty and '% sobre total de entregas' in entregas_por_just.columns and not entregas_por_just['% sobre total de entregas'].empty:
-                        max_entregas_just = entregas_por_just.loc[entregas_por_just['% sobre total de entregas'].idxmax()]
+                    max_cargas_just = cargas_por_just.loc[cargas_por_just['% sobre total de cargas'].idxmax()]
+                    max_entregas_just = entregas_por_just.loc[entregas_por_just['% sobre total de entregas'].idxmax()]
 
-                    if max_cargas_just is not None and max_entregas_just is not None:
-                        st.markdown(textwrap.dedent(f"""\
-                            Analisando os resultados para o período selecionado ({st.session_state.mes_selecionado_stats if st.session_state.mes_selecionado_stats != 'Todos os Meses' else 'Todos os Meses'}):
+                    st.markdown(f"""
+                    Analisando os resultados para o período selecionado ({st.session_state.mes_selecionado_stats if st.session_state.mes_selecionado_stats != 'Todos os Meses' else 'Todos os Meses'}):
 
-                            *   **Representatividade por Cargas:** A categoria com maior representatividade é "**{max_cargas_just['categoria_justificativa']}**", totalizando **{f"{max_cargas_just['% sobre total de cargas']:.2f}".replace('.', ',')}%** das cargas.
-                            *   **Representatividade por Entregas:** Similarmente, a categoria que mais se destaca nas entregas é "**{max_entregas_just['categoria_justificativa']}**", correspondendo a **{f"{max_entregas_just['% sobre total de entregas']:.2f}".replace('.', ',')}%** do total de entregas.
+                    *   **Representatividade por Cargas:** A categoria com maior representatividade é "**{max_cargas_just['categoria_justificativa']}**", totalizando **{f"{max_cargas_just['% sobre total de cargas']:.2f}".replace('.', ',')}%** das cargas.
+                    *   **Representatividade por Entregas:** Similarmente, a categoria que mais se destaca nas entregas é "**{max_entregas_just['categoria_justificativa']}**", correspondendo a **{f"{max_entregas_just['% sobre total de entregas']:.2f}".replace('.', ',')}%** do total de entregas.
 
-                            Isso indica que a vasta maioria das cargas e entregas se enquadram na justificativa de "{max_cargas_just['categoria_justificativa']}", enquanto outras justificativas contribuem com percentuais menores.\
-                            """), unsafe_allow_html=True)
-                    else:
-                        st.info("Não foi possível determinar a representatividade máxima para o resumo textual (dados vazios ou incompletos para Justificativas).")
+                    Isso indica que a vasta maioria das cargas e entregas se enquadram na justificativa de "{max_cargas_just['categoria_justificativa']}", enquanto outras justificativas contribuem com percentuais menores.
+                    """, unsafe_allow_html=True) # <<< ADICIONADO AQUI
                 else:
                     st.info("Nenhum dado para resumo textual.")
 
             st.markdown("---") # Separador visual
 
             # --- CONTINUAÇÃO DOS KPIs GERAIS PARA O MÊS (JÁ EXISTENTES) ---
+            # Certifique-se de que df_loads_unique_filtered está definido aqui
             if not df_loads_unique_filtered.empty:
                 total_cargas_mes = df_loads_unique_filtered['numero_carga'].nunique()
                 total_rotas_unicas_mes = df_loads_unique_filtered['Rota'].nunique()
@@ -10687,8 +10644,7 @@ def pagina_estatisticas():
                 justificativas_stats = df_loads_unique_filtered.groupby('categoria_justificativa').agg(
                     Total_Cargas=('numero_carga', 'nunique')
                 ).reset_index()
-                justificativas_stats['% Total Cargas Mês'] = (justificativas_stats['Total_Cargas'] / total_cargas_mes * 100) if total_cargas_mes > 0 else 0
-                justificativas_stats['% Total Cargas Mês'] = justificativas_stats['% Total Cargas Mês'].fillna(0).round(2)
+                justificativas_stats['% Total Cargas Mês'] = (justificativas_stats['Total_Cargas'] / total_cargas_mes * 100).fillna(0)
                 justificativas_stats = justificativas_stats.sort_values(by='% Total Cargas Mês', ascending=False)
 
                 st.dataframe(
@@ -10701,7 +10657,6 @@ def pagina_estatisticas():
                 )
             else:
                 st.info("Nenhum dado disponível para análise mensal de desempenho com os filtros aplicados.")
-    
 
 
 # ==============================================================================
