@@ -4310,7 +4310,7 @@ def preparar_df_pre_roterizacao(df_pre, supabase_client):
 # ===========================================
 
 
-@st.cache_data(ttl=300) # O cache será invalidado a cada hora para garantir dados atualizados
+@st.cache_data(ttl=900) # O cache será invalidado a cada hora para garantir dados atualizados
 def load_motoristas_data():
     """
     Carrega todos os motoristas e suas placas da tabela 'Motoristas' do Supabase.
@@ -4390,7 +4390,7 @@ def pagina_cadastros():
 #-------------------------------------------------------------------------------
 
 
-@st.cache_data(ttl=60)
+@st.cache_data(ttl=300)
 def load_table_data(t_name, _supabase_client):
     """
     Carrega dados de uma tabela do Supabase.
@@ -7814,7 +7814,7 @@ def pagina_pre_roterizacao():
 # FUNÇÃO: pagina_cargas_geradas()
 # ==============================================================================
 
-@st.cache_data(ttl=300) # Defina o mesmo TTL ou um TTL um pouco maior que load_motoristas_data
+@st.cache_data(ttl=900) # Defina o mesmo TTL ou um TTL um pouco maior que load_motoristas_data
 def get_all_motoristas_options():
     df_motoristas_data = load_motoristas_data() # Esta já estaria cacheada pelo seu TTL
     all_motoristas = sorted(df_motoristas_data['MOTORISTA'].unique().tolist()) if not df_motoristas_data.empty else []
@@ -7822,7 +7822,7 @@ def get_all_motoristas_options():
 
 motorista_options_general = get_all_motoristas_options()
 
-@st.cache_data(ttl=300) # Defina o mesmo TTL ou um TTL um pouco maior que load_motoristas_data
+@st.cache_data(ttl=900) # Defina o mesmo TTL ou um TTL um pouco maior que load_motoristas_data
 def get_plates_by_motorista():
     df_motoristas_data = load_motoristas_data()
     plates_map = {}
@@ -8895,7 +8895,7 @@ def pagina_cargas_geradas():
 # ==============================================================================
 # FUNÇÃO: pagina_aprovacao_custos() - ATUALIZADA
 # ==============================================================================
-@st.cache_data(ttl=300) # Cache para evitar consultas desnecessárias ao banco
+@st.cache_data(ttl=900) # Cache para evitar consultas desnecessárias ao banco
 def carregar_opcoes_justificativa():
     """
     Carrega as justificativas da tabela 'justificativasaprovacaocusto',

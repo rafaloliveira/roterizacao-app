@@ -1,3 +1,5 @@
+#15-10 06
+
 
 import streamlit as st
 st.set_page_config(
@@ -1499,18 +1501,15 @@ def render_form_fields(schema_cols, initial_data=None, form_key=""):
 
 def carregar_base_supabase():
     try:
+        # --- DEBUG 1: Após a primeira busca no Supabase ---
         base_raw_data = supabase.table("pre_roterizacao").select("*").execute().data
         base = pd.DataFrame(base_raw_data)
-
-        # NOVO: Garante que 'is_retorno_rota' seja booleano desde o início
-        if 'is_retorno_rota' in base.columns:
-            # Converte valores como 0/1, 'True'/'False' (string) ou True/False (bool) direto para booleano
-            base['is_retorno_rota'] = base['is_retorno_rota'].astype(bool)
-        else:
-            base['is_retorno_rota'] = False # Cria a coluna com default False se não existir
+        #st.write(f"DEBUG: [carregar_base_supabase] Linhas após SELECT na pre_roterizacao: {len(base)}")
 
         if base.empty:
+            #st.warning("DEBUG: [carregar_base_supabase] A busca inicial na pre_roterizacao retornou vazia. Verifique RLS ou dados.")
             return pd.DataFrame()
+
         # --- DEBUG 2: Após o merge com "Particularidades" ---
         part = supabase.table("Particularidades").select("*").execute().data
         if part:
@@ -3835,7 +3834,7 @@ def aplicar_regras_e_preencher_tabelas():
             'Codigo da Ultima Ocorrencia', 'Peso Real em Kg', 'Peso Calculado em Kg',
             'Cubagem em m³', 'Quantidade de Volumes', 'Valor do Frete', 'Rota','Regiao',
             'CEP de Entrega','CEP do Destinatario','CEP do Remetente',
-            'Tipo_Tratativa_Especial', 'is_retorno_rota'
+            'Tipo_Tratativa_Especial' 
         ]
 
         # Garante que apenas as colunas definidas em colunas_finais sejam usadas
@@ -6513,8 +6512,6 @@ def pagina_confirmar_producao():
                 
                 df['Tipo_Tratativa_Especial'] = df['Tipo_Tratativa_Especial'].fillna('').astype(str)
 
-                
-
         except Exception as e:
             st.error(f"Erro ao consultar o banco de dados: {e}")
             return
@@ -6677,8 +6674,6 @@ def pagina_confirmar_producao():
                 (df_grupo['Particularidade'].notna())
             ]
             qtd_com_particularidade_grupo = len(entregas_com_particularidade_grupo)
-
-            
 
             # Define a cor do badge com base no tipo de grupo
             badge_background_color = header_background if nome_grupo == "Paletizadores" else "#333333"
@@ -7370,14 +7365,6 @@ def pagina_pre_roterizacao():
             
             df_visivel['Tipo_Tratativa_Especial'] = df_visivel['Tipo_Tratativa_Especial'].fillna('').astype(str)
 
-            if 'is_retorno_rota' not in df_visivel.columns:
-                df_visivel['is_retorno_rota'] = False
-            df_visivel['is_retorno_rota'] = df_visivel['is_retorno_rota'].fillna(False).astype(bool)
-
-             # --- DEBUG: Verifica o DataFrame principal após garantir a coluna ---
-            st.write("DEBUG (df_visivel): Conteúdo de 'is_retorno_rota' após garantir o tipo:", df_visivel['is_retorno_rota'].unique())
-            st.write("DEBUG (df_visivel): Tipo de 'is_retorno_rota' após garantir o tipo:", df_visivel['is_retorno_rota'].dtype)
-
             if not df_visivel.empty:
                 excel_buffer = BytesIO()
                 with pd.ExcelWriter(excel_buffer, engine='xlsxwriter') as writer:
@@ -7415,7 +7402,7 @@ def pagina_pre_roterizacao():
             "Numero da Nota Fiscal","Peso Real em Kg", "Peso Calculado em Kg", "Valor do Frete",
             "Rota", "Regiao",  "Chave CT-e",
             "Particularidade", "Codigo da Ultima Ocorrencia", "Cubagem em m³", "Quantidade de Volumes",
-            "Tipo_Tratativa_Especial", "status_retorno",'Retorno de Rota'  # Nova coluna para exibição
+            "Tipo_Tratativa_Especial", "status_retorno" # Nova coluna para exibição
         ]
 
     # ======= MÉTRICAS GERAIS NO TOPO (mantidas inalteradas) =======
@@ -7446,11 +7433,6 @@ def pagina_pre_roterizacao():
     # --- JsCode para destaque visual nos grids (MANTIDO INALTERADO) ---
     linha_destacar = JsCode("""
     function(params) {
-        const isRetornoRota = params.data['is_retorno_rota']; // <-- NOVO: Captura a flag
-        if (isRetornoRota === true) { // <-- NOVO: Aplica o estilo se for Retorno de Rota
-            return { 'background-color': '#ffc0cb', 'color': '#800000', 'font-weight': 'bold' }; // Rosa para retornos
-        }
-
         const status = params.data['Status'];
         const entrega = params.data['Entrega Programada'];
         const particularidade = params.data['Particularidade'];
@@ -7518,14 +7500,6 @@ def pagina_pre_roterizacao():
         if df_grupo.empty:
             continue
 
-        if 'is_retorno_rota' not in df_grupo.columns:
-            df_grupo['is_retorno_rota'] = False
-        df_grupo['is_retorno_rota'] = df_grupo['is_retorno_rota'].fillna(False).astype(bool)
-
-        # --- DEBUG: Adicione as linhas de debug aqui, após 'df_grupo' estar definido ---
-        st.write(f"DEBUG (df_grupo - {group_key_name}): Conteúdo de 'is_retorno_rota':", df_grupo['is_retorno_rota'].unique())
-        st.write(f"DEBUG (df_grupo - {group_key_name}): Tipo de 'is_retorno_rota' após garantir o tipo:", df_grupo['is_retorno_rota'].dtype)
-
         header_title_content = ""
         group_type = 'Rota' # Tipo padrão
         
@@ -7568,11 +7542,16 @@ def pagina_pre_roterizacao():
         0 if item[0] == "Coletas" else (1 if item[0] == "Paletizadores" else 2), item[0]
     ))
 
+
+
+
+
+
+
     # Agora, iteramos sobre os grupos para renderizar os grids
     for nome_grupo, grupo_info in grupos_ordenados: # Itera sobre os itens ordenados
 
         df_grupo = grupo_info['df']
-
         header_title_content = grupo_info['header_title_content']
         group_type = grupo_info['group_type'] # Usaremos 'group_type' para lógica de estilo
 
@@ -7616,9 +7595,6 @@ def pagina_pre_roterizacao():
                 (df_grupo['Particularidade'].notna())
             ]
             qtd_com_particularidade_grupo = len(entregas_com_particularidade_grupo)
-
-            qtd_retorno_rota_grupo = df_grupo[df_grupo['is_retorno_rota'] == True].shape[0]
-
             
             # --- Lógica para Estilo dos Badges de Métrica ---
             badge_background_color_metric = "#333333" # Default para Rotas
@@ -7639,8 +7615,7 @@ def pagina_pre_roterizacao():
                 badge(f'{formatar_brasileiro(cubagem_sum)} m³', background_color=badge_background_color_metric, text_color=badge_text_color_metric),
                 badge(f'{int(volumes_sum)} volumes', background_color=badge_background_color_metric, text_color=badge_text_color_metric),
                 badge(f'📅  Agenda s/ Prog.: {qtd_agendar_sem_programacao_grupo}', background_color='#e06200', text_color='white'),
-                badge(f'⚠️ Com Particularidade: {qtd_com_particularidade_grupo}', background_color='#b8860b', text_color='white'),
-                badge(f'🔄 Retorno de Rota: {qtd_retorno_rota_grupo}', background_color='#ff69b4', text_color='white')
+                badge(f'⚠️ Com Particularidade: {qtd_com_particularidade_grupo}', background_color='#b8860b', text_color='white')
             ]
 
             st.markdown(
@@ -7688,21 +7663,9 @@ def pagina_pre_roterizacao():
                 st.session_state[checkbox_key] = False
             marcar_todas = st.checkbox("Marcar todas", key=checkbox_key)
 
-            df_formatado = df_grupo.copy()
-            # --- DEBUG: Verifica o DataFrame formatado antes de criar a coluna de exibição ---
-            st.write(f"DEBUG (df_formatado - {nome_grupo}): Valores de 'is_retorno_rota' antes de criar 'Retorno de Rota':", df_formatado['is_retorno_rota'].unique())
-            st.write(f"DEBUG (df_formatado - {nome_grupo}): Tipo de dado de 'is_retorno_rota' antes de criar 'Retorno de Rota':", df_formatado['is_retorno_rota'].dtype)
-            # ----------------------------------------------------------------------------------
-            # --- NOVO: Cria a coluna 'Retorno de Rota' para exibição ---
-            if 'is_retorno_rota' in df_formatado.columns:
-                df_formatado['Retorno de Rota'] = df_formatado['is_retorno_rota'].apply(lambda x: 'Sim' if x else 'Não')
-            else:
-                df_formatado['Retorno de Rota'] = 'Não'
-            # Agora filtra as colunas para exibição no grid
-            df_formatado = df_formatado[[col for col in colunas_exibir if col in df_formatado.columns]].copy()
-            df_formatado = apply_brazilian_date_format_for_display(df_formatado)
-
-
+            df_formatado = apply_brazilian_date_format_for_display(
+                df_grupo[[col for col in colunas_exibir if col in df_grupo.columns]].copy()
+            )
 
             gb = GridOptionsBuilder.from_dataframe(df_formatado)
             gb.configure_default_column(minWidth=140)

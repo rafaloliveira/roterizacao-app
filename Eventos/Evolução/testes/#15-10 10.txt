@@ -1,3 +1,5 @@
+#15-10 10
+
 
 import streamlit as st
 st.set_page_config(
@@ -1499,18 +1501,15 @@ def render_form_fields(schema_cols, initial_data=None, form_key=""):
 
 def carregar_base_supabase():
     try:
+        # --- DEBUG 1: Após a primeira busca no Supabase ---
         base_raw_data = supabase.table("pre_roterizacao").select("*").execute().data
         base = pd.DataFrame(base_raw_data)
-
-        # NOVO: Garante que 'is_retorno_rota' seja booleano desde o início
-        if 'is_retorno_rota' in base.columns:
-            # Converte valores como 0/1, 'True'/'False' (string) ou True/False (bool) direto para booleano
-            base['is_retorno_rota'] = base['is_retorno_rota'].astype(bool)
-        else:
-            base['is_retorno_rota'] = False # Cria a coluna com default False se não existir
+        #st.write(f"DEBUG: [carregar_base_supabase] Linhas após SELECT na pre_roterizacao: {len(base)}")
 
         if base.empty:
+            #st.warning("DEBUG: [carregar_base_supabase] A busca inicial na pre_roterizacao retornou vazia. Verifique RLS ou dados.")
             return pd.DataFrame()
+
         # --- DEBUG 2: Após o merge com "Particularidades" ---
         part = supabase.table("Particularidades").select("*").execute().data
         if part:
@@ -7523,8 +7522,8 @@ def pagina_pre_roterizacao():
         df_grupo['is_retorno_rota'] = df_grupo['is_retorno_rota'].fillna(False).astype(bool)
 
         # --- DEBUG: Adicione as linhas de debug aqui, após 'df_grupo' estar definido ---
-        st.write(f"DEBUG (df_grupo - {group_key_name}): Conteúdo de 'is_retorno_rota':", df_grupo['is_retorno_rota'].unique())
-        st.write(f"DEBUG (df_grupo - {group_key_name}): Tipo de 'is_retorno_rota' após garantir o tipo:", df_grupo['is_retorno_rota'].dtype)
+        st.write(f"DEBUG (df_grupo - {nome_grupo}): Conteúdo de 'is_retorno_rota':", df_grupo['is_retorno_rota'].unique())
+        st.write(f"DEBUG (df_grupo - {nome_grupo}): Tipo de 'is_retorno_rota':", df_grupo['is_retorno_rota'].dtype)
 
         header_title_content = ""
         group_type = 'Rota' # Tipo padrão

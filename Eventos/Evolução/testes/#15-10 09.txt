@@ -1,3 +1,5 @@
+#15-10 09
+
 
 import streamlit as st
 st.set_page_config(
@@ -1499,18 +1501,15 @@ def render_form_fields(schema_cols, initial_data=None, form_key=""):
 
 def carregar_base_supabase():
     try:
+        # --- DEBUG 1: Após a primeira busca no Supabase ---
         base_raw_data = supabase.table("pre_roterizacao").select("*").execute().data
         base = pd.DataFrame(base_raw_data)
-
-        # NOVO: Garante que 'is_retorno_rota' seja booleano desde o início
-        if 'is_retorno_rota' in base.columns:
-            # Converte valores como 0/1, 'True'/'False' (string) ou True/False (bool) direto para booleano
-            base['is_retorno_rota'] = base['is_retorno_rota'].astype(bool)
-        else:
-            base['is_retorno_rota'] = False # Cria a coluna com default False se não existir
+        #st.write(f"DEBUG: [carregar_base_supabase] Linhas após SELECT na pre_roterizacao: {len(base)}")
 
         if base.empty:
+            #st.warning("DEBUG: [carregar_base_supabase] A busca inicial na pre_roterizacao retornou vazia. Verifique RLS ou dados.")
             return pd.DataFrame()
+
         # --- DEBUG 2: Após o merge com "Particularidades" ---
         part = supabase.table("Particularidades").select("*").execute().data
         if part:
@@ -3835,7 +3834,7 @@ def aplicar_regras_e_preencher_tabelas():
             'Codigo da Ultima Ocorrencia', 'Peso Real em Kg', 'Peso Calculado em Kg',
             'Cubagem em m³', 'Quantidade de Volumes', 'Valor do Frete', 'Rota','Regiao',
             'CEP de Entrega','CEP do Destinatario','CEP do Remetente',
-            'Tipo_Tratativa_Especial', 'is_retorno_rota'
+            'Tipo_Tratativa_Especial' 
         ]
 
         # Garante que apenas as colunas definidas em colunas_finais sejam usadas
@@ -7374,9 +7373,6 @@ def pagina_pre_roterizacao():
                 df_visivel['is_retorno_rota'] = False
             df_visivel['is_retorno_rota'] = df_visivel['is_retorno_rota'].fillna(False).astype(bool)
 
-             # --- DEBUG: Verifica o DataFrame principal após garantir a coluna ---
-            st.write("DEBUG (df_visivel): Conteúdo de 'is_retorno_rota' após garantir o tipo:", df_visivel['is_retorno_rota'].unique())
-            st.write("DEBUG (df_visivel): Tipo de 'is_retorno_rota' após garantir o tipo:", df_visivel['is_retorno_rota'].dtype)
 
             if not df_visivel.empty:
                 excel_buffer = BytesIO()
@@ -7521,10 +7517,6 @@ def pagina_pre_roterizacao():
         if 'is_retorno_rota' not in df_grupo.columns:
             df_grupo['is_retorno_rota'] = False
         df_grupo['is_retorno_rota'] = df_grupo['is_retorno_rota'].fillna(False).astype(bool)
-
-        # --- DEBUG: Adicione as linhas de debug aqui, após 'df_grupo' estar definido ---
-        st.write(f"DEBUG (df_grupo - {group_key_name}): Conteúdo de 'is_retorno_rota':", df_grupo['is_retorno_rota'].unique())
-        st.write(f"DEBUG (df_grupo - {group_key_name}): Tipo de 'is_retorno_rota' após garantir o tipo:", df_grupo['is_retorno_rota'].dtype)
 
         header_title_content = ""
         group_type = 'Rota' # Tipo padrão
@@ -7688,11 +7680,7 @@ def pagina_pre_roterizacao():
                 st.session_state[checkbox_key] = False
             marcar_todas = st.checkbox("Marcar todas", key=checkbox_key)
 
-            df_formatado = df_grupo.copy()
-            # --- DEBUG: Verifica o DataFrame formatado antes de criar a coluna de exibição ---
-            st.write(f"DEBUG (df_formatado - {nome_grupo}): Valores de 'is_retorno_rota' antes de criar 'Retorno de Rota':", df_formatado['is_retorno_rota'].unique())
-            st.write(f"DEBUG (df_formatado - {nome_grupo}): Tipo de dado de 'is_retorno_rota' antes de criar 'Retorno de Rota':", df_formatado['is_retorno_rota'].dtype)
-            # ----------------------------------------------------------------------------------
+            df_formatado = df_grupo.copy() 
             # --- NOVO: Cria a coluna 'Retorno de Rota' para exibição ---
             if 'is_retorno_rota' in df_formatado.columns:
                 df_formatado['Retorno de Rota'] = df_formatado['is_retorno_rota'].apply(lambda x: 'Sim' if x else 'Não')
