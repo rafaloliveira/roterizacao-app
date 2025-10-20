@@ -10707,7 +10707,7 @@ def pagina_estatisticas():
 # ==============================================================================
 # Função pagina_cargas_fechadas() - com os ajustes aplicados (sem filtro de data e sem DEBUGs)
 # ==============================================================================
-@st.cache_data(ttl=900) # 15 minutos de cache
+
 def pagina_cargas_fechadas():
     st.markdown("## Cargas Encerradas")
     st.markdown("---")
