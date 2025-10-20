@@ -1,3 +1,5 @@
+#17-10 05
+
 
 import streamlit as st
 st.set_page_config(
@@ -26,7 +28,6 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
 import xlsxwriter 
-from itertools import product 
 from decimal import Decimal, ROUND_HALF_UP, getcontext, InvalidOperation 
 from uuid import uuid4
 from fpdf import FPDF
@@ -335,14 +336,6 @@ MAX_COST_PER_REGION = {
 # --- FIM: Definições de Esquemas de Tabela ---
 #------------------------------------------------------------------------------------------------------------------------------------------
 # Adicione esta função em um local adequado, por exemplo, após apply_regras_e_preencher_tabelas()
-def remove_accents(input_str):
-    """Remove acentos de uma string."""
-    if not isinstance(input_str, str): # Garante que a entrada é uma string
-        return input_str
-    nfkd_form = unicodedata.normalize('NFKD', input_str)
-    return "".join([c for c in nfkd_form if not unicodedata.combining(c)])
-
-
 
 def sincronizar_fluxo_com_fbaseroter(supabase_client):
     st.info("🔄 Iniciando sincronização do fluxo de trabalho com fBaseroter...")
@@ -1899,68 +1892,41 @@ def classificar_target_custo(row):
     target_regiao = targets.get(regiao, 50.0)  # Default 50% se região não encontrada
     
     return custo_percentual <= target_regiao
-#---------------------------------------------------------------------------------------------------------------------------------------
 
-
-
-#--------------------------------------------------------------------------------------------------------------------------------------------
-
-GLOBAL_JUSTIFICATIVA_CATEGORIAS_MAP = [
-    ('agendamento_e_custo_broker', 'Agendamento e Custo Broker'),
-    ('aprovado_custo_extra_cliente', 'Aprovado Custo Extra Cliente'),
-    ('baixa_volumetria_na_rota', 'Baixa Volumetria na Rota'),
-    ('custo_fixo_de_agregado', 'Custo Fixo de Agregado'),
-    ('entrega_agendada', 'Entrega Agendada'),
-    ('entrega_direta', 'Entrega Direta'),
-    ('frete_minimo', 'Frete Mínimo'), # <-- Chave "frete_minimo" agora está sem acento
-    ('leadtime', 'Leadtime'),
-    ('meio_truck_baly', 'Meio Truck Baly'),
-    ('negociacao_parceiro', 'Negociação Parceiro'),
-    ('rota_critica_com_agendamento', 'Rota Crítica c/ Agendamento'), # <-- Chave "rota_critica_com_agendamento" (sem acento no "critica")
-    ('rota_direta_sem_parceiro', 'Rota Direta s/ Parceiro'),
-    ('rota_direta_com_agendamento', 'Rota Direta c/ Agendamento'),
-    ('agendamento', 'Agendamento'),
-    ('custo_broker', 'Custo Broker'),
-    ('aprovado', 'Aprovado')
-]
 # --------------------------------------------------------------------------------------------------------------------------------------------------
-
-def get_all_justification_categories_list():
-    """
-    Retorna uma lista ordenada de todas as categorias de justificativa possíveis,
-    incluindo as categorias padrão "Sem Justificativa" e "Outros".
-    Utiliza o GLOBAL_JUSTIFICATIVA_CATEGORIAS_MAP como fonte da verdade.
-    """
-    all_categories = set(item[1] for item in GLOBAL_JUSTIFICATIVA_CATEGORIAS_MAP)
-    all_categories.add('Sem Justificativa') # Categoria padrão para justificativas vazias/nulas
-    all_categories.add('Outros') # Categoria padrão para justificativas não mapeadas
-    return sorted(list(all_categories))
-
- #--------------------------------------------------------------------------------------------------------   
 def classificar_justificativa(justificativa_raw):
-    """
-    Classifica as justificativas em categorias padronizadas.
-    Normaliza a string de entrada (removendo acentos) para comparar com as chaves do mapeamento.
-    """
+    """Classifica as justificativas em categorias padronizadas"""
     if pd.isna(justificativa_raw) or str(justificativa_raw).strip() == '':
         return 'Sem Justificativa'
     
-    # 1. Remove acentos da justificativa bruta
-    # 2. Converte para minúsculas
-    # 3. Remove espaços extras e substitui espaços por underscores
-    justificativa_normalized = remove_accents(str(justificativa_raw)).lower().strip().replace(' ', '_')
+    justificativa = str(justificativa_raw).lower().strip()
     
-    # --- DEBUG TEMPORÁRIO (você pode descomentar para ver o que está acontecendo) ---
-    # st.write(f"DEBUG CLASSIFICAR: Raw: '{justificativa_raw}' -> Normalized: '{justificativa_normalized}'")
-    # --- FIM DEBUG ---
+    # Mapeamento de justificativas para categorias (ajustado para melhor cobertura)
+    categorias = {
+        'agendamento': 'Agendamento',
+        'agendamento_custo_brocker': 'Agendamento e Custo Broker',
+        'custo_brocker': 'Custo Broker',
+        'aprovado_custo_extra_cliente': 'Aprovado Custo Extra Cliente',
+        'baixa_volumetria_rota': 'Baixa Volumetria na Rota',
+        'custo_fixo_agregado': 'Custo Fixo de Agregado',
+        'entrega_agendada': 'Entrega Agendada',
+        'entrega_direta': 'Entrega Direta',
+        'frete_minimo': 'Frete Mínimo',
+        'leadtime': 'Leadtime',
+        'meio_truck_baly': 'Meio Truck Baly',
+        'negociacao_parceiro': 'Negociação Parceiro',
+        'rota_critica_agendamento': 'Rota Crítica c/ Agendamento',
+        'rota_direta_sem_parceiro': 'Rota Direta s/ Parceiro',
+        'rota_direta_agendamento': 'Rota Direta c/ Agendamento',
+        'aprovado': 'Aprovado' # Mantém esta categoria mais genérica para aprovações
+    }
+    
+    for key, categoria in categorias.items():
+        if key in justificativa:
+            return categoria
+    
+    return 'Outros'
 
-    for key_match_pattern, categoria_display_name in GLOBAL_JUSTIFICATIVA_CATEGORIAS_MAP:
-        # A chave de comparação (key_match_pattern) já deve estar sem acentos no GLOBAL_JUSTIFICATIVA_CATEGORIAS_MAP
-        # A comparação verifica se o padrão (sem acento) está contido na justificativa normalizada.
-        if key_match_pattern in justificativa_normalized:
-            return categoria_display_name
-    
-    return 'Outros' # Se não encontrar nenhuma correspondência, categoriza como 'Outros'
 # -----------------------------------------------------------------------------------------------------------------------------------
 
 
@@ -2378,55 +2344,25 @@ def preparar_grid_detalhamento(df_fechadas: pd.DataFrame) -> pd.DataFrame:
         Custo_Total_Contratado_Justificativa=(col_valor_contratacao, 'sum')
     ).reset_index()
 
-    # --- BLOCO ADICIONADO: Preencher combinações (Rota, Justificativa) ausentes ---
-    # Isso é necessário para garantir que o filtro posterior seja preciso
-    # e que Justificativas "inexistentes" para uma rota possam ser removidas
-    # caso elas não tenham Cargas/Entregas > 0
-    all_routes_in_data = df[col_rota].unique()
-    all_possible_justification_categories = get_all_justification_categories_list() # Chama a função auxiliar
-
-    # Cria um DataFrame com todas as combinações possíveis de rota e justificativa
-    all_combinations = pd.DataFrame(list(product(all_routes_in_data, all_possible_justification_categories)),
-                                   columns=[col_rota, col_just])
-
-    # Mescla os dados agrupados com todas as combinações, mantendo todas as combinações
-    # e preenchendo com 0 as contagens para as combinações que não existiam
-    grp_filled = pd.merge(all_combinations, grp, on=[col_rota, col_just], how='left')
-
-    # Preenche NaN com 0 para as colunas de agregação
-    grp_filled['Qtd_de_Cargas'] = grp_filled['Qtd_de_Cargas'].fillna(0).astype(int)
-    grp_filled['Qtd_de_Entregas'] = grp_filled['Qtd_de_Entregas'].fillna(0).astype(int)
-    grp_filled['Custo_Total_Contratado_Justificativa'] = grp_filled['Custo_Total_Contratado_Justificativa'].fillna(0.0)
-    # --- FIM DO BLOCO ADICIONADO ---
-
-    grp_filled['Total_Contratado_Por_Rota'] = grp_filled.groupby(col_rota)['Custo_Total_Contratado_Justificativa'].transform('sum')
+    grp['Total_Contratado_Por_Rota'] = grp.groupby(col_rota)['Custo_Total_Contratado_Justificativa'].transform('sum')
 
     # Calcula a porcentagem do custo da justificativa em relação ao custo total da rota
-    # Trata divisão por zero (resultando em NaN ou Infinito) e preenche com 0
-    grp_filled['% Custo Justificativa na Rota'] = (grp_filled['Custo_Total_Contratado_Justificativa'] / grp_filled['Total_Contratado_Por_Rota'] * 100).replace([float('inf'), -float('inf')], 0).fillna(0)
+    # Trata divisão por zero, caso o custo total da rota seja 0
+    grp['% Custo Justificativa na Rota'] = (grp['Custo_Total_Contratado_Justificativa'] / grp['Total_Contratado_Por_Rota'] * 100).fillna(0)
 
     # Renomeia as colunas para os nomes de exibição finais no grid
-    grp_filled = grp_filled.rename(columns={
+    grp = grp.rename(columns={
         col_rota: 'Rota',
-        col_just: 'Justificativas',
+        col_just: 'Justificativas', 
         'Qtd_de_Cargas': 'Qtd de Cargas',
         'Qtd_de_Entregas': 'Qtd de Entregas'
     })
 
-    # --- NOVO AJUSTE AQUI: FILTRA LINHAS COM QUANTIDADES ZERADAS ---
-    # Remove qualquer linha onde Qtd de Cargas E Qtd de Entregas são zero.
-    # Isso garante que apenas justificativas com atividade real para aquela rota sejam exibidas.
-    grp_filled = grp_filled[(grp_filled['Qtd de Cargas'] > 0) | (grp_filled['Qtd de Entregas'] > 0)]
-    # --- FIM DO NOVO AJUSTE ---
-
     # Seleciona e ordena as colunas finais para exibição
-    # Agora utilizando 'grp_filled' que contém todas as combinações
-    grp_filled = grp_filled[['Rota', 'Justificativas', 'Qtd de Cargas', 'Qtd de Entregas', '% Custo Justificativa na Rota']]
-    grp_filled = grp_filled.sort_values(by=['Rota', 'Justificativas'], kind='stable').reset_index(drop=True)
+    grp = grp[['Rota', 'Justificativas', 'Qtd de Cargas', 'Qtd de Entregas', '% Custo Justificativa na Rota']]
+    grp = grp.sort_values(by=['Rota', 'Justificativas'], kind='stable').reset_index(drop=True)
 
-    return grp_filled
-
-
+    return grp
 #----------------------------------------------------------------------------------------------------------------------------------------
 
 
@@ -11060,7 +10996,6 @@ def pagina_estatisticas():
 # ==============================================================================
 # Função pagina_cargas_fechadas() - com os ajustes aplicados (sem filtro de data e sem DEBUGs)
 # ==============================================================================
-@st.cache_data(ttl=900) # 15 minutos de cache
 def pagina_cargas_fechadas():
     st.markdown("## Cargas Encerradas")
     st.markdown("---")

@@ -1,3 +1,5 @@
+#17-10 01
+
 
 import streamlit as st
 st.set_page_config(
@@ -178,6 +180,7 @@ SYNCABLE_COLUMNS = [
     "Rota",
     "Localizacao Atual",
     "Tipo_Tratativa_Especial", # <<-- ADICIONADO
+    "is_retorno_rota",
     
     
     # Campos como 'motorista', 'placa', 'valor_contratacao', 'aprovador_custos_login', 'data_aprovacao_custos', etc., NÃO devem estar aqui.
@@ -665,12 +668,12 @@ def _aprovar_carga_custos(
 
 # ========== SUPABASE CONFIG ========== #
 # Base de Dados Projeto roteriza
-url = "https://xhwotwefiqfwfabenwsi.supabase.co"
-key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhod290d2VmaXFmd2ZhYmVud3NpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDgzNjc4NTMsImV4cCI6MjA2Mzk0Mzg1M30.3E2z-1SaABbCaV_HjQf0Rj8249mnPeGv7YkV4gOGhlg"  # Substitua pela sua chave real
+#url = "https://xhwotwefiqfwfabenwsi.supabase.co"
+#key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhod290d2VmaXFmd2ZhYmVud3NpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDgzNjc4NTMsImV4cCI6MjA2Mzk0Mzg1M30.3E2z-1SaABbCaV_HjQf0Rj8249mnPeGv7YkV4gOGhlg"  # Substitua pela sua chave real
 
 # Base de Dados Projeto F4Rotas
-#url = "https://agiugsfojyansjeanfbz.supabase.co"
-#key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFnaXVnc2ZvanlhbnNqZWFuZmJ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM4OTUzOTUsImV4cCI6MjA2OTQ3MTM5NX0.44w1wtOe3A8eQS6rINRdT9tDowZWwHM_H9Apr_B17I4"
+url = "https://agiugsfojyansjeanfbz.supabase.co"
+key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFnaXVnc2ZvanlhbnNqZWFuZmJ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM4OTUzOTUsImV4cCI6MjA2OTQ3MTM5NX0.44w1wtOe3A8eQS6rINRdT9tDowZWwHM_H9Apr_B17I4"
 
 #supabase = create_client(url, key)
 
@@ -1499,15 +1502,18 @@ def render_form_fields(schema_cols, initial_data=None, form_key=""):
 
 def carregar_base_supabase():
     try:
-        # --- DEBUG 1: Após a primeira busca no Supabase ---
         base_raw_data = supabase.table("pre_roterizacao").select("*").execute().data
         base = pd.DataFrame(base_raw_data)
-        #st.write(f"DEBUG: [carregar_base_supabase] Linhas após SELECT na pre_roterizacao: {len(base)}")
+
+        # NOVO: Garante que 'is_retorno_rota' seja booleano desde o início
+        if 'is_retorno_rota' in base.columns:
+            # Converte valores como 0/1, 'True'/'False' (string) ou True/False (bool) direto para booleano
+            base['is_retorno_rota'] = base['is_retorno_rota'].astype(bool)
+        else:
+            base['is_retorno_rota'] = False # Cria a coluna com default False se não existir
 
         if base.empty:
-            #st.warning("DEBUG: [carregar_base_supabase] A busca inicial na pre_roterizacao retornou vazia. Verifique RLS ou dados.")
             return pd.DataFrame()
-
         # --- DEBUG 2: Após o merge com "Particularidades" ---
         part = supabase.table("Particularidades").select("*").execute().data
         if part:
@@ -3309,6 +3315,16 @@ def pagina_sincronizacao():
                 st.error("Coluna 'Serie_Numero_CTRC' não encontrada no arquivo importado, impossível realizar a sincronização completa de 'fBaseroter'.")
                 return
 
+            existing_cargas_fechadas_data = supabase.table("cargas_fechadas").select("Serie_Numero_CTRC").execute().data
+            existing_cargas_fechadas_ctrcs_set = {record["Serie_Numero_CTRC"] for record in existing_cargas_fechadas_data}
+
+            returning_ctrcs = df_incoming_allowed['Serie_Numero_CTRC'].isin(existing_cargas_fechadas_ctrcs_set)
+            if returning_ctrcs.any():
+                st.info(f"Detectado(s) {returning_ctrcs.sum()} CTRC(s) retornando ao fluxo. Marcando como 'Retorno de Rota'...")
+                df_incoming_allowed.loc[returning_ctrcs, 'is_retorno_rota'] = True
+            else:
+                st.info("Nenhum CTRC retornando ao fluxo detectado.")
+
             incoming_allowed_ctrcs_set = set(df_incoming_allowed['Serie_Numero_CTRC'].tolist())
 
             ctrcs_to_delete = existing_fbaseroter_ctrcs_set - incoming_allowed_ctrcs_set
@@ -3822,7 +3838,7 @@ def aplicar_regras_e_preencher_tabelas():
             'Codigo da Ultima Ocorrencia', 'Peso Real em Kg', 'Peso Calculado em Kg',
             'Cubagem em m³', 'Quantidade de Volumes', 'Valor do Frete', 'Rota','Regiao',
             'CEP de Entrega','CEP do Destinatario','CEP do Remetente',
-            'Tipo_Tratativa_Especial' 
+            'Tipo_Tratativa_Especial', 'is_retorno_rota'
         ]
 
         # Garante que apenas as colunas definidas em colunas_finais sejam usadas
@@ -4310,7 +4326,7 @@ def preparar_df_pre_roterizacao(df_pre, supabase_client):
 # ===========================================
 
 
-@st.cache_data(ttl=300) # O cache será invalidado a cada hora para garantir dados atualizados
+@st.cache_data(ttl=900) # O cache será invalidado a cada hora para garantir dados atualizados
 def load_motoristas_data():
     """
     Carrega todos os motoristas e suas placas da tabela 'Motoristas' do Supabase.
@@ -4390,7 +4406,7 @@ def pagina_cadastros():
 #-------------------------------------------------------------------------------
 
 
-@st.cache_data(ttl=60)
+@st.cache_data(ttl=900)
 def load_table_data(t_name, _supabase_client):
     """
     Carrega dados de uma tabela do Supabase.
@@ -6500,6 +6516,8 @@ def pagina_confirmar_producao():
                 
                 df['Tipo_Tratativa_Especial'] = df['Tipo_Tratativa_Especial'].fillna('').astype(str)
 
+                
+
         except Exception as e:
             st.error(f"Erro ao consultar o banco de dados: {e}")
             return
@@ -6662,6 +6680,8 @@ def pagina_confirmar_producao():
                 (df_grupo['Particularidade'].notna())
             ]
             qtd_com_particularidade_grupo = len(entregas_com_particularidade_grupo)
+
+            
 
             # Define a cor do badge com base no tipo de grupo
             badge_background_color = header_background if nome_grupo == "Paletizadores" else "#333333"
@@ -7353,6 +7373,13 @@ def pagina_pre_roterizacao():
             
             df_visivel['Tipo_Tratativa_Especial'] = df_visivel['Tipo_Tratativa_Especial'].fillna('').astype(str)
 
+            if 'is_retorno_rota' not in df_visivel.columns:
+                df_visivel['is_retorno_rota'] = False
+            df_visivel['is_retorno_rota'] = df_visivel['is_retorno_rota'].fillna(False).astype(bool)
+
+             # --- DEBUG: Verifica o DataFrame principal após garantir a coluna ---
+            
+
             if not df_visivel.empty:
                 excel_buffer = BytesIO()
                 with pd.ExcelWriter(excel_buffer, engine='xlsxwriter') as writer:
@@ -7386,11 +7413,11 @@ def pagina_pre_roterizacao():
         # Definir as colunas que devem ser exibidas no grid (incluindo Tipo_Tratativa_Especial)
         colunas_exibir = [
             "Serie_Numero_CTRC",  "Cliente Pagador", "Cliente Destinatario", "Cidade de Entrega", "Data de Emissao",
-            "Previsao de Entrega","Entrega Programada","Peso Real em Kg", "Status","Bairro do Destinatario", 
-            "Numero da Nota Fiscal", "Peso Calculado em Kg", "Valor do Frete",
+            "Previsao de Entrega","Entrega Programada", "Status","Bairro do Destinatario", 
+            "Numero da Nota Fiscal","Peso Real em Kg", "Peso Calculado em Kg", "Valor do Frete",
             "Rota", "Regiao",  "Chave CT-e",
             "Particularidade", "Codigo da Ultima Ocorrencia", "Cubagem em m³", "Quantidade de Volumes",
-            "Tipo_Tratativa_Especial" # Nova coluna para exibição
+            "Tipo_Tratativa_Especial", "status_retorno",'Retorno de Rota'  # Nova coluna para exibição
         ]
 
     # ======= MÉTRICAS GERAIS NO TOPO (mantidas inalteradas) =======
@@ -7421,6 +7448,11 @@ def pagina_pre_roterizacao():
     # --- JsCode para destaque visual nos grids (MANTIDO INALTERADO) ---
     linha_destacar = JsCode("""
     function(params) {
+        const isRetornoRota = params.data['is_retorno_rota']; // <-- NOVO: Captura a flag
+        if (isRetornoRota === true) { // <-- NOVO: Aplica o estilo se for Retorno de Rota
+            return { 'background-color': '#ffc0cb', 'color': '#800000', 'font-weight': 'bold' }; // Rosa para retornos
+        }
+
         const status = params.data['Status'];
         const entrega = params.data['Entrega Programada'];
         const particularidade = params.data['Particularidade'];
@@ -7488,6 +7520,13 @@ def pagina_pre_roterizacao():
         if df_grupo.empty:
             continue
 
+        if 'is_retorno_rota' not in df_grupo.columns:
+            df_grupo['is_retorno_rota'] = False
+        df_grupo['is_retorno_rota'] = df_grupo['is_retorno_rota'].fillna(False).astype(bool)
+
+        # --- DEBUG: Adicione as linhas de debug aqui, após 'df_grupo' estar definido ---
+    
+
         header_title_content = ""
         group_type = 'Rota' # Tipo padrão
         
@@ -7530,16 +7569,11 @@ def pagina_pre_roterizacao():
         0 if item[0] == "Coletas" else (1 if item[0] == "Paletizadores" else 2), item[0]
     ))
 
-
-
-
-
-
-
     # Agora, iteramos sobre os grupos para renderizar os grids
     for nome_grupo, grupo_info in grupos_ordenados: # Itera sobre os itens ordenados
 
         df_grupo = grupo_info['df']
+
         header_title_content = grupo_info['header_title_content']
         group_type = grupo_info['group_type'] # Usaremos 'group_type' para lógica de estilo
 
@@ -7583,6 +7617,9 @@ def pagina_pre_roterizacao():
                 (df_grupo['Particularidade'].notna())
             ]
             qtd_com_particularidade_grupo = len(entregas_com_particularidade_grupo)
+
+            qtd_retorno_rota_grupo = df_grupo[df_grupo['is_retorno_rota'] == True].shape[0]
+
             
             # --- Lógica para Estilo dos Badges de Métrica ---
             badge_background_color_metric = "#333333" # Default para Rotas
@@ -7603,7 +7640,8 @@ def pagina_pre_roterizacao():
                 badge(f'{formatar_brasileiro(cubagem_sum)} m³', background_color=badge_background_color_metric, text_color=badge_text_color_metric),
                 badge(f'{int(volumes_sum)} volumes', background_color=badge_background_color_metric, text_color=badge_text_color_metric),
                 badge(f'📅  Agenda s/ Prog.: {qtd_agendar_sem_programacao_grupo}', background_color='#e06200', text_color='white'),
-                badge(f'⚠️ Com Particularidade: {qtd_com_particularidade_grupo}', background_color='#b8860b', text_color='white')
+                badge(f'⚠️ Com Particularidade: {qtd_com_particularidade_grupo}', background_color='#b8860b', text_color='white'),
+                badge(f'🔄 Retorno de Rota: {qtd_retorno_rota_grupo}', background_color='#ff69b4', text_color='white')
             ]
 
             st.markdown(
@@ -7651,9 +7689,20 @@ def pagina_pre_roterizacao():
                 st.session_state[checkbox_key] = False
             marcar_todas = st.checkbox("Marcar todas", key=checkbox_key)
 
-            df_formatado = apply_brazilian_date_format_for_display(
-                df_grupo[[col for col in colunas_exibir if col in df_grupo.columns]].copy()
-            )
+            df_formatado = df_grupo.copy()
+       
+            # ----------------------------------------------------------------------------------
+            # --- NOVO: Cria a coluna 'Retorno de Rota' para exibição ---
+            if 'is_retorno_rota' in df_formatado.columns:
+                df_formatado['Retorno de Rota'] = df_formatado['is_retorno_rota'].apply(lambda x: 'Sim' if x else 'Não')
+            else:
+                df_formatado['Retorno de Rota'] = 'Não'
+                
+            # Agora filtra as colunas para exibição no grid
+            df_formatado = df_formatado[[col for col in colunas_exibir if col in df_formatado.columns]].copy()
+            df_formatado = apply_brazilian_date_format_for_display(df_formatado)
+
+
 
             gb = GridOptionsBuilder.from_dataframe(df_formatado)
             gb.configure_default_column(minWidth=140)
@@ -7662,7 +7711,7 @@ def pagina_pre_roterizacao():
             gb.configure_grid_options(alwaysShowHorizontalScroll=True)
             gb.configure_grid_options(rowStyle={'font-size': '11px'})
             gb.configure_grid_options(onGridReady=GRID_RESIZE_JS_CODE) 
-            gb.configure_grid_options(onGridReady=GRID_RESIZE_JS_CODE) 
+             
             # NOVO: Aplica o formatador para todas as colunas de data que devem ser DD-MM-AAAA
             for col in DATE_ONLY_REPARSE_COLUMNS:
                 if col in df_formatado.columns:
@@ -7814,7 +7863,7 @@ def pagina_pre_roterizacao():
 # FUNÇÃO: pagina_cargas_geradas()
 # ==============================================================================
 
-@st.cache_data(ttl=300) # Defina o mesmo TTL ou um TTL um pouco maior que load_motoristas_data
+@st.cache_data(ttl=900) # Defina o mesmo TTL ou um TTL um pouco maior que load_motoristas_data
 def get_all_motoristas_options():
     df_motoristas_data = load_motoristas_data() # Esta já estaria cacheada pelo seu TTL
     all_motoristas = sorted(df_motoristas_data['MOTORISTA'].unique().tolist()) if not df_motoristas_data.empty else []
@@ -7822,7 +7871,7 @@ def get_all_motoristas_options():
 
 motorista_options_general = get_all_motoristas_options()
 
-@st.cache_data(ttl=300) # Defina o mesmo TTL ou um TTL um pouco maior que load_motoristas_data
+@st.cache_data(ttl=900) # Defina o mesmo TTL ou um TTL um pouco maior que load_motoristas_data
 def get_plates_by_motorista():
     df_motoristas_data = load_motoristas_data()
     plates_map = {}
@@ -7898,6 +7947,12 @@ def pagina_cargas_geradas():
                     if col in df.columns: # Check if column exists in DataFrame
                         df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0.0)
 
+
+                    if 'is_retorno_rota' not in df.columns:
+                        df['is_retorno_rota'] = False # Cria a coluna com default False
+                    df['is_retorno_rota'] = df['is_retorno_rota'].fillna(False).astype(bool) # Preenche NaNs com False e garante o tipo
+
+
                 st.session_state["df_cargas_cache"] = df
             else:
                 df = st.session_state["df_cargas_cache"]
@@ -7967,7 +8022,7 @@ def pagina_cargas_geradas():
         "Bairro do Destinatario", "Data de Emissao", "Previsao de Entrega","Entrega Programada", "Numero da Nota Fiscal", 
          "Status","Peso Real em Kg", "Peso Calculado em Kg", "Valor do Frete",
         "Rota", "Regiao", "Chave CT-e", "Data_Hora_Gerada" , "Tipo_Tratativa_Especial",
-        "Particularidade", "Codigo da Ultima Ocorrencia", "Cubagem em m³", "Quantidade de Volumes", "status_retorno"
+        "Particularidade", "Codigo da Ultima Ocorrencia", "Cubagem em m³", "Quantidade de Volumes", "status_retorno", 'Retorno de Rota'
 ]
 
         cargas_unicas = sorted(df["numero_carga"].dropna().unique())
@@ -7977,6 +8032,21 @@ def pagina_cargas_geradas():
 
             if df_carga_raw.empty:
                 continue
+
+
+               # --- NOVO BLOCO: PREPARAR O VALOR DO FRETE AJUSTADO PARA CÁLCULOS ---
+            # 1. Garante que 'is_retorno_rota' exista e seja booleano
+            if 'is_retorno_rota' not in df_carga_raw.columns:
+                df_carga_raw['is_retorno_rota'] = False # Default para False se a coluna não existir
+            df_carga_raw['is_retorno_rota'] = df_carga_raw['is_retorno_rota'].fillna(False).astype(bool)
+
+            # 2. Cria uma coluna de 'Valor do Frete' ajustada: 0.0 para retornos de rota, Valor original caso contrário
+            #    Esta coluna será usada para todos os cálculos de soma de frete para a carga.
+            df_carga_raw['Valor_do_Frete_Para_Calculo'] = df_carga_raw.apply(
+                lambda row: 0.0 if row['is_retorno_rota'] else row['Valor do Frete'],
+                axis=1
+            )
+            # --- FIM NOVO BLOCO ---
             
             # --- NOVO: Extração de informações de motorista, placa, veículo e valor_contratacao
             # Agora usando .iloc[0] após o preenchimento de NaNs para garantir um valor único (o primeiro)
@@ -8145,7 +8215,7 @@ def pagina_cargas_geradas():
                     (df_carga_raw['Particularidade'].notna())
                 ]
                 qtd_com_particularidade_carga = len(entregas_com_particularidade_carga)
-                
+                qtd_retorno_rota_carga = df_carga_raw[df_carga_raw['is_retorno_rota'] == True].shape[0]
                 
 
                 info_data_hora_gerada = df_carga_raw["Data_Hora_Gerada"].iloc[0] if "Data_Hora_Gerada" in df_carga_raw.columns and not df_carga_raw.empty else None
@@ -8168,8 +8238,10 @@ def pagina_cargas_geradas():
 
                 # Novos badges com cores ajustadas
                 badge(f'📅  Agenda s/ Prog.: {qtd_agendar_sem_programacao_carga}', background_color='#e06200', text_color='white'),
-                badge(f'⚠️ Com Particularidade: {qtd_com_particularidade_carga}', background_color='#b8860b', text_color='white')
-            ]
+                badge(f'⚠️ Com Particularidade: {qtd_com_particularidade_carga}', background_color='#b8860b', text_color='white'),
+                badge(f'🔄 Retorno de Rota: {qtd_retorno_rota_carga}', background_color='#ff69b4', text_color='white') # <--- NOVO BADGE
+    ]
+            
 
             if info_valor_adicional_raw > 0 and info_motivo_adicional: # Condicionalmente adiciona o motivo se houver valor e motivo
                  html_fragments.append(badge(f'Motivo Adicional: {info_motivo_adicional}', background_color='#d67b00', text_color='white'))
@@ -8293,11 +8365,23 @@ def pagina_cargas_geradas():
                 marcar_todas = st.checkbox("Marcar todas", key=checkbox_key)
 
                 with st.spinner("Carregando entregas da carga no grid..."):
-                    df_formatado = df_carga_raw[[col for col in colunas_exibir if col in df_carga_raw.columns]].copy()
+                    # --- INÍCIO DA CORREÇÃO: REORDENANDO AS OPERAÇÕES ---
 
-                    # 🔑 Garante que a coluna chave exista
-                    if "Serie_Numero_CTRC" not in df_formatado.columns:
-                        df_formatado["Serie_Numero_CTRC"] = None
+                    # 1. Crie uma cópia temporária do DataFrame 'df_carga_raw' para adicionar a coluna
+                    df_temp_para_grid_processing = df_carga_raw.copy()
+
+                    # 2. Garanta que 'is_retorno_rota' exista antes de usá-la (já deve estar garantido no carregamento)
+                    if 'is_retorno_rota' not in df_temp_para_grid_processing.columns:
+                        df_temp_para_grid_processing['is_retorno_rota'] = False
+                    
+                    # 3. Crie a coluna 'Retorno de Rota' no DataFrame TEMPORÁRIO primeiro
+                    df_temp_para_grid_processing['Retorno de Rota'] = df_temp_para_grid_processing['is_retorno_rota'].apply(lambda x: 'Sim' if x else 'Não')
+
+                    # 4. Agora, selecione as colunas desejadas para 'df_formatado' a partir do DataFrame TEMPORÁRIO
+                    # Isso garante que 'Retorno de Rota' já exista quando o filtro for aplicado.
+                    df_formatado = df_temp_para_grid_processing[[col for col in colunas_exibir if col in df_temp_para_grid_processing.columns]].copy()
+
+                    # --- FIM DA CORREÇÃO DE REORDENAÇÃO ---
 
                     for col_to_check in ["Previsao de Entrega", "Entrega Programada", "Data de Emissao"]:
                         if col_to_check in df_formatado.columns:
@@ -8308,6 +8392,7 @@ def pagina_cargas_geradas():
                             )
 
                     df_formatado = apply_brazilian_date_format_for_display(df_formatado)
+                    df_formatado = df_formatado.replace([np.nan, None, pd.NaT], "")
 
                     if not df_formatado.empty:
                         gb = GridOptionsBuilder.from_dataframe(df_formatado)
@@ -8491,6 +8576,8 @@ def pagina_cargas_geradas():
                         if initial_valor_contratacao_input == 0.0 and valor_sugerido_contratacao > 0:
                                 initial_valor_contratacao_input = valor_sugerido_contratacao
 
+                        initial_valor_contratacao_input = float(initial_valor_contratacao_input)
+
                         valor_contratacao = st.number_input(
                             "Valor da Contratação da Carga (R$)",
                             min_value=0.0,
@@ -8558,7 +8645,9 @@ def pagina_cargas_geradas():
                                 df_para_retornar = df_para_retornar.drop(columns=[
                                     "numero_carga", "Data_Hora_Gerada", "motorista", "placa", "veiculo",
                                     "valor_contratacao", "aprovador_custos_login", "data_aprovacao_custos",
-                                    "pdf_downloaded_at", "pdf_simplified_downloaded_at", "valor_adicional_frete", "motivo_valor_adicional" # <-- ADICIONADOS AQUI
+                                    "pdf_downloaded_at", "pdf_simplified_downloaded_at", "valor_adicional_frete", "motivo_valor_adicional",
+                                    # NOVAS COLUNAS A SEREM ADICIONADAS AQUI:
+                                    "custo_percentual_frete", "rentabilidade_percentual", "situacao_custo_regional" # <--- ADICIONE ESTAS TRÊS COLUNAS
                                 ], errors="ignore")
 
                                 df_para_retornar = _prepare_df_for_supabase_insert(df_para_retornar)
@@ -8674,8 +8763,8 @@ def pagina_cargas_geradas():
                             with st.spinner("Salvando dados da carga..."):
                                 # --- RECALCULAR AQUI COM OS VALORES ATUALIZADOS DO UI ---
                                 # Use os valores dos inputs (valor_contratacao, valor_adicional_frete)
-                                updated_total_frete_base = df_carga_raw["Valor do Frete"].sum() # Use o valor base da carga
-                                updated_total_frete_carga = updated_total_frete_base + valor_adicional_frete # Use o input do adicional
+                                updated_total_frete_base = df_carga_raw["Valor_do_Frete_Para_Calculo"].sum() 
+                                updated_total_frete_carga = updated_total_frete_base + valor_adicional_frete
 
                                 updated_d_valor_contratacao_carga = Decimal(str(valor_contratacao))
                                 updated_d_total_frete_carga = Decimal(str(updated_total_frete_carga))
@@ -8804,8 +8893,8 @@ def pagina_cargas_geradas():
 
                                     # --- NOVO BLOCO: RE-CALCULAR Rentabilidade, Custo Percentual e Situação DO CUSTO REGIONAL para o ENVIO ---
                                     # Use os valores DOS INPUTS DA UI para o cálculo, garantindo que são os mais atuais
-                                    current_total_frete_base_send = df_carga_raw["Valor do Frete"].sum()
-                                    current_total_frete_carga_calc_send = current_total_frete_base_send + valor_adicional_frete 
+                                    current_total_frete_base_send = df_carga_raw["Valor_do_Frete_Para_Calculo"].sum() # <--- AJUSTADO AQUI
+                                    current_total_frete_carga_calc_send = current_total_frete_base_send + valor_adicional_frete
 
                                     calculated_rentabilidade_percentual_send = Decimal('0')
                                     calculated_custo_percentual_frete_send = Decimal('0')
@@ -8895,7 +8984,7 @@ def pagina_cargas_geradas():
 # ==============================================================================
 # FUNÇÃO: pagina_aprovacao_custos() - ATUALIZADA
 # ==============================================================================
-@st.cache_data(ttl=300) # Cache para evitar consultas desnecessárias ao banco
+@st.cache_data(ttl=900) # Cache para evitar consultas desnecessárias ao banco
 def carregar_opcoes_justificativa():
     """
     Carrega as justificativas da tabela 'justificativasaprovacaocusto',
@@ -8968,6 +9057,14 @@ def pagina_aprovacao_custos():
                     if 'numero_carga' in df.columns:
                         df['numero_carga'] = df['numero_carga'].astype(str)
 
+                    if 'is_retorno_rota' not in df.columns:
+                        df['is_retorno_rota'] = False # Default para False se a coluna não existir (para retrocompatibilidade)
+                    df['is_retorno_rota'] = df['is_retorno_rota'].fillna(False).astype(bool) # Preenche NaNs com False e garante o tipo
+
+                    if 'is_retorno_rota' not in df.columns:
+                        df['is_retorno_rota'] = False
+                    df['is_retorno_rota'] = df['is_retorno_rota'].fillna(False).astype(bool)
+
                 st.session_state["df_aprovacao_custos_cache"] = df
             else:
                 df = st.session_state["df_aprovacao_custos_cache"]
@@ -8988,6 +9085,16 @@ def pagina_aprovacao_custos():
                             return
 
                         df_aprovar_todas = df[df['Serie_Numero_CTRC'].isin(ctrcs_a_aprovar_todos)].copy()
+
+                         # --- NOVO BLOCO: Preparar Valor do Frete ajustado para cálculos (para Aprovar Todas) ---
+                        if 'is_retorno_rota' not in df_aprovar_todas.columns:
+                            df_aprovar_todas['is_retorno_rota'] = False
+                        df_aprovar_todas['is_retorno_rota'] = df_aprovar_todas['is_retorno_rota'].fillna(False).astype(bool)
+                        df_aprovar_todas['Valor_do_Frete_Para_Calculo'] = df_aprovar_todas.apply(
+                            lambda row: 0.0 if row['is_retorno_rota'] else row['Valor do Frete'],
+                            axis=1
+                        )
+                        # --- FIM NOVO BLOCO ---
                         df_aprovar_todas["aprovador_custos_login"] = st.session_state.get("username", "Desconhecido")
 
                         df_aprovar_todas["data_aprovacao_custos"] = data_hora_brasil_iso()
@@ -9002,7 +9109,7 @@ def pagina_aprovacao_custos():
                             valor_contratacao=('valor_contratacao', 'first'), # Pega o valor da primeira entrega da carga (deve ser o mesmo para toda a carga)
                             valor_adicional_frete=('valor_adicional_frete', 'first'),
                             # SOMA o valor do frete base de TODAS as entregas para obter o frete total da carga
-                            total_frete_base=('Valor do Frete', 'sum'),
+                            total_frete_base=('Valor_do_Frete_Para_Calculo', 'sum'),    
                             regiao=('Regiao', lambda x: x.mode()[0] if not x.mode().empty else 'NÃO DEFINIDA') # Pega a região mais comum ou 'NÃO DEFINIDA'
                         ).reset_index()
 
@@ -9102,7 +9209,7 @@ def pagina_aprovacao_custos():
         "Bairro do Destinatario","Data de Emissao", "Previsao de Entrega","Entrega Programada","Status", "Numero da Nota Fiscal",  
         "Peso Real em Kg", "Peso Calculado em Kg", "Valor do Frete",
         "Rota", "Regiao",  "Chave CT-e", "Data_Hora_Gerada","Tipo_Tratativa_Especial","carga_transf_filial",
-        "Particularidade", "Codigo da Ultima Ocorrencia", "Cubagem em m³", "Quantidade de Volumes",
+        "Particularidade", "Codigo da Ultima Ocorrencia", "Cubagem em m³", "Quantidade de Volumes",  "Retorno de Rota"
 ]
 
         cargas_unicas = sorted(df["numero_carga"].dropna().unique())
@@ -9111,7 +9218,17 @@ def pagina_aprovacao_custos():
             df_carga = df[df["numero_carga"] == carga].copy()
             if df_carga.empty:
                 continue
+            # --- NOVO BLOCO: PREPARAR O VALOR DO FRETE AJUSTADO PARA CÁLCULOS ---
+            # 1. Garante que 'is_retorno_rota' exista e seja booleano
+            if 'is_retorno_rota' not in df_carga.columns:
+                df_carga['is_retorno_rota'] = False
+            df_carga['is_retorno_rota'] = df_carga['is_retorno_rota'].fillna(False).astype(bool)
 
+            # 2. Cria uma coluna de 'Valor do Frete' ajustada: 0.0 para retornos de rota, Valor original caso contrário
+            df_carga['Valor_do_Frete_Para_Calculo'] = df_carga.apply(
+                lambda row: 0.0 if row['is_retorno_rota'] else row['Valor do Frete'],
+                axis=1
+            )
             # --- 1. Extração de informações da Carga (para os badges e cálculos) ---
             valor_contratacao_carga_existente = df_carga["valor_contratacao"].iloc[0] if "valor_contratacao" in df_carga.columns and not df_carga["valor_contratacao"].isnull().all() else 0.0
             motorista_ = df_carga["motorista"].iloc[0] if "motorista" in df_carga.columns and not df_carga["motorista"].isnull().all() else "–"
@@ -9122,7 +9239,7 @@ def pagina_aprovacao_custos():
             info_motivo_adicional = df_carga["motivo_valor_adicional"].iloc[0] if "motivo_valor_adicional" in df_carga.columns and not df_carga.empty and pd.notna(df_carga["motivo_valor_adicional"].iloc[0]) else ""
             
             # --- 2. Cálculos de Rentabilidade e Custo por Região (onde situacao_custo_regional é definida) ---
-            total_frete_carga = df_carga["Valor do Frete"].sum() # <-- Esta variável será usada nas chamadas à _aprovar_carga_custos
+            total_frete_carga = df_carga["Valor_do_Frete_Para_Calculo"].sum()  # <-- Esta variável será usada nas chamadas à _aprovar_carga_custos
 
             # --- ADAPTAÇÃO DA LÓGICA DE CORES PARA USAR OS VALORES `_db` ---
             # EXTRAI OS VALORES JÁ CALCULADOS E SALVOS NO DB
@@ -9167,11 +9284,6 @@ def pagina_aprovacao_custos():
                     dominant_region = regions_to_consider.value_counts().idxmax()
                 elif not df_carga['Regiao'].empty:
                     dominant_region = df_carga['Regiao'].iloc[0]
-
-
-
-
-
 
             justificativa_necessaria = False
             # AGORA USA situacao_custo_regional_db que vem do DataFrame
@@ -9241,7 +9353,6 @@ def pagina_aprovacao_custos():
                     all_badges_html_list.append(badge(f'Motivo Adicional: {info_motivo_adicional}', background_color='#d67b00', text_color='white'))
                
                
-               # Novos cálculos por carga
                 entregas_agendar_sem_programacao_carga = df_carga[
                     (df_carga['Status'].astype(str).str.upper() == 'AGENDAR') &
                     (df_carga['Entrega Programada'].isnull() | (df_carga['Entrega Programada'] == ''))
@@ -9254,8 +9365,12 @@ def pagina_aprovacao_custos():
                 ]
                 qtd_com_particularidade_carga = len(entregas_com_particularidade_carga)
 
+                qtd_retorno_rota_carga = df_carga[df_carga['is_retorno_rota'] == True].shape[0]
+
+                # --- CORREÇÃO AQUI: Mude `all_badges_html_list = [...]` para `all_badges_html_list.append(...)` ---
                 all_badges_html_list.append(badge(f'📅  Agenda s/ Prog.: {qtd_agendar_sem_programacao_carga}', background_color='#e06200', text_color='white'))
                 all_badges_html_list.append(badge(f'⚠️ Com Particularidade: {qtd_com_particularidade_carga}', background_color='#b8860b', text_color='white'))
+                all_badges_html_list.append(badge(f'🔄 Retorno de Rota: {qtd_retorno_rota_carga}', background_color='#ff69b4', text_color='white')) # <--- AGORA ADICIONA À LISTA
 
                 # Junte todos os HTMLs dos badges em uma única string
                 full_badges_html_string = "".join(all_badges_html_list)
@@ -9326,6 +9441,7 @@ def pagina_aprovacao_custos():
 
                     
                     df_formatado = df_carga[[col for col in colunas_exibir if col in df_carga.columns]].copy()
+                    df_formatado['Retorno de Rota'] = df_carga['is_retorno_rota'].apply(lambda x: 'Sim' if x else 'Não')
                     df_formatado = apply_brazilian_date_format_for_display(df_formatado)
                     df_formatado = df_formatado.replace([np.nan, None], "")
 
@@ -9335,12 +9451,28 @@ def pagina_aprovacao_custos():
                     gb.configure_grid_options(paginationPageSize=12)
                     gb.configure_grid_options(alwaysShowHorizontalScroll=True)
                     gb.configure_grid_options(rowStyle={"font-size": "11px"})
-                    
                     gb.configure_grid_options(getRowStyle=JsCode("""
                         function(params) {
+                            const isRetorno = params.data['is_retorno_rota']; // Assume que a coluna existe no df
+                            if (isRetorno === true) { 
+                                return { 'background-color': '#ffc0cb', 'color': '#800000', 'font-weight': 'bold' }; // Rosa para entregas de retorno
+                            }
+                            // ... (seus outros destaques como AGENDAR, Particularidade) ...
+                            return null;
+                        }
+                    """))
+                                    
+                    gb.configure_grid_options(getRowStyle=JsCode("""
+                        function(params) {
+                            const isRetorno = params.data['is_retorno_rota'];
                             const status = params.data.Status;
                             const entregaProg = params.data["Entrega Programada"];
                             const particularidade = params.data.Particularidade;
+
+                            if (isRetorno) { 
+                                return { 'background-color': '#ffc0cb', 'color': '#800000', 'font-weight': 'bold' }; // Rosa para entregas de retorno
+                            }
+                            
                             if (status === "AGENDAR" && (!entregaProg || entregaProg.trim() === "")) {
                                 return { 'background-color': '#ffe0b2', 'color': '#333' }; 
                             }
@@ -9801,6 +9933,9 @@ def pagina_cargas_aprovadas():
                                 df[col_name] = df[col_name].apply(
                                     lambda x: x.tz_localize('UTC', ambiguous='NaT', nonexistent='NaT') if pd.notna(x) and x.tzinfo is None else x
                                 )
+                if 'is_retorno_rota' not in df.columns:
+                    df['is_retorno_rota'] = False
+                df['is_retorno_rota'] = df['is_retorno_rota'].fillna(False).astype(bool)               
                                 
                 st.session_state["df_cargas_aprovadas_cache"] = df
             else:
@@ -9858,15 +9993,16 @@ def pagina_cargas_aprovadas():
         }
 
         colunas_exibir = [
-        "Serie_Numero_CTRC",  "Cliente Pagador", "Cliente Destinatario", "Cidade de Entrega",
-        "Bairro do Destinatario", "Data de Emissao","Previsao de Entrega","Entrega Programada", "Numero da Nota Fiscal",  
-        "Status","Peso Real em Kg", "Peso Calculado em Kg", "Valor do Frete",
-        "Rota", "Regiao",  "Chave CT-e",
-        "Particularidade", "Codigo da Ultima Ocorrencia", "Cubagem em m³", "Quantidade de Volumes",
-        "valor_contratacao",   "valor_adicional_frete",
-        "motivo_valor_adicional","numero_carga", "motorista", "placa","Tipo_Tratativa_Especial","carga_transf_filial",
-        "veiculo", "aprovador_custos_login", "data_aprovacao_custos", "Data_Hora_Gerada",
-        "custo_percentual_frete", "rentabilidade_percentual", "situacao_custo_regional" 
+            "Serie_Numero_CTRC",  "Cliente Pagador", "Cliente Destinatario", "Cidade de Entrega",
+            "Bairro do Destinatario", "Data de Emissao","Previsao de Entrega","Entrega Programada", "Numero da Nota Fiscal",  
+            "Status","Peso Real em Kg", "Peso Calculado em Kg", "Valor do Frete",
+            "Rota", "Regiao",  "Chave CT-e",
+            "Particularidade", "Codigo da Ultima Ocorrencia", "Cubagem em m³", "Quantidade de Volumes",
+            "valor_contratacao",   "valor_adicional_frete",
+            "motivo_valor_adicional","numero_carga", "motorista", "placa","Tipo_Tratativa_Especial","carga_transf_filial",
+            "veiculo", "aprovador_custos_login", "data_aprovacao_custos", "Data_Hora_Gerada",
+            "custo_percentual_frete", "rentabilidade_percentual", "situacao_custo_regional",
+             "Retorno de Rota" # <--- ADICIONE ESTA COLUNA DE TEXTO
 ]
 
         cargas_unicas = sorted(df["numero_carga"].dropna().unique())
@@ -9982,13 +10118,10 @@ def pagina_cargas_aprovadas():
                     (df_carga['Particularidade'].notna())
                 ]
                 qtd_com_particularidade_carga = len(entregas_com_particularidade_carga)
+                qtd_retorno_rota_carga = df_carga[df_carga['is_retorno_rota'] == True].shape[0]
 
-                all_badges_html_list.append(badge(f'📅  Agenda s/ Prog.: {qtd_agendar_sem_programacao_carga}', background_color='#e06200', text_color='white'))
-                all_badges_html_list.append(badge(f'⚠️ Com Particularidade: {qtd_com_particularidade_carga}', background_color='#b8860b', text_color='white'))
+                
 
-
-
-                 # Novos cálculos por carga
                 entregas_agendar_sem_programacao_carga = df_carga[
                     (df_carga['Status'].astype(str).str.upper() == 'AGENDAR') &
                     (df_carga['Entrega Programada'].isnull() | (df_carga['Entrega Programada'] == ''))
@@ -10001,8 +10134,14 @@ def pagina_cargas_aprovadas():
                 ]
                 qtd_com_particularidade_carga = len(entregas_com_particularidade_carga)
 
+                qtd_retorno_rota_carga = df_carga[df_carga['is_retorno_rota'] == True].shape[0]
 
-                # Junte todos os HTMLs dos badges em uma única string
+                # --- CORREÇÃO AQUI: Mude `all_badges_html_list = [...]` para `all_badges_html_list.append(...)` ---
+                all_badges_html_list.append(badge(f'📅  Agenda s/ Prog.: {qtd_agendar_sem_programacao_carga}', background_color='#e06200', text_color='white'))
+                all_badges_html_list.append(badge(f'⚠️ Com Particularidade: {qtd_com_particularidade_carga}', background_color='#b8860b', text_color='white'))
+                all_badges_html_list.append(badge(f'🔄 Retorno de Rota: {qtd_retorno_rota_carga}', background_color='#ff69b4', text_color='white')) 
+
+
                 full_badges_html_string = "".join(all_badges_html_list)
 
                 # Use a string final no st.markdown
@@ -10064,9 +10203,21 @@ def pagina_cargas_aprovadas():
                         }
                     """)
 
-                    # NOVO: Formatter para exibir APENAS a parte da data (dd-mm-aaaa)
-                   
-                    df_formatado = df_carga[[col for col in colunas_exibir if col in df_carga.columns]].copy()
+                    df_temp_para_grid = df_carga.copy()
+
+                    # 2. Garanta que 'is_retorno_rota' exista antes de usá-la (já deve estar garantido no carregamento)
+                    if 'is_retorno_rota' not in df_temp_para_grid.columns:
+                        df_temp_para_grid['is_retorno_rota'] = False
+                    
+                    # 3. Crie a coluna 'Retorno de Rota' no DataFrame TEMPORÁRIO primeiro
+                    df_temp_para_grid['Retorno de Rota'] = df_temp_para_grid['is_retorno_rota'].apply(lambda x: 'Sim' if x else 'Não')
+
+                    # 4. Agora, aplique o filtro de colunas para criar df_formatado para o grid.
+                    # Isso garante que 'Retorno de Rota' já exista no df_temp_para_grid quando for filtrado.
+                    df_formatado = df_temp_para_grid[[col for col in colunas_exibir if col in df_temp_para_grid.columns]].copy()
+
+
+
                     df_formatado = apply_brazilian_date_format_for_display(df_formatado) # Aplica o formato completo (dd-mm-aaaa HH:MM:SS)
                     df_formatado = df_formatado.replace([np.nan, None], "")
                     selecionadas = df_formatado[df_formatado["Serie_Numero_CTRC"].notna()].copy().to_dict(orient="records")
@@ -11060,23 +11211,27 @@ def pagina_cargas_fechadas():
         "data_fechamento", "situacao", "aprovador_custos_login", "data_aprovacao_custos",
         "fechador_carga_login", "justificativa_aprovacao_custo",
         "custo_percentual_frete", "rentabilidade_percentual", "situacao_custo_regional",
-        "pdf_downloaded_at", "csv_downloaded_at","carga_transf_filial"
+        "pdf_downloaded_at", "csv_downloaded_at","carga_transf_filial", 'Retorno de Rota'
     ]
 
     # --- INÍCIO DO LOOP FOR SOLICITADO ---
     for carga in cargas_unicas_paginated:
         df_carga = df_filtered[df_filtered["numero_carga"] == carga].copy()
         if df_carga.empty:
-            # DEBUGs: Verificação de df_carga IMEDIATAMENTE após a criação
-            # st.subheader(f"DEBUG: df_carga para Carga {carga} (imediatamente após slicing)")
-            # st.write(f"df_carga.dtypes: {df_carga.dtypes}")
-            # if not df_carga.empty and "data_fechamento" in df_carga.columns:
-            #     st.write(f"df_carga['data_fechamento'].iloc[0]: {df_carga['data_fechamento'].iloc[0]}")
-            #     st.write(f"Tipo em df_carga.iloc[0]: {type(df_carga['data_fechamento'].iloc[0])}")
-            # else:
-            #     st.write("df_carga é vazio ou 'data_fechamento' não existe.")
-            # st.markdown("---")
             continue # Continue aqui se df_carga estiver realmente vazio
+
+        # --- NOVO BLOCO: PREPARAR O VALOR DO FRETE AJUSTADO PARA CÁLCULOS ---
+        # Garante que 'is_retorno_rota' exista e seja booleano
+        if 'is_retorno_rota' not in df_carga.columns:
+            df_carga['is_retorno_rota'] = False
+        df_carga['is_retorno_rota'] = df_carga['is_retorno_rota'].fillna(False).astype(bool)
+
+        # Cria uma coluna de 'Valor do Frete' ajustada: 0.0 para retornos de rota, Valor original caso contrário
+        df_carga['Valor_do_Frete_Para_Calculo'] = df_carga.apply(
+            lambda row: 0.0 if row['is_retorno_rota'] else row['Valor do Frete'],
+            axis=1
+        )
+        # --- FIM NOVO BLOCO ---
 
         # --- Adicionado: Cálculo da rota dominante aqui ---
         rota_dominante = "–" # Valor padrão se não houver rota
@@ -11151,7 +11306,7 @@ def pagina_cargas_fechadas():
         info_valor_adicional_raw = df_carga["valor_adicional_frete"].iloc[0] if "valor_adicional_frete" in df_carga.columns and not df_carga["valor_adicional_frete"].isnull().all() else 0.0
         
         pdf_valor_contratacao = valor_contratacao_carga # Já extraído acima
-        total_frete_limpo = df_carga["Valor do Frete"].sum() + info_valor_adicional_raw
+        total_frete_limpo = df_carga["Valor_do_Frete_Para_Calculo"].sum() + info_valor_adicional_raw
         # --- FIM DA DEFINIÇÃO PARA O PDF ---
 
         # --- ADAPTAÇÃO DA LÓGICA DE CORES PARA USAR OS VALORES `_db` ---
@@ -11306,6 +11461,7 @@ def pagina_cargas_fechadas():
                 df_formatado = apply_brazilian_date_format_for_display(df_formatado)
                 # Garante que NaT e None sejam substituídos por string vazia para exibição no grid
                 df_formatado = df_formatado.replace([np.nan, None, pd.NaT], "")
+                df_formatado['Retorno de Rota'] = df_carga['is_retorno_rota'].apply(lambda x: 'Sim' if x else 'Não')
 
                 if df_formatado.empty or df_formatado.shape[1] == 0:
                     st.warning(f"Atenção: A carga {carga} não possui dados ou colunas válidas para exibir. Pulando a renderização do grid para esta carga.")

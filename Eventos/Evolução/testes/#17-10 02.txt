@@ -1,3 +1,5 @@
+#17-10 02
+
 
 import streamlit as st
 st.set_page_config(
@@ -26,7 +28,6 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
 import xlsxwriter 
-from itertools import product 
 from decimal import Decimal, ROUND_HALF_UP, getcontext, InvalidOperation 
 from uuid import uuid4
 from fpdf import FPDF
@@ -335,14 +336,6 @@ MAX_COST_PER_REGION = {
 # --- FIM: Definições de Esquemas de Tabela ---
 #------------------------------------------------------------------------------------------------------------------------------------------
 # Adicione esta função em um local adequado, por exemplo, após apply_regras_e_preencher_tabelas()
-def remove_accents(input_str):
-    """Remove acentos de uma string."""
-    if not isinstance(input_str, str): # Garante que a entrada é uma string
-        return input_str
-    nfkd_form = unicodedata.normalize('NFKD', input_str)
-    return "".join([c for c in nfkd_form if not unicodedata.combining(c)])
-
-
 
 def sincronizar_fluxo_com_fbaseroter(supabase_client):
     st.info("🔄 Iniciando sincronização do fluxo de trabalho com fBaseroter...")
@@ -675,12 +668,12 @@ def _aprovar_carga_custos(
 
 # ========== SUPABASE CONFIG ========== #
 # Base de Dados Projeto roteriza
-url = "https://xhwotwefiqfwfabenwsi.supabase.co"
-key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhod290d2VmaXFmd2ZhYmVud3NpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDgzNjc4NTMsImV4cCI6MjA2Mzk0Mzg1M30.3E2z-1SaABbCaV_HjQf0Rj8249mnPeGv7YkV4gOGhlg"  # Substitua pela sua chave real
+#url = "https://xhwotwefiqfwfabenwsi.supabase.co"
+#key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhod290d2VmaXFmd2ZhYmVud3NpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDgzNjc4NTMsImV4cCI6MjA2Mzk0Mzg1M30.3E2z-1SaABbCaV_HjQf0Rj8249mnPeGv7YkV4gOGhlg"  # Substitua pela sua chave real
 
 # Base de Dados Projeto F4Rotas
-#url = "https://agiugsfojyansjeanfbz.supabase.co"
-#key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFnaXVnc2ZvanlhbnNqZWFuZmJ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM4OTUzOTUsImV4cCI6MjA2OTQ3MTM5NX0.44w1wtOe3A8eQS6rINRdT9tDowZWwHM_H9Apr_B17I4"
+url = "https://agiugsfojyansjeanfbz.supabase.co"
+key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFnaXVnc2ZvanlhbnNqZWFuZmJ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM4OTUzOTUsImV4cCI6MjA2OTQ3MTM5NX0.44w1wtOe3A8eQS6rINRdT9tDowZWwHM_H9Apr_B17I4"
 
 #supabase = create_client(url, key)
 
@@ -1899,68 +1892,41 @@ def classificar_target_custo(row):
     target_regiao = targets.get(regiao, 50.0)  # Default 50% se região não encontrada
     
     return custo_percentual <= target_regiao
-#---------------------------------------------------------------------------------------------------------------------------------------
 
-
-
-#--------------------------------------------------------------------------------------------------------------------------------------------
-
-GLOBAL_JUSTIFICATIVA_CATEGORIAS_MAP = [
-    ('agendamento_e_custo_broker', 'Agendamento e Custo Broker'),
-    ('aprovado_custo_extra_cliente', 'Aprovado Custo Extra Cliente'),
-    ('baixa_volumetria_na_rota', 'Baixa Volumetria na Rota'),
-    ('custo_fixo_de_agregado', 'Custo Fixo de Agregado'),
-    ('entrega_agendada', 'Entrega Agendada'),
-    ('entrega_direta', 'Entrega Direta'),
-    ('frete_minimo', 'Frete Mínimo'), # <-- Chave "frete_minimo" agora está sem acento
-    ('leadtime', 'Leadtime'),
-    ('meio_truck_baly', 'Meio Truck Baly'),
-    ('negociacao_parceiro', 'Negociação Parceiro'),
-    ('rota_critica_com_agendamento', 'Rota Crítica c/ Agendamento'), # <-- Chave "rota_critica_com_agendamento" (sem acento no "critica")
-    ('rota_direta_sem_parceiro', 'Rota Direta s/ Parceiro'),
-    ('rota_direta_com_agendamento', 'Rota Direta c/ Agendamento'),
-    ('agendamento', 'Agendamento'),
-    ('custo_broker', 'Custo Broker'),
-    ('aprovado', 'Aprovado')
-]
 # --------------------------------------------------------------------------------------------------------------------------------------------------
-
-def get_all_justification_categories_list():
-    """
-    Retorna uma lista ordenada de todas as categorias de justificativa possíveis,
-    incluindo as categorias padrão "Sem Justificativa" e "Outros".
-    Utiliza o GLOBAL_JUSTIFICATIVA_CATEGORIAS_MAP como fonte da verdade.
-    """
-    all_categories = set(item[1] for item in GLOBAL_JUSTIFICATIVA_CATEGORIAS_MAP)
-    all_categories.add('Sem Justificativa') # Categoria padrão para justificativas vazias/nulas
-    all_categories.add('Outros') # Categoria padrão para justificativas não mapeadas
-    return sorted(list(all_categories))
-
- #--------------------------------------------------------------------------------------------------------   
 def classificar_justificativa(justificativa_raw):
-    """
-    Classifica as justificativas em categorias padronizadas.
-    Normaliza a string de entrada (removendo acentos) para comparar com as chaves do mapeamento.
-    """
+    """Classifica as justificativas em categorias padronizadas"""
     if pd.isna(justificativa_raw) or str(justificativa_raw).strip() == '':
         return 'Sem Justificativa'
     
-    # 1. Remove acentos da justificativa bruta
-    # 2. Converte para minúsculas
-    # 3. Remove espaços extras e substitui espaços por underscores
-    justificativa_normalized = remove_accents(str(justificativa_raw)).lower().strip().replace(' ', '_')
+    justificativa = str(justificativa_raw).lower().strip()
     
-    # --- DEBUG TEMPORÁRIO (você pode descomentar para ver o que está acontecendo) ---
-    # st.write(f"DEBUG CLASSIFICAR: Raw: '{justificativa_raw}' -> Normalized: '{justificativa_normalized}'")
-    # --- FIM DEBUG ---
+    # Mapeamento de justificativas para categorias (ajustado para melhor cobertura)
+    categorias = {
+        'agendamento': 'Agendamento',
+        'agendamento_custo_brocker': 'Agendamento e Custo Broker',
+        'custo_brocker': 'Custo Broker',
+        'aprovado_custo_extra_cliente': 'Aprovado Custo Extra Cliente',
+        'baixa_volumetria_rota': 'Baixa Volumetria na Rota',
+        'custo_fixo_agregado': 'Custo Fixo de Agregado',
+        'entrega_agendada': 'Entrega Agendada',
+        'entrega_direta': 'Entrega Direta',
+        'frete_minimo': 'Frete Mínimo',
+        'leadtime': 'Leadtime',
+        'meio_truck_baly': 'Meio Truck Baly',
+        'negociacao_parceiro': 'Negociação Parceiro',
+        'rota_critica_agendamento': 'Rota Crítica c/ Agendamento',
+        'rota_direta_sem_parceiro': 'Rota Direta s/ Parceiro',
+        'rota_direta_agendamento': 'Rota Direta c/ Agendamento',
+        'aprovado': 'Aprovado' # Mantém esta categoria mais genérica para aprovações
+    }
+    
+    for key, categoria in categorias.items():
+        if key in justificativa:
+            return categoria
+    
+    return 'Outros'
 
-    for key_match_pattern, categoria_display_name in GLOBAL_JUSTIFICATIVA_CATEGORIAS_MAP:
-        # A chave de comparação (key_match_pattern) já deve estar sem acentos no GLOBAL_JUSTIFICATIVA_CATEGORIAS_MAP
-        # A comparação verifica se o padrão (sem acento) está contido na justificativa normalizada.
-        if key_match_pattern in justificativa_normalized:
-            return categoria_display_name
-    
-    return 'Outros' # Se não encontrar nenhuma correspondência, categoriza como 'Outros'
 # -----------------------------------------------------------------------------------------------------------------------------------
 
 
@@ -2378,55 +2344,25 @@ def preparar_grid_detalhamento(df_fechadas: pd.DataFrame) -> pd.DataFrame:
         Custo_Total_Contratado_Justificativa=(col_valor_contratacao, 'sum')
     ).reset_index()
 
-    # --- BLOCO ADICIONADO: Preencher combinações (Rota, Justificativa) ausentes ---
-    # Isso é necessário para garantir que o filtro posterior seja preciso
-    # e que Justificativas "inexistentes" para uma rota possam ser removidas
-    # caso elas não tenham Cargas/Entregas > 0
-    all_routes_in_data = df[col_rota].unique()
-    all_possible_justification_categories = get_all_justification_categories_list() # Chama a função auxiliar
-
-    # Cria um DataFrame com todas as combinações possíveis de rota e justificativa
-    all_combinations = pd.DataFrame(list(product(all_routes_in_data, all_possible_justification_categories)),
-                                   columns=[col_rota, col_just])
-
-    # Mescla os dados agrupados com todas as combinações, mantendo todas as combinações
-    # e preenchendo com 0 as contagens para as combinações que não existiam
-    grp_filled = pd.merge(all_combinations, grp, on=[col_rota, col_just], how='left')
-
-    # Preenche NaN com 0 para as colunas de agregação
-    grp_filled['Qtd_de_Cargas'] = grp_filled['Qtd_de_Cargas'].fillna(0).astype(int)
-    grp_filled['Qtd_de_Entregas'] = grp_filled['Qtd_de_Entregas'].fillna(0).astype(int)
-    grp_filled['Custo_Total_Contratado_Justificativa'] = grp_filled['Custo_Total_Contratado_Justificativa'].fillna(0.0)
-    # --- FIM DO BLOCO ADICIONADO ---
-
-    grp_filled['Total_Contratado_Por_Rota'] = grp_filled.groupby(col_rota)['Custo_Total_Contratado_Justificativa'].transform('sum')
+    grp['Total_Contratado_Por_Rota'] = grp.groupby(col_rota)['Custo_Total_Contratado_Justificativa'].transform('sum')
 
     # Calcula a porcentagem do custo da justificativa em relação ao custo total da rota
-    # Trata divisão por zero (resultando em NaN ou Infinito) e preenche com 0
-    grp_filled['% Custo Justificativa na Rota'] = (grp_filled['Custo_Total_Contratado_Justificativa'] / grp_filled['Total_Contratado_Por_Rota'] * 100).replace([float('inf'), -float('inf')], 0).fillna(0)
+    # Trata divisão por zero, caso o custo total da rota seja 0
+    grp['% Custo Justificativa na Rota'] = (grp['Custo_Total_Contratado_Justificativa'] / grp['Total_Contratado_Por_Rota'] * 100).fillna(0)
 
     # Renomeia as colunas para os nomes de exibição finais no grid
-    grp_filled = grp_filled.rename(columns={
+    grp = grp.rename(columns={
         col_rota: 'Rota',
-        col_just: 'Justificativas',
+        col_just: 'Justificativas', 
         'Qtd_de_Cargas': 'Qtd de Cargas',
         'Qtd_de_Entregas': 'Qtd de Entregas'
     })
 
-    # --- NOVO AJUSTE AQUI: FILTRA LINHAS COM QUANTIDADES ZERADAS ---
-    # Remove qualquer linha onde Qtd de Cargas E Qtd de Entregas são zero.
-    # Isso garante que apenas justificativas com atividade real para aquela rota sejam exibidas.
-    grp_filled = grp_filled[(grp_filled['Qtd de Cargas'] > 0) | (grp_filled['Qtd de Entregas'] > 0)]
-    # --- FIM DO NOVO AJUSTE ---
-
     # Seleciona e ordena as colunas finais para exibição
-    # Agora utilizando 'grp_filled' que contém todas as combinações
-    grp_filled = grp_filled[['Rota', 'Justificativas', 'Qtd de Cargas', 'Qtd de Entregas', '% Custo Justificativa na Rota']]
-    grp_filled = grp_filled.sort_values(by=['Rota', 'Justificativas'], kind='stable').reset_index(drop=True)
+    grp = grp[['Rota', 'Justificativas', 'Qtd de Cargas', 'Qtd de Entregas', '% Custo Justificativa na Rota']]
+    grp = grp.sort_values(by=['Rota', 'Justificativas'], kind='stable').reset_index(drop=True)
 
-    return grp_filled
-
-
+    return grp
 #----------------------------------------------------------------------------------------------------------------------------------------
 
 
@@ -7481,7 +7417,7 @@ def pagina_pre_roterizacao():
             "Numero da Nota Fiscal","Peso Real em Kg", "Peso Calculado em Kg", "Valor do Frete",
             "Rota", "Regiao",  "Chave CT-e",
             "Particularidade", "Codigo da Ultima Ocorrencia", "Cubagem em m³", "Quantidade de Volumes",
-            "Tipo_Tratativa_Especial", "status_retorno","Retorno de Rota","is_retorno_rota"  # Nova coluna para exibição
+            "Tipo_Tratativa_Especial", "status_retorno",'Retorno de Rota'  # Nova coluna para exibição
         ]
 
     # ======= MÉTRICAS GERAIS NO TOPO (mantidas inalteradas) =======
@@ -8114,7 +8050,7 @@ def pagina_cargas_geradas():
         "Bairro do Destinatario", "Data de Emissao", "Previsao de Entrega","Entrega Programada", "Numero da Nota Fiscal", 
          "Status","Peso Real em Kg", "Peso Calculado em Kg", "Valor do Frete",
         "Rota", "Regiao", "Chave CT-e", "Data_Hora_Gerada" , "Tipo_Tratativa_Especial",
-        "Particularidade", "Codigo da Ultima Ocorrencia", "Cubagem em m³", "Quantidade de Volumes", "status_retorno", "Retorno de Rota","is_retorno_rota"
+        "Particularidade", "Codigo da Ultima Ocorrencia", "Cubagem em m³", "Quantidade de Volumes", "status_retorno", 'Retorno de Rota'
 ]
 
         cargas_unicas = sorted(df["numero_carga"].dropna().unique())
@@ -8189,11 +8125,6 @@ def pagina_cargas_geradas():
             # MODIFICADO: total_frete_carga agora inclui o valor adicional
             total_frete_carga = total_frete_base + info_valor_adicional_raw 
 
-
-            custo_percentual_frete_db = df_carga_raw["custo_percentual_frete"].iloc[0] if "custo_percentual_frete" in df_carga_raw.columns and pd.notna(df_carga_raw["custo_percentual_frete"].iloc[0]) else 0.0
-            rentabilidade_percentual_db = df_carga_raw["rentabilidade_percentual"].iloc[0] if "rentabilidade_percentual" in df_carga_raw.columns and pd.notna(df_carga_raw["rentabilidade_percentual"].iloc[0]) else 0.0
-            situacao_custo_regional_db = df_carga_raw["situacao_custo_regional"].iloc[0] if "situacao_custo_regional" in df_carga_raw.columns and pd.notna(df_carga_raw["situacao_custo_regional"].iloc[0]) else 'N/A'
-
             dominant_region = 'NÃO DEFINIDA'
             if 'Regiao' in df_carga_raw.columns and not df_carga_raw['Regiao'].empty:
                 regions_to_consider = df_carga_raw['Regiao'][df_carga_raw['Regiao'] != 'NÃO DEFINIDA']
@@ -8212,32 +8143,34 @@ def pagina_cargas_geradas():
 
 
             # --- CÁLCULO DO PERCENTUAL DE CUSTO ---
-            percentual_custo_texto = f"{custo_percentual_frete_db:.1f}%" # Formata com .1f para exibir 35.9%
-
-            # Lógica para cor do badge de custo % (usando custo_percentual_frete_db)
-            cor_badge_custo = "#6c757d" # Default
+            percentual_custo = 0.0
+            percentual_custo_texto = "N/A"
+            cor_badge_custo = "#6c757d"  # Cinza padrão
             cor_texto_custo = "white"
-            if custo_percentual_frete_db <= 35.0:
-                cor_badge_custo = "#28a745"  # Verde - dentro da meta (até 35%)
-                cor_texto_custo = "white"
-            elif custo_percentual_frete_db <= 45.0:
-                cor_badge_custo = "#ffc107"  # Amarelo - aceitável (35.1% a 45%)
-                cor_texto_custo = "black"
-            elif custo_percentual_frete_db <= 50.0:
-                cor_badge_custo = "#fd7e14"  # Laranja - próximo ao limite (45.1% a 50%)
-                cor_texto_custo = "white"
-            else:
-                cor_badge_custo = "#dc3545"  # Vermelho - acima da meta (acima de 50%)
-                cor_texto_custo = "white"
-            
-            # Lógica para cor do badge de situação do custo (usando situacao_custo_regional_db)
-            cor_situacao = "gray"
-            if "Dentro do Limite" in situacao_custo_regional_db:
-                cor_situacao = "#28a745"  # Verde
-            elif "Acima do Limite" in situacao_custo_regional_db:
-                cor_situacao = "#dc3545"  # Vermelho
-            elif "Frete total zero, Contratação > 0" in situacao_custo_regional_db:
-                cor_situacao = "#dc3545" 
+
+            if total_frete_carga > 0 and info_valor_contratacao_raw > 0:
+                percentual_custo = (info_valor_contratacao_raw / total_frete_carga) * 100
+                percentual_custo_texto = f"{percentual_custo:.1f}%"
+                
+                # Determinar a cor do badge baseado nos novos limites fixos
+                if percentual_custo <= 35.0:
+                    cor_badge_custo = "#28a745"  # Verde - dentro da meta (até 35%)
+                    cor_texto_custo = "white"
+                elif percentual_custo <= 45.0:
+                    cor_badge_custo = "#ffc107"  # Amarelo - aceitável (35.1% a 45%)
+                    cor_texto_custo = "black"
+                elif percentual_custo <= 50.0:
+                    cor_badge_custo = "#fd7e14"  # Laranja - próximo ao limite (45.1% a 50%)
+                    cor_texto_custo = "white"
+                else:
+                    cor_badge_custo = "#dc3545"  # Vermelho - acima da meta (acima de 50%)
+                    cor_texto_custo = "white"
+            elif info_valor_contratacao_raw > 0:
+                percentual_custo_texto = "Frete R$ 0"
+                cor_badge_custo = "#6c757d"
+            elif total_frete_carga > 0:
+                percentual_custo_texto = "Sem contratação"
+                cor_badge_custo = "#6c757d"
 
 
 
@@ -8324,15 +8257,15 @@ def pagina_cargas_geradas():
                 html_fragments.append(badge(f'{len(df_carga_raw)} entregas', background_color='#333333', text_color='white'))
                 html_fragments.append(badge(f'{formatar_brasileiro(df_carga_raw["Peso Calculado em Kg"].sum())} kg calc', background_color='#333333', text_color='white'))
                 html_fragments.append(badge(f'{formatar_brasileiro(df_carga_raw["Peso Real em Kg"].sum())} kg real', background_color='#333333', text_color='white'))
-                html_fragments.append(badge(f'Valor frete: R$ {formatar_brasileiro(total_frete_carga)}', background_color='#333333', text_color='white'))
+                html_fragments.append(badge(f'Valor frete: R\$ {formatar_brasileiro(total_frete_carga)}', background_color='#333333', text_color='white'))
                 html_fragments.append(badge(f'{formatar_brasileiro(df_carga_raw["Cubagem em m³"].sum())} m³', background_color='#333333', text_color='white'))
                 html_fragments.append(badge(f'{int(df_carga_raw["Quantidade de Volumes"].sum())} volumes', background_color='#333333', text_color='white'))
                 html_fragments.append(badge(f'Motorista: {info_motorista}', background_color='#333333', text_color='white'))
                 html_fragments.append(badge(f'Placa: {info_placa}', background_color='#333333', text_color='white'))
-                html_fragments.append(badge(f'Valor da Contratação: R$ {info_valor_contratacao}', background_color='#333333', text_color='white'))
+                html_fragments.append(badge(f'Valor da Contratação: R\$ {info_valor_contratacao}', background_color='#333333', text_color='white'))
                 html_fragments.append(pdf_badge_html_fragment) # Este já é gerado com sua cor
                 html_fragments.append(badge(f'Custo: {percentual_custo_texto}', background_color=cor_badge_custo, text_color=cor_texto_custo)) # Este já é dinâmico
-                html_fragments.append(badge(f'Valor Adicional: R$ {formatar_brasileiro(info_valor_adicional_raw)}', background_color='#333333', text_color='white')) 
+                html_fragments.append(badge(f'Valor Adicional: R\$ {formatar_brasileiro(info_valor_adicional_raw)}', background_color='#333333', text_color='white')) 
 
                 # Estes são os badges específicos de status/retorno
                 html_fragments.append(badge(f'📅  Agenda s/ Prog.: {qtd_agendar_sem_programacao_carga}', background_color='#e06200', text_color='white'))
@@ -9261,8 +9194,6 @@ def pagina_aprovacao_custos():
                             how='left',
                             suffixes=('', '_calculated_all') # Opcional, mas mantém os sufixos se houver colunas com o mesmo nome
                         )
-
-                        df_aprovar_todas = _prepare_df_for_supabase_insert(df_aprovar_todas)
                         registros = df_aprovar_todas.to_dict(orient="records")
 
                         registros = [r for r in registros if r.get("Serie_Numero_CTRC")]
@@ -9309,7 +9240,7 @@ def pagina_aprovacao_custos():
         "Bairro do Destinatario","Data de Emissao", "Previsao de Entrega","Entrega Programada","Status", "Numero da Nota Fiscal",  
         "Peso Real em Kg", "Peso Calculado em Kg", "Valor do Frete",
         "Rota", "Regiao",  "Chave CT-e", "Data_Hora_Gerada","Tipo_Tratativa_Especial","carga_transf_filial",
-        "Particularidade", "Codigo da Ultima Ocorrencia", "Cubagem em m³", "Quantidade de Volumes",  "Retorno de Rota","is_retorno_rota"
+        "Particularidade", "Codigo da Ultima Ocorrencia", "Cubagem em m³", "Quantidade de Volumes",  "Retorno de Rota"
 ]
 
         cargas_unicas = sorted(df["numero_carga"].dropna().unique())
@@ -10102,7 +10033,7 @@ def pagina_cargas_aprovadas():
             "motivo_valor_adicional","numero_carga", "motorista", "placa","Tipo_Tratativa_Especial","carga_transf_filial",
             "veiculo", "aprovador_custos_login", "data_aprovacao_custos", "Data_Hora_Gerada",
             "custo_percentual_frete", "rentabilidade_percentual", "situacao_custo_regional",
-            "Retorno de Rota","is_retorno_rota"
+             "Retorno de Rota" # <--- ADICIONE ESTA COLUNA DE TEXTO
 ]
 
         cargas_unicas = sorted(df["numero_carga"].dropna().unique())
@@ -10329,8 +10260,20 @@ def pagina_cargas_aprovadas():
                     gb.configure_grid_options(alwaysShowHorizontalScroll=True)
                     gb.configure_grid_options(rowStyle={"font-size": "11px"})
                     
-                    gb.configure_grid_options(rowStyle={"font-size": "11px"}) # Mantenha o tamanho da fonte se desejar
-                    gb.configure_grid_options(getRowStyle=linha_destacar)
+                    gb.configure_grid_options(getRowStyle=JsCode("""
+                        function(params) {
+                            const status = params.data.Status;
+                            const entregaProg = params.data["Entrega Programada"];
+                            const particularidade = params.data.Particularidade;
+                            if (status === "AGENDAR" && (!entregaProg || entregaProg.trim() === "")) {
+                                return { 'background-color': '#ffe0b2', 'color': '#333' }; 
+                            }
+                            if (particularidade && particularidade.trim() !== "") {
+                                return { 'background-color': '#fff59d', 'color': '#333' }; 
+                            }
+                            return null;
+                        }
+                    """))
                     gb.configure_grid_options(headerCheckboxSelection=True)
                     gb.configure_grid_options(rowSelection='multiple')
                     gb.configure_grid_options(onGridReady=GRID_RESIZE_JS_CODE) 
@@ -10488,7 +10431,7 @@ def pagina_cargas_aprovadas():
                                 # 4. Inserir em 'aprovacao_custos'
                                 if records_to_insert:
                                     supabase.table("aprovacao_custos").insert(records_to_insert).execute()
-                                    #st.success(f"Carga {carga} retornada para Aprovação de Custos com sucesso!")
+                                    st.success(f"Carga {carga} retornada para Aprovação de Custos com sucesso!")
                                 else:
                                     st.warning(f"Não há registros válidos para mover para Aprovação de Custos para a carga {carga}.")
                                     time.sleep(3)
@@ -10518,7 +10461,7 @@ def pagina_cargas_aprovadas():
 ###########################################################################
 
 def pagina_estatisticas():
-    st.markdown("##  Estatísticas e KPIs - Análise de Custos por Rota")
+    st.markdown("## 📊 Estatísticas e KPIs - Análise de Custos por Rota")
 
     # --- INICIALIZAÇÃO E GARANTIA DE PERSISTÊNCIA VIA SESSION STATE ---
     if 'df_stats' not in st.session_state:
@@ -10574,8 +10517,8 @@ def pagina_estatisticas():
 
     # --- LAYOUT COM DUAS ABAS ---
     tab1, tab2 = st.tabs([ 
-        " Resumo Detalhado por Rota", # Aba 1
-        " Análise Mensal de Desempenho"  # Aba 2
+        "📋 Resumo Detalhado por Rota", # Aba 1
+        "📈 Análise Mensal de Desempenho"  # Aba 2
     ])
     
     with tab1:
@@ -10722,9 +10665,7 @@ def pagina_estatisticas():
                             *   **Representatividade por Entregas:** Similarmente, a categoria que mais se destaca nas entregas é "**{max_entregas_just_rota['Justificativas']}**", correspondendo a **{f"{max_entregas_just_rota['% sobre total de entregas']:.2f}".replace('.', ',')}%** do total de entregas nesta rota.\
                             """), unsafe_allow_html=True)
                     else:
-                        st.info(f"Não foi possível determinar a representatividade máxima para a Rota: {rota} (dados vazios ou incompletos para Justificativas).\n\n"
-                                f"Dados de `cargas_por_just_this_rota_calc`:\n{cargas_por_just_this_rota_calc.to_markdown()}\n\n"
-                                f"Dados de `entregas_por_just_this_rota_calc`:\n{entregas_por_just_this_rota_calc.to_markdown()}")
+                        st.info(f"Não foi possível determinar a representatividade máxima para a Rota: {rota} (dados vazios ou incompletos para Justificativas).")
                 else:
                     st.info(f"Nenhum dado detalhado para a Rota: {rota}")
 
@@ -10732,335 +10673,222 @@ def pagina_estatisticas():
                     <hr style="border: 2px solid #2196F3; margin: 20px 0;">\
                     """), unsafe_allow_html=True)
         
-        # --- NEW CONTENT FOR CHARTS ---
-        if not st.session_state.df_filtrado_stats.empty:
-            # Prepare data for charts: unique loads with their relevant info
-            df_loads_for_charts = st.session_state.df_filtrado_stats.groupby('numero_carga').agg(
-                Rota=('Rota', 'first'),
+        with tab2:
+            st.markdown("### Análise Mensal de Desempenho")
+            st.markdown(
+                """
+                <small><i>Esta aba apresenta um resumo consolidado do desempenho do mês selecionado, 
+                incluindo o total de cargas e a performance em relação ao target de custo, 
+                além de uma distribuição detalhada por justificativa.</i></small>
+                """, 
+                unsafe_allow_html=True
+            )
+
+            df_loads_unique_filtered = st.session_state.df_filtrado_stats.groupby('numero_carga').agg(
+                Regiao=('Regiao', 'first'),
+                categoria_justificativa=('categoria_justificativa', 'first'),
                 custo_percentual_frete=('custo_percentual_frete', 'first'),
-                data_fechamento=('data_fechamento', 'first') # data_fechamento should already be a localized datetime
+                dentro_target=('dentro_target', 'first'),
+                Rota=('Rota', 'first') # Adiciona Rota para contagem de rotas únicas
             ).reset_index()
 
-            # Ensure Rota is cleaned for consistency and non-indefinida values
-            if 'Rota' in df_loads_for_charts.columns:
-                df_loads_for_charts['Rota'] = df_loads_for_charts['Rota'].astype(str).str.strip().str.upper().replace({'NAN': 'ROTA INDEFINIDA', '': 'ROTA INDEFINIDA'})
-            else:
-                df_loads_for_charts['Rota'] = 'ROTA INDEFINIDA' # Fallback if column is missing
+            # --- NOVA SEÇÃO: REPRESENTATIVIDADE PERCENTUAL POR CATEGORIA (GLOBAL) ---
+            st.markdown("## Representatividade Percentual por Categoria (Visão Geral)")
 
-            df_loads_for_charts = df_loads_for_charts[df_loads_for_charts['Rota'] != 'ROTA INDEFINIDA'] # Exclude 'ROTA INDEFINIDA' from charts
+            if not st.session_state.df_filtrado_stats.empty:
+                # Obter os totais de cargas e entregas do período filtrado
+                total_cargas = df_loads_unique_filtered['numero_carga'].nunique()
+                total_entregas = st.session_state.df_filtrado_stats['Serie_Numero_CTRC'].count()
 
-            # Inicializa df_overall_avg_cost aqui para garantir que esteja sempre definida
-            df_overall_avg_cost = pd.DataFrame() # <--- INICIALIZAÇÃO AQUI!
+                # Calcular cargas por justificativa
+                cargas_por_just = df_loads_unique_filtered.groupby('categoria_justificativa')['numero_carga'].nunique().reset_index(name='Cargas')
+                cargas_por_just['% sobre total de cargas'] = (cargas_por_just['Cargas'] / total_cargas * 100) if total_cargas > 0 else 0
+                cargas_por_just['% sobre total de cargas'] = cargas_por_just['% sobre total de cargas'].fillna(0).round(2)
+                cargas_por_just = cargas_por_just.sort_values(by='% sobre total de cargas', ascending=False).reset_index(drop=True)
 
-            if not df_loads_for_charts.empty and 'data_fechamento' in df_loads_for_charts.columns:
-                # Drop any loads without valid data_fechamento (should be rare if prepared correctly)
-                df_loads_for_charts = df_loads_for_charts.dropna(subset=['data_fechamento'])
+                # Calcular entregas por justificativa
+                entregas_por_just = st.session_state.df_filtrado_stats.groupby('categoria_justificativa')['Serie_Numero_CTRC'].count().reset_index(name='Entregas')
+                entregas_por_just['% sobre total de entregas'] = (entregas_por_just['Entregas'] / total_entregas * 100) if total_entregas > 0 else 0
+                entregas_por_just['% sobre total de entregas'] = entregas_por_just['% sobre total de entregas'].fillna(0).round(2)
+                entregas_por_just = entregas_por_just.sort_values(by='% sobre total de entregas', ascending=False).reset_index(drop=True)
+
+                # --- Tabela de Cargas ---
+                st.markdown("---")
+                st.markdown(textwrap.dedent(f"""\
+                    ### 📦 Por Cargas (total = {total_cargas})"""), unsafe_allow_html=True)
+                st.markdown(textwrap.dedent("""\
+                    Fórmula: `% Cargas = (Cargas_Categoria / Total_Cargas) * 100`\
+                    """), unsafe_allow_html=True)
                 
-                if not df_loads_for_charts.empty:
-                    # Determine Periodo for X-axis based on month filter
-                    if st.session_state.mes_selecionado_stats == "Todos os Meses":
-                        # Use full date for 'Todos os Meses' to avoid day overlaps from different months
-                        df_loads_for_charts['Periodo'] = df_loads_for_charts['data_fechamento'].dt.strftime('%Y-%m-%d')
-                        x_axis_label = "Data de Fechamento"
-                    else:
-                        # Just day of month for a specific month
-                        df_loads_for_charts['Periodo'] = df_loads_for_charts['data_fechamento'].dt.strftime('%d')
-                        x_axis_label = "Dia do Mês"
-
-                    # Calculate daily average cost per Rota (from unique loads)
-                    df_daily_avg_cost = df_loads_for_charts.groupby(['Rota', 'Periodo'], as_index=False)['custo_percentual_frete'].mean()
-                    
-                    # Create a temporary column for sorting the 'Periodo' correctly (especially for 'DD' vs 'YYYY-MM-DD')
-                    if st.session_state.mes_selecionado_stats == "Todos os Meses":
-                        df_daily_avg_cost['Periodo_sort_key'] = pd.to_datetime(df_daily_avg_cost['Periodo'], errors='coerce')
-                    else: # For a single month, sorting by day number is enough
-                        df_daily_avg_cost['Periodo_sort_key'] = pd.to_numeric(df_daily_avg_cost['Periodo'], errors='coerce')
-
-                    df_daily_avg_cost = df_daily_avg_cost.sort_values(by=['Rota', 'Periodo_sort_key'])
-                    df_daily_avg_cost.drop(columns=['Periodo_sort_key'], inplace=True)
-
-
-                    st.markdown("---")
-                    st.markdown("### 📊 Evolução Diária do Custo Médio por Rota")
-                    st.markdown("<small><i>Apresenta a evolução do custo percentual médio das cargas para cada rota ao longo dos dias do período selecionado.</i></small>", unsafe_allow_html=True)
-
-                    # Create the Plotly Line Chart
-                    if not df_daily_avg_cost.empty:
-                        fig_line = px.line(
-                            df_daily_avg_cost,
-                            x='Periodo',
-                            y='custo_percentual_frete',
-                            color='Rota',
-                            title="Evolução Diária do Custo Percentual Médio por Rota",
-                            labels={'Periodo': x_axis_label, 'custo_percentual_frete': 'Custo Médio (%)'},
-                            hover_name='Rota',
-                            line_shape='spline', # Makes the line smooth
-                            markers=True # Show markers for each data point
-                        )
-                        fig_line.update_layout(height=500, xaxis_title=x_axis_label, yaxis_title="Custo Médio (%)", hovermode="x unified")
-                        fig_line.update_yaxes(rangemode="tozero", ticksuffix="%") # Start Y-axis from zero and add % suffix
-                        st.plotly_chart(fig_line, use_container_width=True)
-                    else:
-                        st.info("Não há dados de custo diário suficientes para gerar o gráfico de linhas para as rotas.")
-
-
-                    # Calculate and Display Overall Average Cost per Route (Bar Chart for better comparison)
-                    st.markdown("---")
-                    st.markdown("### 📈 Custo Médio Geral por Rota no Período") # <--- Título do gráfico de barras
-                    st.markdown("<small><i>Custo percentual médio por rota, considerando todas as cargas únicas no período selecionado.</i></small>", unsafe_allow_html=True) # <--- Descrição
-
-                    # df_overall_avg_cost É DEFINIDO AQUI, DENTRO DA CONDIÇÃO
-                    df_overall_avg_cost = df_loads_for_charts.groupby('Rota', as_index=False)['custo_percentual_frete'].mean()
-                    df_overall_avg_cost = df_overall_avg_cost.sort_values(by='custo_percentual_frete', ascending=False)
-                    
-                    if not df_overall_avg_cost.empty:
-                        fig_bar = px.bar(
-                            df_overall_avg_cost,
-                            x='custo_percentual_frete',
-                            y='Rota',
-                            orientation='h',
-                            title="Custo Percentual Médio por Rota",
-                            labels={'custo_percentual_frete': 'Custo Médio (%)', 'Rota': 'Rota'},
-                            color='custo_percentual_frete',
-                            color_continuous_scale=px.colors.diverging.RdYlGn_r, # Corrigido para RdYlGn_r para custo: mais alto = vermelho, mais baixo = verde
-                            text='custo_percentual_frete' # <-- Adicionado: Habilita os rótulos de texto
-                        )
-                        
-                        fig_bar.update_traces(
-                            width=0.4, # <-- Ajustado para 0.4 para barras mais estreitas
-                            texttemplate='<b>%{x:.1f}%</b>', # <-- Formata o texto como porcentagem, em negrito e com 1 casa decimal
-                            textposition='outside' # <-- Posição do rótulo fora da barra para melhor visibilidade
-                        )
-
-                        fig_bar.update_layout(
-                            height=350, # <-- Reduz a altura total do gráfico
-                            yaxis={'categoryorder':'total ascending'},
-                            xaxis_title="Custo Médio (%)" # Título explícito para o eixo X
-                        )
-                        fig_bar.update_xaxes(rangemode="tozero", ticksuffix="%") # <--- Corrigido de 'suffix' para 'ticksuffix'
-                        st.plotly_chart(fig_bar, use_container_width=True)
-                    else:
-                        st.info("Não há dados para calcular o custo médio geral por rota.")
-
-            else:
-                st.info("Não há dados de cargas fechadas com informações de data ou rotas válidas para gerar gráficos de evolução.")
-
-    with tab2:
-        st.markdown("### Análise Mensal de Desempenho")
-        st.markdown(
-            """
-            <small><i>Esta aba apresenta um resumo consolidado do desempenho do mês selecionado, 
-            incluindo o total de cargas e a performance em relação ao target de custo, 
-            além de uma distribuição detalhada por justificativa.</i></small>
-            """,
-            unsafe_allow_html=True
-        )
-
-        df_loads_unique_filtered = st.session_state.df_filtrado_stats.groupby('numero_carga').agg(
-            Regiao=('Regiao', 'first'),
-            categoria_justificativa=('categoria_justificativa', 'first'),
-            custo_percentual_frete=('custo_percentual_frete', 'first'),
-            dentro_target=('dentro_target', 'first'),
-            Rota=('Rota', 'first') # Adiciona Rota para contagem de rotas únicas
-        ).reset_index()
-
-        # --- NOVA SEÇÃO: REPRESENTATIVIDADE PERCENTUAL POR CATEGORIA (GLOBAL) ---
-        st.markdown("## Representatividade Percentual por Categoria (Visão Geral)")
-
-        if not st.session_state.df_filtrado_stats.empty:
-            # Obter os totais de cargas e entregas do período filtrado
-            total_cargas = df_loads_unique_filtered['numero_carga'].nunique()
-            total_entregas = st.session_state.df_filtrado_stats['Serie_Numero_CTRC'].count()
-
-            # Calcular cargas por justificativa
-            cargas_por_just = df_loads_unique_filtered.groupby('categoria_justificativa')['numero_carga'].nunique().reset_index(name='Cargas')
-            cargas_por_just['% sobre total de cargas'] = (cargas_por_just['Cargas'] / total_cargas * 100) if total_cargas > 0 else 0
-            cargas_por_just['% sobre total de cargas'] = cargas_por_just['% sobre total de cargas'].fillna(0).round(2)
-            cargas_por_just = cargas_por_just.sort_values(by='% sobre total de cargas', ascending=False).reset_index(drop=True)
-
-            # Calcular entregas por justificativa
-            entregas_por_just = st.session_state.df_filtrado_stats.groupby('categoria_justificativa')['Serie_Numero_CTRC'].count().reset_index(name='Entregas')
-            entregas_por_just['% sobre total de entregas'] = (entregas_por_just['Entregas'] / total_entregas * 100) if total_entregas > 0 else 0
-            entregas_por_just['% sobre total de entregas'] = entregas_por_just['% sobre total de entregas'].fillna(0).round(2)
-            entregas_por_just = entregas_por_just.sort_values(by='% sobre total de entregas', ascending=False).reset_index(drop=True)
-
-            # --- Tabela de Cargas ---
-            st.markdown("---")
-            st.markdown(textwrap.dedent(f"""\
-                ###  Por Cargas (total = {total_cargas})"""), unsafe_allow_html=True)
-            st.markdown(textwrap.dedent("""\
-                Fórmula: `% Cargas = (Cargas_Categoria / Total_Cargas) * 100`\
-                """), unsafe_allow_html=True)
-            
-            cargas_table_rows_buffer = io.StringIO()
-            for _, row in cargas_por_just.iterrows():
+                cargas_table_rows_buffer = io.StringIO()
+                for _, row in cargas_por_just.iterrows():
+                    cargas_table_rows_buffer.write(textwrap.dedent(f"""\
+                        <tr>
+                          <td>{row['categoria_justificativa']}</td>
+                          <td>{int(row['Cargas'])}</td>
+                          <td>{f"{row['% sobre total de cargas']:.2f}".replace('.', ',')}%</td>
+                        </tr>\
+                    """))
                 cargas_table_rows_buffer.write(textwrap.dedent(f"""\
                     <tr>
-                      <td>{row['categoria_justificativa']}</td>
-                      <td>{int(row['Cargas'])}</td>
-                      <td>{f"{row['% sobre total de cargas']:.2f}".replace('.', ',')}%</td>
+                      <td><b>Total</b></td>
+                      <td><b>{int(total_cargas)}</b></td>
+                      <td><b>100,00%</b></td>
                     </tr>\
                 """))
-            cargas_table_rows_buffer.write(textwrap.dedent(f"""\
-                <tr>
-                  <td><b>Total</b></td>
-                  <td><b>{int(total_cargas)}</b></td>
-                  <td><b>100,00%</b></td>
-                </tr>\
-            """))
-            cargas_table_rows = cargas_table_rows_buffer.getvalue()
+                cargas_table_rows = cargas_table_rows_buffer.getvalue()
 
-            # --- CORREÇÃO AQUI para `cargas_table_full_html_tab2` ---
-            cargas_table_full_html_tab2 = textwrap.dedent(f"""\
-                <table class="data-table">
-                  <thead>
-                    <tr>
-                      <th scope="col">Justificativa</th>
-                      <th scope="col">Cargas</th>
-                      <th scope="col">% sobre total de cargas</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-{cargas_table_rows}
-                  </tbody>
-                </table>\
-            """)
-            st.markdown(cargas_table_full_html_tab2, unsafe_allow_html=True)
-            # --- FIM DA CORREÇÃO ---
+                # --- CORREÇÃO AQUI para `cargas_table_full_html_tab2` ---
+                cargas_table_full_html_tab2 = textwrap.dedent(f"""\
+                    <table class="data-table">
+                      <thead>
+                        <tr>
+                          <th scope="col">Justificativa</th>
+                          <th scope="col">Cargas</th>
+                          <th scope="col">% sobre total de cargas</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+    {cargas_table_rows}
+                      </tbody>
+                    </table>\
+                """)
+                st.markdown(cargas_table_full_html_tab2, unsafe_allow_html=True)
+                # --- FIM DA CORREÇÃO ---
 
-            # --- Tabela de Entregas ---
-            st.markdown("---")
-            st.markdown(textwrap.dedent(f"""\
-                ### 🚚 Por Entregas (total = {total_entregas})"""), unsafe_allow_html=True)
-            st.markdown(textwrap.dedent("""\
-                Fórmula: `% Entregas = (Entregas_Categoria / Total_Entregas) * 100`\
-                """), unsafe_allow_html=True)
-            
-            entregas_table_rows_buffer = io.StringIO()
-            for _, row in entregas_por_just.iterrows():
-                perc_entregas = (row['Entregas'] / total_entregas * 100) if total_entregas > 0 else 0
+                # --- Tabela de Entregas ---
+                st.markdown("---")
+                st.markdown(textwrap.dedent(f"""\
+                    ### 🚚 Por Entregas (total = {total_entregas})"""), unsafe_allow_html=True)
+                st.markdown(textwrap.dedent("""\
+                    Fórmula: `% Entregas = (Entregas_Categoria / Total_Entregas) * 100`\
+                    """), unsafe_allow_html=True)
+                
+                entregas_table_rows_buffer = io.StringIO()
+                for _, row in entregas_por_just.iterrows():
+                    perc_entregas = (row['Entregas'] / total_entregas * 100) if total_entregas > 0 else 0
+                    entregas_table_rows_buffer.write(textwrap.dedent(f"""\
+                        <tr>
+                          <td>{row['categoria_justificativa']}</td>
+                          <td>{int(row['Entregas'])}</td>
+                          <td>{f"{perc_entregas:.2f}".replace('.', ',')}%</td>
+                        </tr>\
+                    """))
                 entregas_table_rows_buffer.write(textwrap.dedent(f"""\
                     <tr>
-                      <td>{row['categoria_justificativa']}</td>
-                      <td>{int(row['Entregas'])}</td>
-                      <td>{f"{perc_entregas:.2f}".replace('.', ',')}%</td>
+                      <td><b>Total</b></td>
+                      <td><b>{int(total_entregas)}</b></td>
+                      <td><b>100,00%</b></td>
                     </tr>\
                 """))
-            entregas_table_rows_buffer.write(textwrap.dedent(f"""\
-                <tr>
-                  <td><b>Total</b></td>
-                  <td><b>{int(total_entregas)}</b></td>
-                  <td><b>100,00%</b></td>
-                </tr>\
-            """))
-            entregas_table_rows = entregas_table_rows_buffer.getvalue()
+                entregas_table_rows = entregas_table_rows_buffer.getvalue()
 
-            # --- CORREÇÃO AQUI para `entregas_table_full_html_tab2` ---
-            entregas_table_full_html_tab2 = textwrap.dedent(f"""\
-                <table class="data-table">
-                  <thead>
-                    <tr>
-                      <th scope="col">Justificativa</th>
-                      <th scope="col">Entregas</th>
-                      <th scope="col">% sobre total de entregas</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-{entregas_table_rows}
-                  </tbody>
-                </table>\
-            """)
-            st.markdown(entregas_table_full_html_tab2, unsafe_allow_html=True)
-            # --- FIM DA CORREÇÃO ---
+                # --- CORREÇÃO AQUI para `entregas_table_full_html_tab2` ---
+                entregas_table_full_html_tab2 = textwrap.dedent(f"""\
+                    <table class="data-table">
+                      <thead>
+                        <tr>
+                          <th scope="col">Justificativa</th>
+                          <th scope="col">Entregas</th>
+                          <th scope="col">% sobre total de entregas</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+    {entregas_table_rows}
+                      </tbody>
+                    </table>\
+                """)
+                st.markdown(entregas_table_full_html_tab2, unsafe_allow_html=True)
+                # --- FIM DA CORREÇÃO ---
+
+                st.markdown("---")
+
+                # --- Resumo Textual (Global) ---
+                st.markdown("### Resumo Textual", unsafe_allow_html=True)
+                if not cargas_por_just.empty and not entregas_por_just.empty:
+                    max_cargas_just = None
+                    if not cargas_por_just.empty and '% sobre total de cargas' in cargas_por_just.columns and not cargas_por_just['% sobre total de cargas'].empty:
+                        max_cargas_just = cargas_por_just.loc[cargas_por_just['% sobre total de cargas'].idxmax()]
+                    max_entregas_just = None
+                    if not entregas_por_just.empty and '% sobre total de entregas' in entregas_por_just.columns and not entregas_por_just['% sobre total de entregas'].empty:
+                        max_entregas_just = entregas_por_just.loc[entregas_por_just['% sobre total de entregas'].idxmax()]
+
+                    if max_cargas_just is not None and max_entregas_just is not None:
+                        st.markdown(textwrap.dedent(f"""\
+                            Analisando os resultados para o período selecionado ({st.session_state.mes_selecionado_stats if st.session_state.mes_selecionado_stats != 'Todos os Meses' else 'Todos os Meses'}):
+
+                            *   **Representatividade por Cargas:** A categoria com maior representatividade é "**{max_cargas_just['categoria_justificativa']}**", totalizando **{f"{max_cargas_just['% sobre total de cargas']:.2f}".replace('.', ',')}%** das cargas.
+                            *   **Representatividade por Entregas:** Similarmente, a categoria que mais se destaca nas entregas é "**{max_entregas_just['categoria_justificativa']}**", correspondendo a **{f"{max_entregas_just['% sobre total de entregas']:.2f}".replace('.', ',')}%** do total de entregas.
+
+                            Isso indica que a vasta maioria das cargas e entregas se enquadram na justificativa de "{max_cargas_just['categoria_justificativa']}", enquanto outras justificativas contribuem com percentuais menores.\
+                            """), unsafe_allow_html=True)
+                    else:
+                        st.info("Não foi possível determinar a representatividade máxima para o resumo textual (dados vazios ou incompletos para Justificativas).")
+                else:
+                    st.info("Nenhum dado para resumo textual.")
 
             st.markdown("---") # Separador visual
 
-            # --- Resumo Textual (Global) ---
-            st.markdown("### Resumo Textual", unsafe_allow_html=True)
-            if not cargas_por_just.empty and not entregas_por_just.empty:
-                max_cargas_just = None
-                if not cargas_por_just.empty and '% sobre total de cargas' in cargas_por_just.columns and not cargas_por_just['% sobre total de cargas'].empty:
-                    max_cargas_just = cargas_por_just.loc[cargas_por_just['% sobre total de cargas'].idxmax()]
-                max_entregas_just = None
-                if not entregas_por_just.empty and '% sobre total de entregas' in entregas_por_just.columns and not entregas_por_just['% sobre total de entregas'].empty:
-                    max_entregas_just = entregas_por_just.loc[entregas_por_just['% sobre total de entregas'].idxmax()]
+            # --- CONTINUAÇÃO DOS KPIs GERAIS PARA O MÊS (JÁ EXISTENTES) ---
+            if not df_loads_unique_filtered.empty:
+                total_cargas_mes = df_loads_unique_filtered['numero_carga'].nunique()
+                total_rotas_unicas_mes = df_loads_unique_filtered['Rota'].nunique()
+                
+                cargas_dentro_target = df_loads_unique_filtered[df_loads_unique_filtered['dentro_target'] == True]['numero_carga'].nunique()
+                cargas_fora_target = total_cargas_mes - cargas_dentro_target
 
-                if max_cargas_just is not None and max_entregas_just is not None:
-                    st.markdown(textwrap.dedent(f"""\
-                        Analisando os resultados para o período selecionado ({st.session_state.mes_selecionado_stats if st.session_state.mes_selecionado_stats != 'Todos os Meses' else 'Todos os Meses'}):
-                        *   **Representatividade por Cargas:** A categoria com maior representatividade é "**{max_cargas_just['categoria_justificativa']}**", totalizando **{f"{max_cargas_just['% sobre total de cargas']:.2f}".replace('.', ',')}%** das cargas.
-                        *   **Representatividade por Entregas:** Similarmente, a categoria que mais se destaca nas entregas é "**{max_entregas_just['categoria_justificativa']}**", correspondendo a **{f"{max_entregas_just['% sobre total de entregas']:.2f}".replace('.', ',')}%** do total de entregas.
+                perc_dentro_target = (cargas_dentro_target / total_cargas_mes * 100) if total_cargas_mes > 0 else 0
+                perc_fora_target = (cargas_fora_target / total_cargas_mes * 100) if total_cargas_mes > 0 else 0
 
-                        Isso indica que a vasta maioria das cargas e entregas se enquadram na justificativa de "{max_cargas_just['categoria_justificativa']}", enquanto outras justificativas contribuem com percentuais menores.\
-                        """), unsafe_allow_html=True)
-                else:
-                    st.info("Não foi possível determinar a representatividade máxima para o resumo textual (dados vazios ou incompletos para Justificativas).")
+                col_kpi1, col_kpi2, col_kpi3 = st.columns(3)
+                with col_kpi1:
+                    st.metric(
+                        "Total de Cargas no Mês",
+                        f"{total_cargas_mes:,}",
+                        help=f"Total de {total_rotas_unicas_mes} rotas únicas carregadas."
+                    )
+                with col_kpi2:
+                    st.metric(
+                        "Cargas Dentro do Target",
+                        f"{cargas_dentro_target:,}",
+                        f"{perc_dentro_target:.1f}%",
+                        delta_color="normal"
+                    )
+                with col_kpi3:
+                    st.metric(
+                        "Cargas Fora do Target",
+                        f"{cargas_fora_target:,}",
+                        f"{perc_fora_target:.1f}%",
+                        delta_color="inverse"
+                    )
+                
+                st.markdown("---")
+
+                # --- DETALHE POR JUSTIFICATIVA (JÁ EXISTENTE) ---
+                st.markdown("#### Detalhamento por Justificativa")
+                justificativas_stats = df_loads_unique_filtered.groupby('categoria_justificativa').agg(
+                    Total_Cargas=('numero_carga', 'nunique')
+                ).reset_index()
+                justificativas_stats['% Total Cargas Mês'] = (justificativas_stats['Total_Cargas'] / total_cargas_mes * 100) if total_cargas_mes > 0 else 0
+                justificativas_stats['% Total Cargas Mês'] = justificativas_stats['% Total Cargas Mês'].fillna(0).round(2)
+                justificativas_stats = justificativas_stats.sort_values(by='% Total Cargas Mês', ascending=False)
+
+                st.dataframe(
+                    justificativas_stats.style.format({
+                        'Total_Cargas': '{:,.0f}',
+                        '% Total Cargas Mês': '{:,.1f}%'
+                    }),
+                    use_container_width=True,
+                    hide_index=True
+                )
             else:
-                st.info("Nenhum dado para resumo textual.")
-
-        st.markdown("---") # Separador visual
-
-        # --- CONTINUAÇÃO DOS KPIs GERAIS PARA O MÊS (JÁ EXISTENTES) ---
-        if not df_loads_unique_filtered.empty:
-            total_cargas_mes = df_loads_unique_filtered['numero_carga'].nunique()
-            total_rotas_unicas_mes = df_loads_unique_filtered['Rota'].nunique()
-            
-            cargas_dentro_target = df_loads_unique_filtered[df_loads_unique_filtered['dentro_target'] == True]['numero_carga'].nunique()
-            cargas_fora_target = total_cargas_mes - cargas_dentro_target
-
-            perc_dentro_target = (cargas_dentro_target / total_cargas_mes * 100) if total_cargas_mes > 0 else 0
-            perc_fora_target = (cargas_fora_target / total_cargas_mes * 100) if total_cargas_mes > 0 else 0
-
-            col_kpi1, col_kpi2, col_kpi3 = st.columns(3)
-            with col_kpi1:
-                st.metric(
-                    "Total de Cargas no Mês",
-                    f"{total_cargas_mes:,}",
-                    help=f"Total de {total_rotas_unicas_mes} rotas únicas carregadas."
-                )
-            with col_kpi2:
-                st.metric(
-                    "Cargas Dentro do Target",
-                    f"{cargas_dentro_target:,}",
-                    f"{perc_dentro_target:.1f}%",
-                    delta_color="normal"
-                )
-            with col_kpi3:
-                st.metric(
-                    "Cargas Fora do Target",
-                    f"{cargas_fora_target:,}",
-                    f"{perc_fora_target:.1f}%",
-                    delta_color="inverse"
-                )
-            
-            st.markdown("---")
-
-            # --- DETALHE POR JUSTIFICATIVA (JÁ EXISTENTE) ---
-            st.markdown("#### Detalhamento por Justificativa")
-            justificativas_stats = df_loads_unique_filtered.groupby('categoria_justificativa').agg(
-                Total_Cargas=('numero_carga', 'nunique')
-            ).reset_index()
-            justificativas_stats['% Total Cargas Mês'] = (justificativas_stats['Total_Cargas'] / total_cargas_mes * 100) if total_cargas_mes > 0 else 0
-            justificativas_stats['% Total Cargas Mês'] = justificativas_stats['% Total Cargas Mês'].fillna(0).round(2)
-            justificativas_stats = justificativas_stats.sort_values(by='% Total Cargas Mês', ascending=False)
-
-            st.dataframe(
-                justificativas_stats.style.format({
-                    'Total_Cargas': '{:,.0f}',
-                    '% Total Cargas Mês': '{:,.1f}%'
-                }),
-                use_container_width=True,
-                hide_index=True
-            )
-        else:
-            st.info("Nenhum dado disponível para análise mensal de desempenho com os filtros aplicados.")
+                st.info("Nenhum dado disponível para análise mensal de desempenho com os filtros aplicados.")
     
 
 
 # ==============================================================================
 # Função pagina_cargas_fechadas() - com os ajustes aplicados (sem filtro de data e sem DEBUGs)
 # ==============================================================================
-@st.cache_data(ttl=900) # 15 minutos de cache
 def pagina_cargas_fechadas():
     st.markdown("## Cargas Encerradas")
     st.markdown("---")
@@ -11414,7 +11242,7 @@ def pagina_cargas_fechadas():
         "data_fechamento", "situacao", "aprovador_custos_login", "data_aprovacao_custos",
         "fechador_carga_login", "justificativa_aprovacao_custo",
         "custo_percentual_frete", "rentabilidade_percentual", "situacao_custo_regional",
-        "pdf_downloaded_at", "csv_downloaded_at","carga_transf_filial", "Retorno de Rota","is_retorno_rota"
+        "pdf_downloaded_at", "csv_downloaded_at","carga_transf_filial", 'Retorno de Rota'
     ]
 
     # --- INÍCIO DO LOOP FOR SOLICITADO ---
@@ -11605,11 +11433,9 @@ def pagina_cargas_fechadas():
                 (df_carga['Particularidade'].notna())
             ]
             qtd_com_particularidade_carga = len(entregas_com_particularidade_carga)
-            qtd_retorno_rota_carga = df_carga[df_carga['is_retorno_rota'] == True].shape[0]
 
             all_badges_html_list.append(badge(f'📅  Agenda s/ Prog.: {qtd_agendar_sem_programacao_carga}', background_color='#e06200', text_color='white'))
             all_badges_html_list.append(badge(f'⚠️ Com Particularidade: {qtd_com_particularidade_carga}', background_color='#b8860b', text_color='white'))
-            all_badges_html_list.append(badge(f'🔄 Retorno de Rota: {qtd_retorno_rota_carga}', background_color='#ff69b4', text_color='white'))
 
 
             full_badges_html_string = "".join(all_badges_html_list)
