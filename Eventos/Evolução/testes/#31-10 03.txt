@@ -1,3 +1,5 @@
+#31-10 03
+
 
 import streamlit as st
 st.set_page_config(
@@ -818,51 +820,6 @@ def mover_entregas_para_outra_rota(ctrcs_selecionados, nova_rota_visual):
     except Exception as e:
         st.error(f"Erro ao mover entregas: {e}")
 
-
-def mover_entregas_para_carga_existente(ctrcs_selecionados, numero_carga_destino):
-    try:
-        if not ctrcs_selecionados:
-            st.warning("⚠️ Nenhuma entrega selecionada para mover.")
-            return
-        if not numero_carga_destino or numero_carga_destino == "Selecionar uma Carga...":
-            st.warning("⚠️ Selecione uma carga de destino válida.")
-            return
-
-        entregas_coletadas = []
-        if ctrcs_selecionados:
-            dados_pre_all = supabase.table("pre_roterizacao").select("*").in_("Serie_Numero_CTRC", ctrcs_selecionados).execute().data
-            entregas_coletadas = dados_pre_all
-
-        if not entregas_coletadas:
-            st.warning("⚠️ Nenhuma entrega encontrada na tabela 'pre_roterizacao' para os CTRCs informados.")
-            return
-
-        df_para_inserir = pd.DataFrame(entregas_coletadas)
-        df_para_inserir["numero_carga"] = numero_carga_destino
-        df_para_inserir["Data_Hora_Gerada"] = data_hora_brasil_iso()
-
-        df_para_inserir = _prepare_df_for_supabase_insert(df_para_inserir)
-
-        dados_para_insercao = df_para_inserir.to_dict(orient='records')
-
-        if dados_para_insercao:
-            supabase.table("cargas_geradas").upsert(dados_para_insercao).execute()
-            st.success(f"✅ {len(ctrcs_selecionados)} entrega(s) adicionada(s) à Carga {numero_carga_destino}.")
-
-            if ctrcs_selecionados:
-                supabase.table("pre_roterizacao").delete().in_("Serie_Numero_CTRC", ctrcs_selecionados).execute()
-                st.info(f"Removidas {len(ctrcs_selecionados)} entregas de 'pre_roterizacao'.")
-
-            st.session_state["reload_pre_roterizacao"] = True
-            st.session_state["reload_cargas_geradas"] = True
-            st.session_state.pop("df_pre_roterizacao_cache", None)
-            st.session_state.pop("df_cargas_cache", None)
-
-            st.rerun()
-
-    except Exception as e:
-        st.error(f"❌ Erro ao mover entregas para a carga existente: {e}")
-        st.exception(e)
 
 
 #################################
@@ -7829,13 +7786,13 @@ def pagina_pre_roterizacao():
     # ===================================================================================================
     # ADICIONAR ESTE BLOCO - CONTROLES DE PAGINAÇÃO SUPERIORES
     # ===================================================================================================
-    #st.markdown("---") # Separador para os controles de paginação superior
+    st.markdown("---") # Separador para os controles de paginação superior
     st.markdown(f"**Página {st.session_state.current_group_page_pre_roterizacao + 1} de {total_pages}**")
 
-    col_prev, col_page_select, col_next = st.columns([1, 3, 1])
+    col_prev, col_page_select, col_next = st.columns([1, 3, 1]) # Variáveis sem "_bottom"
 
-    with col_prev:       
-        if st.button("⬅️ Anterior", disabled=(st.session_state.current_group_page_pre_roterizacao == 0), key="btn_prev_group_page_top_pagination"):
+    with col_prev:
+        if st.button("⬅️ Anterior", disabled=(st.session_state.current_group_page_pre_roterizacao == 0), key=f"btn_prev_group_page_bottom_{nome_grupo}"):
             st.session_state.current_group_page_pre_roterizacao -= 1
             st.rerun()
     with col_page_select:
@@ -7845,17 +7802,18 @@ def pagina_pre_roterizacao():
             options=range(total_pages),
             format_func=lambda i: page_options_display_top[i],
             index=st.session_state.current_group_page_pre_roterizacao,
-            key="group_page_select_pre_roterizacao_top"
+            key="group_page_select_pre_roterizacao_top" # Key diferente
         )
         if selected_option_index_top != st.session_state.current_group_page_pre_roterizacao:
             st.session_state.current_group_page_pre_roterizacao = selected_option_index_top
             st.rerun()
 
     with col_next:
-        if st.button("Próxima ➡️", disabled=(st.session_state.current_group_page_pre_roterizacao >= total_pages - 1), key="btn_next_group_page_top"):
+        if st.button("Próxima ➡️", disabled=(st.session_state.current_group_page_pre_roterizacao >= total_pages - 1), key="btn_next_group_page_top"): # Key diferente
             st.session_state.current_group_page_pre_roterizacao += 1
             st.rerun()
     st.markdown("---") # Separador após os controles de paginação superior
+
 
     # Fatia os grupos a serem exibidos na página atual
     start_idx = st.session_state.current_group_page_pre_roterizacao * GROUPS_PER_PAGE
@@ -8334,129 +8292,79 @@ def pagina_pre_roterizacao():
             # ATENÇÃO: A lógica de mover não deve permitir mover para o grupo 'Paletizadores'
             # pois a definição de paletizador é baseada em regra de negócio (CNPJ).
             # Por isso, filtramos 'Paletizadores' da lista de opções de destino.
-            col_mover_grupo, col_mover_carga_existente = st.columns([1, 1])
+            rotas_disponiveis_para_movimentacao = sorted([ # Renomeada para clareza
+                r for r in grupos_para_exibir.keys() # Busca entre todos os grupos visíveis
+                if r != nome_grupo # Permite mover para qualquer grupo, exceto o de origem
+            ])
 
-            with col_mover_grupo:
-                # --- Bloco para "Mover entregas para outro grupo" (EXISTENTE - AGORA DENTRO DA COLUNA) ---
-                st.subheader("🚚 Mover para outro Grupo:") # Usar subheader como título
+            # O selectbox sempre será exibido, mas pode ser desabilitado
+            # Se 'rotas_disponiveis_para_movimentacao' estiver vazia, as opções serão apenas ["Selecionar..."].
+            nova_rota = st.selectbox(
+                "🚚 Mover entregas selecionadas para outro grupo:",
+                options=["Selecionar..."] + rotas_disponiveis_para_movimentacao,
+                key=f"selectbox_mover_grupo_{nome_grupo}",
+                # Desabilita se não há entregas selecionadas OU se não há *outras* rotas para mover.
+                disabled=selecionadas.empty or not rotas_disponiveis_para_movimentacao 
+            )
 
-                rotas_disponiveis_para_movimentacao = sorted([
-                    r for r in grupos_para_exibir.keys()
-                    if r != nome_grupo
-                ])
-                nova_rota = st.selectbox(
-                    "Selecione o grupo de destino:", # Label mais conciso
-                    options=["Selecionar..."] + rotas_disponiveis_para_movimentacao,
-                    key=f"selectbox_mover_grupo_{nome_grupo}",
-                    disabled=selecionadas.empty or not rotas_disponiveis_para_movimentacao
-                )
-                move_button_disabled = selecionadas.empty or nova_rota == "Selecionar..."
-                if st.button(
-                    f"🔄 Mover para o Grupo '{nova_rota}'", # Texto do botão mais conciso
-                    key=f"btn_mover_grupo_{nome_grupo}",
-                    disabled=move_button_disabled
-                ):
-                    if nova_rota == "Selecionar...":
-                        st.warning("Por favor, selecione um grupo válido para mover as entregas.")
-                    else:
-                        try:
-                            mover_entregas_para_outra_rota(ctrcs_selecionados, nova_rota)
-                            st.session_state["reload_pre_roterizacao"] = True
-                            for key in list(st.session_state.keys()):
-                                if key.startswith("grid_pre_rota_"):
-                                    st.session_state.pop(key, None)
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"Erro ao mover entregas: {e}")
-                if not rotas_disponiveis_para_movimentacao and not selecionadas.empty:
-                    st.info("Nenhum outro grupo disponível para movimentação.")
-                elif selecionadas.empty:
-                    st.info("Selecione entregas para mover.")
-                # --- FIM do bloco "Mover entregas para outro grupo" ---
+            # O botão também sempre será exibido, mas desabilitado se não houver seleção ou rota válida
+            move_button_disabled = selecionadas.empty or nova_rota == "Selecionar..."
 
-            with col_mover_carga_existente:
-                # --- NOVO BLOCO: Mover para Carga Existente (AGORA DENTRO DA COLUNA) ---
-                st.subheader("📦 Mover para Carga Existente:") # Usar subheader como título
+            if st.button(
+                f"🔄 Mover entregas para o grupo '{nova_rota}'",
+                key=f"btn_mover_grupo_{nome_grupo}", 
+                disabled=move_button_disabled
+            ):
+                # A validação `nova_rota == "Selecionar..."` já está coberta pelo `disabled` do botão,
+                # mas é bom manter um aviso defensivo ou garantir que o disabled funcione.
+                if nova_rota == "Selecionar...":
+                    st.warning("Por favor, selecione um grupo válido para mover as entregas.")
+                else:
+                    try:
+                        mover_entregas_para_outra_rota(ctrcs_selecionados, nova_rota)
+                        
+                        st.session_state["reload_pre_roterizacao"] = True
+                        for key in list(st.session_state.keys()):
+                            if key.startswith("grid_pre_rota_"):
+                                st.session_state.pop(key, None)
+                        st.rerun()
 
-                try:
-                    cargas_geradas_data = supabase.table("cargas_geradas").select("numero_carga").execute().data
-                    
-                    # --- LINHA MODIFICADA AQUI: ---
-                    # 1. Extraímos os 'numero_carga' em uma lista.
-                    # 2. Convertemos para um 'set' para remover duplicatas.
-                    # 3. Convertemos de volta para uma lista.
-                    # 4. Ordenamos a lista.
-                    unique_cargas_list = [str(c["numero_carga"]) for c in cargas_geradas_data if c.get("numero_carga")]
-                    cargas_geradas_options = sorted(list(set(unique_cargas_list)))
-                    
-                except Exception as e:
-                    st.error(f"Erro ao carregar cargas geradas: {e}")
-                    cargas_geradas_options = []
-
-                carga_existente_selecionada = st.selectbox(
-                    "Selecione a carga de destino:", # Label mais conciso
-                    options=["Selecionar uma Carga..."] + cargas_geradas_options,
-                    key=f"selectbox_mover_para_carga_existente_{nome_grupo}",
-                    disabled=selecionadas.empty or not cargas_geradas_options # Desabilita se não há entregas selecionadas ou se não há cargas geradas
-                )
-
-                is_mover_para_carga_disabled = selecionadas.empty or carga_existente_selecionada == "Selecionar uma Carga..."
-
-                if st.button(
-                    f"➡️ Mover para Carga '{carga_existente_selecionada}'", # Texto do botão mais conciso
-                    key=f"btn_mover_para_carga_existente_{nome_grupo}",
-                    disabled=is_mover_para_carga_disabled
-                ):
-                    if carga_existente_selecionada == "Selecionar uma Carga...":
-                        st.warning("Por favor, selecione uma carga válida para mover as entregas.")
-                    else:
-                        try:
-                            if ctrcs_selecionados:
-                                mover_entregas_para_carga_existente(ctrcs_selecionados, carga_existente_selecionada)
-                                # A função mover_entregas_para_carga_existente já faz o rerun
-                            else:
-                                st.warning("Nenhuma entrega selecionada para mover.")
-                        except Exception as e:
-                            st.error(f"❌ Erro ao mover entregas para a carga existente: {e}")
-                if not cargas_geradas_options and not selecionadas.empty:
-                    st.info("Nenhuma carga gerada disponível para movimentação.")
-                elif selecionadas.empty:
-                    st.info("Selecione entregas para mover.")
+                    except Exception as e:
+                        st.error(f"Erro ao mover entregas: {e}")
+                        
+            # Adiciona uma mensagem informativa se não houver outros grupos disponíveis,
+            # mas agora abaixo dos widgets (que estarão visíveis e desabilitados).""
+            if not rotas_disponiveis_para_movimentacao:
+                st.info("Nenhum outro grupo disponível para movimentação.")
             
-            # ===================================================================================================
-            # ADICIONAR ESTE BLOCO - CONTROLES DE PAGINAÇÃO INFERIOR
-            # ===================================================================================================
+
     
-    st.markdown(f"**Página {st.session_state.current_group_page_pre_roterizacao + 1} de {total_pages}**")
+            st.markdown(f"**Página {st.session_state.current_group_page_pre_roterizacao + 1} de {total_pages}**")
 
-    col_prev_bottom, col_page_select_bottom, col_next_bottom = st.columns([1, 3, 0.5])
+            col_prev_bottom, col_page_select_bottom, col_next_bottom = st.columns([1, 3, 0.5])
 
-    with col_prev_bottom:
-        # Chave corrigida para ser única e fixa para o botão "Anterior" da paginação inferior
-        if st.button("⬅️ Anterior", disabled=(st.session_state.current_group_page_pre_roterizacao == 0), key="btn_prev_group_page_bottom_fixed_pagination"):
-            st.session_state.current_group_page_pre_roterizacao -= 1
-            st.rerun()
+            with col_prev_bottom:
+                if st.button("⬅️ Anterior", disabled=(st.session_state.current_group_page_pre_roterizacao == 0), key="btn_prev_group_page_bottom"):
+                    st.session_state.current_group_page_pre_roterizacao -= 1
+                    st.rerun()
 
-    with col_page_select_bottom:
-        # --- CORREÇÃO: Definição da variável 'page_options_display_bottom' ---
-        page_options_display_bottom = [f"Página {i+1}" for i in range(total_pages)]
-        # --- FIM CORREÇÃO ---
-        selected_option_index_bottom = st.selectbox(
-            "Ir para a página:",
-            options=range(total_pages),
-            format_func=lambda i: page_options_display_bottom[i],
-            index=st.session_state.current_group_page_pre_roterizacao,
-            key="group_page_select_pre_roterizacao_bottom_fixed_pagination" # Chave única para o selectbox inferior
-        )
-        if selected_option_index_bottom != st.session_state.current_group_page_pre_roterizacao:
-            st.session_state.current_group_page_pre_roterizacao = selected_option_index_bottom
-            st.rerun()
+            with col_page_select_bottom:
+                page_options_display_bottom = [f"Página {i+1}" for i in range(total_pages)]
+                selected_option_index_bottom = st.selectbox(
+                    "Ir para a página:",
+                    options=range(total_pages),
+                    format_func=lambda i: page_options_display_bottom[i],
+                    index=st.session_state.current_group_page_pre_roterizacao,
+                    key=f"group_page_select_pre_roterizacao_bottom_{nome_grupo}" 
+                )
+                if selected_option_index_bottom != st.session_state.current_group_page_pre_roterizacao:
+                    st.session_state.current_group_page_pre_roterizacao = selected_option_index_bottom
+                    st.rerun()
 
-    with col_next_bottom:
-        # Chave corrigida para ser única e fixa para o botão "Próxima" da paginação inferior
-        if st.button("Próxima ➡️", disabled=(st.session_state.current_group_page_pre_roterizacao >= total_pages - 1), key="btn_next_group_page_bottom_fixed_pagination"):
-            st.session_state.current_group_page_pre_roterizacao += 1
-            st.rerun()
+            with col_next_bottom:
+                if st.button("Próxima ➡️", disabled=(st.session_state.current_group_page_pre_roterizacao >= total_pages - 1), key=f"btn_next_group_page_bottom_{nome_grupo}"):
+                    st.session_state.current_group_page_pre_roterizacao += 1
+                    st.rerun()
 
 # ==============================================================================
 # FUNÇÃO: pagina_cargas_geradas()
@@ -9296,17 +9204,8 @@ def pagina_cargas_geradas():
                                     "valor_contratacao", "aprovador_custos_login", "data_aprovacao_custos",
                                     "pdf_downloaded_at", "pdf_simplified_downloaded_at", "valor_adicional_frete", "motivo_valor_adicional",
                                     # NOVAS COLUNAS A SEREM ADICIONADAS AQUI:
-                                    "custo_percentual_frete", "rentabilidade_percentual", "situacao_custo_regional"
+                                    "custo_percentual_frete", "rentabilidade_percentual", "situacao_custo_regional" # <--- ADICIONE ESTAS TRÊS COLUNAS
                                 ], errors="ignore")
-
-                                # --- ADICIONE ESTE NOVO BLOCO AQUI ---
-                                # Limpa GrupoDeExibicao para que a lógica em pre_roterizacao possa reavaliar
-                                # o Tipo_Tratativa_Especial (Paletizadas) ou a Rota.
-                                if "GrupoDeExibicao" in df_para_retornar.columns:
-                                    df_para_retornar["GrupoDeExibicao"] = None # Define como nulo para o banco de dados
-                                else: # Se a coluna não existir, cria-a com None para consistência
-                                    df_para_retornar["GrupoDeExibicao"] = None
-                                # --- FIM DO NOVO BLOCO ---
 
                                 df_para_retornar = _prepare_df_for_supabase_insert(df_para_retornar)
                                 registros_para_inserir = df_para_retornar.to_dict(orient="records")
