@@ -11180,7 +11180,7 @@ def pagina_estatisticas():
                 <div style="
                     display: inline-block;
                     background-color: #E6F7FF; /* Fundo azul claro similar ao st.info */
-                    color: #004085;          /* Cor do texto azul escuro similar ao st.info */
+                    color: #850000;          /* Cor do texto azul escuro similar ao st.info */
                     border-radius: 0.5rem;   /* Borda arredondada */
                     padding: 0.75rem 1rem;   /* Espaçamento interno */
                     margin-bottom: 1rem;     /* Margem abaixo para espaçamento */
