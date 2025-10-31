@@ -9686,39 +9686,48 @@ def pagina_aprovacao_custos():
 
             if recarregar or "df_aprovacao_custos_cache" not in st.session_state:
                 dados = supabase.table("aprovacao_custos").select("*").execute().data
-                df = pd.DataFrame(dados)
+                df_temp = pd.DataFrame(dados) # <--- Use 'df_temp' para o DataFrame recém-buscado
 
-                if not df.empty:
+                if not df_temp.empty: # <--- Mudei para 'df_temp'
                     # --- NOVO BLOCO: Conversão Robusta de Data/Timestamp ao carregar ---
                     for col_name in ALL_COLS_TO_PARSE_AS_DATE_OR_TIMESTAMP:
-                        if col_name in df.columns:
-                            df[col_name] = _parse_date_robustly(df[col_name], col_name=col_name) # <-- ADICIONADO col_name
-
+                        if col_name in df_temp.columns: # <--- Mudei para 'df_temp'
+                            df_temp[col_name] = _parse_date_robustly(df_temp[col_name], col_name=col_name)
 
                             # Para colunas de timestamp, ensure it's timezone-aware as UTC then localize for consistency before cache
-                            if col_name in GLOBAL_DB_TIMESTAMP_COLS and pd.api.types.is_datetime64_any_dtype(df[col_name]):
-                                df[col_name] = df[col_name].apply(
+                            if col_name in GLOBAL_DB_TIMESTAMP_COLS and pd.api.types.is_datetime64_any_dtype(df_temp[col_name]):
+                                df_temp[col_name] = df_temp[col_name].apply(
                                     lambda x: x.tz_localize('UTC', ambiguous='NaT', nonexistent='NaT') if pd.notna(x) and x.tzinfo is None else x
                                 )
                     # --- FIM NOVO BLOCO
                 
                     # ✅ Garante que 'numero_carga' seja string no cache
-                    if 'numero_carga' in df.columns:
-                        df['numero_carga'] = df['numero_carga'].astype(str)
+                    if 'numero_carga' in df_temp.columns: # <--- Mudei para 'df_temp'
+                        df_temp['numero_carga'] = df_temp['numero_carga'].astype(str)
 
-                    if 'is_retorno_rota' not in df.columns:
-                        df['is_retorno_rota'] = False # Default para False se a coluna não existir (para retrocompatibilidade)
-                    df['is_retorno_rota'] = df['is_retorno_rota'].fillna(False).astype(bool) # Preenche NaNs com False e garante o tipo
+                    if 'is_retorno_rota' not in df_temp.columns: # <--- Mudei para 'df_temp'
+                        df_temp['is_retorno_rota'] = False # Default para False se a coluna não existir (para retrocompatibilidade)
+                    df_temp['is_retorno_rota'] = df_temp['is_retorno_rota'].fillna(False).astype(bool) # Preenche NaNs com False e garante o tipo
 
                     # --- NOVO: Garante que 'is_reentrega_com_frete_pago' exista e seja booleano ---
-                    if 'is_reentrega_com_frete_pago' not in df.columns:
-                        df['is_reentrega_com_frete_pago'] = False
-                    df['is_reentrega_com_frete_pago'] = df['is_reentrega_com_frete_pago'].fillna(False).astype(bool)
+                    if 'is_reentrega_com_frete_pago' not in df_temp.columns: # <--- Mudei para 'df_temp'
+                        df_temp['is_reentrega_com_frete_pago'] = False
+                    df_temp['is_reentrega_com_frete_pago'] = df_temp['is_reentrega_com_frete_pago'].fillna(False).astype(bool)
                     # --- FIM NOVO ---
 
-                    st.session_state["df_cargas_cache"] = df
+                    # --- CORRIGIDO AQUI: Usa a chave de cache correta para esta página ---
+                    st.session_state["df_aprovacao_custos_cache"] = df_temp
                 else:
-                    df = st.session_state["df_cargas_cache"]
+                    # Se não houver dados, inicializa o cache desta página com um DataFrame vazio
+                    st.session_state["df_aprovacao_custos_cache"] = pd.DataFrame()
+
+            # Fora do if/else de recarregamento/cache, 'df' é sempre atribuído do cache CORRETO
+            df = st.session_state["df_aprovacao_custos_cache"]
+
+
+
+
+
 
         if df.empty:
             st.info("Nenhuma carga pendente de aprovação de custos.")

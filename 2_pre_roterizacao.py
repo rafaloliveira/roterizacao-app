@@ -675,12 +675,12 @@ def _aprovar_carga_custos(
 
 # ========== SUPABASE CONFIG ========== #
 # Base de Dados Projeto roteriza
-url = "https://xhwotwefiqfwfabenwsi.supabase.co"
-key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhod290d2VmaXFmd2ZhYmVud3NpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDgzNjc4NTMsImV4cCI6MjA2Mzk0Mzg1M30.3E2z-1SaABbCaV_HjQf0Rj8249mnPeGv7YkV4gOGhlg"  # Substitua pela sua chave real
+#url = "https://xhwotwefiqfwfabenwsi.supabase.co"
+#key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhod290d2VmaXFmd2ZhYmVud3NpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDgzNjc4NTMsImV4cCI6MjA2Mzk0Mzg1M30.3E2z-1SaABbCaV_HjQf0Rj8249mnPeGv7YkV4gOGhlg"  # Substitua pela sua chave real
 
 # Base de Dados Projeto F4Rotas
-#url = "https://agiugsfojyansjeanfbz.supabase.co"
-#key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFnaXVnc2ZvanlhbnNqZWFuZmJ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM4OTUzOTUsImV4cCI6MjA2OTQ3MTM5NX0.44w1wtOe3A8eQS6rINRdT9tDowZWwHM_H9Apr_B17I4"
+url = "https://agiugsfojyansjeanfbz.supabase.co"
+key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFnaXVnc2ZvanlhbnNqZWFuZmJ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM4OTUzOTUsImV4cCI6MjA2OTQ3MTM5NX0.44w1wtOe3A8eQS6rINRdT9tDowZWwHM_H9Apr_B17I4"
 
 #supabase = create_client(url, key)
 
@@ -9686,39 +9686,48 @@ def pagina_aprovacao_custos():
 
             if recarregar or "df_aprovacao_custos_cache" not in st.session_state:
                 dados = supabase.table("aprovacao_custos").select("*").execute().data
-                df = pd.DataFrame(dados)
+                df_temp = pd.DataFrame(dados) # <--- Use 'df_temp' para o DataFrame recém-buscado
 
-                if not df.empty:
+                if not df_temp.empty: # <--- Mudei para 'df_temp'
                     # --- NOVO BLOCO: Conversão Robusta de Data/Timestamp ao carregar ---
                     for col_name in ALL_COLS_TO_PARSE_AS_DATE_OR_TIMESTAMP:
-                        if col_name in df.columns:
-                            df[col_name] = _parse_date_robustly(df[col_name], col_name=col_name) # <-- ADICIONADO col_name
-
+                        if col_name in df_temp.columns: # <--- Mudei para 'df_temp'
+                            df_temp[col_name] = _parse_date_robustly(df_temp[col_name], col_name=col_name)
 
                             # Para colunas de timestamp, ensure it's timezone-aware as UTC then localize for consistency before cache
-                            if col_name in GLOBAL_DB_TIMESTAMP_COLS and pd.api.types.is_datetime64_any_dtype(df[col_name]):
-                                df[col_name] = df[col_name].apply(
+                            if col_name in GLOBAL_DB_TIMESTAMP_COLS and pd.api.types.is_datetime64_any_dtype(df_temp[col_name]):
+                                df_temp[col_name] = df_temp[col_name].apply(
                                     lambda x: x.tz_localize('UTC', ambiguous='NaT', nonexistent='NaT') if pd.notna(x) and x.tzinfo is None else x
                                 )
                     # --- FIM NOVO BLOCO
                 
                     # ✅ Garante que 'numero_carga' seja string no cache
-                    if 'numero_carga' in df.columns:
-                        df['numero_carga'] = df['numero_carga'].astype(str)
+                    if 'numero_carga' in df_temp.columns: # <--- Mudei para 'df_temp'
+                        df_temp['numero_carga'] = df_temp['numero_carga'].astype(str)
 
-                    if 'is_retorno_rota' not in df.columns:
-                        df['is_retorno_rota'] = False # Default para False se a coluna não existir (para retrocompatibilidade)
-                    df['is_retorno_rota'] = df['is_retorno_rota'].fillna(False).astype(bool) # Preenche NaNs com False e garante o tipo
+                    if 'is_retorno_rota' not in df_temp.columns: # <--- Mudei para 'df_temp'
+                        df_temp['is_retorno_rota'] = False # Default para False se a coluna não existir (para retrocompatibilidade)
+                    df_temp['is_retorno_rota'] = df_temp['is_retorno_rota'].fillna(False).astype(bool) # Preenche NaNs com False e garante o tipo
 
                     # --- NOVO: Garante que 'is_reentrega_com_frete_pago' exista e seja booleano ---
-                    if 'is_reentrega_com_frete_pago' not in df.columns:
-                        df['is_reentrega_com_frete_pago'] = False
-                    df['is_reentrega_com_frete_pago'] = df['is_reentrega_com_frete_pago'].fillna(False).astype(bool)
+                    if 'is_reentrega_com_frete_pago' not in df_temp.columns: # <--- Mudei para 'df_temp'
+                        df_temp['is_reentrega_com_frete_pago'] = False
+                    df_temp['is_reentrega_com_frete_pago'] = df_temp['is_reentrega_com_frete_pago'].fillna(False).astype(bool)
                     # --- FIM NOVO ---
 
-                    st.session_state["df_cargas_cache"] = df
+                    # --- CORRIGIDO AQUI: Usa a chave de cache correta para esta página ---
+                    st.session_state["df_aprovacao_custos_cache"] = df_temp
                 else:
-                    df = st.session_state["df_cargas_cache"]
+                    # Se não houver dados, inicializa o cache desta página com um DataFrame vazio
+                    st.session_state["df_aprovacao_custos_cache"] = pd.DataFrame()
+
+            # Fora do if/else de recarregamento/cache, 'df' é sempre atribuído do cache CORRETO
+            df = st.session_state["df_aprovacao_custos_cache"]
+
+
+
+
+
 
         if df.empty:
             st.info("Nenhuma carga pendente de aprovação de custos.")
@@ -11179,21 +11188,21 @@ def pagina_estatisticas():
                 """
                 <div style="
                     display: inline-block;
-                    background-color: white; /* Alterado para branco */
-                    color: #004085;          /* Alterado para azul escuro */
-                    border-radius: 0.5rem;
-                    padding: 0.75rem 1rem;
-                    margin-bottom: 1rem;
-                    border: 1px solid #B8DAFF; /* Mantido azul claro para a borda */
-                    font-size: 0.9rem;
-                    line-height: 1.5;
+                    background-color: #E6F7FF; /* Fundo azul claro similar ao st.info */
+                    color: #004085;          /* Cor do texto azul escuro similar ao st.info */
+                    border-radius: 0.5rem;   /* Borda arredondada */
+                    padding: 0.75rem 1rem;   /* Espaçamento interno */
+                    margin-bottom: 1rem;     /* Margem abaixo para espaçamento */
+                    border: 1px solid #B8DAFF; /* Borda levemente azul similar ao st.info */
+                    font-size: 0.9rem;       /* Tamanho da fonte */
+                    line-height: 1.5;        /* Espaçamento entre linhas */
                 ">
                     Dados de estatísticas já carregados. Clique no botão para atualizar.
                 </div>
                 """,
                 unsafe_allow_html=True
             )
-                
+    
     # Se, mesmo após tentar carregar, df_stats ainda estiver vazio, interrompe a exibição da página.
     if st.session_state.df_stats.empty:
         return 
