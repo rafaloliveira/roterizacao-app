@@ -11179,21 +11179,21 @@ def pagina_estatisticas():
                 """
                 <div style="
                     display: inline-block;
-                    background-color: #E6F7FF; /* Fundo azul claro similar ao st.info */
-                    color: #850000;          /* Cor do texto azul escuro similar ao st.info */
-                    border-radius: 0.5rem;   /* Borda arredondada */
-                    padding: 0.75rem 1rem;   /* Espaçamento interno */
-                    margin-bottom: 1rem;     /* Margem abaixo para espaçamento */
-                    border: 1px solid #B8DAFF; /* Borda levemente azul similar ao st.info */
-                    font-size: 0.9rem;       /* Tamanho da fonte */
-                    line-height: 1.5;        /* Espaçamento entre linhas */
+                    background-color: white; /* Alterado para branco */
+                    color: #004085;          /* Alterado para azul escuro */
+                    border-radius: 0.5rem;
+                    padding: 0.75rem 1rem;
+                    margin-bottom: 1rem;
+                    border: 1px solid #B8DAFF; /* Mantido azul claro para a borda */
+                    font-size: 0.9rem;
+                    line-height: 1.5;
                 ">
                     Dados de estatísticas já carregados. Clique no botão para atualizar.
                 </div>
                 """,
                 unsafe_allow_html=True
             )
-    
+                
     # Se, mesmo após tentar carregar, df_stats ainda estiver vazio, interrompe a exibição da página.
     if st.session_state.df_stats.empty:
         return 
