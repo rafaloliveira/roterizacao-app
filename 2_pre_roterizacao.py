@@ -79,7 +79,7 @@ date_only_formatter = JsCode("""
 
 
 
-ALLOWED_OCCURRENCE_CODES = [15, 17, 39, 78, 79, 80, 96, 97]
+ALLOWED_OCCURRENCE_CODES = [15, 17, 35, 39, 78, 79, 80, 96, 97]
 
 #locale.setlocale(locale.LC_ALL, 'pt_BR.UTF-8')
 
@@ -187,7 +187,7 @@ SYNCABLE_COLUMNS = [
 ]
 
 # Defina esta constante também se ainda não estiver global:
-ALLOWED_OCCURRENCE_CODES = [15, 17, 39, 78, 79, 80, 96, 97]
+ALLOWED_OCCURRENCE_CODES = [15, 17, 35, 39, 78, 79, 80, 96, 97]
 
 # Lista de tabelas do fluxo que precisam ser sincronizadas
 FLOW_TABLES = [
