@@ -3489,6 +3489,13 @@ def pagina_sincronizacao():
             else:
                 st.info("Nenhum CTRC retornando ao fluxo detectado.")
 
+            # 🔒 Garante que todos os registros tenham valor booleano True/False
+            if 'is_retorno_rota' not in df_incoming_allowed.columns:
+                df_incoming_allowed['is_retorno_rota'] = False
+            else:
+                df_incoming_allowed['is_retorno_rota'] = df_incoming_allowed['is_retorno_rota'].fillna(False)
+                df_incoming_allowed['is_retorno_rota'] = df_incoming_allowed['is_retorno_rota'].astype(bool)
+
             incoming_allowed_ctrcs_set = set(df_incoming_allowed['Serie_Numero_CTRC'].tolist())
 
             ctrcs_to_delete = existing_fbaseroter_ctrcs_set - incoming_allowed_ctrcs_set
