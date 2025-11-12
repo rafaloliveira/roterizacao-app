@@ -1,0 +1,498 @@
+# DASH_APP/pages/confirmar_producao.py
+
+import dash
+from dash import dcc, html, callback, Output, Input, State, no_update
+import dash_bootstrap_components as dbc
+import dash_ag_grid as dag # Já está importado no seu código, mas para ter certeza
+
+import pandas as pd
+import json
+
+
+# Importações adicionais necessárias
+import logging
+from datetime import datetime
+from utils.retry_supabase import retry_supabase_query
+from utils.db_helpers import supabase
+from utils.data_processing import (
+    data_hora_brasil_iso, formatar_data_hora_br, _parse_date_robustly,
+    tratar_data_para_utc, _prepare_df_for_supabase_insert, apply_brazilian_date_format_for_display,
+    formatar_brasileiro, badge
+)
+from config.constants import (
+    FUSO_BRASIL, DATE_DISPLAY_FORMAT_STRING, DATE_ONLY_REPARSE_COLUMNS,
+    DATE_ONLY_DISPLAY_FORMAT_STRING_BR, ISO_DATE_ONLY_FORMAT_STRING,
+    ALLOWED_OCCURRENCE_CODES, GLOBAL_DATE_COLUMNS_DISPLAY_ONLY_DATE,
+    GLOBAL_DATE_DISPLAY_COLUMNS, GLOBAL_DB_DATE_COLS, GLOBAL_DB_TIMESTAMP_COLS,
+    colunas_texto, colunas_numero, colunas_data
+)
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
+
+date_only_formatter_dash = {
+    'function': '''
+        function(params) {
+            if (params.value === null || typeof params.value === 'undefined' || params.value === '') {
+                return '';
+            }
+            
+            let dateStr = String(params.value);
+            let datePart = dateStr.split('T')[0];
+            let parts = datePart.split('-');
+            
+            if (parts.length === 3) {
+                let year = parts[0];
+                let month = parts[1].padStart(2, '0');
+                let day = parts[2].padStart(2, '0');
+                return day + '-' + month + '-' + year;
+            }
+            
+            return datePart;
+        }
+    '''
+}
+# JsCode para destacar linhas no Dash AG Grid (adaptado para o contexto Dash)
+linha_destacar_dash = {
+    "function": """
+        function(params) {
+            const status = params.data.Status;
+            const entrega = params.data['Entrega Programada'];
+            const particularidade = params.data.Particularidade;
+            const tipoTratativa = params.data.Tipo_Tratativa_Especial;
+
+            if (tipoTratativa === 'Paletizadas') {
+                return { 'backgroundColor': '#CFE8FF', 'color': '#000', 'fontWeight': 'bold' };
+            }
+            
+            const isEntregaEmpty = !entrega || (typeof entrega === 'string' && entrega.trim() === '');
+            if (status === 'AGENDAR' && isEntregaEmpty) {
+                return { 'backgroundColor': '#FFA500', 'color': '#000' };
+            }
+
+            if (particularidade && typeof particularidade === 'string' && particularidade.trim() !== "") {
+                return { 'backgroundColor': '#FFFF00', 'color': '#000' };
+            }
+            return null;
+        }
+    """
+}
+
+# --- Layout da Página de Confirmar Produção ---
+def serve_layout_confirmar_producao():
+    return html.Div([
+        # Stores permanecem aqui no layout raiz
+        dcc.Store(id='confirmadas-producao-data-store', data=None),
+        dcc.Store(id='aprovacao-diretoria-data-store', data=None),
+        dcc.Store(id='confirmadas-producao-reload-flag', data=0), # Usamos um número para o flag
+        dcc.Store(id='confirmadas-producao-selected-rows-store', data=[]), # Para armazenar seleções do grid
+        dcc.Store(id='confirmadas-producao-metrics-store', data={}), # Para armazenar métricas calculadas
+
+        # dcc.Loading vai envolver o conteúdo principal, que será preenchido por uma callback
+        dcc.Loading(
+            id="loading-confirmadas-producao-page",
+            type="circle",
+            children=html.Div(id='confirmar-producao-content') # Este Div será preenchido
+        )
+    ], className="container-fluid py-3")
+
+@callback(
+    Output('confirmadas-producao-data-store', 'data'),
+    Output('aprovacao-diretoria-data-store', 'data'),
+    # Input que serve para forçar o recarregamento dos dados
+    Input('confirmadas-producao-reload-flag', 'data'),
+    prevent_initial_call=False # Permite que este callback seja disparado na carga inicial da página
+)
+def load_confirmadas_producao_data(reload_flag):
+    df_confirmadas_data = pd.DataFrame()
+    df_aprovacao_data = pd.DataFrame()
+
+    try:
+        # Carregar df_confirmadas com retry
+        logger.info("Tentando buscar dados de 'confirmadas_producao' com retry.")
+        confirmadas_response = retry_supabase_query(
+            lambda: supabase.table("confirmadas_producao").select("*").execute()
+        )
+        confirmadas_raw = confirmadas_response.data # Obter os dados da resposta
+        df_confirmadas_data = pd.DataFrame(confirmadas_raw)
+
+        # Adicione esta correção:
+        if not df_confirmadas_data.empty:
+            # Corrige datas que podem ter formato incorreto (ex: 2025-11-010 -> 2025-11-10)
+            date_columns_to_fix = ['Data de Emissao', 'Previsao de Entrega', 'Entrega Programada']
+            for col in date_columns_to_fix:
+                if col in df_confirmadas_data.columns:
+                # Força conversão para datetime e depois para string ISO limpa
+                    df_confirmadas_data[col] = pd.to_datetime(df_confirmadas_data[col], errors='coerce')
+                    df_confirmadas_data[col] = df_confirmadas_data[col].dt.strftime('%Y-%m-%d')
+
+        if not df_confirmadas_data.empty:
+            # --- Correção de Tipos e Formatação para JSON ---
+
+            # Aplicar _parse_date_robustly para TODAS as colunas de data/timestamp relevantes
+            # ANTES de tentar isoformat().
+            # 'Entrega Programada' pode vir como string ou datetime, então também é tratada aqui.
+            all_date_cols_to_process = list(set(GLOBAL_DB_TIMESTAMP_COLS + GLOBAL_DB_DATE_COLS + ['Entrega Programada']))
+            for col in all_date_cols_to_process:
+                if col in df_confirmadas_data.columns:
+                    # Primeiro, converte a coluna para objetos datetime
+                    df_confirmadas_data[col] = _parse_date_robustly(df_confirmadas_data[col], col_name=col)
+                    # Agora que são objetos datetime ou NaT, podemos chamar .isoformat()
+                    df_confirmadas_data[col] = df_confirmadas_data[col].apply(
+                        lambda x: x.isoformat() if pd.notna(x) else None
+                    )
+
+            # As outras colunas que são strings ou numéricas devem ser tratadas como já eram
+            if 'Rota' in df_confirmadas_data.columns:
+                df_confirmadas_data['Rota'] = df_confirmadas_data['Rota'].fillna('').astype(str)
+            if 'Status' in df_confirmadas_data.columns:
+                df_confirmadas_data['Status'] = df_confirmadas_data['Status'].fillna('').astype(str)
+            # 'Entrega Programada' já foi tratada acima no loop genérico.
+            if 'Particularidade' in df_confirmadas_data.columns:
+                df_confirmadas_data['Particularidade'] = df_confirmadas_data['Particularidade'].fillna('').astype(str)
+            if 'Serie_Numero_CTRC' in df_confirmadas_data.columns:
+                df_confirmadas_data['Serie_Numero_CTRC'] = df_confirmadas_data['Serie_Numero_CTRC'].astype(str)
+            if 'Cliente Pagador' in df_confirmadas_data.columns:
+                df_confirmadas_data['Cliente Pagador'] = df_confirmadas_data['Cliente Pagador'].fillna('').astype(str)
+            if 'Tipo_Tratativa_Especial' not in df_confirmadas_data.columns:
+                df_confirmadas_data['Tipo_Tratativa_Especial'] = ''
+            df_confirmadas_data['Tipo_Tratativa_Especial'] = df_confirmadas_data['Tipo_Tratativa_Especial'].fillna('').astype(str)
+
+
+        # Carregar df_aprovacao (para as métricas) com retry
+        logger.info("Tentando buscar dados de 'aprovacao_diretoria' com retry.")
+        aprovacao_response = retry_supabase_query(
+            lambda: supabase.table("aprovacao_diretoria").select("*").execute()
+        )
+        aprovacao_raw = aprovacao_response.data
+        df_aprovacao_data = pd.DataFrame(aprovacao_raw)
+        if not df_aprovacao_data.empty:
+            # Garante que as colunas numéricas existam e sejam numéricas para soma
+            numeric_cols = ["Peso Real em Kg", "Peso Calculado em Kg", "Valor do Frete", "Cubagem em m³", "Quantidade de Volumes"]
+            for col in numeric_cols:
+                if col in df_aprovacao_data.columns:
+                    df_aprovacao_data[col] = pd.to_numeric(df_aprovacao_data[col], errors='coerce').fillna(0)
+            
+            # Formata colunas de data/timestamp para JSON string (se houver, seguindo a mesma lógica)
+            all_date_cols_aprovacao = list(set(GLOBAL_DB_TIMESTAMP_COLS + GLOBAL_DB_DATE_COLS))
+            for col in all_date_cols_aprovacao:
+                if col in df_aprovacao_data.columns:
+                    df_aprovacao_data[col] = _parse_date_robustly(df_aprovacao_data[col], col_name=col)
+                    df_aprovacao_data[col] = df_aprovacao_data[col].apply(
+                        lambda x: x.isoformat() if pd.notna(x) else None
+                    )
+
+        logger.info("Dados de 'confirmadas_producao' e 'aprovacao_diretoria' carregados com sucesso.")
+    except Exception as e:
+        logger.error(f"Erro ao carregar dados do Supabase na página de Confirmar Produção: {e}", exc_info=True)
+        return json.dumps(pd.DataFrame().to_dict('records')), json.dumps(pd.DataFrame().to_dict('records'))
+
+    # Retorna os dados em formato JSON (lista de dicionários)
+    return json.dumps(df_confirmadas_data.to_dict('records')), json.dumps(df_aprovacao_data.to_dict('records'))
+
+@callback(
+    Output('confirmar-producao-content', 'children'),
+    Output('confirmadas-producao-metrics-store', 'data'), # Armazena métricas gerais
+    Input('confirmadas-producao-data-store', 'data'),
+    Input('aprovacao-diretoria-data-store', 'data'),
+    # Permite que uma mudança no store de seleção também atualize as métricas (para quando implementarmos a seleção)
+    State('confirmadas-producao-selected-rows-store', 'data') 
+)
+def update_confirmar_producao_layout(confirmadas_data_json, aprovacao_data_json, selected_rows_data):
+    # Este callback é disparado pela primeira vez quando os dcc.Store são populados
+    if confirmadas_data_json is None:
+        return html.Div([
+            html.Div(dbc.Alert("Carregando dados, aguarde...", color="info")),
+            dcc.Loading(type="circle")
+        ]), {} # Retorna um layout de carregamento e um dicionário vazio para as métricas
+
+    df_confirmadas = pd.DataFrame(json.loads(confirmadas_data_json))
+
+    # FORÇAR formatação brasileira no Python
+    date_columns_to_format = ['Data de Emissao', 'Previsao de Entrega', 'Entrega Programada']
+    for col in date_columns_to_format:
+        if col in df_confirmadas.columns:
+            # Converte para datetime e depois formata para DD-MM-YYYY
+            df_confirmadas[col] = pd.to_datetime(df_confirmadas[col], errors='coerce')
+            df_confirmadas[col] = df_confirmadas[col].dt.strftime('%d-%m-%Y')
+            # Substitui NaT por string vazia
+            df_confirmadas[col] = df_confirmadas[col].fillna('')
+
+
+
+    df_aprovacao = pd.DataFrame(json.loads(aprovacao_data_json))
+    # df_selected_rows = pd.DataFrame(selected_rows_data) # Será usado em etapas futuras
+
+    if df_confirmadas.empty:
+        return html.Div([
+            html.Div("Nenhuma entrega disponível para confirmar produção.", className="alert alert-info")
+        ]), {} # Retorna um layout vazio se não houver dados
+
+    # --- MÉTRICAS GERAIS E BADGES NO TOPO ---
+    total_entregas = len(df_confirmadas)
+    total_clientes = df_confirmadas["Cliente Pagador"].nunique() if "Cliente Pagador" in df_confirmadas.columns else 0
+    peso_real_sum = df_confirmadas['Peso Real em Kg'].sum() if 'Peso Real em Kg' in df_confirmadas.columns else 0
+    peso_calc_sum = df_confirmadas['Peso Calculado em Kg'].sum() if 'Peso Calculado em Kg' in df_confirmadas.columns else 0
+    valor_frete_sum = df_confirmadas['Valor do Frete'].sum() if 'Valor do Frete' in df_confirmadas.columns else 0
+    cubagem_sum = df_confirmadas['Cubagem em m³'].sum() if 'Cubagem em m³' in df_confirmadas.columns else 0
+    volumes_sum = df_confirmadas['Quantidade de Volumes'].sum() if 'Quantidade de Volumes' in df_confirmadas.columns else 0
+
+
+    entregas_agendar_sem_programacao = df_confirmadas[
+        (df_confirmadas['Status'].astype(str).str.upper() == 'AGENDAR') &
+        (df_confirmadas['Entrega Programada'].isna()) # Use isna() para pandas datetime NaT
+    ]
+    qtd_agendar_sem_programacao = len(entregas_agendar_sem_programacao)
+
+    entregas_com_particularidade = df_confirmadas[
+        (df_confirmadas['Particularidade'].astype(str).str.strip() != '') &
+        (df_confirmadas['Particularidade'].notna())
+    ]
+    qtd_com_particularidade = len(entregas_com_particularidade)
+
+    # Métricas de aprovação
+    total_confirmadas_aprovacao = len(df_aprovacao)
+    peso_real_conf_aprovacao = df_aprovacao["Peso Real em Kg"].sum() if "Peso Real em Kg" in df_aprovacao.columns else 0
+    peso_calc_conf_aprovacao = df_aprovacao["Peso Calculado em Kg"].sum() if "Peso Calculado em Kg" in df_aprovacao.columns else 0
+
+    metrics_layout_div = html.Div([
+        dbc.Row([
+            dbc.Col(html.Div([html.P("📦 Total de Entregas", className="text-muted small"), html.H5(f"{total_entregas:,}")]), width=2),
+            dbc.Col(html.Div([html.P("📦 Total de Clientes", className="text-muted small"), html.H5(f"{total_clientes:,}")]), width=2),
+            dbc.Col(html.Div([html.P("⚖️ Peso Real (kg)", className="text-muted small"), html.H5(formatar_brasileiro(peso_real_sum))]), width=2),
+            dbc.Col(html.Div([html.P(" Peso Calculado (kg)", className="text-muted small"), html.H5(formatar_brasileiro(peso_calc_sum))]), width=2),
+            dbc.Col(html.Div([
+                html.P("📅 Total Agendas sem Data Prog.", className="text-muted small"),
+                # Aqui você chama badge() e ele já retorna um html.Span, então basta passá-lo
+                badge(f"{qtd_agendar_sem_programacao}", background_color="#FF4500", text_color="white") # <-- ALTERADO AQUI
+            ]), width=2, className="text-center"),
+            dbc.Col(html.Div([
+                html.P("⚠️ Com Particularidade", className="text-muted small"),
+                # E aqui também
+                badge(f"{qtd_com_particularidade}", background_color="#DAA520", text_color="white") # <-- ALTERADO AQUI
+            ]), width=2, className="text-center"),
+        ], className="g-3 text-center align-items-center mb-4"),
+        dbc.Row([
+             dbc.Col(html.Div([html.P("✅ Entregas Confirmadas", className="text-muted small"), html.H5(f"{total_confirmadas_aprovacao:,}")]), width=4),
+             dbc.Col(html.Div([html.P("✅ Peso Real Confirmado", className="text-muted small"), html.H5(formatar_brasileiro(peso_real_conf_aprovacao))]), width=4),
+             dbc.Col(html.Div([html.P("✅ Peso Calculado Confirmado", className="text-muted small"), html.H5(formatar_brasileiro(peso_calc_conf_aprovacao))]), width=4),
+        ], className="g-3 text-center align-items-center mb-4"),
+        html.Hr()
+    ])
+
+    # --- ESTRUTURA DE ITERAÇÃO DE GRUPOS ---
+    page_content = [
+        html.H2("Confirmar Produção", className="mb-4"),
+        metrics_layout_div # Inserir as métricas aqui
+    ]
+    
+    grupos_para_exibir = {}
+
+    # 1. Grupo "Paletizadores"
+    df_paletizadores = df_confirmadas[df_confirmadas['Tipo_Tratativa_Especial'] == 'Paletizadas'].copy()
+    if not df_paletizadores.empty:
+        grupos_para_exibir["Paletizadores"] = df_paletizadores
+
+    # 2. Grupos por Cliente Pagador
+    clientes_pagadores_unicos = sorted(df_confirmadas["Cliente Pagador"].dropna().unique())
+    for cliente_pagador in clientes_pagadores_unicos:
+        df_cliente = df_confirmadas[df_confirmadas["Cliente Pagador"] == cliente_pagador].copy()
+        if not df_cliente.empty:
+            grupos_para_exibir[cliente_pagador] = df_cliente
+
+    for nome_grupo, df_grupo in grupos_para_exibir.items():
+        # Adaptação dos títulos e estilos de cabeçalho
+        if nome_grupo == "Paletizadores":
+            header_title = "📦 Entregas de Clientes Paletizadoras"
+            header_background = "#BBDEFB"
+            header_border = "#2196F3"
+            header_text_color = "black"
+        else:
+            header_title = f"Cliente Pagador: {nome_grupo}"
+            header_background = "#333333"
+            header_border = "#6c757d"
+            header_text_color = "white"
+
+        page_content.append(
+            html.Div([
+                html.Div(
+                    html.Strong(header_title, style={"color": header_text_color}),
+                    className="p-2",
+                    style={
+                        "backgroundColor": header_background,
+                        "borderLeft": f"4px solid {header_border}",
+                        "borderRadius": "6px",
+                        "display": "inline-block",
+                        "maxWidth": "100%",
+                        "marginTop": "20px"
+                    }
+                )
+            ])
+        )
+
+        # Badges para métricas do grupo
+        peso_calc_sum_grupo = df_grupo['Peso Calculado em Kg'].sum()
+        peso_real_sum_grupo = df_grupo['Peso Real em Kg'].sum()
+        valor_frete_sum_grupo = df_grupo['Valor do Frete'].sum()
+        cubagem_sum_grupo = df_grupo['Cubagem em m³'].sum()
+        volumes_sum_grupo = df_grupo['Quantidade de Volumes'].sum()
+
+        entregas_agendar_sem_programacao_grupo = df_grupo[
+            (df_grupo['Status'].astype(str).str.upper() == 'AGENDAR') &
+            (df_grupo['Entrega Programada'].isna())
+        ]
+        qtd_agendar_sem_programacao_grupo = len(entregas_agendar_sem_programacao_grupo)
+
+        entregas_com_particularidade_grupo = df_grupo[
+            (df_grupo['Particularidade'].astype(str).str.strip() != '') &
+            (df_grupo['Particularidade'].notna())
+        ]
+        qtd_com_particularidade_grupo = len(entregas_com_particularidade_grupo)
+        
+        badge_background_color_metric = header_background if nome_grupo == "Paletizadores" else "#333333"
+        badge_text_color_metric = header_text_color if nome_grupo == "Paletizadores" else "white"
+
+        badges_html = html.Div([
+        badge(f'{len(df_grupo)} entregas', background_color=badge_background_color_metric, text_color=badge_text_color_metric), # <-- ALTERADO AQUI
+        badge(f'{formatar_brasileiro(peso_calc_sum_grupo)} kg calc', background_color=badge_background_color_metric, text_color=badge_text_color_metric), # <-- ALTERADO AQUI
+        badge(f'{formatar_brasileiro(peso_real_sum_grupo)} kg real', background_color=badge_background_color_metric, text_color=badge_text_color_metric), # <-- ALTERADO AQUI
+        badge(f'Valor frete: R$ {formatar_brasileiro(valor_frete_sum_grupo)}', background_color=badge_background_color_metric, text_color=badge_text_color_metric), # <-- ALTERADO AQUI
+        badge(f'{formatar_brasileiro(cubagem_sum_grupo)} m³', background_color=badge_background_color_metric, text_color=badge_text_color_metric), # <-- ALTERADO AQUI
+        badge(f'{int(volumes_sum_grupo)} volumes', background_color=badge_background_color_metric, text_color=badge_text_color_metric), # <-- ALTERADO AQUI
+        badge(f'📅Agendar s/ Prog.: {qtd_agendar_sem_programacao_grupo}', background_color='#e06200', text_color='white'), # <-- ALTERADO AQUI
+        badge(f'⚠️ Com Particularidade: {qtd_com_particularidade_grupo}', background_color='#b8860b', text_color='white'), # <-- ALTERADO AQUI
+        ], className="d-flex flex-wrap gap-2 my-2")
+        page_content.append(badges_html)
+
+        # Por enquanto, apenas um placeholder para o grid
+        colunas_exibir_grid = [
+            "Serie_Numero_CTRC",  "Cliente Pagador", "Cliente Destinatario", "Cidade de Entrega",
+            "Bairro do Destinatario","Data de Emissao", "Previsao de Entrega","Entrega Programada", 
+            "Numero da Nota Fiscal",  "Status","Peso Real em Kg", "Peso Calculado em Kg", "Valor do Frete",
+            "Rota", "Regiao", "Chave CT-e","Particularidade", "Codigo da Ultima Ocorrencia", "Cubagem em m³", 
+            "Quantidade de Volumes","Tipo_Tratativa_Especial"
+        ]
+
+        # Definição das colunas para o Dash AG Grid
+        # Definição das colunas para o Dash AG Grid
+        column_defs = [
+            {
+                "field": "Serie_Numero_CTRC",
+                "headerName": "Série/Nº CTRC",
+                "checkboxSelection": True,
+                "headerCheckboxSelection": True,
+                "minWidth": 150,
+                "cellStyle": {"font-size": "11px"}
+            },
+            {"field": "Cliente Pagador", "headerName": "Cliente Pagador", "minWidth": 200, "cellStyle": {"font-size": "11px"}},
+            {"field": "Cliente Destinatario", "headerName": "Cliente Destinatário", "minWidth": 200, "cellStyle": {"font-size": "11px"}},
+            {"field": "Cidade de Entrega", "headerName": "Cidade de Entrega", "minWidth": 150, "cellStyle": {"font-size": "11px"}},
+            {"field": "Bairro do Destinatario", "headerName": "Bairro Destinatário", "minWidth": 150, "cellStyle": {"font-size": "11px"}},
+            {
+                "field": "Data de Emissao",
+                "headerName": "Data Emissão",
+                #"valueFormatter": date_only_formatter_dash,
+                "minWidth": 120,
+                "cellStyle": {"font-size": "11px"}
+            },
+            {
+                "field": "Previsao de Entrega",
+                "headerName": "Previsão Entrega",
+                #"valueFormatter": date_only_formatter_dash,
+                "minWidth": 120,
+                "cellStyle": {"font-size": "11px"}
+            },
+            {
+                "field": "Entrega Programada",
+                "headerName": "Entrega Programada",
+                #"valueFormatter": date_only_formatter_dash,
+                "minWidth": 120,
+                "cellStyle": {"font-size": "11px"}
+            },
+            {"field": "Numero da Nota Fiscal", "headerName": "Nº NF", "minWidth": 120, "cellStyle": {"font-size": "11px"}},
+            {"field": "Status", "headerName": "Status", "minWidth": 100, "cellStyle": {"font-size": "11px"}},
+            {
+                "field": "Peso Real em Kg",
+                "headerName": "Peso Real (Kg)",
+                "valueFormatter": {"function": "d3.format(',.2f')(params.value)"},
+                "minWidth": 120,
+                "cellStyle": {"font-size": "11px"}
+            },
+            {
+                "field": "Peso Calculado em Kg",
+                "headerName": "Peso Calculado (Kg)",
+                "valueFormatter": {"function": "d3.format(',.2f')(params.value)"},
+                "minWidth": 140,
+                "cellStyle": {"font-size": "11px"}
+            },
+            {
+                "field": "Valor do Frete",
+                "headerName": "Valor Frete",
+                "valueFormatter": {"function": "d3.format('$,.2f')(params.value)"},
+                "minWidth": 120,
+                "cellStyle": {"font-size": "11px"}
+            },
+            {"field": "Rota", "headerName": "Rota", "minWidth": 100, "cellStyle": {"font-size": "11px"}},
+            {"field": "Regiao", "headerName": "Região", "minWidth": 100, "cellStyle": {"font-size": "11px"}},
+            {"field": "Chave CT-e", "headerName": "Chave CT-e", "minWidth": 250, "cellStyle": {"font-size": "11px"}},
+            {"field": "Particularidade", "headerName": "Particularidade", "minWidth": 150, "cellStyle": {"font-size": "11px"}},
+            {"field": "Codigo da Ultima Ocorrencia", "headerName": "Cód. Ocorrência", "minWidth": 120, "cellStyle": {"font-size": "11px"}},
+            {
+                "field": "Cubagem em m³",
+                "headerName": "Cubagem (m³)",
+                "valueFormatter": {"function": "d3.format(',.2f')(params.value)"},
+                "minWidth": 120,
+                "cellStyle": {"font-size": "11px"}
+            },
+            {
+                "field": "Quantidade de Volumes",
+                "headerName": "Qtd. Volumes",
+                "valueFormatter": {"function": "d3.format(',')(params.value)"},
+                "minWidth": 120,
+                "cellStyle": {"font-size": "11px"}
+            },
+            {"field": "Tipo_Tratativa_Especial", "headerName": "Tipo Tratativa", "minWidth": 150, "cellStyle": {"font-size": "11px"}}
+        ]
+
+        # Filtra o DataFrame do grupo para incluir apenas as colunas que serão exibidas no grid
+        # e garante que estejam na ordem correta.
+        df_grid_data = df_grupo[[col for col in colunas_exibir_grid if col in df_grupo.columns]].copy()
+        
+        # Passa os dados para o grid em formato de lista de dicionários
+        # Note que as colunas de data já devem estar em formato ISO string para o valueFormatter funcionar.
+        ag_grid_component = dag.AgGrid(
+            id=f'grid-confirmar-producao-{nome_grupo.replace(" ", "-").lower()}', # ID dinâmico para cada grid
+            columnDefs=column_defs,
+            rowData=df_grid_data.to_dict('records'), # Converte o DataFrame para o formato esperado
+            columnSize="sizeToFit", # Adapta colunas ao tamanho do grid
+            defaultColDef={"resizable": True, "sortable": True, "filter": True}, # Configurações padrão de coluna
+            dashGridOptions={
+                "pagination": True,
+                "paginationPageSize": 12,
+                "rowSelection": "multiple", # Permite seleção de múltiplas linhas
+                "getRowStyle": linha_destacar_dash # Usa a JSCode para estilo condicional
+            },
+            # Para styling, você pode usar classes CSS definidas em assets/style.css
+            className="ag-theme-alpine-dark", # Exemplo de tema (você pode mudar para um mais claro se preferir)
+            style={"height": 400, "width": "100%", "marginTop": "15px"}, # Ajusta altura e largura do grid
+        )
+        page_content.append(html.Div(ag_grid_component, className="my-3"))
+
+        # Métricas de Linhas Selecionadas (atualizadas por um callback separado)
+        page_content.append(html.Div(id=f'selected-metrics-{nome_grupo.replace(" ", "-").lower()}', className="mb-3"))
+
+        # Botão "Enviar para Aprovação"
+        page_content.append(
+            dbc.Button(
+                f" Enviar para Aprovação ({nome_grupo})",
+                id={'type': 'btn-enviar-aprovacao', 'group_name': nome_grupo.replace(" ", "-").lower()}, # ID dinâmico
+                className="btn btn-primary my-3 me-2",
+                n_clicks=0,
+                disabled=True # Inicia desabilitado, habilitado por callback se houver seleção
+            )
+        )
+        page_content.append(html.Hr())
+        # >>>>>>>>>>>>>>>>> FIM DAS ALTERAÇÕES <<<<<<<<<<<<<<<<<<<<
+
+    return html.Div(page_content), {} # Retorna o conteúdo e um dicionário vazio para as métricas por enquanto.

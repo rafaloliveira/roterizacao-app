@@ -1,0 +1,939 @@
+#app.py
+
+# Importações iniciais do Dash
+import dash
+from dash import dcc
+from dash import html
+import dash_bootstrap_components as dbc
+from dash.dependencies import Input, Output, State
+import hashlib
+import json
+
+import base64 # Necessário para lidar com uploads de arquivos em Dash
+import pandas as pd # Ainda precisamos de pandas para layouts
+from datetime import datetime # Para alguns callbacks de data/hora
+
+import logging 
+logger = logging.getLogger(__name__) 
+logger.setLevel(logging.INFO) 
+
+# Importa as constantes e configurações
+from config.constants import (
+    FUSO_BRASIL, DATE_DISPLAY_FORMAT_STRING, DATE_ONLY_REPARSE_COLUMNS,
+    DATE_ONLY_DISPLAY_FORMAT_STRING_BR, ISO_DATE_ONLY_FORMAT_STRING,
+    ALLOWED_OCCURRENCE_CODES, GLOBAL_DATE_COLUMNS_DISPLAY_ONLY_DATE,
+    GLOBAL_DATE_DISPLAY_COLUMNS, GLOBAL_DB_DATE_COLS, GLOBAL_DB_TIMESTAMP_COLS,
+    colunas_texto, colunas_numero, colunas_data, SYNCABLE_COLUMNS,
+    FLOW_TABLES, TABLE_TO_PAGE_NAME_MAP, TABLE_SCHEMAS, MAX_COST_PER_REGION,
+    GLOBAL_JUSTIFICATIVA_CATEGORIAS_MAP
+)
+
+# Importa as funções de helpers do Supabase
+from utils.db_helpers import (
+    supabase, init_supabase_client, hash_senha, verificar_senha, autenticar_usuario_dash,
+    is_cookie_expired
+)
+
+# Importa as funções de processamento de dados
+from utils.data_processing import (
+    data_hora_brasil_iso, formatar_data_hora_br, _parse_date_robustly,
+    tratar_data_para_utc, _prepare_df_for_supabase_insert, apply_brazilian_date_format_for_display,
+    formatar_brasileiro
+)
+
+from utils.sync_logic import (
+    load_and_prepare_data,
+    sincronizar_fluxo_com_fbaseroter,
+    aplicar_regras_e_preencher_tabelas,
+    salvar_hora_sincronizacao,
+    recuperar_hora_sincronizacao,
+    salvar_historico_sincronizacao,
+    # Você não precisa importar 'inserir_em_lote' aqui se ela só é usada dentro de sync_logic.py
+)
+
+from pages.confirmar_producao import serve_layout_confirmar_producao 
+from utils.retry_supabase import retry_supabase_query
+
+
+# --- Dash App Instantiation ---
+app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP], suppress_callback_exceptions=True)
+server = app.server
+
+# --- Global Session State Stores ---
+app.layout = html.Div([
+    html.Meta(charSet="utf-8"),
+    html.Meta(name="viewport", content="width=device-width, initial-scale=1"),
+    html.Title("F4Rotas - Sistema de Gerenciamento de Rotas F4Rotas"),
+    html.Link(rel="icon", href=app.get_asset_url('Logo-FA.ico')), # Favicon
+
+    # ESTES SÃO OS ÚNICOS LOCAIS ONDE ESTES IDS DEVEM SER DECLARADOS
+    dcc.Store(id='login-status-store', data={'logged_in': False, 'username': None, 'is_admin': False, 'classe': 'colaborador'}),
+    dcc.Store(id='current-page-route-store', data='login'), # Para controlar qual "página" está visível (login, main, change_password)
+    # ATENÇÃO: sync-file-uploader-key-store não existe mais no código atual
+    # Se você o removeu, ignore essa linha. Se ele existia antes e você o copiou
+    # na minha instrução, provavelmente foi um erro meu. Vamos removê-lo.
+    # dcc.Store(id='sync-file-uploader-key-store', data=0), # REMOVER esta linha
+
+    dcc.Store(id='estatisticas-data-loaded-store', data=False), # Para controlar carregamento de estatísticas
+
+    # NEW Stores for Sync Page (Adicione estas novas Stores UMA ÚNICA VEZ)
+    dcc.Store(id='sync-initial-metrics-store', data={ # Initial metrics at page load
+        'qtd_confirmadas': 0, 'qtd_pre_roterizacao': 0, 'qtd_paletizadas': 0,
+        'last_sync_time': 'Não realizada', 'last_sync_user': 'N/A'
+    }),
+    dcc.Store(id='sync-status-messages-store', data={'message': '', 'type': 'info', 'progress': 0}),
+    dcc.Store(id='uploaded-file-processed-data-store', data=None), # Store processed DF (as dict list)
+    dcc.Store(id='current-uploaded-file-hash', data=None), # Store hash of current uploaded file
+    dcc.Store(id='sync-trigger-data-store', data={'triggered': False, 'file_data': None, 'file_hash': None, 'filename': None}),
+    dcc.Store(id='sync-detailed-update-counts-store', data=None), # For detailed updates after sync
+    dcc.Store(id='sync-history-df-download-store', data=None), # For download history data
+
+    html.Div(id='page-content') # Este div será atualizado via callbacks para exibir as diferentes "páginas"
+])
+
+# ========== LAYOUTS DAS "PÁGINAS" ========== #
+
+# Layout da Página de Login
+def serve_layout_login():
+    return dbc.Container(fluid=True, children=[
+        dbc.Row([
+            dbc.Col(html.Div(), width=2),
+            dbc.Col(html.Img(src=app.get_asset_url('logo_fundo_branco.jpg'), style={'width': '100%', 'maxWidth': '700px', 'display': 'block', 'margin': '20px auto'}), width=8),
+            dbc.Col(html.Div(), width=2)
+        ], className="mb-4"),
+
+        dbc.Row([
+            dbc.Col(html.Div(), width=4),
+            dbc.Col([
+                html.H4("Login", className="text-center mb-3"),
+                dbc.Input(id="username-input", placeholder="Usuário", type="text", className="mb-3", value=''),
+                dbc.Input(id="password-input", placeholder="Senha", type="password", className="mb-3", value=''),
+                dbc.Button("Entrar", id="login-button", color="primary", className="w-100"),
+                html.Div(id='login-output', className="mt-3 text-center") # Para mensagens de erro/sucesso
+            ], width=4),
+            dbc.Col(html.Div(), width=4)
+        ])
+    ], className="p-3 login-container")
+
+# Layout da Página de Alterar Senha
+def serve_layout_change_password():
+    return dbc.Container(fluid=True, children=[
+        dbc.Row([
+            dbc.Col(html.Div(), width=2),
+            dbc.Col(html.Img(src=app.get_asset_url('logo_fundo_branco.jpg'), style={'width': '100%', 'maxWidth': '700px', 'display': 'block', 'margin': '20px auto'}), width=8),
+            dbc.Col(html.Div(), width=2)
+        ], className="mb-4"),
+
+        dbc.Row([
+            dbc.Col(html.Div(), width=4),
+            dbc.Col([
+                html.H4("🔐 Alterar Minha Senha", className="text-center mb-3"),
+                dbc.Input(id="current-password-input", placeholder="Senha atual", type="password", className="mb-3"),
+                dbc.Input(id="new-password-input", placeholder="Nova senha", type="password", className="mb-3"),
+                dbc.Input(id="confirm-new-password-input", placeholder="Confirmar nova senha", type="password", className="mb-3"),
+                dbc.Button("Atualizar Senha", id="update-password-button", color="primary", className="w-100"),
+                html.Div(id='change-password-output', className="mt-3 text-center")
+            ], width=4),
+            dbc.Col(html.Div(), width=4)
+        ])
+    ], className="p-3 change-password-container")
+
+# --- Placeholder para o Layout da Página Principal (com Tabs) ---
+def serve_layout_main_app(login_data): # Agora recebe login_data como argumento
+    # username = login_data.get('username', 'Usuário') # Esta linha não é mais necessária aqui
+    # A informação do username já vem direto de login_data que é passado como argumento.
+    username = login_data.get('username', 'Usuário')
+
+    return dbc.Container(fluid=True, children=[
+        dbc.Row([
+            dbc.Col(html.Img(src=app.get_asset_url('logo_fundo_branco.jpg'), style={'width': '200px', 'margin-right': '20px'}), width=2),
+            dbc.Col(html.Div(f"👋 Bem-vindo, {username}!", style={'margin-top': '15px'}), width=8),
+            dbc.Col(dbc.Button("🚪 Sair", id="logout-button", color="danger", className="mt-3 float-end"), width=2)
+        ], className="mb-3 align-items-center"),
+        html.Hr(),
+
+        dcc.Tabs(id="main-tabs", value='sincronizacao', children=[
+            dcc.Tab(label="Sincronização", value="sincronizacao"),
+            dcc.Tab(label="Operações", value="operacoes"),
+            dcc.Tab(label="Cadastros", value="cadastros"),
+            dcc.Tab(label="Estatísticas", value="estatisticas"),
+            dcc.Tab(label="Administração e Configurações", value="admin_config"),
+        ]),
+        html.Div(id='tabs-content', className="mt-3") # Onde o conteúdo de cada aba será renderizado
+    ])
+
+# --- Funções Placeholder para o conteúdo de cada Aba Principal (serão preenchidas depois) ---
+def serve_layout_sincronizacao(username='Desconhecido'): # Adicionado username como argumento (opcional, mas bom ter)
+    return dbc.Container(fluid=True, children=[
+        dbc.Row([
+            dbc.Col(html.H2("🔄 Sincronização de Dados"), width=9),
+            dbc.Col(dbc.Button("🔄 Atualizar", id="sync-refresh-button", className="mt-2"), width=3, className="text-end"),
+        ], className="mb-4"),
+
+        html.Div(id="sync-message-area", className="mb-3"), # Área para mensagens de status
+        html.Div(id="sync-last-update-info", className="mb-3"), # Última sincronização registrada
+        html.Div(id="sync-current-metrics", className="mb-3"), # Métricas atuais (Confirmar Produção, Pré-Roterização, Paletizadas)
+        html.Div(id="sync-detailed-flow-updates", className="mb-3"), # Detalhes de atualização do fluxo
+
+        dbc.Row([
+            dbc.Col(dbc.Button("⬇️ Baixar Histórico de Sincronizações", id="download-sync-history-button", className="me-2"), width=6),
+            dcc.Download(id="download-sync-history-data"), # Componente para trigger de download
+        ], className="mb-3"),
+
+        html.Hr(),
+
+        dbc.Row([
+            dbc.Col([
+                html.H4("Carregar Planilha Excel", className="mb-3"),
+                dcc.Upload(
+                    id='upload-data',
+                    children=html.Div([
+                        'Arraste e Solte ou ',
+                        html.A('Selecione um Arquivo')
+                    ]),
+                    style={
+                        'width': '100%', 'height': '60px', 'lineHeight': '60px',
+                        'borderWidth': '1px', 'borderStyle': 'dashed',
+                        'borderRadius': '5px', 'textAlign': 'center', 'margin': '10px 0'
+                    },
+                    multiple=False
+                ),
+                html.Div(id='output-upload-state', className="mb-3"), # Para exibir o nome do arquivo carregado ou mensagens de erro do upload
+                dbc.Button("🚀 Iniciar Sincronização", id="start-sync-button", color="success", className="w-100", disabled=True),
+            ], width=6),
+            dbc.Col([
+                html.Div(id='sync-progress-bar-container', children=[
+                    html.P("Progresso da Sincronização:", className="mb-2"),
+                    dbc.Progress(id='sync-progress-bar', value=0, label="0%", animated=True, striped=True),
+                ], className="mb-3 mt-4", style={'display': 'none'}) # Ocultar inicialmente
+            ], width=6)
+        ])
+    ])
+
+def serve_layout_operacoes():
+    return dbc.Container(fluid=True, children=[
+        html.H2("⚙️ Operações"),
+        dcc.Tabs(id="operacoes-subtabs", value='confirmar_producao', children=[
+            dcc.Tab(label="Confirmar Produção", value="confirmar_producao"),
+            dcc.Tab(label="Aprovação Diretoria", value="aprovacao_diretoria"), # Placeholder
+            dcc.Tab(label="Pré-Roterização", value="pre_roterizacao"),       # Placeholder
+            dcc.Tab(label="Cargas Geradas", value="cargas_geradas"),        # Placeholder
+            dcc.Tab(label="Aprovação de Custos", value="aprovacao_custos"), # Placeholder
+            dcc.Tab(label="Cargas Aprovadas", value="cargas_aprovadas"),    # Placeholder
+            dcc.Tab(label="Cargas Encerradas", value="cargas_encerradas"),  # Placeholder
+        ]),
+        html.Div(id='operacoes-subtabs-content', className="mt-3") # Onde o conteúdo de cada sub-aba será renderizado
+    ])
+
+def serve_layout_cadastros():
+    return html.Div([
+        html.H2("🗄️ Cadastros (Conteúdo a ser implementado)"),
+        dbc.Alert("Este é o placeholder para a página de Cadastros.", color="info"),
+    ])
+
+def serve_layout_estatisticas():
+    return html.Div([
+        html.H2("📊 Estatísticas e KPIs (Conteúdo a ser implementado)"),
+        dbc.Alert("Este é o placeholder para a página de Estatísticas.", color="info"),
+    ])
+
+def serve_layout_admin_config():
+    return html.Div([
+        html.H2("Administração e Configurações (Conteúdo a ser implementado)"),
+        dbc.Alert("Este é o placeholder para a página de Administração e Configurações.", color="info"),
+    ])
+
+
+# ========== CALLBACKS DO APP PRINCIPAL ========== #
+# ========== CALLBACKS DA PÁGINA DE SINCRONIZAÇÃO ========== #
+
+@app.callback(
+    Output('sync-initial-metrics-store', 'data'), # <-- Aqui o allow_duplicate NÃO é necessário, pois apenas este callback é ativado pela aba
+    Input('main-tabs', 'value'), # Input: mudar para a aba de sincronização
+    State('login-status-store', 'data'),
+    prevent_initial_call=True # Evita disparar na carga total da página, só quando a aba muda
+)
+def load_metrics_on_sync_tab_selection(tab_value, login_data):
+    if tab_value == 'sincronizacao': # Só dispara se a aba 'sincronizacao' foi selecionada
+        # Fetch current metrics from Supabase
+        qtd_confirmadas = len(supabase.table("confirmadas_producao").select("Serie_Numero_CTRC").execute().data or [])
+        qtd_pre_roterizacao = len(supabase.table("pre_roterizacao").select("Serie_Numero_CTRC").execute().data or [])
+        
+        qtd_paletizadas_confirmadas = len(supabase.table("confirmadas_producao").select("Serie_Numero_CTRC").eq("Tipo_Tratativa_Especial", "Paletizadas").execute().data or [])
+        qtd_paletizadas_pre_roterizacao = len(supabase.table("pre_roterizacao").select("Serie_Numero_CTRC").eq("Tipo_Tratativa_Especial", "Paletizadas").execute().data or [])
+        total_paletizadas = qtd_paletizadas_confirmadas + qtd_paletizadas_pre_roterizacao
+
+        last_sync_time, last_sync_user = recuperar_hora_sincronizacao()
+        
+        return {
+            'qtd_confirmadas': qtd_confirmadas,
+            'qtd_pre_roterizacao': qtd_pre_roterizacao,
+            'qtd_paletizadas': total_paletizadas,
+            'last_sync_time': last_sync_time,
+            'last_sync_user': last_sync_user
+        }
+    raise dash.exceptions.PreventUpdate # Não fazer nada se a aba não for a de sincronização
+
+
+# Callback 2: Recarrega métricas quando o botão "Atualizar" é clicado
+@app.callback(
+    Output('sync-initial-metrics-store', 'data', allow_duplicate=True), # Usa allow_duplicate porque `load_metrics_on_sync_tab_selection` também escreve aqui
+    Input('sync-refresh-button', 'n_clicks'), # Input: Clique no botão de atualizar
+    State('login-status-store', 'data'),
+    prevent_initial_call=True # Evita disparar na carga total da página, só quando o botão é clicado
+)
+def refresh_sync_metrics_on_button_click(n_clicks, login_data): # <--- AQUI O ARGUMENTO É 'n_clicks'
+    if n_clicks: # <--- E AQUI SE USA 'n_clicks'
+        # Fetch current metrics from Supabase
+        qtd_confirmadas = len(supabase.table("confirmadas_producao").select("Serie_Numero_CTRC").execute().data or [])
+        qtd_pre_roterizacao = len(supabase.table("pre_roterizacao").select("Serie_Numero_CTRC").execute().data or [])
+        
+        qtd_paletizadas_confirmadas = len(supabase.table("confirmadas_producao").select("Serie_Numero_CTRC").eq("Tipo_Tratativa_Especial", "Paletizadas").execute().data or [])
+        qtd_paletizadas_pre_roterizacao = len(supabase.table("pre_roterizacao").select("Serie_Numero_CTRC").eq("Tipo_Tratativa_Especial", "Paletizadas").execute().data or [])
+        total_paletizadas = qtd_paletizadas_confirmadas + qtd_paletizadas_pre_roterizacao
+
+        last_sync_time, last_sync_user = recuperar_hora_sincronizacao()
+        
+        return {
+            'qtd_confirmadas': qtd_confirmadas,
+            'qtd_pre_roterizacao': qtd_pre_roterizacao,
+            'qtd_paletizadas': total_paletizadas,
+            'last_sync_time': last_sync_time,
+            'last_sync_user': last_sync_user
+        }
+    raise dash.exceptions.PreventUpdate # Não fazer nada se o botão não foi clicado
+
+# Callback para exibir as métricas e info da última sincronização na UI
+@app.callback(
+    [Output('sync-last-update-info', 'children'),
+     Output('sync-current-metrics', 'children')],
+
+    Input('sync-initial-metrics-store', 'data'),
+    Input('sync-status-messages-store', 'data') # Para re-renderizar se uma sync acabou
+)
+def update_sync_ui_metrics(initial_metrics, sync_status):
+    # If a sync just finished, trigger refetch of initial metrics to update the display
+    ctx = dash.callback_context
+    if ctx.triggered and ctx.triggered[0]['prop_id'] == 'sync-status-messages-store.data' and sync_status['type'] == 'success' and sync_status['progress'] == 100:
+        # Instead of directly returning updated metrics here, we will trigger a re-computation of sync-initial-metrics-store
+        # This is because this callback is only for DISPLAY, not for computation.
+        # The `load_initial_sync_metrics` callback is responsible for computing the data for sync-initial-metrics-store.
+        # We achieve this by simply letting this callback run with the new initial_metrics value that `load_initial_sync_metrics` will produce shortly.
+        pass # Continue with the display logic below
+    
+    last_sync_info_layout = html.P(
+        f"🕒 Última sincronização registrada: {initial_metrics['last_sync_time']} por {initial_metrics['last_sync_user']}",
+        className="fw-bold"
+    )
+
+    metrics_layout = html.Div([
+        html.P(f"📦 Entregas em Confirmar Produção: {initial_metrics['qtd_confirmadas']}", className="mb-1"),
+        html.P(f"🗂️ Entregas em Pré-Roterização: {initial_metrics['qtd_pre_roterizacao']}", className="mb-1"),
+        html.P(f"🅿️ Entregas Paletizadas: {initial_metrics['qtd_paletizadas']}", className="mb-1"),
+    ])
+    return last_sync_info_layout, metrics_layout
+
+
+# Callback para processar o upload do arquivo
+@app.callback(
+    [Output('output-upload-state', 'children'),
+     Output('uploaded-file-processed-data-store', 'data'),
+     Output('current-uploaded-file-hash', 'data'),
+     Output('start-sync-button', 'disabled', allow_duplicate=True)],
+    Input('upload-data', 'contents'),
+    State('upload-data', 'filename'),
+    State('current-uploaded-file-hash', 'data'),
+    prevent_initial_call=True # <--- ADICIONADO AQUI
+)
+def upload_file_and_prepare_data_callback(contents, filename, current_hash_stored):
+    if contents is not None and filename:
+        # Calculate hash of current uploaded content
+        new_file_hash = hashlib.md5(contents.encode('utf-8')).hexdigest()
+
+        if new_file_hash == current_hash_stored:
+            # File is the same, no need to re-process, just update message
+            return html.Div(f"Arquivo '{filename}' já carregado. Pronto para sincronizar.", className="text-info mt-2"), dash.no_update, dash.no_update, False
+
+        # Process the new file
+        processed_data_result = load_and_prepare_data(contents, filename)
+
+        if processed_data_result['status'] == 'success':
+            return html.Div([
+                dbc.Alert(processed_data_result['message'], color="success", className="mt-2")
+            ]), processed_data_result['data'], new_file_hash, False
+        else:
+            return html.Div([
+                dbc.Alert(processed_data_result['message'], color="danger", className="mt-2")
+            ]), None, None, True
+    return html.Div("Aguardando o upload de um arquivo Excel válido para iniciar a sincronização.", className="text-muted mt-2"), None, None, True
+
+
+# Callback principal para iniciar e gerenciar a sincronização
+@app.callback(
+    [Output('sync-status-messages-store', 'data'),
+     Output('sync-progress-bar', 'value'),
+     Output('sync-progress-bar', 'label'),
+     Output('sync-progress-bar-container', 'style'),
+     Output('sync-initial-metrics-store', 'data', allow_duplicate=True),
+     Output('start-sync-button', 'disabled')
+    ],
+    Input('start-sync-button', 'n_clicks'),
+    State('uploaded-file-processed-data-store', 'data'),
+    State('current-uploaded-file-hash', 'data'),
+    State('upload-data', 'filename'),
+    State('login-status-store', 'data'),
+    State('sync-initial-metrics-store', 'data'),
+    prevent_initial_call=True
+)
+def handle_full_sync_process(n_clicks, df_to_process_data_list, file_hash, filename, login_data, initial_metrics):
+    if n_clicks and df_to_process_data_list:
+        username = login_data.get('username', 'Desconhecido')
+        
+        # Reset progress bar and show it
+        progress = 0
+        return_outputs = {
+            'sync_status': {'message': 'Iniciando sincronização...', 'type': 'info', 'progress': 0},
+            'progress_bar_value': progress,
+            'progress_bar_label': f"{progress}%",
+            'progress_bar_style': {'display': 'block'},
+            'updated_initial_metrics': dash.no_update, # Default no_update
+            'start_sync_button_disabled': True
+        }
+        
+        # --- Stage 1: UPSERT to fBaseroter ---
+        progress = 10
+        return_outputs['sync_status']['message'] = "🔄 Carregando e processando arquivo em fBaseroter..."
+        return_outputs['sync_status']['type'] = 'info'
+        return_outputs['progress_bar_value'] = progress
+        return_outputs['progress_bar_label'] = f"{progress}%"
+        # Não há 'return' aqui. Apenas atualizamos os valores no dicionário.
+        
+        fbaseroter_upsert_status = {'message': '', 'status': 'info'}
+        try:
+            df_final_for_upsert = pd.DataFrame(df_to_process_data_list)
+
+            # Filtering based on ALLOWED_OCCURRENCE_CODES (same logic as in sync_logic)
+            if 'Codigo da Ultima Ocorrencia' in df_final_for_upsert.columns:
+                df_final_for_upsert['Codigo da Ultima Ocorrencia'] = pd.to_numeric(
+                    df_final_for_upsert['Codigo da Ultima Ocorrencia'], errors='coerce'
+                )
+                df_incoming_allowed = df_final_for_upsert[
+                    df_final_for_upsert['Codigo da Ultima Ocorrencia'].isin(ALLOWED_OCCURRENCE_CODES)
+                ].copy()
+            else:
+                fbaseroter_upsert_status['message'] = "WARNING: Coluna 'Codigo da Ultima Ocorrencia' não encontrada. Todas as entregas do arquivo serão consideradas permitidas para 'fBaseroter'."
+                fbaseroter_upsert_status['status'] = 'warning'
+                df_incoming_allowed = df_final_for_upsert.copy()
+
+            # Ensure 'Serie_Numero_CTRC' is string and drop duplicates
+            if 'Serie_Numero_CTRC' in df_incoming_allowed.columns:
+                df_incoming_allowed['Serie_Numero_CTRC'] = df_incoming_allowed['Serie_Numero_CTRC'].astype(str)
+                df_incoming_allowed.drop_duplicates(subset=['Serie_Numero_CTRC'], inplace=True)
+            else:
+                raise ValueError("Coluna 'Serie_Numero_CTRC' não encontrada no arquivo importado.")
+            
+            # --- Check for returning CTRCs (if they were in cargas_fechadas) ---
+            existing_cargas_fechadas_data = supabase.table("cargas_fechadas").select("Serie_Numero_CTRC").execute().data
+            existing_cargas_fechadas_ctrcs_set = {record["Serie_Numero_CTRC"] for record in existing_cargas_fechadas_data}
+            
+            returning_ctrcs_mask = df_incoming_allowed['Serie_Numero_CTRC'].isin(existing_cargas_fechadas_ctrcs_set)
+            if returning_ctrcs_mask.any():
+                df_incoming_allowed.loc[returning_ctrcs_mask, 'is_retorno_rota'] = True
+                print(f"DEBUG: Detectado(s) {returning_ctrcs_mask.sum()} CTRC(s) retornando ao fluxo.")
+
+            incoming_allowed_ctrcs_set = set(df_incoming_allowed['Serie_Numero_CTRC'].tolist())
+
+            # Delete old fBaseroter records not in new upload
+            existing_fbaseroter_data = supabase.table("fBaseroter").select("Serie_Numero_CTRC").execute().data
+            existing_fbaseroter_ctrcs_set = {record["Serie_Numero_CTRC"] for record in existing_fbaseroter_data}
+            ctrcs_to_delete = existing_fbaseroter_ctrcs_set - incoming_allowed_ctrcs_set
+            if ctrcs_to_delete:
+                supabase.table("fBaseroter").delete().in_("Serie_Numero_CTRC", list(ctrcs_to_delete)).execute()
+                print(f"DEBUG: Deletados {len(ctrcs_to_delete)} registros de 'fBaseroter'.")
+            
+            # AGORA PREPARAMOS O DF AQUI ANTES DO UPSERT E ANTES DE PASSAR PARA sincronizar_fluxo_com_fbaseroter
+            df_incoming_allowed_prepared = _prepare_df_for_supabase_insert(df_incoming_allowed.copy())
+            records_to_upsert = df_incoming_allowed_prepared.to_dict(orient='records')
+
+            if records_to_upsert:
+                supabase.table("fBaseroter").upsert(records_to_upsert, on_conflict='Serie_Numero_CTRC').execute()
+                print(f"DEBUG: UPSERT de {len(records_to_upsert)} entregas em 'fBaseroter'.")
+            
+            num_fbaseroter_processed = len(records_to_upsert)
+            
+            return_outputs['sync_status']['message'] = f"✅ {num_fbaseroter_processed} entregas processadas em 'fBaseroter'. " + fbaseroter_upsert_status['message']
+            return_outputs['sync_status']['type'] = 'success' if fbaseroter_upsert_status['status'] != 'warning' else 'warning'
+
+        except Exception as e:
+            return_outputs['sync_status'] = {'message': f"❌ Erro na etapa de UPSERT para fBaseroter: {e}", 'type': 'danger', 'progress': progress}
+            return_outputs['progress_bar_value'] = progress
+            return_outputs['progress_bar_label'] = f"{progress}%"
+            return_outputs['start_sync_button_disabled'] = False # Re-enable button on error
+            
+        
+        # Update progress bar
+        progress = 30
+        return_outputs['progress_bar_value'] = progress
+        return_outputs['progress_bar_label'] = f"{progress}%"
+        # Não há 'return' aqui. Continuamos para o próximo estágio.
+
+        # --- Stage 2: Synchronize Flow Tables ---
+        progress = 60
+        return_outputs['sync_status']['message'] = "🔄 Sincronizando tabelas do fluxo com fBaseroter..."
+        return_outputs['sync_status']['type'] = 'info'
+        return_outputs['progress_bar_value'] = progress
+        return_outputs['progress_bar_label'] = f"{progress}%"
+        # Não há 'return' aqui.
+
+        # PASSA O DATAFRAME JÁ PREPARADO `df_incoming_allowed_prepared`
+        sync_flow_result = sincronizar_fluxo_com_fbaseroter(df_incoming_allowed_prepared)
+        
+        if sync_flow_result['status'] == 'error':
+            return_outputs['sync_status'] = {'message': sync_flow_result['message'], 'type': 'danger', 'progress': progress}
+            return_outputs['progress_bar_value'] = progress
+            return_outputs['progress_bar_label'] = f"{progress}%"
+            return_outputs['start_sync_button_disabled'] = False # Re-enable button on error
+            
+
+        return_outputs['sync_status']['message'] = sync_flow_result['message']
+        return_outputs['sync_status']['type'] = 'success'
+        sync_detailed_update_counts = sync_flow_result.get('updated_counts', {})
+
+
+        # --- Stage 3: Apply Business Rules and Fill Tables ---
+        progress = 80
+        return_outputs['sync_status']['message'] = "🔄 Aplicando regras de negócio e preenchendo tabelas de fluxo..."
+        return_outputs['sync_status']['type'] = 'info'
+        return_outputs['progress_bar_value'] = progress
+        return_outputs['progress_bar_label'] = f"{progress}%"
+        # Não há 'return' aqui.
+
+        rules_result = aplicar_regras_e_preencher_tabelas()
+        
+        if rules_result['status'] == 'error':
+            return_outputs['sync_status'] = {'message': rules_result['message'], 'type': 'danger', 'progress': progress}
+            return_outputs['progress_bar_value'] = progress
+            return_outputs['progress_bar_label'] = f"{progress}%"
+            return_outputs['start_sync_button_disabled'] = False # Re-enable button on error
+            
+
+        num_novas_confirmadas = rules_result.get('inserted_confirm', 0)
+        num_novas_pre_roterizacao = rules_result.get('inserted_prerot', 0)
+
+        return_outputs['sync_status']['message'] = rules_result['message']
+        return_outputs['sync_status']['type'] = rules_result['status']
+        
+        # --- Stage 4: Finalize and Log ---
+        progress = 100
+        final_message = f"✅ Sincronização finalizada com sucesso! {num_novas_confirmadas} novas em 'Confirmar Produção', {num_novas_pre_roterizacao} novas em 'Pré-Roterização'."
+        return_outputs['sync_status'] = {'message': final_message, 'type': 'success', 'progress': progress}
+        return_outputs['progress_bar_value'] = progress
+        return_outputs['progress_bar_label'] = f"{progress}%"
+        
+        # Fetch final counts for history log
+        qtd_confirmadas_final = len(supabase.table("confirmadas_producao").select("Serie_Numero_CTRC").execute().data or [])
+        qtd_pre_roterizacao_final = len(supabase.table("pre_roterizacao").select("Serie_Numero_CTRC").execute().data or [])
+        qtd_paletizadas_confirmadas_final = len(supabase.table("confirmadas_producao").select("Serie_Numero_CTRC").eq("Tipo_Tratativa_Especial", "Paletizadas").execute().data or [])
+        qtd_paletizadas_pre_roterizacao_final = len(supabase.table("pre_roterizacao").select("Serie_Numero_CTRC").eq("Tipo_Tratativa_Especial", "Paletizadas").execute().data or [])
+        total_paletizadas_final = qtd_paletizadas_confirmadas_final + qtd_paletizadas_pre_roterizacao_final
+
+        salvar_historico_sincronizacao(
+            username=username,
+            num_new_fbaseroter=num_fbaseroter_processed,
+            num_confirmadas=qtd_confirmadas_final,
+            num_pre_roterizacao=qtd_pre_roterizacao_final,
+            num_paletizadas=total_paletizadas_final,
+            num_novas_confirmadas=num_novas_confirmadas,
+            num_novas_pre_roterizacao=num_novas_pre_roterizacao,
+            file_name=filename,
+            file_hash=file_hash,
+            detailed_update_counts=sync_detailed_update_counts
+        )
+        salvar_hora_sincronizacao(username)
+
+        return_outputs['start_sync_button_disabled'] = True # Disable button after successful sync
+        
+        # Update initial metrics store with final values to trigger display update
+        return_outputs['updated_initial_metrics'] = {
+            'qtd_confirmadas': qtd_confirmadas_final,
+            'qtd_pre_roterizacao': qtd_pre_roterizacao_final,
+            'qtd_paletizadas': total_paletizadas_final,
+            'last_sync_time': formatar_data_hora_br(datetime.now(FUSO_BRASIL)),
+            'last_sync_user': username
+        }
+
+        # ESTE É O ÚNICO E ÚLTIMO 'return' da função!
+        return list(return_outputs.values())
+    
+    return [dash.no_update] * 6 # Retorna no_update para todas as 6 saídas
+
+# Callback para exibir a mensagem de status da sincronização
+@app.callback(
+    Output('sync-message-area', 'children'),
+    Input('sync-status-messages-store', 'data')
+)
+def display_sync_message(sync_status):
+    if sync_status and sync_status['message']:
+        return dbc.Alert(sync_status['message'], color=sync_status['type'], dismissable=True, className="fade-in-alert") # Adicionado classe para animação
+    return html.Div() # Retorna um Div vazio em vez de string vazia
+
+
+# Callback para mostrar/esconder barra de progresso
+@app.callback(
+    Output('sync-progress-bar-container', 'style', allow_duplicate=True), # <--- ADICIONE allow_duplicate=True AQUI
+    Output('start-sync-button', 'disabled', allow_duplicate=True),        # <--- ADICIONE allow_duplicate=True AQUI
+    Input('start-sync-button', 'n_clicks'),
+    prevent_initial_call=True
+)
+def show_progress_on_start(n_clicks):
+    if n_clicks:
+        # Mostra a barra de progresso e desabilita o botão
+        return {'display': 'block'}, True
+    return dash.no_update, dash.no_update
+
+
+# Callback para resetar o uploader e habilitar/desabilitar o botão de sincronização
+@app.callback(
+    [Output('output-upload-state', 'children', allow_duplicate=True),
+     Output('upload-data', 'contents'),
+     Output('upload-data', 'filename'),
+     Output('current-uploaded-file-hash', 'data', allow_duplicate=True),
+     Output('start-sync-button', 'disabled', allow_duplicate=True),
+     Output('sync-initial-metrics-store', 'data', allow_duplicate=True)
+    ],
+    [Input('sync-refresh-button', 'n_clicks'),
+     Input('sync-status-messages-store', 'data')
+    ],
+    State('login-status-store', 'data'),
+    prevent_initial_call=True
+)
+def reset_uploader_and_button(n_clicks_refresh, sync_status, login_data):
+    ctx = dash.callback_context
+    if not ctx.triggered:
+        raise dash.exceptions.PreventUpdate
+
+    triggered_id = ctx.triggered[0]['prop_id'].split('.')[0]
+    username = login_data.get('username', 'Desconhecido')
+
+
+    if triggered_id == 'sync-refresh-button':
+        logger.info(f"[{username}] Botão 'Atualizar' da Sincronização clicado. Tentando recarregar métricas iniciais.")
+        
+        qtd_confirmadas = 0
+        qtd_pre_roterizacao = 0
+        qtd_paletizadas_confirmadas = 0
+        qtd_paletizadas_pre_roterizacao = 0
+        total_paletizadas = 0
+
+        try:
+            try:
+                # Usando retry_supabase_query para a chamada
+                response_confirmadas = retry_supabase_query(
+                    lambda: supabase.table("confirmadas_producao").select("Serie_Numero_CTRC").execute()
+                )
+                qtd_confirmadas = len(response_confirmadas.data or [])
+            except Exception as e:
+                logger.error(f"[{username}] Erro ao buscar 'qtd_confirmadas': {e}", exc_info=True)
+                # Você pode adicionar uma mensagem de erro na UI aqui se quiser
+
+            try:
+                # Usando retry_supabase_query para a chamada
+                response_prerot = retry_supabase_query(
+                    lambda: supabase.table("pre_roterizacao").select("Serie_Numero_CTRC").execute()
+                )
+                qtd_pre_roterizacao = len(response_prerot.data or [])
+            except Exception as e:
+                logger.error(f"[{username}] Erro ao buscar 'qtd_pre_roterizacao': {e}", exc_info=True)
+
+            try:
+                # Usando retry_supabase_query para a chamada
+                response_palet_conf = retry_supabase_query(
+                    lambda: supabase.table("confirmadas_producao").select("Serie_Numero_CTRC").eq("Tipo_Tratativa_Especial", "Paletizadas").execute()
+                )
+                qtd_paletizadas_confirmadas = len(response_palet_conf.data or [])
+            except Exception as e:
+                logger.error(f"[{username}] Erro ao buscar 'qtd_paletizadas_confirmadas': {e}", exc_info=True)
+
+            try:
+                # Usando retry_supabase_query para a chamada
+                response_palet_prerot = retry_supabase_query(
+                    lambda: supabase.table("pre_roterizacao").select("Serie_Numero_CTRC").eq("Tipo_Tratativa_Especial", "Paletizadas").execute()
+                )
+                qtd_paletizadas_pre_roterizacao = len(response_palet_prerot.data or [])
+            except Exception as e:
+                logger.error(f"[{username}] Erro ao buscar 'qtd_paletizadas_pre_roterizacao': {e}", exc_info=True)
+            
+            total_paletizadas = qtd_paletizadas_confirmadas + qtd_paletizadas_pre_roterizacao
+
+            # Aqui também, na chamada a recuperar_hora_sincronizacao, que por sua vez chama o Supabase
+            last_sync_time, last_sync_user = recuperar_hora_sincronizacao()
+
+            updated_initial_metrics = {
+                'qtd_confirmadas': qtd_confirmadas,
+                'qtd_pre_roterizacao': qtd_pre_roterizacao,
+                'qtd_paletizadas': total_paletizadas,
+                'last_sync_time': last_sync_time,
+                'last_sync_user': last_sync_user
+            }
+            logger.info(f"[{username}] Métricas iniciais recarregadas com sucesso.")
+            return html.Div("Aguardando novo arquivo para sincronização.", className="text-muted mt-2"), None, None, None, True, updated_initial_metrics
+        
+        except Exception as e:
+            logger.critical(f"[{username}] ERRO CRÍTICO INESPERADO durante o recarregamento das métricas de sincronização: {e}", exc_info=True)
+            return html.Div(f"Erro crítico ao recarregar métricas de sincronização: {e}", className="text-danger mt-2"), None, None, None, True, dash.no_update
+
+
+    # Se a sincronização acabou (triggered por sync-status-messages-store com status success/progress 100)
+    if triggered_id == 'sync-status-messages-store' and sync_status['type'] == 'success' and sync_status['progress'] == 100:
+        logger.info(f"[{username}] Sincronização concluída com sucesso. Resetando uploader e botão.")
+        return html.Div("Sincronização concluída. Faça upload de um novo arquivo.", className="text-muted mt-2"), None, None, None, True, dash.no_update
+
+    raise dash.exceptions.PreventUpdate
+
+# Callback para baixar o histórico de sincronizações
+@app.callback(
+    Output('download-sync-history-data', 'data'),
+    Input('download-sync-history-button', 'n_clicks'),
+    prevent_initial_call=True
+)
+def generate_sync_history_csv(n_clicks):
+    if n_clicks:
+        try:
+            response = supabase.table("historico_sincronizacoes").select("*").order("data_hora_sincronizacao", desc=True).execute()
+            historico_data = response.data
+            
+            if not historico_data:
+                return dash.no_update # Or return a message that no data is available
+            
+            df_historico = pd.DataFrame(historico_data)
+            
+            if 'data_hora_sincronizacao' in df_historico.columns:
+                df_historico['data_hora_sincronizacao'] = pd.to_datetime(df_historico['data_hora_sincronizacao'], utc=True)
+                df_historico['data_hora_sincronizacao'] = df_historico['data_hora_sincronizacao'].apply(formatar_data_hora_br)
+
+            if 'detailed_update_counts' in df_historico.columns:
+                df_historico['detailed_update_counts_parsed'] = df_historico['detailed_update_counts'].apply(
+                    lambda x: json.loads(x) if pd.notna(x) and x else {}
+                )
+                df_historico['Detalhes das Atualizações'] = df_historico['detailed_update_counts_parsed'].apply(
+                    lambda d: ", ".join([f"{k.replace('_', ' ').title()}: {v}" for k, v in d.items()]) if d else "Nenhum"
+                )
+                df_historico.drop(columns=['detailed_update_counts', 'detailed_update_counts_parsed'], inplace=True, errors='ignore')
+
+            df_historico.rename(columns={
+                'data_hora_sincronizacao': 'Data/Hora Sinc.',
+                'usuario': 'Usuario',
+                'novas_entregas_fbaseroter': 'Novas Entregas fBaseroter',
+                'qtd_confirmadas_producao': 'Entregas em Confirmar Producao (Total)',
+                'qtd_pre_roterizacao': 'Entregas em Pre-Roterizacao (Total)',
+                'qtd_paletizadas': 'Entregas Paletizadas (Total)',
+                'novas_confirmadas_producao': 'Novas em Confirmar Producao (nesta Sync)',
+                'novas_pre_roterizacao': 'Novas em Pre-Roterizacao (nesta Sync)',
+                'nome_arquivo_excel': 'Nome do Arquivo Excel',
+                'arquivo_excel_hash': 'Hash do Arquivo',
+                'status_sincronizacao': 'Status'
+            }, inplace=True)
+
+            colunas_csv_ordenadas = [
+                'Data/Hora Sinc.', 'Usuario', 'Status',
+                'Novas Entregas fBaseroter',
+                'Novas em Confirmar Producao (nesta Sync)',
+                'Novas em Pré-Roterizacao (nesta Sync)',
+                'Detalhes das Atualizações',
+                'Entregas em Confirmar Producao (Total)',
+                'Entregas em Pre-Roterizacao (Total)',
+                'Entregas Paletizadas (Total)',
+                'Nome do Arquivo Excel', 'Hash do Arquivo'
+            ]
+            colunas_csv_ordenadas_existentes = [col for col in colunas_csv_ordenadas if col in df_historico.columns]
+            df_historico = df_historico[colunas_csv_ordenadas_existentes]
+
+            csv_string = df_historico.to_csv(index=False, sep=';', encoding='utf-8-sig')
+            
+            return dcc.send_string(csv_string, "historico_sincronizacoes.csv")
+        
+        except Exception as e:
+            print(f"Erro ao gerar histórico de sincronização CSV: {e}")
+            return dash.no_update # Or an alert to the user
+
+
+# Callback para exibir os detalhes de atualização da última sincronização
+@app.callback(
+    Output('sync-detailed-flow-updates', 'children'),
+    Input('sync-status-messages-store', 'data')
+)
+def display_sync_flow_updates(sync_status):
+    # Only try to fetch details if a sync has just completed successfully
+    if sync_status and sync_status['type'] == 'success' and sync_status['progress'] == 100:
+        try:
+            last_history_record = supabase.table("historico_sincronizacoes") \
+                .select("detailed_update_counts") \
+                .order("data_hora_sincronizacao", desc=True) \
+                .limit(1) \
+                .execute()
+            
+            if last_history_record.data and last_history_record.data[0].get("detailed_update_counts"):
+                detailed_updates = json.loads(last_history_record.data[0]["detailed_update_counts"])
+                
+                if detailed_updates:
+                    update_list_items = []
+                    for table_name, count in detailed_updates.items():
+                        display_name = TABLE_TO_PAGE_NAME_MAP.get(table_name, table_name.replace('_', ' ').title())
+                        update_list_items.append(html.Li(f"- {display_name}: {count} entregas"))
+                    
+                    return html.Div([
+                        html.H5("Entregas Atualizadas/Afetadas nas Etapas do Fluxo (Última Sincronização):"),
+                        html.Ul(update_list_items)
+                    ])
+                else:
+                    return dbc.Alert("Nenhum detalhe de atualização específico encontrado para as tabelas do fluxo na última sincronização (ou todas as entregas já estavam atualizadas).", color="info")
+            else:
+                return dbc.Alert("Nenhum detalhe de atualização de sincronização anterior para exibir.", color="info")
+        except Exception as e:
+            return dbc.Alert(f"Erro ao carregar detalhes de atualização da sincronização: {e}", color="danger")
+    return html.Div() # Retorna um Div vazio em vez de string vazia
+
+# Callback para renderizar o conteúdo da página (login, main app, ou alterar senha)
+@app.callback(
+    Output('page-content', 'children'),
+    Input('login-status-store', 'data'),
+    Input('current-page-route-store', 'data')
+)
+
+def display_page_content(login_data, current_page_route):
+    if login_data['logged_in']:
+        if current_page_route == 'change_password':
+            return serve_layout_change_password()
+        else: # Rota 'main_app'
+            return serve_layout_main_app(login_data) # Chamada agora com o argumento login_data
+    else:
+        return serve_layout_login()
+
+# Callback para o Login
+@app.callback(
+    [Output('login-status-store', 'data'),
+     Output('login-output', 'children'),
+     Output('current-page-route-store', 'data', allow_duplicate=True)],
+    Input('login-button', 'n_clicks'),
+    State('username-input', 'value'),
+    State('password-input', 'value'),
+    State('login-status-store', 'data'),
+    prevent_initial_call=True
+)
+def process_login(n_clicks, username, password, current_login_data):
+    if n_clicks and (username and password):
+        user = autenticar_usuario_dash(username, password)
+        if user:
+            new_login_data = {
+                'logged_in': True,
+                'username': user["nome_usuario"],
+                'is_admin': user.get("is_admin", False),
+                'classe': user.get("classe", "colaborador")
+            }
+            if user.get("precisa_alterar_senha") is True:
+                return new_login_data, dbc.Alert("🔐 Você deve alterar sua senha antes de continuar.", color="warning"), 'change_password'
+            else:
+                return new_login_data, dbc.Alert("✅ Login bem-sucedido!", color="success"), 'main_app'
+        else:
+            return current_login_data, dbc.Alert("🛑 Usuário ou senha incorretos.", color="danger"), 'login'
+    elif n_clicks:
+        return current_login_data, dbc.Alert("⚠️ Por favor, preencha usuário e senha.", color="warning"), 'login'
+    return current_login_data, '', 'login'
+
+# Callback para o Logout
+@app.callback(
+    [Output('login-status-store', 'data', allow_duplicate=True),
+     Output('current-page-route-store', 'data', allow_duplicate=True)],
+    Input('logout-button', 'n_clicks'),
+    prevent_initial_call=True
+)
+def process_logout(n_clicks):
+    if n_clicks:
+        return {'logged_in': False, 'username': None, 'is_admin': False, 'classe': 'colaborador'}, 'login'
+    return dash.no_update, dash.no_update
+
+
+
+@app.callback(
+    Output('operacoes-subtabs-content', 'children'),
+    Input('operacoes-subtabs', 'value')
+)
+def render_operacoes_subtabs_content(subtab_value):
+    if subtab_value == 'confirmar_producao':
+        return serve_layout_confirmar_producao()
+    elif subtab_value == 'aprovacao_diretoria':
+        return html.Div(dbc.Alert("Conteúdo para Aprovação Diretoria (Em breve)", color="secondary"))
+    elif subtab_value == 'pre_roterizacao':
+        return html.Div(dbc.Alert("Conteúdo para Pré-Roterização (Em breve)", color="secondary"))
+    elif subtab_value == 'cargas_geradas':
+        return html.Div(dbc.Alert("Conteúdo para Cargas Geradas (Em breve)", color="secondary"))
+    elif subtab_value == 'aprovacao_custos':
+        return html.Div(dbc.Alert("Conteúdo para Aprovação de Custos (Em breve)", color="secondary"))
+    elif subtab_value == 'cargas_aprovadas':
+        return html.Div(dbc.Alert("Conteúdo para Cargas Aprovadas (Em breve)", color="secondary"))
+    elif subtab_value == 'cargas_encerradas':
+        return html.Div(dbc.Alert("Conteúdo para Cargas Encerradas (Em breve)", color="secondary"))
+    return html.Div(dbc.Alert("Selecione uma sub-aba de Operações", color="info"))
+
+# Callback para o Conteúdo das Abas Principais
+@app.callback(
+    Output('tabs-content', 'children'),
+    Input('main-tabs', 'value')
+)
+
+def render_main_tab_content(tab_value):
+    if tab_value == 'sincronizacao':
+        return serve_layout_sincronizacao()
+    elif tab_value == 'operacoes':
+        return serve_layout_operacoes()
+    elif tab_value == 'cadastros':
+        return serve_layout_cadastros()
+    elif tab_value == 'estatisticas':
+        return serve_layout_estatisticas()
+    elif tab_value == 'admin_config':
+        return serve_layout_admin_config()
+    return html.Div("Selecione uma aba")
+
+# Callback para Alterar Senha
+@app.callback(
+    [Output('change-password-output', 'children'),
+     Output('current-page-route-store', 'data', allow_duplicate=True),
+     Output('login-status-store', 'data', allow_duplicate=True)],
+    Input('update-password-button', 'n_clicks'),
+    State('current-password-input', 'value'),
+    State('new-password-input', 'value'),
+    State('confirm-new-password-input', 'value'),
+    State('login-status-store', 'data'),
+    prevent_initial_call=True
+)
+def update_password(n_clicks, current_password, new_password, confirm_new_password, login_data):
+    if n_clicks:
+        username = login_data.get("username")
+        if not username:
+            return dbc.Alert("Usuário não autenticado.", color="danger"), dash.no_update, dash.no_update
+
+        if not current_password or not new_password or not confirm_new_password:
+            return dbc.Alert("⚠️ Por favor, preencha todos os campos.", color="warning"), dash.no_update, dash.no_update
+
+        if new_password != confirm_new_password:
+            return dbc.Alert("⚠️ A nova senha e a confirmação não coincidem.", color="warning"), dash.no_update, dash.no_update
+
+        user_auth = autenticar_usuario_dash(username, current_password)
+        if not user_auth:
+            return dbc.Alert("❌ Senha atual incorreta.", color="danger"), dash.no_update, dash.no_update
+
+        try:
+            new_hash = hash_senha(new_password)
+            update_data = {"senha_hash": new_hash, "precisa_alterar_senha": False} # Remove a flag
+
+            supabase.table("usuarios").update(update_data).eq("nome_usuario", username).execute()
+            
+            # Força o logout para o usuário fazer login com a nova senha
+            return dbc.Alert("✅ Senha alterada com sucesso! Faça login novamente com a nova senha.", color="success"), 'login', {'logged_in': False, 'username': None, 'is_admin': False, 'classe': 'colaborador'}
+        except Exception as e:
+            return dbc.Alert(f"❌ Erro ao atualizar senha: {e}", color="danger"), dash.no_update, dash.no_update
+    return dash.no_update, dash.no_update, dash.no_update
+
+# ========== EXECUÇÃO DO SERVIDOR DASH ========== #
+if __name__ == '__main__':
+    app.run(debug=True)

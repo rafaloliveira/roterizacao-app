@@ -1,0 +1,187 @@
+# config/constants.py
+
+from zoneinfo import ZoneInfo
+from datetime import datetime
+
+FUSO_BRASIL = ZoneInfo("America/Sao_Paulo")
+
+DATE_DISPLAY_FORMAT_STRING = '%d-%m-%Y %H:%M'
+DATE_ONLY_REPARSE_COLUMNS = ["Entrega Programada", "Data de Emissao", "Previsao de Entrega"]
+DATE_ONLY_DISPLAY_FORMAT_STRING_BR = '%d-%m-%Y'
+ISO_DATE_ONLY_FORMAT_STRING = '%d-%m-%Y'
+
+ALLOWED_OCCURRENCE_CODES = [15, 17, 39, 78, 79, 80, 96, 97]
+
+GLOBAL_DATE_COLUMNS_DISPLAY_ONLY_DATE = []
+GLOBAL_DATE_DISPLAY_COLUMNS = [
+    "data_aprovacao_custos", "Data_Hora_Gerada", "csv_downloaded_at", "data_fechamento",
+    "Data da Entrega Realizada", "Data do Cancelamento", "Data do Escaneamento",
+    "data_aprovacao_diretoria", "pdf_downloaded_at"
+]
+GLOBAL_DB_DATE_COLS = [
+    "Data de Emissao", "Data de Autorizacao", "Data de inclusao da Ultima Ocorrencia",
+    "Data da Ultima Ocorrencia", "Previsao de Entrega", "Entrega Programada"
+]
+GLOBAL_DB_TIMESTAMP_COLS = [
+    "Data de Autorizacao", "Data de inclusao da Ultima Ocorrencia",
+    "Data da Ultima Ocorrencia", "data_aprovacao_custos", "Data_Hora_Gerada",
+    "csv_downloaded_at", "Data da Entrega Realizada", "Data do Cancelamento",
+    "Data do Escaneamento", "data_fechamento", "data_aprovacao_diretoria",
+    "pdf_downloaded_at"
+]
+
+colunas_texto = [
+    "Unnamed", "Serie/Numero CT-e", "Numero da Nota Fiscal",
+    "Codigo da Ultima Ocorrencia", "Quantidade de Dias de Atraso",
+    "CEP de Entrega","CEP do Destinatario","CEP do Remetente"
+]
+colunas_numero = [
+    "Adicional de Frete", "Cubagem em m³", "Frete Peso", "Frete Valor",
+    "Peso Calculado em Kg", "Peso Real em Kg", "Quantidade de Volumes",
+    "TDA", "TDE", "Valor da Mercadoria", "Valor do Frete",
+    "Valor do ICMS", "Valor do ISS"
+]
+colunas_data = [
+    "Data da Ultima Ocorrencia", "Data de inclusao da Ultima Ocorrencia",
+    "Previsao de Entrega","Entrega Programada","Data de Emissao",
+    "Data de Autorizacao", "Data do Cancelamento", "Data do Escaneamento",
+    "Data da Entrega Realizada"
+]
+
+SYNCABLE_COLUMNS = [
+    "Serie_Numero_CTRC", "Cliente Pagador", "Chave CT-e", "Cliente Destinatario",
+    "CNPJ Destinatario", "Cidade de Entrega", "Bairro do Destinatario",
+    "Previsao de Entrega", "Numero da Nota Fiscal", "Status", "Entrega Programada",
+    "Particularidade", "Codigo da Ultima Ocorrencia", "Peso Real em Kg",
+    "Peso Calculado em Kg", "Cubagem em m³", "Quantidade de Volumes",
+    "Valor do Frete", "Rota", "Localizacao Atual", "Tipo_Tratativa_Especial",
+    "is_retorno_rota"
+]
+FLOW_TABLES = [
+    "confirmadas_producao", "aprovacao_diretoria", "pre_roterizacao",
+    "cargas_geradas", "aprovacao_custos", "cargas_aprovadas"
+]
+TABLE_TO_PAGE_NAME_MAP = {
+    "fBaseroter": "fBaseroter (Base Master)",
+    "confirmadas_producao": "Confirmar Produção",
+    "aprovacao_diretoria": "Aprovação Diretoria",
+    "pre_roterizacao": "Pré Roterização",
+    "cargas_geradas": "Cargas Geradas",
+    "aprovacao_custos": "Aprovação de Custos",
+    "cargas_aprovadas": "Cargas Aprovadas",
+    "cargas_fechadas": "Cargas Encerradas"
+}
+TABLE_SCHEMAS = {
+    "Rotas": {
+        "columns": {
+            "Cidade de Entrega": {"type": "text", "required": True, "pk": True},
+            "Bairro do Destinatario": {"type": "text", "required": True, "pk": True},
+            "UF de Entrega": {"type": "text", "required": True},
+            "Rota": {"type": "text", "required": True},
+            "acao_realizada": {"type": "text"},
+            "usuario_logado": {"type": "text"},
+            "data_registro": {"type": "timestamp"},
+        },
+        "display_cols": ["Cidade de Entrega", "Bairro do Destinatario", "UF de Entrega", "Rota","acao_realizada", "usuario_logado", "data_registro"]
+    },
+    "RotasPortoAlegre": {
+        "columns": {
+            "Cidade de Entrega": {"type": "text", "required": True, "pk": True},
+            "Bairro do Destinatario": {"type": "text", "required": True, "pk": True},
+            "Rota": {"type": "text", "required": True},
+            "UF de Entrega": {"type": "text", "required": True},
+            "acao_realizada": {"type": "text"},
+            "usuario_logado": {"type": "text"},
+            "data_registro": {"type": "timestamp"},
+        },
+        "display_cols": ["Bairro do Destinatario", "Rota", "UF de Entrega","acao_realizada", "usuario_logado", "data_registro"]
+    },
+    "Clientes_Entrega_Agendada": {
+        "columns": {
+            "CNPJ": {"type": "cnpj", "required": True, "unique": True, "pk": True},
+            "Status de Agenda": {"type": "select", "options": ["AGENDAR", "NORMAL"], "required": True},
+            "acao_realizada": {"type": "text"},
+            "usuario_logado": {"type": "text"},
+            "data_registro": {"type": "timestamp"},
+        },
+        "display_cols": ["CNPJ", "Status de Agenda", "acao_realizada", "usuario_logado", "data_registro"]
+    },
+    "Micro_Regiao_por_data_embarque": {
+        "columns": {
+            "CIDADE DESTINO": {"type": "text", "required": True, "pk": True},
+            "REGIÃO": {"type": "text", "required": True},
+            "MICRO REGIÃO": {"type": "text", "required": True},
+            "ATENDIDO POR": {"type": "text", "required": True},
+            "Dia_relação_ao_entrega_prevista": {"type": "number", "required": True, "min_value": 0, "max_value": 99},
+            "acao_realizada": {"type": "text"},
+            "usuario_logado": {"type": "text"},
+            "data_registro": {"type": "timestamp"},
+        },
+        "display_cols": ["CIDADE DESTINO", "REGIÃO", "MICRO REGIÃO", "ATENDIDO POR", "Dia_relação_ao_entrega_prevista", "acao_realizada", "usuario_logado", "data_registro"]
+    },
+    "Paletizadores": {
+        "columns": {
+            "CNPJ DESTINATARIO": {"type": "cnpj", "required": True, "unique": True, "pk": True},
+            "CLIENTE DESTINATARIO": {"type": "text", "required": True},
+            "GRANDE REDE": {"type": "select", "options": ["SIM", "NÃO"], "required": True},
+            "PALETIZADORA": {"type": "select", "options": ["SIM", "NÃO"], "required": True},
+            "acao_realizada": {"type": "text"},
+            "usuario_logado": {"type": "text"},
+            "data_registro": {"type": "timestamp"},
+        },
+        "display_cols": ["CNPJ DESTINATARIO", "CLIENTE DESTINATARIO", "GRANDE REDE", "PALETIZADORA", "acao_realizada", "usuario_logado", "data_registro"]
+    },
+    "Particularidades": {
+        "columns": {
+            "CNPJ": {"type": "cnpj", "required": True, "unique": True, "pk": True},
+            "Cliente": {"type": "text", "required": True},
+            "Particularidade": {"type": "text", "required": True},
+            "acao_realizada": {"type": "text"},
+            "usuario_logado": {"type": "text"},
+            "data_registro": {"type": "timestamp"},
+        },
+        "display_cols": ["CNPJ", "Cliente", "Particularidade", "acao_realizada", "usuario_logado", "data_registro"]
+    },
+    "Motoristas": {
+        "columns": {
+            "PLACA": {
+                "type": "text", "required": True, "unique": True, "pk": True,
+                "regex": "^[A-Z0-9]{7}$",
+                "regex_description": "Formato livre com 7 caracteres (letras ou números)"
+            },
+            "MOTORISTA": {"type": "text", "required": True},
+            "acao_realizada": {"type": "text"},
+            "usuario_logado": {"type": "text"},
+            "data_registro": {"type": "timestamp"},
+        },
+        "display_cols": ["PLACA", "MOTORISTA", "acao_realizada", "usuario_logado", "data_registro"]
+    },
+}
+
+MAX_COST_PER_REGION = {
+    'INTERIOR 1': 0.35,
+    'INTERIOR 2': 0.45,
+    'POA CAPITAL': 0.30
+}
+
+GLOBAL_JUSTIFICATIVA_CATEGORIAS_MAP = [
+    ('agendamento_e_custo_broker', 'Agendamento e Custo Broker'),
+    ('aprovado_custo_extra_cliente', 'Aprovado Custo Extra Cliente'),
+    ('baixa_volumetria_na_rota', 'Baixa Volumetria na Rota'),
+    ('custo_fixo_de_agregado', 'Custo Fixo de Agregado'),
+    ('entrega_agendada', 'Entrega Agendada'),
+    ('entrega_direta', 'Entrega Direta'),
+    ('frete_minimo', 'Frete Mínimo'),
+    ('leadtime', 'Leadtime'),
+    ('meio_truck_baly', 'Meio Truck Baly'),
+    ('negociacao_parceiro', 'Negociação Parceiro'),
+    ('rota_critica_com_agendamento', 'Rota Crítica c/ Agendamento'),
+    ('rota_direta_sem_parceiro', 'Rota Direta s/ Parceiro'),
+    ('rota_direta_com_agendamento', 'Rota Direta c/ Agendamento'),
+    ('agendamento', 'Agendamento'),
+    ('custo_broker', 'Custo Broker'),
+    ('aprovado', 'Aprovado')
+]
+
+# JsCode é do Streamlit, não do Dash. Precisaremos adaptar isso para Dash.
+# date_only_formatter = JsCode(""" ... """)

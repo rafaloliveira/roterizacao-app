@@ -1,0 +1,117 @@
+# DASH_APP/utils/db_helpers.py
+
+import os
+from dotenv import load_dotenv
+import bcrypt
+from datetime import datetime, timezone
+import pandas as pd
+from supabase import create_client, Client
+from supabase.lib.client_options import ClientOptions # <-- Mantenha esta importação AGORA ELA SERÁ USADA!
+import logging
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
+# Carrega as variáveis de ambiente do .env
+load_dotenv()
+url = os.getenv("SUPABASE_URL")
+key = os.getenv("SUPABASE_KEY")
+
+supabase_client_instance = None  # Variável para guardar a instância do cliente
+
+def init_supabase_client():
+    global supabase_client_instance
+    if supabase_client_instance is None:
+        try:
+            if not url or not key:
+                raise ValueError(
+                    "SUPABASE_URL e/ou SUPABASE_KEY não foram carregadas. Verifique o arquivo .env"
+                )
+
+            # ################### SOLUÇÃO FINAL PARA O TIMEOUT ###################
+            # Criamos o objeto ClientOptions ANTES e passamos o http_client_options para ele.
+            # Isso é o que a sua versão específica da biblioteca espera.
+            
+            client_options = ClientOptions() # Inicializa o ClientOptions padrão
+
+            # Configura o timeout para o cliente HTTP subjacente
+            # A forma mais universal é diretamente no 'http_client_options'
+            # Isso é um atributo que precisa ser setado APÓS a criação do objeto
+            client_options.http_client_options = {"timeout": 30}
+            
+            supabase_client_instance = create_client(url, key, options=client_options)
+            # ################### FIM DA SOLUÇÃO FINAL ###################
+
+            logger.info("Supabase client inicializado com sucesso com timeout de 30s.")
+            return supabase_client_instance
+
+        except Exception as e:
+            logger.error(f"Erro ao inicializar cliente Supabase: {e}", exc_info=True)
+            return None
+
+# Inicializa o cliente Supabase assim que o módulo for importado
+supabase = init_supabase_client()
+if supabase is None:
+    logger.critical("Erro CRÍTICO: Não foi possível conectar ao Supabase.")
+
+# Funções de hash e verificação de senha
+def hash_senha(senha):
+    return bcrypt.hashpw(senha.encode(), bcrypt.gensalt()).decode()
+
+def verificar_senha(senha_fornecida, senha_hash):
+    return bcrypt.checkpw(senha_fornecida.encode(), senha_hash.encode())
+
+# Verificação de expiração do cookie
+def is_cookie_expired(expiry_time_str):
+    try:
+        expiry = datetime.strptime(expiry_time_str, "%Y-%m-%d %H:%M:%S").replace(
+            tzinfo=timezone.utc
+        )
+        return datetime.now(timezone.utc) > expiry
+    except Exception as e:
+        logger.warning(
+            f"Erro ao verificar expiração de cookie para '{expiry_time_str}': {e}",
+            exc_info=True,
+        )
+        return True  # Se houver erro na data, considera expirado
+
+# Autenticação do usuário no Dash
+def autenticar_usuario_dash(nome_usuario, senha):
+    global supabase
+
+    if supabase is None:
+        logger.warning(
+            "Instância do cliente Supabase não disponível. Tentando reinicializar."
+        )
+        supabase = init_supabase_client()
+
+    if supabase is None:
+        logger.error(
+            "Falha ao autenticar: Cliente Supabase ainda não disponível após tentativa de reinicialização."
+        )
+        return None
+
+    try:
+        dados = (
+            supabase.table("usuarios")
+            .select("*")
+            .eq("nome_usuario", nome_usuario)
+            .execute()
+        )
+
+        if dados.data:
+            usuario = dados.data[0]
+            hash_bruto = (
+                str(usuario["senha_hash"]).replace("\n", "").replace("\r", "").strip()
+            )
+            if verificar_senha(senha, hash_bruto):
+                return usuario
+
+        logger.info(f"Tentativa de login falhou para o usuário '{nome_usuario}'.")
+        return None
+
+    except Exception as e:
+        logger.error(
+            f"Erro ao autenticar usuário '{nome_usuario}': {e}", exc_info=True
+        )
+        return None

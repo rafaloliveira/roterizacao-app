@@ -3684,118 +3684,117 @@ def aplicar_brazilian_date_format_for_display(df_to_format):
     cols_to_process = set(GLOBAL_DATE_COLUMNS_DISPLAY_ONLY_DATE) | set(GLOBAL_DATE_DISPLAY_COLUMNS) # Usar display columns
 
 # ------------------------#############-------------------------------------------
-def adicionar_entregas_a_carga(ctrcs_selecionados, numero_carga_destino, is_reentrega_com_frete_pago=False, reentrega_frete_value=0.0):
-    #st.write("DEBUG: Função 'adicionar_entregas_a_carga' iniciada.")
-    #st.write(f"DEBUG: Número da Carga Destino: {numero_carga_destino}")
-    #st.write(f"DEBUG: CTRCs selecionados para adição: {ctrcs_selecionados[:5]}...")
+def adicionar_entregas_a_carga(ctrcs_selecionados, numero_carga_destino, retorno_frete_map=None):
+    """
+    Adiciona uma lista de entregas (CTRCs) a uma carga de destino.
+    Se um 'retorno_frete_map' (dicionário) for fornecido, ele aplica os novos
+    valores de frete *apenas* às entregas marcadas como 'is_retorno_rota'
+    e presentes no mapa.
+    """
+    # st.write(f"DEBUG: Adicionando {len(ctrcs_selecionados)} CTRCs à carga {numero_carga_destino}.")
+    # if retorno_frete_map:
+    #     st.write(f"DEBUG: Mapa de fretes recebido: {retorno_frete_map}")
 
     if not ctrcs_selecionados:
         st.warning("⚠️ Nenhum CTRC selecionado.")
         return
 
-    if not numero_carga_destino:
-        st.error("Erro interno: Número da carga de destino não fornecido.")
+    # --- Bloco de busca de dados ---
+    try:
+        # Busca as entregas na tabela de origem (pre_roterizacao)
+        entregas_coletadas_response = supabase.table("pre_roterizacao").select("*").in_("Serie_Numero_CTRC", ctrcs_selecionados).execute()
+        entregas_coletadas = entregas_coletadas_response.data or []
+        
+        # Lista de CTRCs que foram realmente encontrados
+        found_ctrc_in_pre_roterizacao = [d["Serie_Numero_CTRC"] for d in entregas_coletadas if "Serie_Numero_CTRC" in d]
+
+        if not entregas_coletadas:
+            st.warning("⚠️ Nenhuma entrega encontrada na tabela 'pre_roterizacao' para os CTRCs informados.")
+            return
+            
+    except Exception as e:
+        st.error(f"Erro ao buscar entregas em 'pre_roterizacao': {e}")
         return
-
-    numero_carga = numero_carga_destino
-    entregas_coletadas = []
-    found_ctrc_in_pre_roterizacao = set()
-
-    # Carrega os dados brutos da tabela 'pre_roterizacao'
-    dados_pre_all = supabase.table("pre_roterizacao").select("*").execute().data or []
-    dados_pre_dict = {str(d.get("Serie_Numero_CTRC", "")).strip(): d for d in dados_pre_all}
-
-    # Recupera as entregas com base somente nos CTRCs selecionados
-    for ctrc in ctrcs_selecionados:
-        entrega = dados_pre_dict.get(str(ctrc).strip())
-        if entrega:
-            entregas_coletadas.append(entrega)
-            found_ctrc_in_pre_roterizacao.add(ctrc)
-
-    if not entregas_coletadas:
-        st.warning("⚠️ Nenhuma entrega encontrada na tabela 'pre_roterizacao' para os CTRCs informados.")
-        return
+    # --- Fim do bloco de busca ---
 
     df_para_inserir = pd.DataFrame(entregas_coletadas)
-
+    df_para_inserir["numero_carga"] = numero_carga_destino
+    df_para_inserir["Data_Hora_Gerada"] = data_hora_brasil_iso()
+    df_para_inserir["usuario_criador"] = st.session_state.get("username", "Desconhecido")
+    
     # Garante que 'is_retorno_rota' exista e seja booleano
     if 'is_retorno_rota' not in df_para_inserir.columns:
         df_para_inserir['is_retorno_rota'] = False
     df_para_inserir['is_retorno_rota'] = df_para_inserir['is_retorno_rota'].fillna(False).astype(bool)
 
-    # --- NOVO BLOCO: Aplica a lógica de reentrega com frete pago ---
-    df_para_inserir['is_reentrega_com_frete_pago'] = False # Default para False (será True apenas se a condição for atendida)
+    # NOVO BLOCO: APLICAÇÃO DO NOVO VALOR DE FRETE (LÓGICA DE MAPA)
+    
+    # 1. Remove a coluna antiga, se existir
+    df_para_inserir.drop(columns=['is_reentrega_com_frete_pago'], errors='ignore', inplace=True)
+    
+    # 2. Garante que 'Valor do Frete' seja numérico
+    df_para_inserir['Valor do Frete'] = pd.to_numeric(df_para_inserir['Valor do Frete'], errors='coerce').fillna(0.0)
 
-    if is_reentrega_com_frete_pago:
-        # Garante que 'Valor do Frete' seja numérico para evitar erros
-        df_para_inserir['Valor do Frete'] = pd.to_numeric(df_para_inserir['Valor do Frete'], errors='coerce').fillna(0)
-
-        # Aplica o novo valor de frete SOMENTE às entregas marcadas como retorno de rota
-        mask_return_rota = df_para_inserir['is_retorno_rota'] == True
-        df_para_inserir.loc[mask_return_rota, 'Valor do Frete'] = reentrega_frete_value
+    # 3. Aplica o novo valor de frete SOMENTE se o mapa for fornecido
+    if retorno_frete_map:
+        # st.write("DEBUG: Aplicando mapa de fretes...")
+        def aplicar_novo_frete(row):
+            ctrc = row['Serie_Numero_CTRC']
+            # Aplica o novo valor APENAS se for retorno E se estiver no mapa
+            if row['is_retorno_rota'] and ctrc in retorno_frete_map:
+                # st.write(f"DEBUG: CTRC {ctrc} (Retorno) - Novo Frete: {retorno_frete_map[ctrc]}")
+                return retorno_frete_map[ctrc]
+            else:
+                # Mantém o valor original
+                return row['Valor do Frete']
         
-        # Define a nova flag para indicar que esta reentrega tem frete pago
-        df_para_inserir.loc[mask_return_rota, 'is_reentrega_com_frete_pago'] = True
-    # --- FIM NOVO BLOCO ---
+        df_para_inserir['Valor do Frete'] = df_para_inserir.apply(aplicar_novo_frete, axis=1)
+    
+    # --- FIM NOVO BLOCO DE FRETE ---
 
     if "GrupoDeExibicao" not in df_para_inserir.columns:
         df_para_inserir["GrupoDeExibicao"] = df_para_inserir["Rota"]
-
     df_para_inserir["GrupoDeExibicao"] = df_para_inserir["GrupoDeExibicao"].fillna(df_para_inserir["Rota"])
 
-    df_para_inserir["Data_Hora_Gerada"] = data_hora_brasil_iso()
-    df_para_inserir["numero_carga"] = numero_carga
-
-    # APLICAÇÃO DA NOVA FUNÇÃO AUXILIAR PARA FORMATAR DATAS
+    # APLICAÇÃO DA FUNÇÃO AUXILIAR PARA FORMATAR DATAS
     df_para_inserir = _prepare_df_for_supabase_insert(df_para_inserir)
-    #st.write(f"DEBUG: [adicionar_entregas_a_carga] df_para_inserir (DEPOIS de _prepare_df_for_supabase_insert): Tipo={type(df_para_inserir)}, Shape={df_para_inserir.shape if df_para_inserir is not None else 'N/A'}")
-
-    # --- FIM DO BLOCO DE TRATAMENTO DE DATAS ---
-
+    
     dados_para_insercao = df_para_inserir.to_dict(orient='records')
-
-
     insert_success = False
     inserted_ctrcs = []
 
-
     with st.spinner(f"Adicionando entregas à carga {numero_carga_destino}..."):
-
-        for tentativa in range(2): # Tenta inserir duas vezes em caso de falha temporária
+        for tentativa in range(2): # Tenta inserir duas vezes
             try:
                 insert_response = supabase.table("cargas_geradas").upsert(dados_para_insercao).execute()
                 if insert_response and insert_response.data:
                     inserted_ctrcs = [r.get("Serie_Numero_CTRC") for r in insert_response.data if r.get("Serie_Numero_CTRC")]
                     insert_success = True
-                    #st.success(f"✅ {len(inserted_ctrcs)} entrega(s) adicionada(s) à Carga {numero_carga}.")
-                    break # Sai do loop de tentativas se a inserção for bem-sucedida
+                    break 
             except Exception as e:
                 st.warning(f"Erro na tentativa {tentativa + 1} de inserção: {e}")
                 if tentativa == 0:
-                    time.sleep(1) # Pequena pausa antes de tentar novamente
+                    time.sleep(1) 
 
     if not insert_success:
-        st.error(f"❌ Falha ao adicionar entregas à carga {numero_carga}.")
+        st.error(f"❌ Falha ao adicionar entregas à carga {numero_carga_destino}.")
         return
 
-    # Deleta as entregas de 'pre_roterizacao' após a inserção bem-sucedida em 'cargas_geradas'
+    # Deleta as entregas de 'pre_roterizacao' após a inserção bem-sucedida
     if inserted_ctrcs:
         try:
-            # Calcula a interseção para garantir que apenas CTRCs realmente inseridos sejam deletados
             ctrcs_to_delete_from_pre = list(set(inserted_ctrcs).intersection(found_ctrc_in_pre_roterizacao))
             if ctrcs_to_delete_from_pre:
                 delete_response_pre = supabase.table("pre_roterizacao").delete().in_("Serie_Numero_CTRC", ctrcs_to_delete_from_pre).execute()
-                #st.info(f"Removidas {len(delete_response_pre.data)} entregas de 'pre_roterizacao'.")
         except Exception as e:
             st.warning(f"Erro ao deletar de 'pre_roterizacao': {e}")
     else:
         st.warning("Nenhuma entrega foi realmente inserida para deletar da tabela de origem.")
 
-
     st.success(f"✅ {len(inserted_ctrcs)} entrega(s) adicionada(s) à Carga {numero_carga_destino}.")
     time.sleep(2) 
     
-    # Força o recarregamento dos caches de estado da sessão para atualizar os grids
+    # Força o recarregamento dos caches
     st.session_state["reload_rotas_confirmadas"] = True
     st.session_state["reload_pre_roterizacao"] = True
     st.session_state["reload_cargas_geradas"] = True
@@ -3803,7 +3802,8 @@ def adicionar_entregas_a_carga(ctrcs_selecionados, numero_carga_destino, is_reen
     st.session_state.pop("df_rotas_confirmadas_cache", None)
     st.session_state.pop("df_cargas_cache", None)
 
-    st.rerun() # Força uma nova execução do script para refletir as mudanças
+    st.rerun()
+
 
 
 # ------------------------#############-------------------------------------------
@@ -7446,6 +7446,23 @@ def pagina_pre_roterizacao():
         st.session_state["numero_nova_carga"] = ""
         st.session_state["chaves_input_value"] = "" 
 
+    # --- NOVO: Inicialização dos states dos diálogos ---
+    if "show_reentrega_dialog" not in st.session_state:
+        st.session_state.show_reentrega_dialog = {}
+    if "ctrcs_for_dialog" not in st.session_state:
+        st.session_state.ctrcs_for_dialog = {}
+    if "cargo_num_for_dialog" not in st.session_state:
+        st.session_state.cargo_num_for_dialog = {}
+    if "reentrega_response" not in st.session_state: # Mantendo por compatibilidade
+        st.session_state.reentrega_response = {}
+    
+    # States específicos para a nova UI de múltiplos inputs
+    if "retornos_for_dialog" not in st.session_state:
+        st.session_state.retornos_for_dialog = {}
+    if "frete_input_values_dict" not in st.session_state:
+        st.session_state.frete_input_values_dict = {}
+    # --- FIM NOVO ---
+
     if not st.session_state["nova_carga_em_criacao"]:
         if st.button("🆕 Criar Nova Carga Avulsa", key="btn_nova_carga_avulsa"):
             try:
@@ -7459,24 +7476,16 @@ def pagina_pre_roterizacao():
     else:
         st.success(f"Nova Carga Criada: {st.session_state['numero_nova_carga']}")
     
-        # Esta coluna principal controlará a largura do text_area e dos botões
-        # A proporção [1, 2] significa que esta área ocupará 1/3 da largura da tela,
-        # e os outros 2/3 serão espaço vazio à direita (a coluna '_')
         col_main_area, _ = st.columns([1, 2]) 
         
-        with col_main_area: # Tudo aqui dentro estará na área mais estreita da esquerda
+        with col_main_area:
             chaves_input = st.text_area(
                 "Insira as Chaves CT-e (uma por linha)",
                 value=st.session_state["chaves_input_value"],
                 key="chaves_ct_e_input_area",
-                height=100 # Altura que você preferiu
+                height=100
             )
             
-            # NOVAS COLUNAS PARA OS BOTÕES DENTRO DA col_main_area
-            # [0.5, 0.5, 1] significa:
-            # - 0.5 para o botão 'Adicionar' (pequeno)
-            # - 0.5 para o botão 'Cancelar' (pequeno e próximo ao anterior)
-            # - 1 para um ESPAÇADOR (grande), que empurrará os dois botões para a esquerda
             col_add_btn, col_cancel_btn, _ = st.columns([1, 0.5, 0.1]) 
             
             with col_add_btn:
@@ -7484,8 +7493,6 @@ def pagina_pre_roterizacao():
             
             with col_cancel_btn:
                 cancelar = st.button("❌ Cancelar", help="Cancelar Nova Carga")
-
-
 
         if cancelar:
             st.session_state["nova_carga_em_criacao"] = False
@@ -7500,7 +7507,6 @@ def pagina_pre_roterizacao():
                     st.warning("Nenhuma Chave CT-e válida informada.")
                     return
 
-                # Carrega dados diretamente do Supabase no momento da adição, para garantir que não está pegando do cache de df_visivel
                 dados_pre_current = supabase.table("pre_roterizacao").select("*").execute().data or []
                 dados_cargas = supabase.table("cargas_geradas").select("*").execute().data or []
 
@@ -7510,18 +7516,17 @@ def pagina_pre_roterizacao():
                 }
 
                 entregas_encontradas = []
+                ctrcs_para_adicionar = [] # Lista de CTRCs para a função
 
                 for chave in chaves:
                     if chave in entregas_ja_em_carga:
                         st.warning(f"⚠️ A entrega com chave '{chave}' já está na carga {entregas_ja_em_carga[chave]}.")
                         continue
 
-                    # Busca a entrega tanto na pre_roterizacao atual quanto (se necessário) na fBaseroter original
                     entrega = next((d for d in dados_pre_current if str(d.get("Chave CT-e", "")).strip() == chave), None)
                     origem = "pre_roterizacao"
 
                     if not entrega:
-                        # Se não achou na pre_roterizacao, tenta buscar na fBaseroter
                         st.warning(f"⚠️ Chave {chave} não encontrada em pré-roteirização. Tentando buscar em fBaseroter...")
                         fbaseroter_data = supabase.table("fBaseroter").select("*").eq("Chave CT-e", chave).execute().data
                         if fbaseroter_data:
@@ -7532,56 +7537,29 @@ def pagina_pre_roterizacao():
                             st.warning(f"⚠️ Chave {chave} não encontrada em nenhuma tabela. Pulando.")
                             continue
                             
-                    # Remove 'id' que pode causar erro de duplicação ao inserir
                     if "id" in entrega:
                         entrega.pop("id")
 
-                    entrega["numero_carga"] = st.session_state["numero_nova_carga"]
-                    entrega["Data_Hora_Gerada"] = data_hora_brasil_iso()
+                    # Adiciona o CTRC à lista para a função principal
+                    if "Serie_Numero_CTRC" in entrega:
+                        ctrcs_para_adicionar.append(entrega["Serie_Numero_CTRC"])
+                    
+                    # (Removido o bloco de inserção daqui, será feito pela função 'adicionar_entregas_a_carga')
 
-                    # Aplica a preparação de datas para garantir formato Supabase
-                    # Cria um DataFrame temporário para usar _prepare_df_for_supabase_insert
-                    df_temp_entrega = pd.DataFrame([entrega])
-                    df_temp_entrega_prepared = _prepare_df_for_supabase_insert(df_temp_entrega)
-                    entrega_prepared_dict = df_temp_entrega_prepared.iloc[0].to_dict()
-
-                    entregas_encontradas.append(entrega_prepared_dict)
-
-                    # Deleta da tabela de origem se a origem não for 'fBaseroter' (já que fBaseroter é a fonte primária)
-                    if origem != "fBaseroter":
-                        supabase.table(origem).delete().eq("Serie_Numero_CTRC", entrega["Serie_Numero_CTRC"]).execute()
-                    else: # Se a origem for fBaseroter, não deletamos dela, mas informamos que é um caso especial
-                        st.info(f"Entrega {chave} foi carregada de 'fBaseroter', não será removida de lá.")
-
-
-                if entregas_encontradas:
-                    with st.spinner(f"Adicionando {len(entregas_encontradas)} entrega(s) à carga {st.session_state['numero_nova_carga']}..."):
-                        try:
-                            # Converte a lista de dicionários para DataFrame para inserção em lote
-                            df_to_insert_into_cargas = pd.DataFrame(entregas_encontradas)
-                            # Remove colunas que podem ter sido adicionadas por outras rotinas e não pertencem a cargas_geradas
-                            df_to_insert_into_cargas = df_to_insert_into_cargas.drop(columns=[
-                                'CNPJ Destinatario_limpo', 'Grupo_Especial_Action' # Exemplo de colunas a remover, ajuste conforme seu projeto
-                            ], errors='ignore')
-                            
-                            inserir_em_lote("cargas_geradas", df_to_insert_into_cargas)
-
-                            st.success(f"✅ {len(entregas_encontradas)} entrega(s) adicionada(s) à carga {st.session_state['numero_nova_carga']}.")
-                            time.sleep(2)
-                            st.session_state["chaves_input_value"] = ""
-
-
-                        
-
-                            st.session_state["nova_carga_em_criacao"] = False
-                            st.session_state["numero_nova_carga"] = ""
-                            st.session_state["chaves_input_value"] = "" 
-                            st.session_state["reload_pre_roterizacao"] = True
-                            st.session_state["reload_cargas_geradas"] = True
-                        
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"Erro ao salvar entregas na carga: {e}")
+                if ctrcs_para_adicionar:
+                    # A função 'adicionar_entregas_a_carga' cuidará da inserção e deleção
+                    # Para carga avulsa, assumimos que não há lógica de frete de retorno (map=None)
+                    adicionar_entregas_a_carga(
+                        ctrcs_para_adicionar, 
+                        st.session_state["numero_nova_carga"], 
+                        retorno_frete_map=None
+                    )
+                    
+                    # Limpa o estado da UI de carga avulsa
+                    st.session_state["chaves_input_value"] = ""
+                    st.session_state["nova_carga_em_criacao"] = False
+                    st.session_state["numero_nova_carga"] = ""
+                    # (O rerun já é chamado dentro de adicionar_entregas_a_carga)
 
             except Exception as e:
                 st.error(f"Erro ao adicionar entregas: {e}")
@@ -7590,13 +7568,12 @@ def pagina_pre_roterizacao():
     with st.spinner("🔄 Carregando dados das entregas..."):
         try:
             df_aprovadas_diretoria = st.session_state.get("df_aprovadas_diretoria", pd.DataFrame())
-            dados_confirmados = pd.DataFrame()
-
+            
             recarregar = st.session_state.pop("reload_pre_roterizacao", False)
             
             if recarregar or "df_pre_roterizacao_cache" not in st.session_state or \
-               (st.session_state.get("df_pre_roterizacao_cache") is not None and st.session_state["df_pre_roterizacao_cache"].empty):
-                df_total = carregar_base_supabase()
+                (st.session_state.get("df_pre_roterizacao_cache") is not None and st.session_state["df_pre_roterizacao_cache"].empty):
+                df_total = carregar_base_supabase() # Presume que esta função busca de 'pre_roterizacao'
                 st.session_state["df_pre_roterizacao_cache"] = df_total
                 if recarregar and not df_total.empty:
                     for key in list(st.session_state.keys()):
@@ -7607,7 +7584,6 @@ def pagina_pre_roterizacao():
 
             df_visivel = df_total.copy()
 
-            # --- Garante que a coluna 'Tipo_Tratativa_Especial' exista e seja string ---
             if 'Tipo_Tratativa_Especial' not in df_visivel.columns:
                 df_visivel['Tipo_Tratativa_Especial'] = '' 
                 st.warning("A coluna 'Tipo_Tratativa_Especial' não foi encontrada. Por favor, realize uma nova sincronização para atualizar os dados.")
@@ -7618,18 +7594,15 @@ def pagina_pre_roterizacao():
                 df_visivel['is_retorno_rota'] = False
             df_visivel['is_retorno_rota'] = df_visivel['is_retorno_rota'].fillna(False).astype(bool)
 
-            # --- NOVO: Garante que 'is_reentrega_com_frete_pago' exista e seja booleano ---
             if 'is_reentrega_com_frete_pago' not in df_visivel.columns:
                 df_visivel['is_reentrega_com_frete_pago'] = False
             df_visivel['is_reentrega_com_frete_pago'] = df_visivel['is_reentrega_com_frete_pago'].fillna(False).astype(bool)
-            # --- FIM NOVO ---
             
-
             if not df_visivel.empty:
                 excel_buffer = BytesIO()
                 with pd.ExcelWriter(excel_buffer, engine='xlsxwriter') as writer:
                     df_visivel.to_excel(writer, index=False, sheet_name="Pre-Roterizacao")
-                    writer.close()
+                    # writer.close() # 'close()' é chamado automaticamente pelo 'with'
                 excel_buffer.seek(0)
 
                 col_spacer, col_button = st.columns([1, 0.25])
@@ -7645,7 +7618,6 @@ def pagina_pre_roterizacao():
 
             st.session_state['_pre_roterizacao_df_check'] = df_visivel
 
-
         except Exception as e:
             st.error(f"Erro ao consultar as tabelas do Supabase: {e}")
             return
@@ -7654,18 +7626,16 @@ def pagina_pre_roterizacao():
             st.info("Nenhuma entrega disponível para pré-roterização.")
             return
         
-
-        # Definir as colunas que devem ser exibidas no grid (incluindo Tipo_Tratativa_Especial)
         colunas_exibir = [
             "Serie_Numero_CTRC",  "Cliente Pagador", "Cliente Destinatario", "Cidade de Entrega", "Data de Emissao",
             "Previsao de Entrega","Entrega Programada", "Status","Valor do Frete","Bairro do Destinatario", 
             "Numero da Nota Fiscal","Peso Real em Kg", "Peso Calculado em Kg", 
             "Rota", "Regiao",  "Chave CT-e",
             "Particularidade", "Codigo da Ultima Ocorrencia", "Cubagem em m³", "Quantidade de Volumes",
-            "Tipo_Tratativa_Especial", "status_retorno","Retorno de Rota","is_retorno_rota", "is_reentrega_com_frete_pago" # Adicionada a nova coluna
+            "Tipo_Tratativa_Especial", "status_retorno","Retorno de Rota","is_retorno_rota", "is_reentrega_com_frete_pago"
         ]
 
-    # ======= MÉTRICAS GERAIS NO TOPO (mantidas inalteradas) =======
+    # ======= MÉTRICAS GERAIS NO TOPO =======
     col_esq_1, col_esq_2, col_esq_3, col_esq_4, spacer, col_dir_1, col_dir_2, col_dir_3 = st.columns([1, 1, 1, 1, 0.3, 1, 1, 1])
 
     with col_esq_1:
@@ -7688,78 +7658,53 @@ def pagina_pre_roterizacao():
     with col_dir_3:
         st.metric("✅ Peso Calculado", formatar_brasileiro(peso_calc_aprovado))
 
-
-
-    # --- JsCode para destaque visual nos grids (MANTIDO INALTERADO) ---
+    # --- JsCode para destaque visual nos grids ---
     linha_destacar = JsCode("""
     function(params) {
-        const isRetornoRota = params.data['is_retorno_rota']; // <-- NOVO: Captura a flag
-        if (isRetornoRota === true) { // <-- NOVO: Aplica o estilo se for Retorno de Rota
+        const isRetornoRota = params.data['is_retorno_rota'];
+        if (isRetornoRota === true) {
             return { 'background-color': '#ffc0cb', 'color': '#800000', 'font-weight': 'bold' }; // Rosa para retornos
         }
-
         const status = params.data['Status'];
         const entrega = params.data['Entrega Programada'];
         const particularidade = params.data['Particularidade'];
-        // const tipoTratativa = params.data['Tipo_Tratativa_Especial']; // Não é mais necessário para essa regra
-
-        // A condição para 'Paletizadas' foi removida para que não haja destaque de cor
         
         const isEntregaEmpty = !entrega || (typeof entrega === 'string' && entrega.trim() === '');
         if (status === 'AGENDAR' && isEntregaEmpty) {
             return { 'background-color': '#FFA500', 'color': '#000' }; // LARANJA FORTE
         }
-
         if (particularidade && typeof particularidade === 'string' && particularidade.trim() !== "") {
             return { 'background-color': '#FFFF00', 'color': '#000' }; // AMARELO FORTE
         }
-
-        return null; // Retorna nulo se nenhuma das regras acima se aplicar
+        return null;
     }
     """)
 
     # =============================================================
     #           NOVA ESTRUTURA DE ITERAÇÃO DE GRUPOS
-    #           (Refatorada para ter estilo de cabeçalho unificado)
     # =============================================================
-    st.markdown("---") # Separador visual
+    st.markdown("---") 
 
-    # 1. Preparar os grupos que queremos exibir
     grupos_para_exibir = {}
 
-    # Garantir que as colunas de agrupamento existam e estejam limpas
     if 'GrupoDeExibicao' not in df_visivel.columns: df_visivel['GrupoDeExibicao'] = ''
     if 'Tipo_Tratativa_Especial' not in df_visivel.columns: df_visivel['Tipo_Tratativa_Especial'] = ''
     df_visivel['GrupoDeExibicao'] = df_visivel['GrupoDeExibicao'].fillna('').astype(str).str.strip()
     df_visivel['Tipo_Tratativa_Especial'] = df_visivel['Tipo_Tratativa_Especial'].fillna('').astype(str).str.strip()
-    df_visivel['Codigo da Ultima Ocorrencia'] = pd.to_numeric(df_visivel['Codigo da Ultima Ocorrencia'], errors='coerce').fillna(-1) # Usar -1 para não-39
+    df_visivel['Codigo da Ultima Ocorrencia'] = pd.to_numeric(df_visivel['Codigo da Ultima Ocorrencia'], errors='coerce').fillna(-1)
     df_visivel['Rota'] = df_visivel['Rota'].fillna('').astype(str).str.strip()
 
-
-    # Função auxiliar para atribuir o grupo de exibição final a cada linha,
-    # respeitando a hierarquia de prioridade.
     def assign_display_group(row):
-        # Prioridade 1: GrupoDeExibicao definido pelo usuário (se não for vazio e não for um dos defaults especiais)
-        # Se o usuário moveu uma entrega para "Rota X", ela deve ir para "Rota X".
-        # Mesmo que fosse uma coleta ou paletizada, a ação do usuário tem precedência.
         if row['GrupoDeExibicao'] and row['GrupoDeExibicao'] not in ['', 'Paletizadores', 'Coletas']:
             return row['GrupoDeExibicao']
-        
-        # Prioridade 2: Paletizadores (se não foi movida explicitamente para uma rota)
         if row['Tipo_Tratativa_Especial'] == 'Paletizadas':
             return 'Paletizadores'
-        
-        # Prioridade 3: Coletas (se não foi movida explicitamente para uma rota ou não é Paletizada)
         if row['Codigo da Ultima Ocorrencia'] == 39:
             return 'Coletas'
-        
-        # Prioridade 4: Rota padrão (se nenhuma das anteriores se aplica)
         return row['Rota'] if row['Rota'] else 'Indefinida'
 
-    # Aplica a função para criar uma nova coluna com a chave do grupo de exibição final
     df_visivel['Display_Group_Key'] = df_visivel.apply(assign_display_group, axis=1)
 
-    # Agora, itere sobre as chaves de grupo únicas para criar os DataFrames de cada grupo
     for group_key_name in sorted(df_visivel['Display_Group_Key'].unique()):
         df_grupo = df_visivel[df_visivel['Display_Group_Key'] == group_key_name].copy()
         if df_grupo.empty:
@@ -7769,11 +7714,8 @@ def pagina_pre_roterizacao():
             df_grupo['is_retorno_rota'] = False
         df_grupo['is_retorno_rota'] = df_grupo['is_retorno_rota'].fillna(False).astype(bool)
 
-        # --- DEBUG: Adicione as linhas de debug aqui, após 'df_grupo' estar definido ---
-    
-
         header_title_content = ""
-        group_type = 'Rota' # Tipo padrão
+        group_type = 'Rota'
         
         if group_key_name == 'Coletas':
             header_title_content = "Coletas (Ocorrência 39)"
@@ -7781,16 +7723,11 @@ def pagina_pre_roterizacao():
         elif group_key_name == 'Paletizadores':
             header_title_content = "Entregas de Clientes Paletizadoras"
             group_type = 'Paletizadores'
-        else: # Grupos de rota regular ou movidos explicitamente pelo usuário
-            # Calcula a rota predominante e regiões para o cabeçalho
-            # Usar o group_key_name como rota predominante se for um grupo movido pelo usuário
+        else: 
             rota_predominante = group_key_name if group_key_name != 'Indefinida' else "NÃO DEFINIDA"
             
-            # Ajuste para garantir que "Rota" é string e não NaN para o value_counts
             df_grupo_rotas_validas = df_grupo["Rota"].dropna().astype(str)
             if not df_grupo_rotas_validas.empty:
-                # Se a chave do grupo de exibição for diferente da rota mais frequente do DF,
-                # priorize a chave de exibição (que pode ter sido definida pelo usuário).
                 if group_key_name not in ['Coletas', 'Paletizadores'] and group_key_name != df_grupo_rotas_validas.value_counts().idxmax():
                     rota_predominante = group_key_name
                 else:
@@ -7809,32 +7746,30 @@ def pagina_pre_roterizacao():
             'group_type': group_type
         }
 
-    # Ordenar os grupos para exibição: Coletas primeiro, depois Paletizadores, depois as Rotas.
     grupos_ordenados = sorted(grupos_para_exibir.items(), key=lambda item: (
         0 if item[0] == "Coletas" else (1 if item[0] == "Paletizadores" else 2), item[0]
     ))
 
-    # --- INÍCIO DA LÓGICA DE PAGINAÇÃO DE GRUPOS ---
+    # --- LÓGICA DE PAGINAÇÃO DE GRUPOS ---
     GROUPS_PER_PAGE = 7
     total_groups = len(grupos_ordenados)
-    total_pages = (total_groups + GROUPS_PER_PAGE - 1) // GROUPS_PER_PAGE # Arredonda para cima
+    total_pages = (total_groups + GROUPS_PER_PAGE - 1) // GROUPS_PER_PAGE
+    total_pages = max(total_pages, 1) # Garante pelo menos 1 página
 
-    # Garante que a página atual esteja dentro dos limites
+    if 'current_group_page_pre_roterizacao' not in st.session_state:
+        st.session_state.current_group_page_pre_roterizacao = 0
     if st.session_state.current_group_page_pre_roterizacao >= total_pages and total_pages > 0:
         st.session_state.current_group_page_pre_roterizacao = total_pages - 1
     if st.session_state.current_group_page_pre_roterizacao < 0:
         st.session_state.current_group_page_pre_roterizacao = 0
 
 
-    # ===================================================================================================
-    # ADICIONAR ESTE BLOCO - CONTROLES DE PAGINAÇÃO SUPERIORES
-    # ===================================================================================================
-    #st.markdown("---") # Separador para os controles de paginação superior
+    # --- CONTROLES DE PAGINAÇÃO SUPERIORES ---
     st.markdown(f"**Página {st.session_state.current_group_page_pre_roterizacao + 1} de {total_pages}**")
 
     col_prev, col_page_select, col_next = st.columns([1, 3, 1])
 
-    with col_prev:       
+    with col_prev:      
         if st.button("⬅️ Anterior", disabled=(st.session_state.current_group_page_pre_roterizacao == 0), key="btn_prev_group_page_top_pagination"):
             st.session_state.current_group_page_pre_roterizacao -= 1
             st.rerun()
@@ -7843,7 +7778,7 @@ def pagina_pre_roterizacao():
         selected_option_index_top = st.selectbox(
             "Ir para a página:",
             options=range(total_pages),
-            format_func=lambda i: page_options_display_top[i],
+            format_func=lambda i: page_options_display_top[i] if i < len(page_options_display_top) else f"Página {i+1}",
             index=st.session_state.current_group_page_pre_roterizacao,
             key="group_page_select_pre_roterizacao_top"
         )
@@ -7855,36 +7790,33 @@ def pagina_pre_roterizacao():
         if st.button("Próxima ➡️", disabled=(st.session_state.current_group_page_pre_roterizacao >= total_pages - 1), key="btn_next_group_page_top"):
             st.session_state.current_group_page_pre_roterizacao += 1
             st.rerun()
-    st.markdown("---") # Separador após os controles de paginação superior
+    st.markdown("---") 
 
-    # Fatia os grupos a serem exibidos na página atual
     start_idx = st.session_state.current_group_page_pre_roterizacao * GROUPS_PER_PAGE
     end_idx = start_idx + GROUPS_PER_PAGE
     paginated_groups_to_render = grupos_ordenados[start_idx:end_idx]
 
-    # --- FIM DA LÓGICA DE PAGINAÇÃO DE GRUPOS ---
+    # --- FIM DA LÓGICA DE PAGINAÇÃO ---
 
 
-    # Agora, iteramos APENAS sobre os grupos da página atual para renderizar os grids
-    for nome_grupo, grupo_info in paginated_groups_to_render: # Itera sobre os itens paginados
+    # --- LOOP DE RENDERIZAÇÃO DOS GRUPOS PAGINADOS ---
+    for nome_grupo, grupo_info in paginated_groups_to_render: 
 
         df_grupo = grupo_info['df']
-
         header_title_content = grupo_info['header_title_content']
-        group_type = grupo_info['group_type'] # Usaremos 'group_type' para lógica de estilo
+        group_type = grupo_info['group_type'] 
 
-        # --- Lógica para Estilo do Cabeçalho do Grupo ---
-        header_background = "#333333" # Default para Rotas
-        header_border = "#6c757d"     # Default para Rotas
-        header_text_color = "white"   # Default para Rotas
+        header_background = "#333333" 
+        header_border = "#6c757d"     
+        header_text_color = "white"   
 
         if group_type == "Coletas":
-            header_background = "#FFF3CD" # Amarelo claro para Coletas
-            header_border = "#FFD700"     # Amarelo ouro
+            header_background = "#FFF3CD" 
+            header_border = "#FFD700"     
             header_text_color = "black"
         elif group_type == "Paletizadores":
-            header_background = "#BBDEFB" # Azul claro para Paletizadores
-            header_border = "#2196F3"     # Azul
+            header_background = "#BBDEFB" 
+            header_border = "#2196F3"     
             header_text_color = "black"
 
         st.markdown(f"""
@@ -7893,7 +7825,7 @@ def pagina_pre_roterizacao():
         </div>
         """, unsafe_allow_html=True)
 
-        # Informações agregadas sobre o grupo (badges)
+        # Informações agregadas (badges)
         col_badge, col_check_placeholder = st.columns([5, 1])
         with col_badge:
             peso_calc_sum = df_grupo['Peso Calculado em Kg'].sum() if 'Peso Calculado em Kg' in df_grupo.columns else 0
@@ -7902,30 +7834,23 @@ def pagina_pre_roterizacao():
             cubagem_sum = df_grupo['Cubagem em m³'].sum() if 'Cubagem em m³' in df_grupo.columns else 0
             volumes_sum = df_grupo['Quantidade de Volumes'].sum() if 'Quantidade de Volumes' in df_grupo.columns else 0
 
-            entregas_agendar_sem_programacao_grupo = df_grupo[
+            qtd_agendar_sem_programacao_grupo = len(df_grupo[
                 (df_grupo['Status'].astype(str).str.upper() == 'AGENDAR') &
                 (df_grupo['Entrega Programada'].isnull() | (df_grupo['Entrega Programada'] == ''))
-            ]
-            qtd_agendar_sem_programacao_grupo = len(entregas_agendar_sem_programacao_grupo)
-
-            entregas_com_particularidade_grupo = df_grupo[
+            ])
+            qtd_com_particularidade_grupo = len(df_grupo[
                 (df_grupo['Particularidade'].astype(str).str.strip() != '') &
                 (df_grupo['Particularidade'].notna())
-            ]
-            qtd_com_particularidade_grupo = len(entregas_com_particularidade_grupo)
-
+            ])
             qtd_retorno_rota_grupo = df_grupo[df_grupo['is_retorno_rota'] == True].shape[0]
 
-            
-            # --- Lógica para Estilo dos Badges de Métrica ---
-            badge_background_color_metric = "#333333" # Default para Rotas
+            badge_background_color_metric = "#333333"
             badge_text_color_metric = "white"
-
             if group_type == "Coletas":
-                badge_background_color_metric = "#FFF8DC" # Amarelo bem claro para Coletas
+                badge_background_color_metric = "#FFF8DC"
                 badge_text_color_metric = "black"
             elif group_type == "Paletizadores":
-                badge_background_color_metric = "#E3F2FD" # Azul bem claro para Paletizadores
+                badge_background_color_metric = "#E3F2FD"
                 badge_text_color_metric = "black"
 
             html_fragments = [
@@ -7939,24 +7864,10 @@ def pagina_pre_roterizacao():
                 badge(f'⚠️ Com Particularidade: {qtd_com_particularidade_grupo}', background_color='#b8860b', text_color='white'),
                 badge(f'🔄 Retorno de Rota: {qtd_retorno_rota_grupo}', background_color='#ff69b4', text_color='white')
             ]
+            st.markdown(f"<div style='display: flex; flex-wrap: wrap; gap: 8px;'>{''.join(html_fragments)}</div>", unsafe_allow_html=True)
 
-            st.markdown(
-                f"""
-                <div style='display: flex; flex-wrap: wrap; gap: 8px;'>
-                    {"".join(html_fragments)}
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
-
-            # Custo parcial estimado (apenas para grupos de rota normais)
-            # Este bloco agora exclui "Coletas" e "Paletizadores"
-            if group_type == "Rota": # <-- Use group_type aqui
-                percentuais_ideais = {
-                    "INTERIOR 1": 0.35, "INTERIOR 2": 0.45, "POA CAPITAL": 0.30
-                }
-                # Rota predominante já calculada para grupos de rota, ou a própria 'rota_visual'
-                # Precisa pegar a Regiao do df_grupo, não da rota_visual, pois rota_visual é o nome da chave
+            if group_type == "Rota": 
+                percentuais_ideais = {"INTERIOR 1": 0.35, "INTERIOR 2": 0.45, "POA CAPITAL": 0.30}
                 regiao_chave_para_custo = [r.strip() for r in df_grupo["Regiao"].dropna().unique() if pd.notna(r)]
                 regiao_chave_para_custo = regiao_chave_para_custo[0] if regiao_chave_para_custo else None
                 percentual_usado = percentuais_ideais.get(regiao_chave_para_custo, None)
@@ -7964,19 +7875,13 @@ def pagina_pre_roterizacao():
                     valor_frete_total_grupo = pd.to_numeric(df_grupo["Valor do Frete"], errors="coerce").sum()
                     valor_ideal_grupo = valor_frete_total_grupo * percentual_usado
                     st.markdown(
-                        f"""
-                        <div style='padding: 8px 12px; margin-top: 6px; background-color:#444444;
+                        f"""<div style='padding: 8px 12px; margin-top: 6px; background-color:#444444;
                                     border-left: 4px solid #28a745; border-radius: 4px; color:white;'>
                             💡 <strong> Custo parcial estimado</strong> para região <b>{regiao_chave_para_custo}</b>
                             ({int(percentual_usado * 100)}% do frete): <b>R$ {formatar_brasileiro(valor_ideal_grupo)}</b>
-                        </div>
-                        """,
-                        unsafe_allow_html=True
-                    )
-                elif percentual_usado is not None:
-                    st.warning(f"A coluna 'Valor do Frete' não está disponível para o grupo {nome_grupo}.")
-                else:
-                    st.warning(f"A região '{regiao_chave_para_custo}' não possui percentual definido.")
+                        </div>""", unsafe_allow_html=True)
+                elif percentual_usado is None and group_type == "Rota":
+                     st.warning(f"A região '{regiao_chave_para_custo}' não possui percentual de custo definido.")
 
 
         with st.expander(f"🔽 Selecionar entregas ({nome_grupo})", expanded=True):
@@ -7986,19 +7891,14 @@ def pagina_pre_roterizacao():
             marcar_todas = st.checkbox("Marcar todas", key=checkbox_key)
 
             df_formatado = df_grupo.copy()
-       
-            # ----------------------------------------------------------------------------------
-            # --- NOVO: Cria a coluna 'Retorno de Rota' para exibição ---
+        
             if 'is_retorno_rota' in df_formatado.columns:
                 df_formatado['Retorno de Rota'] = df_formatado['is_retorno_rota'].apply(lambda x: 'Sim' if x else 'Não')
             else:
                 df_formatado['Retorno de Rota'] = 'Não'
                 
-            # Agora filtra as colunas para exibição no grid
             df_formatado = df_formatado[[col for col in colunas_exibir if col in df_formatado.columns]].copy()
-            df_formatado = apply_brazilian_date_format_for_display(df_formatado)
-
-
+            df_formatado = apply_brazilian_date_format_for_display(df_formatado) # Presume que esta função existe
 
             gb = GridOptionsBuilder.from_dataframe(df_formatado)
             gb.configure_default_column(minWidth=140)
@@ -8006,20 +7906,17 @@ def pagina_pre_roterizacao():
             gb.configure_grid_options(paginationPageSize=12)
             gb.configure_grid_options(alwaysShowHorizontalScroll=True)
             gb.configure_grid_options(rowStyle={'font-size': '11px'})
-            gb.configure_grid_options(onGridReady=GRID_RESIZE_JS_CODE) 
-             
-            # NOVO: Aplica o formatador para todas as colunas de data que devem ser DD-MM-AAAA
-            for col in DATE_ONLY_REPARSE_COLUMNS:
+            gb.configure_grid_options(onGridReady=GRID_RESIZE_JS_CODE) # Presume que esta var existe
+                
+            for col in DATE_ONLY_REPARSE_COLUMNS: # Presume que esta var existe
                 if col in df_formatado.columns:
-                    gb.configure_column(col, valueFormatter=date_only_formatter)
+                    gb.configure_column(col, valueFormatter=date_only_formatter) # Presume que esta var existe
             grid_options = gb.build()
-
-            grid_options["getRowStyle"] = linha_destacar # Aplica o destaque, inclusive para Paletizadas
+            grid_options["getRowStyle"] = linha_destacar 
 
             grid_key = f"grid_pre_rota_{nome_grupo}" 
             if grid_key not in st.session_state:
                 st.session_state[grid_key] = str(uuid.uuid4())
-
 
             grid_response = AgGrid(
                 df_formatado,
@@ -8034,36 +7931,14 @@ def pagina_pre_roterizacao():
                 theme=AgGridTheme.MATERIAL,
                 show_toolbar=True,
                 custom_css={
-                    ".ag-theme-material .ag-cell": {
-                        "font-size": "11px",
-                        "line-height": "18px",
-                        "border-right": "1px solid #ccc",
-                    },
-                    ".ag-theme-material .ag-row:last-child .ag-cell": {
-                        "border-bottom": "1px solid #ccc",
-                    },
-                    ".ag-theme-material .ag-header-cell": {
-                        "border-right": "1px solid #ccc",
-                        "border-bottom": "1px solid #ccc",
-                    },
-                    ".ag-theme-material .ag-root-wrapper": {
-                        "border": "1px solid black",
-                        "border-radius": "6px",
-                        "padding": "4px",
-                    },
-                    ".ag-theme-material .ag-header-cell-label": {
-                        "font-size": "11px",
-                    },
-                    ".ag-center-cols-viewport": {
-                        "overflow-x": "auto !important",
-                        "overflow-y": "hidden",
-                    },
-                    ".ag-center-cols-container": {
-                        "min-width": "100% !important",
-                    },
-                    "#gridToolBar": {
-                        "padding-bottom": "0px !important",
-                    }
+                    ".ag-theme-material .ag-cell": {"font-size": "11px", "line-height": "18px", "border-right": "1px solid #ccc"},
+                    ".ag-theme-material .ag-row:last-child .ag-cell": {"border-bottom": "1px solid #ccc"},
+                    ".ag-theme-material .ag-header-cell": {"border-right": "1px solid #ccc", "border-bottom": "1px solid #ccc"},
+                    ".ag-theme-material .ag-root-wrapper": {"border": "1px solid black", "border-radius": "6px", "padding": "4px"},
+                    ".ag-theme-material .ag-header-cell-label": {"font-size": "11px"},
+                    ".ag-center-cols-viewport": {"overflow-x": "auto !important", "overflow-y": "hidden"},
+                    ".ag-center-cols-container": {"min-width": "100% !important"},
+                    "#gridToolBar": {"padding-bottom": "0px !important"}
                 }
             )
             if marcar_todas:
@@ -8077,282 +7952,157 @@ def pagina_pre_roterizacao():
             valor_frete_total = selecionadas.get("Valor do Frete", pd.Series(dtype=float)).sum()
 
             st.markdown(
-                f"""
-                <div style='display: flex; gap: 24px; padding: 8px 0; font-size: 0.95rem; font-weight: 600;'>
+                f"""<div style='display: flex; gap: 24px; padding: 8px 0; font-size: 0.95rem; font-weight: 600;'>
                     <span>📦 Entregas selecionadas: {qtd_entregas}</span>
                     <span>⚖️ Peso Real: {formatar_brasileiro(peso_real_total)} kg</span>
                     <span>📏 Peso Calculado: {formatar_brasileiro(peso_calculado_total)} kg</span>
                     <span>💰 Valor do Frete: R$ {formatar_brasileiro(valor_frete_total)}</span>
-                </div>
-                """,
-                unsafe_allow_html=True
+                </div>""", unsafe_allow_html=True
             )
 
             if not selecionadas.empty: 
-                chaves_cte = selecionadas["Chave CT-e"].dropna().astype(str).str.strip().tolist()
                 ctrcs_selecionados = selecionadas["Serie_Numero_CTRC"].dropna().astype(str).str.strip().tolist()
             else: 
-                chaves_cte = []
                 ctrcs_selecionados = []
 
-            # ➕ Botão: Criar nova carga com entregas selecionadas
-            # O código para verificar e gerar a carga DEVE estar dentro deste 'if'.
+            # ➕ Botão: Criar nova carga
             if st.button(
                 f"🟢Gerar Carga com entregas do grupo '{nome_grupo}'", 
                 key=f"btn_nova_carga_grupo_{nome_grupo}", 
                 disabled=selecionadas.empty
             ):
-                # --- NOVO: Lógica de verificação de Retorno de Rota ---
-                # ESTE BLOCO AGORA ESTÁ CORRETAMENTE INDENTADO DENTRO DO IF DO BOTÃO.
                 ctrcs_selecionados_lista = [s.get("Serie_Numero_CTRC") for s in selecionadas.to_dict(orient="records") if s.get("Serie_Numero_CTRC")]
-                
-                # Filtra o df_visivel (o original da página) para obter a informação de is_retorno_rota
-                # É importante usar df_visivel aqui, pois `selecionadas` é um DF formatado e pode não ter todas as colunas
                 df_selecionadas_full_info = df_visivel[df_visivel['Serie_Numero_CTRC'].isin(ctrcs_selecionados_lista)]
-                
                 has_return_deliveries = (df_selecionadas_full_info['is_retorno_rota'] == True).any()
 
                 if has_return_deliveries:
-                    with st.spinner("🔄 Verificando entregas de retorno e preparando diálogo..."): # <<< NOVO SPINNER AQUI
-                        # Ativa o diálogo para ESTE GRUPO, usando a chave nome_grupo
-                        st.session_state.show_reentrega_dialog[nome_grupo] = True # <-- CORREÇÃO
-                        # Também precisa usar o nome_grupo para ctrcs_for_dialog e cargo_num_for_dialog
-                        st.session_state.ctrcs_for_dialog[nome_grupo] = ctrcs_selecionados_lista 
+                    with st.spinner("🔄 Verificando entregas de retorno e preparando diálogo..."): 
+                        DIALOG_KEY_GENERATE = nome_grupo
+                        st.session_state.show_reentrega_dialog[DIALOG_KEY_GENERATE] = True 
+                        st.session_state.ctrcs_for_dialog[DIALOG_KEY_GENERATE] = ctrcs_selecionados_lista 
+                        
+                        df_retornos = df_selecionadas_full_info[df_selecionadas_full_info['is_retorno_rota'] == True]
+                        st.session_state.retornos_for_dialog[DIALOG_KEY_GENERATE] = df_retornos[['Serie_Numero_CTRC', 'Valor do Frete']].to_dict('records')
+                        
+                        initial_frete_values = {rec['Serie_Numero_CTRC']: 0.0 for rec in st.session_state.retornos_for_dialog[DIALOG_KEY_GENERATE]}
+                        st.session_state.frete_input_values_dict[DIALOG_KEY_GENERATE] = initial_frete_values
+
                         try:
-                            st.session_state.cargo_num_for_dialog[nome_grupo] = gerar_proximo_numero_carga(supabase)
-                            if not st.session_state.cargo_num_for_dialog[nome_grupo]:
+                            st.session_state.cargo_num_for_dialog[DIALOG_KEY_GENERATE] = gerar_proximo_numero_carga(supabase)
+                            if not st.session_state.cargo_num_for_dialog[DIALOG_KEY_GENERATE]:
                                 st.error("Erro ao gerar número de carga. Não é possível continuar.")
-                                # Desativa o diálogo para ESTE GRUPO
-                                st.session_state.show_reentrega_dialog[nome_grupo] = False # <-- CORREÇÃO
+                                st.session_state.show_reentrega_dialog[DIALOG_KEY_GENERATE] = False 
                                 st.rerun()
-                                return
                         except Exception as e:
                             st.error(f"Erro ao gerar número de carga: {e}")
-                            # Desativa o diálogo para ESTE GRUPO
-                            st.session_state.show_reentrega_dialog[nome_grupo] = False # <-- CORREÇÃO
+                            st.session_state.show_reentrega_dialog[DIALOG_KEY_GENERATE] = False 
                             st.rerun()
-                            return
-                        st.rerun() # Força o rerun para exibir o diálogo
-                # Se não há entregas de retorno, segue o fluxo normal
-                else: # <<< ADICIONADO `else` para garantir exclusividade de spinners
-                    with st.spinner("Gerando carga com entregas selecionadas..."): # <<< SPINNER PARA GERAÇÃO NORMAL
-                        try:
-                            numero_carga = gerar_proximo_numero_carga(supabase)
-                            if numero_carga:
-                                adicionar_entregas_a_carga(ctrcs_selecionados_lista, numero_carga, is_reentrega_com_frete_pago=False, reentrega_frete_value=0.0)
-                            else:
-                                st.error("Erro ao gerar número de carga.")
-                        except Exception as e:
-                            st.error(f"Erro ao criar nova carga: {e}")
-            
-                # Se não há entregas de retorno, segue o fluxo normal
-                try:
-                    numero_carga = gerar_proximo_numero_carga(supabase)
-                    if numero_carga:
-                        adicionar_entregas_a_carga(ctrcs_selecionados_lista, numero_carga, is_reentrega_com_frete_pago=False, reentrega_frete_value=0.0)
+                        st.rerun() 
+                else: 
+                    try:
+                        numero_carga = gerar_proximo_numero_carga(supabase)
+                        if numero_carga:
+                            adicionar_entregas_a_carga(ctrcs_selecionados_lista, numero_carga, retorno_frete_map=None)
+                        else:
+                            st.error("Erro ao gerar número de carga.")
+                    except Exception as e:
+                        st.error(f"Erro ao criar nova carga: {e}")
+
+            # --- DIÁLOGO DE GERAR CARGA (COM MÚLTIPLOS INPUTS) ---
+            DIALOG_KEY_GENERATE = nome_grupo 
+            if st.session_state.show_reentrega_dialog.get(DIALOG_KEY_GENERATE, False):
+                col_dialog, _ = st.columns([2, 4])
+                with col_dialog:
+                    target_cargo_gen = st.session_state.cargo_num_for_dialog.get(DIALOG_KEY_GENERATE)
+                    
+                    st.subheader(f"Gerar Carga {target_cargo_gen} (Grupo '{DIALOG_KEY_GENERATE}')")
+                    st.warning(f"⚠️ As entregas a seguir são 'Retorno de Rota'. **Informe o novo Valor do Frete (R$)** para cada uma. (Pode ser 0.00).")
+
+                    retorno_deliveries = st.session_state.retornos_for_dialog.get(DIALOG_KEY_GENERATE, [])
+                    frete_values = st.session_state.frete_input_values_dict.get(DIALOG_KEY_GENERATE, {})
+                    
+                    if not retorno_deliveries:
+                        st.error("Erro: Entregas de retorno não encontradas no session_state.")
                     else:
-                        st.error("Erro ao gerar número de carga.")
-                except Exception as e:
-                    st.error(f"Erro ao criar nova carga: {e}")
+                        new_frete_values = {}
+                        st.markdown("---")
+                        
+                        # --- MODIFICADO: Cabeçalho do CTRC fica fora do loop ---
+                        st.markdown("**CTRC (Retorno de Rota)**")
+                        # O cabeçalho "Novo Valor Frete" foi movido para DENTRO do loop
 
-
-
-
-        # Este bloco DEVE estar dentro do loop 'for nome_grupo', após o AgGrid e os botões de ação.
-            if st.session_state.show_reentrega_dialog.get(nome_grupo, False):
-                # Se a resposta JÁ FOR "Sim", mostra a interface de input de valor
-                if st.session_state.reentrega_response.get(nome_grupo) == "Sim":
-                    # --- Interface para INSERIR VALOR ---
-                    frete_reentrega_val = st.number_input(
-                        f"Valor do Frete para as Reentregas (R\$) (Grupo '{nome_grupo}'):",
-                        min_value=0.0,
-                        value=st.session_state.reentrega_frete_input_value.get(nome_grupo, 0.0),
-                        format="%.2f",
-                        key=f"input_reentrega_frete_{nome_grupo}" # A key é única para cada nome_grupo
-                    )
-                    # Atualiza o valor no session_state para persistência
-                    st.session_state.reentrega_frete_input_value[nome_grupo] = frete_reentrega_val
-
-                    # Adiciona um botão de Confirmar Valor e Cancelar para a parte de input de valor
+                        # --- MODIFICADO: Loop de inputs (cabeçalho movido) ---
+                        for item in retorno_deliveries:
+                            ctrc = item['Serie_Numero_CTRC']
+                            
+                            st.info(f"{ctrc}") 
+                            
+                            # --- NOVO: Título do frete agora está abaixo do CTRC ---
+                            st.markdown("**Novo Valor Frete (R$)**")
+                            
+                            input_key = f"input_frete_{DIALOG_KEY_GENERATE}_{ctrc}"
+                            current_value = frete_values.get(ctrc, 0.0)
+                            
+                            # O input agora é exibido abaixo do st.info
+                            new_val = st.number_input(
+                                label=f"Novo Valor para {ctrc}", # Label para acessibilidade
+                                label_visibility="collapsed",
+                                min_value=0.0,
+                                value=current_value,
+                                step=0.01,
+                                format="%.2f",
+                                key=input_key
+                            )
+                            new_frete_values[ctrc] = new_val
+                        
+                        st.session_state.frete_input_values_dict[DIALOG_KEY_GENERATE] = new_frete_values
+                       
                     col_confirm_val_btn, col_cancel_val_btn = st.columns(2)
                     with col_confirm_val_btn:
-                        if st.button(f"🟢 Confirmar Valor e Gerar Carga (Grupo '{nome_grupo}')", key=f"btn_confirm_reentrega_frete_{nome_grupo}" if nome_grupo else "btn_confirm_reentrega_frete_default"):
-                            if frete_reentrega_val <= 0.0:
-                                st.error("⚠️ Por favor, insira um valor de frete válido (> 0) para reentregas com frete pago.")
-                            else:
-                                with st.spinner("📦 Gerando carga com frete de reentrega..."): # <<< NOVO SPINNER AQUI
-                                    st.session_state.show_reentrega_dialog[nome_grupo] = False # Fecha o diálogo
-                                    # Chama a função principal de adicionar entregas, com a flag de reentrega=True
-                                    adicionar_entregas_a_carga(
-                                        st.session_state.ctrcs_for_dialog.get(nome_grupo, []),
-                                        st.session_state.cargo_num_for_dialog.get(nome_grupo),
-                                        is_reentrega_com_frete_pago=True,
-                                        reentrega_frete_value=st.session_state.reentrega_frete_input_value.get(nome_grupo, 0.0)
-                                    )
-                                    # Limpa os estados de controle do diálogo para este grupo
-                                    st.session_state.ctrcs_for_dialog.pop(nome_grupo, None)
-                                    st.session_state.cargo_num_for_dialog.pop(nome_grupo, None)
-                                    st.session_state.reentrega_frete_input_value.pop(nome_grupo, None)
-                                    st.session_state.reentrega_response.pop(nome_grupo, None) # Limpa a resposta também
-                                    st.rerun()
-                    with col_cancel_val_btn: # <--- NOVO BOTÃO DE CANCELAR APÓS INSERÇÃO DO VALOR
-                        if st.button(f"❌ Cancelar (Manter na Pré-Roterização)", key=f"btn_reentrega_cancel_val_{nome_grupo}" if nome_grupo else "btn_reentrega_cancel_val_default"):
-                            # Apenas fecha o diálogo e limpa os estados, sem adicionar a carga
-                            st.session_state.show_reentrega_dialog[nome_grupo] = False 
-                            st.session_state.ctrcs_for_dialog.pop(nome_grupo, None)
-                            st.session_state.cargo_num_for_dialog.pop(nome_grupo, None)
-                            st.session_state.reentrega_frete_input_value.pop(nome_grupo, None)
-                            st.session_state.reentrega_response.pop(nome_grupo, None)
-                            st.rerun()
-                
-                # Se a resposta AINDA NÃO FOR "Sim", mostra a interface de escolha inicial
-                else: # Isto cobre o estado inicial (None) ou quando o usuário escolhe "Não"
-                    # --- Interface para ESCOLHA INICIAL ---
-                    st.warning(f"⚠️ Este grupo '{nome_grupo}' contém Entregas com Retorno de Rota. Essas Entregas são Reentregas com frete pago?")
-                    
-                    # Criamos 3 colunas para Sim, Não e Cancelar
-                    col_sim_btn_local, col_nao_btn_local, col_cancel_btn_dialog = st.columns(3)
-
-                    with col_sim_btn_local:
-                        if st.button(f"🟢 Sim, é Reentrega com Frete Pago (Grupo '{nome_grupo}')", key=f"btn_reentrega_sim_{nome_grupo}" if nome_grupo else "btn_reentrega_sim_default"):
-                            st.session_state.reentrega_response[nome_grupo] = "Sim"
-                            st.rerun()
-                    with col_nao_btn_local:
-                        if st.button(f"🟡 Não, Manter Frete Zerado (Grupo '{nome_grupo}')", key=f"btn_reentrega_nao_{nome_grupo}" if nome_grupo else "btn_reentrega_nao_default"):
-                            st.session_state.reentrega_response[nome_grupo] = "Não"
-                            st.session_state.show_reentrega_dialog[nome_grupo] = False # Fecha o diálogo
-                            # Chama a função principal de adicionar entregas, com a flag de reentrega=False
-                            adicionar_entregas_a_carga(
-                                st.session_state.ctrcs_for_dialog.get(nome_grupo, []),
-                                st.session_state.cargo_num_for_dialog.get(nome_grupo),
-                                is_reentrega_com_frete_pago=False,
-                                reentrega_frete_value=0.0
-                            )
-                            # Limpa os estados de controle do diálogo para este grupo
-                            st.session_state.ctrcs_for_dialog.pop(nome_grupo, None)
-                            st.session_state.cargo_num_for_dialog.pop(nome_grupo, None)
-                            st.session_state.reentrega_frete_input_value.pop(nome_grupo, None)
-                            st.session_state.reentrega_response.pop(nome_grupo, None) # Limpa a resposta também
-                            st.rerun()
-                    with col_cancel_btn_dialog:
-                        if st.button(f"❌ Cancelar Ação (Grupo '{nome_grupo}')", key=f"btn_reentrega_cancel_{nome_grupo}" if nome_grupo else "btn_reentrega_cancel_default"):
-                            # Apenas fecha o diálogo e limpa os estados, sem adicionar a carga
-                            st.session_state.show_reentrega_dialog[nome_grupo] = False 
-                            st.session_state.ctrcs_for_dialog.pop(nome_grupo, None)
-                            st.session_state.cargo_num_for_dialog.pop(nome_grupo, None)
-                            st.session_state.reentrega_frete_input_value.pop(nome_grupo, None)
-                            st.session_state.reentrega_response.pop(nome_grupo, None)
-                            st.rerun()
-
-                    # Este if inicia a parte de inserção de valor (e agora só aparece se a resposta for "Sim")
-                    if st.session_state.reentrega_response.get(nome_grupo) == "Sim":
-                        frete_reentrega_val = st.number_input(
-                            f"Valor do Frete para as Reentregas (R$) (Grupo '{nome_grupo}'):",
-                            min_value=0.0,
-                            value=st.session_state.reentrega_frete_input_value.get(nome_grupo, 0.0),
-                            format="%.2f",
-                            key=f"input_reentrega_frete_{nome_grupo}" if nome_grupo else "input_reentrega_frete_default"
-                        )
-                        # Atualiza o valor no session_state para persistência
-                        st.session_state.reentrega_frete_input_value[nome_grupo] = frete_reentrega_val
-
-                        # Adiciona um botão de Cancelar aqui também, caso o usuário mude de ideia depois de inserir o valor
-                        col_confirm_val_btn, col_cancel_val_btn = st.columns(2)
-                        with col_confirm_val_btn:
-                            if st.button(f"Confirmar Valor e Gerar Carga (Grupo '{nome_grupo}')", key=f"btn_confirm_reentrega_frete_{nome_grupo}" if nome_grupo else "btn_confirm_reentrega_frete_default"):
-                                if frete_reentrega_val <= 0.0:
-                                    st.error("⚠️ Por favor, insira um valor de frete válido (> 0) para reentregas com frete pago.")
-                                else:
-                                    st.session_state.show_reentrega_dialog[nome_grupo] = False # Fecha o diálogo
-                                    # Chama a função principal de adicionar entregas, com a flag de reentrega=True
-                                    adicionar_entregas_a_carga(
-                                        st.session_state.ctrcs_for_dialog.get(nome_grupo, []),
-                                        st.session_state.cargo_num_for_dialog.get(nome_grupo),
-                                        is_reentrega_com_frete_pago=True,
-                                        reentrega_frete_value=st.session_state.reentrega_frete_input_value.get(nome_grupo, 0.0)
-                                    )
-                                    # Limpa os estados de controle do diálogo para este grupo
-                                    st.session_state.ctrcs_for_dialog.pop(nome_grupo, None)
-                                    st.session_state.cargo_num_for_dialog.pop(nome_grupo, None)
-                                    st.session_state.reentrega_frete_input_value.pop(nome_grupo, None)
-                                    st.session_state.reentrega_response.pop(nome_grupo, None) # Limpa a resposta também
-                                    st.rerun()
-                        with col_cancel_val_btn: # <--- NOVO BOTÃO DE CANCELAR APÓS INSERÇÃO DO VALOR
-                            if st.button(f"❌ Cancelar (Manter na Pré-Roterização)", key=f"btn_reentrega_cancel_val_{nome_grupo}" if nome_grupo else "btn_reentrega_cancel_val_default"):
-                                # Apenas fecha o diálogo e limpa os estados, sem adicionar a carga
-                                st.session_state.show_reentrega_dialog[nome_grupo] = False 
-                                st.session_state.ctrcs_for_dialog.pop(nome_grupo, None)
-                                st.session_state.cargo_num_for_dialog.pop(nome_grupo, None)
-                                st.session_state.reentrega_frete_input_value.pop(nome_grupo, None)
-                                st.session_state.reentrega_response.pop(nome_grupo, None)
+                        if st.button(f"🟢 Gerar Carga", key=f"btn_confirm_novo_frete_gen_{DIALOG_KEY_GENERATE}", disabled=(not retorno_deliveries)):
+                            with st.spinner("📦 Gerando carga com novos fretes de retorno..."):
+                                st.session_state.show_reentrega_dialog[DIALOG_KEY_GENERATE] = False
+                                
+                                final_frete_map = st.session_state.frete_input_values_dict.get(DIALOG_KEY_GENERATE, {})
+                                
+                                adicionar_entregas_a_carga(
+                                    st.session_state.ctrcs_for_dialog.get(DIALOG_KEY_GENERATE, []), 
+                                    target_cargo_gen,
+                                    retorno_frete_map=final_frete_map 
+                                )
+                                
+                                st.session_state.ctrcs_for_dialog.pop(DIALOG_KEY_GENERATE, None)
+                                st.session_state.cargo_num_for_dialog.pop(DIALOG_KEY_GENERATE, None)
+                                st.session_state.retornos_for_dialog.pop(DIALOG_KEY_GENERATE, None)
+                                st.session_state.frete_input_values_dict.pop(DIALOG_KEY_GENERATE, None)
                                 st.rerun()
 
+                    with col_cancel_val_btn:
+                        if st.button(f"❌ Cancelar", key=f"btn_reentrega_cancel_val_gen_{DIALOG_KEY_GENERATE}"):
+                            st.session_state.show_reentrega_dialog[DIALOG_KEY_GENERATE] = False
+                            st.session_state.ctrcs_for_dialog.pop(DIALOG_KEY_GENERATE, None)
+                            st.session_state.cargo_num_for_dialog.pop(DIALOG_KEY_GENERATE, None)
+                            st.session_state.retornos_for_dialog.pop(DIALOG_KEY_GENERATE, None)
+                            st.session_state.frete_input_values_dict.pop(DIALOG_KEY_GENERATE, None)
+                            st.rerun()
+            # --- FIM DIÁLOGO GERAR CARGA ---
 
-                    if st.session_state.reentrega_response.get(nome_grupo) == "Sim":
-                        frete_reentrega_val = st.number_input(
-                            f"Valor do Frete para as Reentregas (R$) (Grupo '{nome_grupo}'):",
-                            min_value=0.0,
-                            value=st.session_state.reentrega_frete_input_value.get(nome_grupo, 0.0),
-                            format="%.2f",
-                            key=f"input_reentrega_frete_{nome_grupo}" if nome_grupo else "input_reentrega_frete_default"
-                        )
-                        # Atualiza o valor no session_state para persistência
-                        st.session_state.reentrega_frete_input_value[nome_grupo] = frete_reentrega_val
-
-                        # Adiciona um botão de Cancelar aqui também, caso o usuário mude de ideia depois de inserir o valor
-                        col_confirm_val_btn, col_cancel_val_btn = st.columns(2)
-                        with col_confirm_val_btn:
-                            if st.button(f"🟢 Confirmar Valor e Gerar Carga (Grupo '{nome_grupo}')", key=f"btn_confirm_reentrega_frete_{nome_grupo}" if nome_grupo else "btn_confirm_reentrega_frete_default"):
-                                if frete_reentrega_val <= 0.0:
-                                    st.error("⚠️ Por favor, insira um valor de frete válido (> 0) para reentregas com frete pago.")
-                                else:
-                                    st.session_state.show_reentrega_dialog[nome_grupo] = False # Fecha o diálogo
-                                    # Chama a função principal de adicionar entregas, com a flag de reentrega=True
-                                    adicionar_entregas_a_carga(
-                                        st.session_state.ctrcs_for_dialog.get(nome_grupo, []),
-                                        st.session_state.cargo_num_for_dialog.get(nome_grupo),
-                                        is_reentrega_com_frete_pago=True,
-                                        reentrega_frete_value=st.session_state.reentrega_frete_input_value.get(nome_grupo, 0.0)
-                                    )
-                                    # Limpa os estados de controle do diálogo para este grupo
-                                    st.session_state.ctrcs_for_dialog.pop(nome_grupo, None)
-                                    st.session_state.cargo_num_for_dialog.pop(nome_grupo, None)
-                                    st.session_state.reentrega_frete_input_value.pop(nome_grupo, None)
-                                    st.session_state.reentrega_response.pop(nome_grupo, None) # Limpa a resposta também
-                                    st.rerun()
-                        with col_cancel_val_btn: # <--- NOVO BOTÃO DE CANCELAR APÓS INSERÇÃO DO VALOR
-                            if st.button(f"❌ Cancelar (Manter na Pré-Roterização)", key=f"btn_reentrega_cancel_val_{nome_grupo}" if nome_grupo else "btn_reentrega_cancel_val_default"):
-                                # Apenas fecha o diálogo e limpa os estados, sem adicionar a carga
-                                st.session_state.show_reentrega_dialog[nome_grupo] = False 
-                                st.session_state.ctrcs_for_dialog.pop(nome_grupo, None)
-                                st.session_state.cargo_num_for_dialog.pop(nome_grupo, None)
-                                st.session_state.reentrega_frete_input_value.pop(nome_grupo, None)
-                                st.session_state.reentrega_response.pop(nome_grupo, None)
-                                st.rerun()
-
-            # Mover entregas para outra rota existente na pré-roteirização
-            # ATENÇÃO: A lógica de mover não deve permitir mover para o grupo 'Paletizadores'
-            # pois a definição de paletizador é baseada em regra de negócio (CNPJ).
-            # Por isso, filtramos 'Paletizadores' da lista de opções de destino.
+            
+            # --- BLOCO "MOVER" ---
             col_mover_grupo, col_mover_carga_existente = st.columns([1, 1])
 
             with col_mover_grupo:
-                # --- Bloco para "Mover entregas para outro grupo" (EXISTENTE - AGORA DENTRO DA COLUNA) ---
-                st.subheader("🚚 Mover para outro Grupo:") # Usar subheader como título
-
-                rotas_disponiveis_para_movimentacao = sorted([
-                    r for r in grupos_para_exibir.keys()
-                    if r != nome_grupo
-                ])
+                st.subheader("🚚 Mover para outro Grupo:") 
+                rotas_disponiveis_para_movimentacao = sorted([r for r in grupos_para_exibir.keys() if r != nome_grupo])
                 nova_rota = st.selectbox(
-                    "Selecione o grupo de destino:", # Label mais conciso
+                    "Selecione o grupo de destino:", 
                     options=["Selecionar..."] + rotas_disponiveis_para_movimentacao,
                     key=f"selectbox_mover_grupo_{nome_grupo}",
                     disabled=selecionadas.empty or not rotas_disponiveis_para_movimentacao
                 )
                 move_button_disabled = selecionadas.empty or nova_rota == "Selecionar..."
                 if st.button(
-                    f"🔄 Mover para o Grupo '{nova_rota}'", # Texto do botão mais conciso
+                    f"🔄 Mover para o Grupo '{nova_rota}'", 
                     key=f"btn_mover_grupo_{nome_grupo}",
                     disabled=move_button_disabled
                 ):
@@ -8360,7 +8110,7 @@ def pagina_pre_roterizacao():
                         st.warning("Por favor, selecione um grupo válido para mover as entregas.")
                     else:
                         try:
-                            mover_entregas_para_outra_rota(ctrcs_selecionados, nova_rota)
+                            mover_entregas_para_outra_rota(ctrcs_selecionados, nova_rota) # Presume que esta função existe
                             st.session_state["reload_pre_roterizacao"] = True
                             for key in list(st.session_state.keys()):
                                 if key.startswith("grid_pre_rota_"):
@@ -8372,38 +8122,27 @@ def pagina_pre_roterizacao():
                     st.info("Nenhum outro grupo disponível para movimentação.")
                 elif selecionadas.empty:
                     st.info("Selecione entregas para mover.")
-                # --- FIM do bloco "Mover entregas para outro grupo" ---
 
             with col_mover_carga_existente:
-                # --- NOVO BLOCO: Mover para Carga Existente (AGORA DENTRO DA COLUNA) ---
-                st.subheader("📦 Mover para Carga Existente:") # Usar subheader como título
-
+                st.subheader("📦 Mover para Carga Existente:") 
                 try:
                     cargas_geradas_data = supabase.table("cargas_geradas").select("numero_carga").execute().data
-                    
-                    # --- LINHA MODIFICADA AQUI: ---
-                    # 1. Extraímos os 'numero_carga' em uma lista.
-                    # 2. Convertemos para um 'set' para remover duplicatas.
-                    # 3. Convertemos de volta para uma lista.
-                    # 4. Ordenamos a lista.
                     unique_cargas_list = [str(c["numero_carga"]) for c in cargas_geradas_data if c.get("numero_carga")]
                     cargas_geradas_options = sorted(list(set(unique_cargas_list)))
-                    
                 except Exception as e:
                     st.error(f"Erro ao carregar cargas geradas: {e}")
                     cargas_geradas_options = []
 
                 carga_existente_selecionada = st.selectbox(
-                    "Selecione a carga de destino:", # Label mais conciso
+                    "Selecione a carga de destino:", 
                     options=["Selecionar uma Carga..."] + cargas_geradas_options,
                     key=f"selectbox_mover_para_carga_existente_{nome_grupo}",
-                    disabled=selecionadas.empty or not cargas_geradas_options # Desabilita se não há entregas selecionadas ou se não há cargas geradas
+                    disabled=selecionadas.empty or not cargas_geradas_options
                 )
-
                 is_mover_para_carga_disabled = selecionadas.empty or carga_existente_selecionada == "Selecionar uma Carga..."
 
                 if st.button(
-                    f"➡️ Mover para Carga '{carga_existente_selecionada}'", # Texto do botão mais conciso
+                    f"➡️ Mover para Carga '{carga_existente_selecionada}'", 
                     key=f"btn_mover_para_carga_existente_{nome_grupo}",
                     disabled=is_mover_para_carga_disabled
                 ):
@@ -8412,48 +8151,145 @@ def pagina_pre_roterizacao():
                     else:
                         try:
                             if ctrcs_selecionados:
-                                mover_entregas_para_carga_existente(ctrcs_selecionados, carga_existente_selecionada)
-                                # A função mover_entregas_para_carga_existente já faz o rerun
+                                ctrcs_selecionados_lista = [s.get("Serie_Numero_CTRC") for s in selecionadas.to_dict(orient="records") if s.get("Serie_Numero_CTRC")]
+                                df_selecionadas_full_info = df_visivel[df_visivel['Serie_Numero_CTRC'].isin(ctrcs_selecionados_lista)]
+                                has_return_deliveries = (df_selecionadas_full_info['is_retorno_rota'] == True).any()
+
+                                if has_return_deliveries:
+                                    DIALOG_KEY_MOVE = f"show_move_frete_dialog_{nome_grupo}"
+                                    st.session_state[DIALOG_KEY_MOVE] = True
+                                    st.session_state.ctrcs_for_dialog[DIALOG_KEY_MOVE] = ctrcs_selecionados_lista
+                                    st.session_state.cargo_num_for_dialog[DIALOG_KEY_MOVE] = carga_existente_selecionada
+
+                                    df_retornos_move = df_selecionadas_full_info[df_selecionadas_full_info['is_retorno_rota'] == True]
+                                    st.session_state.retornos_for_dialog[DIALOG_KEY_MOVE] = df_retornos_move[['Serie_Numero_CTRC', 'Valor do Frete']].to_dict('records')
+                                    
+                                    initial_frete_values_move = {rec['Serie_Numero_CTRC']: 0.0 for rec in st.session_state.retornos_for_dialog[DIALOG_KEY_MOVE]}
+                                    st.session_state.frete_input_values_dict[DIALOG_KEY_MOVE] = initial_frete_values_move
+                                    
+                                    st.rerun() 
+                                else:
+                                    adicionar_entregas_a_carga(ctrcs_selecionados_lista, carga_existente_selecionada, retorno_frete_map=None)
                             else:
                                 st.warning("Nenhuma entrega selecionada para mover.")
                         except Exception as e:
                             st.error(f"❌ Erro ao mover entregas para a carga existente: {e}")
+                
                 if not cargas_geradas_options and not selecionadas.empty:
                     st.info("Nenhuma carga gerada disponível para movimentação.")
                 elif selecionadas.empty:
                     st.info("Selecione entregas para mover.")
-            
-            # ===================================================================================================
-            # ADICIONAR ESTE BLOCO - CONTROLES DE PAGINAÇÃO INFERIOR
-            # ===================================================================================================
-    
+
+            # --- DIÁLOGO DE MOVER CARGA (COM MÚLTIPLOS INPUTS) ---
+            DIALOG_KEY_MOVE = f"show_move_frete_dialog_{nome_grupo}"
+            if st.session_state.get(DIALOG_KEY_MOVE, False):
+                col_dialog_move, _ = st.columns([2, 4])
+                with col_dialog_move:
+                    # Obtém a carga de destino
+                    target_cargo_move = st.session_state.cargo_num_for_dialog.get(DIALOG_KEY_MOVE)
+
+                    st.markdown(f" Mover para Carga Existente {target_cargo_move} (Grupo '{nome_grupo}')")
+                    st.warning(
+                        "⚠️ As entregas a seguir são **Retorno de Rota**. "
+                        "Informe o **novo Valor do Frete (R$)** para cada uma (pode ser 0,00)."
+                    )
+
+                    # Obtém entregas e valores de frete salvos no session_state
+                    retorno_deliveries_move = st.session_state.retornos_for_dialog.get(DIALOG_KEY_MOVE, [])
+                    frete_values_move = st.session_state.frete_input_values_dict.get(DIALOG_KEY_MOVE, {})
+
+                    if not retorno_deliveries_move:
+                        st.error("❌ Erro: Entregas de retorno não encontradas no session_state.")
+                    else:
+                        new_frete_values_move = {}
+
+                    
+                        st.markdown("##### CTRCs com Retorno de Rota")  # Cabeçalho mais claro
+
+                        # Loop pelos CTRCs
+                        for item_m in retorno_deliveries_move:
+                            ctrc_m = item_m.get("Serie_Numero_CTRC", "CTRC desconhecido")
+
+                            st.info(f"**{ctrc_m}**")
+
+                            # Campo de valor do frete
+                            st.markdown("**Novo Valor Frete (R$):**")
+                            input_key_m = f"input_frete_{DIALOG_KEY_MOVE}_{ctrc_m}"
+
+                            current_value_m = float(frete_values_move.get(ctrc_m, 0.0))
+
+                            new_val_m = st.number_input(
+                                label=f"Novo Valor para {ctrc_m}",
+                                label_visibility="collapsed",
+                                min_value=0.0,
+                                value=current_value_m,
+                                step=0.01,
+                                format="%.2f",
+                                key=input_key_m
+                            )
+                            new_frete_values_move[ctrc_m] = new_val_m
+                           
+
+                        # Atualiza session_state com os novos valores
+                        st.session_state.frete_input_values_dict[DIALOG_KEY_MOVE] = new_frete_values_move
+
+                    # Colunas dos botões de ação
+                    col_confirm_val_btn_move, col_cancel_val_btn_move = st.columns(2)
+
+                    with col_confirm_val_btn_move:
+                        if st.button(f"🟢 Mover para Carga", key=f"btn_confirm_novo_frete_move_{DIALOG_KEY_MOVE}", disabled=(not retorno_deliveries_move)):
+                            with st.spinner("📦 Movendo entregas com novos fretes de retorno..."):
+                                st.session_state[DIALOG_KEY_MOVE] = False
+                                
+                                final_frete_map_move = st.session_state.frete_input_values_dict.get(DIALOG_KEY_MOVE, {})
+                                
+                                adicionar_entregas_a_carga(
+                                    st.session_state.ctrcs_for_dialog.get(DIALOG_KEY_MOVE, []),
+                                    target_cargo_move,
+                                    retorno_frete_map=final_frete_map_move
+                                )
+                                
+                                st.session_state.ctrcs_for_dialog.pop(DIALOG_KEY_MOVE, None)
+                                st.session_state.cargo_num_for_dialog.pop(DIALOG_KEY_MOVE, None)
+                                st.session_state.retornos_for_dialog.pop(DIALOG_KEY_MOVE, None)
+                                st.session_state.frete_input_values_dict.pop(DIALOG_KEY_MOVE, None)
+                                st.rerun()
+
+                    with col_cancel_val_btn_move:
+                        if st.button(f"❌ Cancelar ", key=f"btn_move_cancel_val_{DIALOG_KEY_MOVE}"):
+                            st.session_state[DIALOG_KEY_MOVE] = False
+                            st.session_state.ctrcs_for_dialog.pop(DIALOG_KEY_MOVE, None)
+                            st.session_state.cargo_num_for_dialog.pop(DIALOG_KEY_MOVE, None)
+                            st.session_state.retornos_for_dialog.pop(DIALOG_KEY_MOVE, None)
+                            st.session_state.frete_input_values_dict.pop(DIALOG_KEY_MOVE, None)
+                            st.rerun()
+            # --- FIM DIÁLOGO MOVER CARGA ---
+
+    # --- CONTROLES DE PAGINAÇÃO INFERIOR ---
+    st.markdown("---")
     st.markdown(f"**Página {st.session_state.current_group_page_pre_roterizacao + 1} de {total_pages}**")
 
-    col_prev_bottom, col_page_select_bottom, col_next_bottom = st.columns([1, 3, 0.5])
+    col_prev_bottom, col_page_select_bottom, col_next_bottom = st.columns([1, 3, 1])
 
     with col_prev_bottom:
-        # Chave corrigida para ser única e fixa para o botão "Anterior" da paginação inferior
         if st.button("⬅️ Anterior", disabled=(st.session_state.current_group_page_pre_roterizacao == 0), key="btn_prev_group_page_bottom_fixed_pagination"):
             st.session_state.current_group_page_pre_roterizacao -= 1
             st.rerun()
 
     with col_page_select_bottom:
-        # --- CORREÇÃO: Definição da variável 'page_options_display_bottom' ---
         page_options_display_bottom = [f"Página {i+1}" for i in range(total_pages)]
-        # --- FIM CORREÇÃO ---
         selected_option_index_bottom = st.selectbox(
             "Ir para a página:",
             options=range(total_pages),
-            format_func=lambda i: page_options_display_bottom[i],
+            format_func=lambda i: page_options_display_bottom[i] if i < len(page_options_display_bottom) else f"Página {i+1}",
             index=st.session_state.current_group_page_pre_roterizacao,
-            key="group_page_select_pre_roterizacao_bottom_fixed_pagination" # Chave única para o selectbox inferior
+            key="group_page_select_pre_roterizacao_bottom_fixed_pagination" 
         )
         if selected_option_index_bottom != st.session_state.current_group_page_pre_roterizacao:
             st.session_state.current_group_page_pre_roterizacao = selected_option_index_bottom
             st.rerun()
 
     with col_next_bottom:
-        # Chave corrigida para ser única e fixa para o botão "Próxima" da paginação inferior
         if st.button("Próxima ➡️", disabled=(st.session_state.current_group_page_pre_roterizacao >= total_pages - 1), key="btn_next_group_page_bottom_fixed_pagination"):
             st.session_state.current_group_page_pre_roterizacao += 1
             st.rerun()
@@ -8509,14 +8345,36 @@ function(params) {
 }
 """)
 
+import streamlit as st
+import pandas as pd
+import numpy as np
+import uuid
+import time
+from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, JsCode, AgGridTheme
+from datetime import datetime, timezone
+import io
+
+# --- Assume que estas funções e constantes existem no escopo global ---
+# (supabase, _parse_date_robustly, GLOBAL_DATE_DISPLAY_COLUMNS, GLOBAL_DB_DATE_COLS, 
+# GLOBAL_DATE_COLUMNS_DISPLAY_ONLY_DATE, formatar_brasileiro, JsCode, 
+# apply_brazilian_date_format_for_display, DATE_ONLY_REPARSE_COLUMNS, date_only_formatter,
+# GRID_RESIZE_JS_CODE, linha_destacar, motorista_options_general, plates_by_motorista_map,
+# gerar_pdf_carga, formatar_data_hora_br, _prepare_df_for_supabase_insert, etc.)
+# ---
+
 def pagina_cargas_geradas():
     st.markdown("## Cargas Geradas")
+    
+    # === IMPORTAÇÃO DE EMERGÊNCIA PARA CORRIGIR O ERRO 'local variable' ===
+    # Esta importação garante que 'Decimal' esteja sempre definido no escopo desta função.
+    from decimal import Decimal, ROUND_HALF_UP, getcontext
+    # === FIM DA IMPORTAÇÃO ===
 
     # Define os limites de custo por região aqui, pois o cálculo será feito nesta página.
     MAX_COST_PER_REGION = {
         'INTERIOR 1': 0.35,  # 35%
         'INTERIOR 2': 0.45,  # 45%
-        'POA CAPITAL': 0.30   # 30%
+        'POA CAPITAL': 0.30    # 30%
     }
     
     MIN_FRETE_ASSUMIDO_RETORNO_PARA_SUGESTAO = 50.0
@@ -8546,7 +8404,7 @@ def pagina_cargas_geradas():
                         df[col_name] = _parse_date_robustly(df[col_name], col_name=col_name) # <-- ADICIONADO col_name
                         
                         # Se tiver timezone, remove para compatibilidade com o resto do código
-                         
+                        
                 # --- END Comprehensive Date/Timestamp Conversion ---
 
                 if 'numero_carga' in df.columns: # Garante que numero_carga é string
@@ -8573,11 +8431,11 @@ def pagina_cargas_geradas():
                         df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0.0)
 
 
-                    if 'is_retorno_rota' in df.columns:
-                    # Converte para booleano, tratando valores 'Sim'/'Não', 1/0, ou bools existentes
-                        df['is_retorno_rota'] = df['is_retorno_rota'].astype(str).str.lower().map({'true': True, 'sim': True, '1': True, 'false': False, 'não': False, '0': False}).fillna(False).astype(bool)
-                    else:
-                        df['is_retorno_rota'] = False
+                if 'is_retorno_rota' in df.columns:
+                # Converte para booleano, tratando valores 'Sim'/'Não', 1/0, ou bools existentes
+                    df['is_retorno_rota'] = df['is_retorno_rota'].astype(str).str.lower().map({'true': True, 'sim': True, '1': True, 'false': False, 'não': False, '0': False}).fillna(False).astype(bool)
+                else:
+                    df['is_retorno_rota'] = False
 
 
                 st.session_state["df_cargas_cache"] = df
@@ -8646,8 +8504,8 @@ def pagina_cargas_geradas():
 
         colunas_exibir = [
         "Serie_Numero_CTRC",  "Cliente Pagador", "Cliente Destinatario", "Cidade de Entrega",
-        "Bairro do Destinatario", "Data de Emissao", "Previsao de Entrega","Entrega Programada", "Numero da Nota Fiscal", 
-         "Status","Peso Real em Kg", "Peso Calculado em Kg", "Valor do Frete",
+        "Bairro do Destinatario", "Data de Emissao", "Previsao de Entrega","Entrega Programada", "Numero da Nota Fiscal",  
+            "Status","Peso Real em Kg", "Peso Calculado em Kg", "Valor do Frete",
         "Rota", "Regiao", "Chave CT-e", "Data_Hora_Gerada" , "Tipo_Tratativa_Especial",
         "Particularidade", "Codigo da Ultima Ocorrencia", "Cubagem em m³", "Quantidade de Volumes", "status_retorno", "Retorno de Rota","is_retorno_rota"
 ]
@@ -8661,7 +8519,7 @@ def pagina_cargas_geradas():
                 continue
 
 
-               # --- NOVO BLOCO: PREPARAR O VALOR DO FRETE AJUSTADO PARA CÁLCULOS ---
+                # --- NOVO BLOCO: PREPARAR O VALOR DO FRETE AJUSTADO PARA CÁLCULOS ---
             # 1. Garante que 'is_retorno_rota' exista e seja booleano
             if 'is_retorno_rota' not in df_carga_raw.columns:
                 df_carga_raw['is_retorno_rota'] = False # Default para False se a coluna não existir
@@ -8676,10 +8534,7 @@ def pagina_cargas_geradas():
             #    - Se 'is_reentrega_com_frete_pago' for True, usa o 'Valor do Frete' original da entrega.
             #    - Senão, se 'is_retorno_rota' for True, usa 0.0.
             #    - Senão (não é retorno de rota), usa o 'Valor do Frete' original.
-            df_carga_raw['Valor_do_Frete_Para_Calculo'] = df_carga_raw.apply(
-                lambda row: row['Valor do Frete'] if row['is_reentrega_com_frete_pago'] else (0.0 if row['is_retorno_rota'] else row['Valor do Frete']),
-                axis=1
-            )
+            df_carga_raw['Valor_do_Frete_Para_Calculo'] = df_carga_raw['Valor do Frete']
             # --- FIM NOVO BLOCO ---
             
             # --- NOVO: Extração de informações de motorista, placa, veículo e valor_contratacao
@@ -8806,7 +8661,7 @@ def pagina_cargas_geradas():
             </div>
             """, unsafe_allow_html=True)
 
-             # --- INSERIR AQUI: Exibir mensagem específica para esta carga, se houver ---
+            # --- INSERIR AQUI: Exibir mensagem específica para esta carga, se houver ---
             if carga in st.session_state.messages_by_charge:
                 message_info = st.session_state.messages_by_charge.pop(carga) # Pega e remove a mensagem
                 if message_info['type'] == 'success':
@@ -9112,7 +8967,7 @@ def pagina_cargas_geradas():
                 valor_frete_sel = selecionadas["Valor do Frete"].sum() if "Valor do Frete" in selecionadas.columns else 0
 
                 st.markdown(
-                    f"<span style='font-weight:bold;'>📦 Entregas selecionadas:</span> {qtd_sel} &nbsp;&nbsp; | &nbsp;&nbsp; "
+                    f"<span style='font-weight:bold;'>📦 Entregas selecionadas:</span> {qtd_sel} &nbsp;&nbsp; | &nbsp;&bsp; "
                     f"<span style='font-weight:bold;'>⚖️ Peso Real:</span> {formatar_brasileiro(peso_real_sel)} kg &nbsp;&nbsp; | &nbsp;&nbsp; "
                     f"<span style='font-weight:bold;'>📏 Peso Calculado:</span> {formatar_brasileiro(peso_calc_sel)} kg &nbsp;&nbsp; | &nbsp;&nbsp; "
                     f"<span style='font-weight:bold;'>💰 Valor do Frete:</span> R$ {formatar_brasileiro(valor_frete_sel)}",
@@ -9424,32 +9279,67 @@ def pagina_cargas_geradas():
                                 updated_total_frete_base = df_carga_raw["Valor_do_Frete_Para_Calculo"].sum() 
                                 updated_total_frete_carga = updated_total_frete_base + valor_adicional_frete
 
+                                # (1) DEFINIR AS VARIÁVEIS DECIMAL
+                                getcontext().prec = 28
                                 updated_d_valor_contratacao_carga = Decimal(str(valor_contratacao))
                                 updated_d_total_frete_carga = Decimal(str(updated_total_frete_carga))
 
+                                # (2) INICIALIZAR VARIÁVEIS DE CÁLCULO
                                 updated_rentabilidade_percentual_calc = Decimal('0')
                                 updated_custo_percentual_frete_calc = Decimal('0')
                                 updated_situacao_custo_regional_calc = "N/A"
 
-                                if not updated_d_total_frete_carga.is_zero() and updated_d_total_frete_carga.is_finite() and not updated_d_total_frete_carga.is_nan() and \
-                                   updated_d_valor_contratacao_carga.is_finite() and not updated_d_valor_contratacao_carga.is_nan():
+                                # =================================================================
+                                # === INÍCIO DA NOVA LÓGICA DE CÁLCULO (SALVAR) ===
+                                # =================================================================
+                                # (3) LÓGICA DE CÁLCULO BASEADA NO CENÁRIO
+                                
+                                # Cenário 1: Receita > 0 (Cálculo Padrão)
+                                if not updated_d_total_frete_carga.is_zero():
+                                    # Cálculo normal de Rentabilidade (Margem)
+                                    updated_rentabilidade_percentual_calc = (
+                                        (updated_d_total_frete_carga - updated_d_valor_contratacao_carga) / updated_d_total_frete_carga * Decimal('100')
+                                    ).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
                                     
-                                    updated_rentabilidade_percentual_calc = ((updated_d_total_frete_carga - updated_d_valor_contratacao_carga) / updated_d_total_frete_carga * Decimal('100')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-                                    
-                                    # dominant_region já está definido antes deste bloco
-                                    max_cost_allowed_decimal = Decimal(str(MAX_COST_PER_REGION.get(dominant_region, 0))) # MAX_COST_PER_REGION é global nesta página
+                                    # Cálculo normal de Custo %
+                                    updated_custo_receita_ratio = (
+                                        updated_d_valor_contratacao_carga / updated_d_total_frete_carga
+                                    ).quantize(Decimal('0.0001'), rounding=ROUND_HALF_UP)
+                                    updated_custo_percentual_frete_calc = (
+                                        updated_custo_receita_ratio * Decimal('100')
+                                    ).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
 
-                                    updated_custo_receita_ratio = (updated_d_valor_contratacao_carga / updated_d_total_frete_carga).quantize(Decimal('0.0001'), rounding=ROUND_HALF_UP)
-                                    updated_custo_percentual_frete_calc = (updated_custo_receita_ratio * Decimal('100')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-
+                                    # Cálculo normal da Situação Regional
+                                    max_cost_allowed_decimal = Decimal(str(MAX_COST_PER_REGION.get(dominant_region, 0)))
                                     if updated_custo_receita_ratio <= max_cost_allowed_decimal:
                                         updated_situacao_custo_regional_calc = f"Dentro do Limite ({(max_cost_allowed_decimal * 100).quantize(Decimal('1'), rounding=ROUND_HALF_UP)}%)"
                                     else:
                                         updated_situacao_custo_regional_calc = f"Acima do Limite Região ({(max_cost_allowed_decimal * 100).quantize(Decimal('1'), rounding=ROUND_HALF_UP)}%)"
-                                elif updated_d_valor_contratacao_carga > 0:
+
+                                # Cenário 2: Receita = 0 E Custo > 0 (O Problema)
+                                elif updated_d_total_frete_carga.is_zero() and updated_d_valor_contratacao_carga > 0:
+                                    # Situação
                                     updated_situacao_custo_regional_calc = "Frete total zero, Contratação > 0"
+                                    
+                                    # Rentabilidade (Margem) = (Receita - Custo) / Custo = (0 - 3500) / 3500 = -100%
+                                    # Usamos o Custo como denominador aqui, pois a Receita é 0
+                                    updated_rentabilidade_percentual_calc = (
+                                        (updated_d_total_frete_carga - updated_d_valor_contratacao_carga) / updated_d_valor_contratacao_carga * Decimal('100')
+                                    ).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+                                    
+                                    # Custo % (baseado na Receita) é infinito. Definimos um teto (999.99%)
+                                    updated_custo_percentual_frete_calc = Decimal('999.99')
+
+                                # Cenário 3: Receita = 0 E Custo = 0
                                 else:
+                                    updated_rentabilidade_percentual_calc = Decimal('0')
+                                    updated_custo_percentual_frete_calc = Decimal('0')
                                     updated_situacao_custo_regional_calc = "Frete total zero, Contratação zero"
+                                
+                                # =================================================================
+                                # === FIM DA NOVA LÓGICA DE CÁLCULO (SALVAR) ===
+                                # =================================================================
+
                                 # --- FIM RECALCULAR ---
 
                                 supabase.table("cargas_geradas").update({
@@ -9498,105 +9388,142 @@ def pagina_cargas_geradas():
                             }
                             st.rerun()
 
-
+                #aqui
                 with col_btn_enviar:
                     btn_aprovar_custos_key = f"btn_aprov_custos_{carga}"
+
                     # --- AJUSTE AQUI: Habilitar/Desabilitar o botão de Enviar ---
                     is_send_button_disabled = (
-                        selecionadas.empty or 
-                        (valor_contratacao <= 0) or 
-                        (carga_transf_selected == "Selecionar") # AGORA É OBRIGATÓRIO!
+                        selecionadas.empty or
+                        (valor_contratacao <= 0) or
+                        (carga_transf_selected == "Selecionar")  # AGORA É OBRIGATÓRIO!
                     )
                     # --- FIM DO AJUSTE ---
+
                     if st.button(
-                         
-                        f"➤ Enviar para Aprovação de Custos",
+                        "➤ Enviar para Aprovação de Custos",
                         key=btn_aprovar_custos_key,
-                        disabled=is_send_button_disabled # Usa a nova variável de controle
+                        disabled=is_send_button_disabled  # Usa a nova variável de controle
                     ):
                         # --- AJUSTE AQUI: Validação antes de enviar ---
                         if carga_transf_selected == "Selecionar":
                             st.warning("⚠️ O campo 'Carga Transferência?' é obrigatório. Por favor, selecione 'Sim' ou 'Não'.")
-                            st.rerun() # Adicionado para exibir o warning e parar a execução antes do spinner
-                        # --- FIM DO AJUSTE ---
+                            st.rerun()  # Adicionado para exibir o warning e parar a execução antes do spinner
+
                         elif valor_contratacao <= 0:
                             st.warning("Por favor, insira um valor de contratação válido (maior que zero).")
-                            st.rerun() # Adicionado para exibir o warning e parar a execução antes do spinner
+                            st.rerun()  # Adicionado para exibir o warning e parar a execução antes do spinner
+
                         else:
                             try:
                                 with st.spinner(" Enviando entregas para aprovação de custos..."):
-                                    ctrcs_selecionados_str = [s.get("Serie_Numero_CTRC") for s in selecionadas.to_dict(orient="records") if s.get("Serie_Numero_CTRC")]
-                                    df_aprovar_custos = df_carga_raw[df_carga_raw['Serie_Numero_CTRC'].isin(ctrcs_selecionados_str)].copy()
+                                    ctrcs_selecionados_str = [
+                                        s.get("Serie_Numero_CTRC")
+                                        for s in selecionadas.to_dict(orient="records")
+                                        if s.get("Serie_Numero_CTRC")
+                                    ]
 
+                                    df_aprovar_custos = df_carga_raw[df_carga_raw['Serie_Numero_CTRC'].isin(ctrcs_selecionados_str)].copy()
                                     df_aprovar_custos = df_aprovar_custos.drop(columns=["_selectedRowNodeInfo"], errors="ignore")
 
                                     if "motivo_rejeicao" in df_aprovar_custos.columns:
                                         df_aprovar_custos["motivo_rejeicao"] = None
 
                                     df_aprovar_custos["numero_carga"] = carga
-                                    
+
                                     motorista_to_save_for_approval = selected_motorista if selected_motorista != "Selecione o Motorista" else None
                                     placa_to_save_for_approval = selected_placa if selected_placa != "Selecione a Placa" else None
                                     veiculo_to_save_for_approval = veiculo_selected if veiculo_selected else None
-                                    df_aprovar_custos["motorista"] = motorista_to_save_for_approval # Usando os valores to_save já normalizados
+
+                                    df_aprovar_custos["motorista"] = motorista_to_save_for_approval
                                     df_aprovar_custos["placa"] = placa_to_save_for_approval
                                     df_aprovar_custos["veiculo"] = veiculo_to_save_for_approval
                                     df_aprovar_custos["valor_contratacao"] = valor_contratacao
                                     df_aprovar_custos["valor_adicional_frete"] = valor_adicional_frete
                                     df_aprovar_custos["motivo_valor_adicional"] = motivo_valor_adicional
-                                    df_aprovar_custos["carga_transf_filial"] = carga_transf_filial_to_save # Salva 'Sim', 'Não' ou None
+                                    df_aprovar_custos["carga_transf_filial"] = carga_transf_filial_to_save  # Salva 'Sim', 'Não' ou None
 
+                                    # =================================================================================
+                                    # === INÍCIO DO BLOCO DE CÁLCULO CORRIGIDO PARA "ENVIAR" ===
+                                    # =================================================================================
                                     # --- NOVO BLOCO: RE-CALCULAR Rentabilidade, Custo Percentual e Situação DO CUSTO REGIONAL para o ENVIO ---
                                     # Use os valores DOS INPUTS DA UI para o cálculo, garantindo que são os mais atuais
-                                    current_total_frete_base_send = df_carga_raw["Valor_do_Frete_Para_Calculo"].sum() # <--- AJUSTADO AQUI
+                                    current_total_frete_base_send = df_carga_raw["Valor_do_Frete_Para_Calculo"].sum()
                                     current_total_frete_carga_calc_send = current_total_frete_base_send + valor_adicional_frete
 
+                                    # (1) DEFINIR AS VARIÁVEIS DECIMAL
+                                    getcontext().prec = 28
+                                    d_current_valor_contratacao_send = Decimal(str(valor_contratacao))
+                                    d_current_total_frete_carga_send = Decimal(str(current_total_frete_carga_calc_send))
+
+                                    # (2) INICIALIZAR VARIÁVEIS DE CÁLCULO
                                     calculated_rentabilidade_percentual_send = Decimal('0')
                                     calculated_custo_percentual_frete_send = Decimal('0')
                                     calculated_situacao_custo_regional_send = "N/A"
 
-                                    getcontext().prec = 28 
-                                    d_current_valor_contratacao_send = Decimal(str(valor_contratacao)) 
-                                    d_current_total_frete_carga_send = Decimal(str(current_total_frete_carga_calc_send))
+                                    # (3) LÓGICA DE CÁLCULO BASEADA NO CENÁRIO (Mesma lógica do "Salvar")
+                                    
+                                    # Cenário 1: Receita > 0 (Cálculo Padrão)
+                                    if not d_current_total_frete_carga_send.is_zero():
+                                        calculated_rentabilidade_percentual_send = (
+                                            (d_current_total_frete_carga_send - d_current_valor_contratacao_send) / d_current_total_frete_carga_send * Decimal('100')
+                                        ).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+                                        
+                                        custo_receita_ratio_send = (
+                                            d_current_valor_contratacao_send / d_current_total_frete_carga_send
+                                        ).quantize(Decimal('0.0001'), rounding=ROUND_HALF_UP)
+                                        calculated_custo_percentual_frete_send = (
+                                            custo_receita_ratio_send * Decimal('100')
+                                        ).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
 
-                                    if not d_current_total_frete_carga_send.is_zero() and d_current_total_frete_carga_send.is_finite() and not d_current_total_frete_carga_send.is_nan() and \
-                                       d_current_valor_contratacao_send.is_finite() and not d_current_valor_contratacao_send.is_nan():
-                                        
-                                        calculated_rentabilidade_percentual_send = ((d_current_total_frete_carga_send - d_current_valor_contratacao_send) / d_current_total_frete_carga_send * Decimal('100')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-                                        
-                                        # 'dominant_region' já está disponível a partir de um cálculo anterior no loop
                                         max_cost_allowed_decimal = Decimal(str(MAX_COST_PER_REGION.get(dominant_region, 0)))
-
-                                        custo_receita_ratio_send = (d_current_valor_contratacao_send / d_current_total_frete_carga_send).quantize(Decimal('0.0001'), rounding=ROUND_HALF_UP)
-                                        
-                                        calculated_custo_percentual_frete_send = (custo_receita_ratio_send * Decimal('100')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-
                                         if custo_receita_ratio_send <= max_cost_allowed_decimal:
                                             calculated_situacao_custo_regional_send = f"Dentro do Limite ({(max_cost_allowed_decimal * 100).quantize(Decimal('1'), rounding=ROUND_HALF_UP)}%)"
                                         else:
                                             calculated_situacao_custo_regional_send = f"Acima do Limite Região ({(max_cost_allowed_decimal * 100).quantize(Decimal('1'), rounding=ROUND_HALF_UP)}%)"
-                                    elif d_current_valor_contratacao_send > 0:
+
+                                    # Cenário 2: Receita = 0 E Custo > 0 (O Problema)
+                                    elif d_current_total_frete_carga_send.is_zero() and d_current_valor_contratacao_send > 0:
                                         calculated_situacao_custo_regional_send = "Frete total zero, Contratação > 0"
+                                        
+                                        # Rentabilidade (Margem) = (Receita - Custo) / Custo = (0 - 3500) / 3500 = -100%
+                                        calculated_rentabilidade_percentual_send = (
+                                            (d_current_total_frete_carga_send - d_current_valor_contratacao_send) / d_current_valor_contratacao_send * Decimal('100')
+                                        ).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+                                        
+                                        # Custo % (baseado na Receita) é infinito. Definimos um teto (999.99%)
+                                        calculated_custo_percentual_frete_send = Decimal('999.99')
+
+                                    # Cenário 3: Receita = 0 E Custo = 0
                                     else:
+                                        calculated_rentabilidade_percentual_send = Decimal('0')
+                                        calculated_custo_percentual_frete_send = Decimal('0')
                                         calculated_situacao_custo_regional_send = "Frete total zero, Contratação zero"
+
+                                    # === FIM DA CORREÇÃO ===
                                     
                                     # Atribui os valores CALCULADOS para df_aprovar_custos
                                     df_aprovar_custos["custo_percentual_frete"] = float(calculated_custo_percentual_frete_send)
                                     df_aprovar_custos["rentabilidade_percentual"] = float(calculated_rentabilidade_percentual_send)
                                     df_aprovar_custos["situacao_custo_regional"] = str(calculated_situacao_custo_regional_send)
                                     # --- FIM NOVO BLOCO ---
+                                    # =================================================================================
+                                    # === FIM DO BLOCO DE CÁLCULO CORRIGIDO PARA "ENVIAR" ===
+                                    # =================================================================================
 
                                     df_aprovar_custos = _prepare_df_for_supabase_insert(df_aprovar_custos)
-
                                     registros_para_custos = df_aprovar_custos.to_dict(orient="records")
+
                                     if registros_para_custos:
                                         supabase.table("aprovacao_custos").insert(registros_para_custos).execute()
-                                        chaves_para_remover = [r.get("Serie_Numero_CTRC") for r in registros_para_custos if r.get("Serie_Numero_CTRC")]
+
+                                        chaves_para_remover = [
+                                            r.get("Serie_Numero_CTRC") for r in registros_para_custos if r.get("Serie_Numero_CTRC")
+                                        ]
                                         if chaves_para_remover:
                                             supabase.table("cargas_geradas").delete().in_("Serie_Numero_CTRC", chaves_para_remover).execute()
-                                            # Atualiza a entrada da carga principal em cargas_geradas com os novos valores calculados
-                                            # Isso é importante caso nem todos os CTRCs da carga tenham sido selecionados
-                                            # para enviar, mantendo a consistência dos dados para os CTRCs remanescentes.
+
+                                            # Atualiza os dados remanescentes da carga principal
                                             supabase.table("cargas_geradas").update({
                                                 "motorista": motorista_to_save_for_approval,
                                                 "placa": placa_to_save_for_approval,
@@ -9612,17 +9539,19 @@ def pagina_cargas_geradas():
 
                                         st.session_state["reload_cargas_geradas"] = True
                                         st.session_state["reload_aprovacao_custos"] = True
-
                                         st.session_state.pop(grid_key_id, None)
-
-                                        #st.session_state.messages_by_charge[carga] = {'type': 'success','text': f"✅ {len(registros_para_custos)} entregas da carga {carga} foram enviadas para Aprovação de Custos com valor de R$ {valor_contratacao:,.2f}."}
-
                                         st.rerun()
+
                                     else:
                                         st.warning("Nenhuma entrega válida selecionada para enviar para aprovação de custos.")
+
                             except Exception as e:
-                                st.session_state.messages_by_charge[carga] = {'type': 'error','text': f"❌ Erro ao enviar entregas da carga {carga} para aprovação de custos: {e}"}
+                                st.session_state.messages_by_charge[carga] = {
+                                    'type': 'error',
+                                    'text': f"❌ Erro ao enviar entregas da carga {carga} para aprovação de custos: {e}"
+                                }
                                 st.rerun()
+
 
     except Exception as e:
         # Captura e exibe erros gerais da página, garantindo o feedback
@@ -12873,7 +12802,7 @@ if st.session_state.get("login", False):
         if st.session_state.get("is_admin", False):
             st.subheader("Gerenciamento de Usuários")
             pagina_gerenciar_usuarios()
-            st.markdown("---")  # Separador visual
+            st.markdown("---")  # Separador visual1
 
         st.subheader("Alterar Minha Senha")
         pagina_trocar_senha()

@@ -1,0 +1,230 @@
+# utils/data_processing.py
+
+import pandas as pd
+import numpy as np
+import re
+from datetime import datetime, date, timedelta, timezone
+from zoneinfo import ZoneInfo
+from pandas import Timestamp
+from dash import html
+
+# Importa as constantes de data do módulo config.constants
+from config.constants import FUSO_BRASIL, DATE_DISPLAY_FORMAT_STRING, ISO_DATE_ONLY_FORMAT_STRING, GLOBAL_DB_DATE_COLS, GLOBAL_DB_TIMESTAMP_COLS
+
+def data_hora_brasil_iso():
+    return datetime.now(FUSO_BRASIL).isoformat()
+
+def formatar_data_hora_br(dt_obj):
+    if pd.isna(dt_obj) or dt_obj == "":
+        return ''
+    if isinstance(dt_obj, str):
+        try:
+            dt_obj_parsed = pd.to_datetime(dt_obj, errors='coerce', utc=True)
+            if pd.isna(dt_obj_parsed):
+                return ''
+            dt_obj = dt_obj_parsed
+        except Exception:
+            return ''
+    if pd.isna(dt_obj) or not isinstance(dt_obj, (datetime, pd.Timestamp)):
+        return ''
+    if dt_obj.tzinfo is None:
+        dt_aware = dt_obj.tz_localize('UTC', ambiguous='NaT', nonexistent='NaT')
+        if pd.isna(dt_aware):
+            return ''
+    else:
+        dt_aware = dt_obj
+    return dt_aware.astimezone(FUSO_BRASIL).strftime(DATE_DISPLAY_FORMAT_STRING)
+
+def _parse_date_robustly(date_series, col_name=None):
+    if not isinstance(date_series, pd.Series):
+        date_series = pd.Series(date_series)
+
+    # 1. Garante que os elementos da série são strings e trata NaNs/strings vazias
+    cleaned_series = date_series.astype(str).str.strip().replace('', np.nan).replace('nan', np.nan)
+    cleaned_series = pd.Series(cleaned_series) # Garante que é uma Series para o .loc
+
+    # Inicializa a série de resultados com NaT (Not a Time)
+    parsed_dates = pd.Series(pd.NaT, index=cleaned_series.index)
+
+    mask = parsed_dates.isna()
+    if mask.any():
+        # Primeiro, YYYY-MM-DD
+        temp_parsed = pd.to_datetime(cleaned_series[mask], format='%Y-%m-%d', errors='coerce')
+        # Em seguida, YYYY-MM-DD com horas/minutos/segundos
+        temp_parsed = temp_parsed.fillna(pd.to_datetime(cleaned_series[mask], format='%Y-%m-%d %H:%M:%S', errors='coerce'))
+        temp_parsed = temp_parsed.fillna(pd.to_datetime(cleaned_series[mask], format='%Y-%m-%d %H:%M', errors='coerce'))
+        parsed_dates[mask] = temp_parsed
+
+    # Tenta formatos DD-MM-YYYY (comum para exibição/entrada de usuário no Brasil)
+    mask = parsed_dates.isna()
+    if mask.any():
+        # Primeiro, DD-MM-YYYY
+        temp_parsed = pd.to_datetime(cleaned_series[mask], format='%d-%m-%Y', errors='coerce')
+        # Em seguida, DD-MM-YYYY com horas/minutos/segundos
+        temp_parsed = temp_parsed.fillna(pd.to_datetime(cleaned_series[mask], format='%d-%m-%Y %H:%M:%S', errors='coerce'))
+        temp_parsed = temp_parsed.fillna(pd.to_datetime(cleaned_series[mask], format='%d-%m-%Y %H:%M', errors='coerce'))
+        parsed_dates[mask] = temp_parsed
+
+    # Tenta formatos DD/MM/YYYY (outro formato comum no Brasil)
+    mask = parsed_dates.isna()
+    if mask.any():
+        # Primeiro, DD/MM/YYYY
+        temp_parsed = pd.to_datetime(cleaned_series[mask], format='%d/%m/%Y', errors='coerce')
+        # Em seguida, DD/MM/YYYY com horas/minutos/segundos
+        temp_parsed = temp_parsed.fillna(pd.to_datetime(cleaned_series[mask], format='%d/%m/%Y %H:%M:%S', errors='coerce'))
+        temp_parsed = temp_parsed.fillna(pd.to_datetime(cleaned_series[mask], format='%d/%m/%Y %H:%M', errors='coerce'))
+        parsed_dates[mask] = temp_parsed
+
+    # Último recurso: inferência geral (para pegar ISO 8601 com 'Z', formatos ambíguos, etc.)
+    # Esta etapa é a mais "liberal" e pode ser menos performática, por isso fica no final.
+    mask = parsed_dates.isna()
+    if mask.any():
+        # ALTERAÇÃO AQUI: Remova infer_datetime_format=True
+        temp_parsed = pd.to_datetime(cleaned_series[mask], errors='coerce') # LINHA ALTERADA (linha 69)
+        parsed_dates[mask] = temp_parsed
+
+    return parsed_dates
+def tratar_data_para_utc(valor):
+    if pd.isna(valor) or valor == "":
+        return None
+
+    dt_obj = None
+    if isinstance(valor, str):
+        try:
+            dt_obj = pd.to_datetime(valor, errors='raise', utc=True)
+        except ValueError:
+            try:
+                dt_obj = pd.to_datetime(valor, errors='raise', dayfirst=True)
+            except ValueError:
+                try:
+                    dt_obj = pd.to_datetime(valor, errors='raise')
+                except ValueError:
+                    dt_obj = pd.to_datetime(valor, errors='coerce')
+    elif isinstance(valor, (pd.Timestamp, datetime, date)):
+        dt_obj = valor
+    else:
+        dt_obj = pd.to_datetime(valor, errors='coerce')
+
+    if pd.isna(dt_obj):
+        return None
+
+    if dt_obj.tzinfo is None:
+        dt_obj = dt_obj.tz_localize(FUSO_BRASIL, ambiguous='NaT', nonexistent='NaT')
+        if pd.isna(dt_obj):
+            return None
+
+    return dt_obj.tz_convert("UTC").isoformat(timespec='seconds').replace('+00:00', 'Z')
+
+def _prepare_df_for_supabase_insert(df_to_process):
+    if not isinstance(df_to_process, pd.DataFrame):
+        return pd.DataFrame()
+
+    df_copy = df_to_process.copy()
+
+    try:
+        for col in df_copy.columns:
+            if col in GLOBAL_DB_DATE_COLS:
+                df_copy[col] = _parse_date_robustly(df_copy[col], col_name=col)
+                df_copy[col] = df_copy[col].apply(
+                    lambda x: x.strftime('%Y-%m-%d') if pd.notna(x) else None
+                )
+            elif col in GLOBAL_DB_TIMESTAMP_COLS:
+                df_copy[col] = _parse_date_robustly(df_copy[col], col_name=col)
+                df_copy[col] = df_copy[col].apply(tratar_data_para_utc)
+            elif pd.api.types.is_datetime64_any_dtype(df_copy[col]):
+                df_copy[col] = df_copy[col].apply(tratar_data_para_utc)
+
+        result_df = df_copy.replace([np.nan, pd.NaT, np.inf, -np.inf, ""], None)
+        return result_df
+
+    except Exception as e:
+        print(f"Erro ao preparar DataFrame para inserção no Supabase: {e}") # Print para Dash
+        return pd.DataFrame()
+
+def apply_brazilian_date_format_for_display(df_to_format):
+    if df_to_format is None or not isinstance(df_to_format, pd.DataFrame):
+        return pd.DataFrame()
+
+    df_copy = df_to_format.copy()
+    if df_copy.empty:
+        return df_copy
+
+    all_db_date_or_timestamp_cols = set(GLOBAL_DB_DATE_COLS).union(GLOBAL_DB_TIMESTAMP_COLS)
+
+    for col in all_db_date_or_timestamp_cols:
+        if col not in df_copy.columns:
+            continue
+
+        if not pd.api.types.is_datetime64_any_dtype(df_copy[col]):
+            df_copy[col] = _parse_date_robustly(df_copy[col])
+
+        if not pd.api.types.is_datetime64_any_dtype(df_copy[col]):
+            continue
+
+        format_str_for_python_conversion = None
+
+        if col in GLOBAL_DB_TIMESTAMP_COLS:
+            df_copy[col] = df_copy[col].apply(
+                lambda x: (
+                    ''
+                    if pd.isna(x) or not isinstance(x, (datetime, pd.Timestamp)) else
+                    (
+                        x.tz_localize(timezone.utc, ambiguous='NaT', nonexistent='NaT')
+                        if pd.notna(x) and x.tzinfo is None
+                        else (
+                            x.astimezone(FUSO_BRASIL)
+                            if pd.notna(x) and x.tzinfo is not None
+                            else pd.NaT
+                        )
+                    )
+                )
+            )
+            format_str_for_python_conversion = DATE_DISPLAY_FORMAT_STRING
+        elif col in GLOBAL_DB_DATE_COLS:
+            df_copy[col] = df_copy[col].apply(
+                lambda x: x.replace(tzinfo=None) if pd.notna(x) and x.tzinfo is not None else x
+            )
+            format_str_for_python_conversion = ISO_DATE_ONLY_FORMAT_STRING
+
+        if format_str_for_python_conversion:
+            df_copy[col] = df_copy[col].apply(
+                lambda x: (
+                    x.strftime(format_str_for_python_conversion)
+                    if pd.notna(x) and isinstance(x, (pd.Timestamp, datetime))
+                    else ''
+                )
+            )
+    return df_copy
+
+# Funções auxiliares de formatação monetária/numérica
+def formatar_brasileiro(valor):
+    try:
+        if valor is None or (isinstance(valor, (float, np.float64)) and np.isnan(valor)):
+            return "0,00"
+        if not isinstance(valor, (int, float, np.float64)):
+            valor = pd.to_numeric(valor, errors='coerce')
+            if pd.isna(valor):
+                return "0,00"
+        formatted_us = "{:,.2f}".format(valor)
+        formatted_br = formatted_us.replace('.', 'TEMP').replace(',', '.').replace('TEMP', ',')
+        return formatted_br
+    except Exception:
+        return str(valor)
+    
+def badge(label, background_color="#eef2f7", text_color="inherit"):
+    """
+    Retorna um COMPONENTE Dash html.Span formatado como um 'badge' estilizado.
+    Permite personalizar a cor de fundo e do texto.
+    """
+    # NOVO: Retorna um componente html.Span diretamente, com o estilo aplicado
+    return html.Span(
+        label,
+        style={
+            'background': background_color,
+            'color': text_color,
+            'borderRadius': '12px',
+            'padding': '6px 12px',
+            'margin': '4px',
+            'display': 'inline-block'
+        }
+    )

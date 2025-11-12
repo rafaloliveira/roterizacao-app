@@ -1,0 +1,56 @@
+Formatação de Datas no Dash AG Grid
+Problema
+As datas estavam sendo exibidas no formato americano (YYYY-MM-DD) no grid, quando deveriam aparecer no formato brasileiro (DD-MM-YYYY). Além disso, algumas colunas de data não estavam sendo exibidas.
+
+Solução Implementada
+1. Fluxo de Dados Padronizado:
+
+Entrada (Excel): Datas em formato brasileiro (DD-MM-YYYY) são convertidas para objetos datetime Python via _parse_date_robustly()
+Armazenamento (Supabase): Objetos datetime são convertidos para formato ISO (YYYY-MM-DDTHH:MM:SS) via _prepare_df_for_supabase_insert()
+Recuperação: Strings ISO são convertidas de volta para objetos datetime Python
+Exibição (Grid): JavaScript valueFormatter converte formato ISO para brasileiro apenas na visualização
+2. Configuração do valueFormatter:
+
+python
+Copiar
+
+date_only_formatter_dash = {
+    'function': '''
+        function(params) {
+            if (params.value === null || typeof params.value === 'undefined' || params.value === '') {
+                return '';
+            }
+            let dateStr = String(params.value);
+            let datePart = dateStr.split('T')[0];
+            let parts = datePart.split('-');
+            if (parts.length === 3) {
+                let year = parts[0];
+                let month = parts[1].padStart(2, '0');
+                let day = parts[2].padStart(2, '0');
+                return day + '-' + month + '-' + year;
+            }
+            return datePart;
+        }
+    '''
+}
+3. Aplicação nas Colunas:
+
+python
+Copiar
+
+{
+    "field": "Data de Emissao",
+    "headerName": "Data Emissão",
+    "valueFormatter": date_only_formatter_dash,
+    "minWidth": 120,
+    "cellStyle": {"font-size": "11px"}
+}
+Resultado
+Datas exibidas no formato brasileiro (15-10-2025)
+Dados originais preservados em formato ISO para cálculos
+Performance otimizada (formatação no cliente)
+Todas as colunas de data funcionando corretamente
+Colunas Afetadas
+Data de Emissao
+Previsao de Entrega
+Entrega Programada

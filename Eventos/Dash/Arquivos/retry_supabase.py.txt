@@ -1,0 +1,60 @@
+# DASH_APP/utils/retry_supabase.py
+
+import time
+import logging
+import dash
+
+# Obtenha o logger para este módulo
+logger = logging.getLogger(__name__)
+
+def retry_supabase_query(query_func, max_retries=3, initial_delay=1, backoff_factor=2):
+    """
+    Executa uma função de consulta ao Supabase com re-tentativas em caso de falha.
+
+    Args:
+        query_func (callable): A função (ou lambda) que encapsula a chamada ao Supabase.
+                               Ex: lambda: supabase.table("minha_tabela").select("*").execute()
+        max_retries (int): Número máximo de tentativas.
+        initial_delay (int): Atraso inicial em segundos entre as tentativas.
+        backoff_factor (int): Fator pelo qual o atraso é multiplicado a cada tentativa.
+
+    Returns:
+        any: O resultado da query bem-sucedida.
+    Raises:
+        Exception: Se todas as tentativas falharem.
+    """
+    delay = initial_delay
+    for i in range(max_retries):
+        try:
+            result = query_func()
+            # Se a query retornar um objeto com 'data' e 'error' (como o postgrest-py faz)
+            if hasattr(result, 'error') and result.error is not None:
+                # Trata erros do lado do Supabase como 'falhas temporárias' para re-tentar
+                logger.warning(f"Tentativa {i+1}/{max_retries}: Supabase retornou erro (mas não exceção HTTP): {result.error}")
+                # Pode haver um erro no próprio Supabase que não seja uma desconexão direta,
+                # mas ainda assim queremos re-tentar se for um erro temporário.
+                if i == max_retries - 1: # Se é a última tentativa, levanta o erro.
+                    raise Exception(f"Todas as tentativas falharam. Último erro: {result.error}")
+                time.sleep(delay)
+                delay *= backoff_factor
+                continue # Pula para a próxima iteração
+            return result
+        except (dash.exceptions.PreventUpdate, Exception) as e:
+            # Captura PreventUpdate para não tratar como erro de retry
+            if isinstance(e, dash.exceptions.PreventUpdate):
+                raise e
+            
+            # Captura RemoteProtocolError especificamente
+            if "RemoteProtocolError" in str(e) or "Server disconnected" in str(e):
+                error_type = "Server Disconnected"
+            else:
+                error_type = type(e).__name__
+
+            logger.warning(f"Tentativa {i+1}/{max_retries}: Erro ao consultar Supabase ({error_type}): {e}")
+            if i < max_retries - 1:
+                logger.info(f"Re-tentando em {delay} segundos...")
+                time.sleep(delay)
+                delay *= backoff_factor
+            else:
+                logger.error(f"Todas as {max_retries} tentativas falharam. Não foi possível conectar ao Supabase.")
+                raise e # Levanta a última exceção

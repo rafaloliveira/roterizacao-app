@@ -1,0 +1,41 @@
+#Estrutura Pastas
+
+Estamos migrando um projeto de Streamlit para Dash. Temos essas estrutura de pastas:
+
+
+DASH_APP/
+│
+├── assets/
+│   ├── Logo FA.png
+│   ├── logo_fundo_branco.jpg
+│   ├── Logo-FA.ico
+│   └── style.css
+│
+├── config/
+│   ├── __pycache__/
+│   ├── __init__.py
+│   ├── constants.py
+│   └── pre_rota.py
+│
+├── pages/
+│   └── __pycache__/
+│
+├── services/
+│   ├── __pycache__/
+│   └── supabase_service.py
+│
+├── utils/
+│   ├── __pycache__/
+│   ├── __init__.py
+│   ├── data_processing.py
+│   ├── db_helpers.py
+│   └── sync_logic.py
+│	└──retry_supabase
+├── .env
+└── app.py
+
+Já migramos a Página de Sincronização e Confirmar Produção agora precisamos continuar  para a de def Aprovação Diretoria
+Anexei o meu arquivo streamlit. 
+Liste o que mais você precisa para me direcionar na migração.
+Já tenho código em parte das pastas. Me diga quais arquivos você preciso enviar para prosseguir com minha migração.
+
