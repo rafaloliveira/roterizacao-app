@@ -9958,7 +9958,7 @@ def pagina_aprovacao_custos():
                 all_badges_html_list.append(badge(f' Valor Frete: R$ {formatar_brasileiro(total_frete_bruto)}', background_color='#6c757d', text_color='white'))
                 
                 # *** BADGE CORRIGIDO: VALOR LÍQUIDO (USADO NOS CÁLCULOS) ***
-                all_badges_html_list.append(badge(f'✅ Frete Líquido (Cálc): R$ {formatar_brasileiro(total_frete_limpo)}', background_color='#28a745', text_color='white'))
+                #all_badges_html_list.append(badge(f'✅ Frete Líquido (Cálc): R$ {formatar_brasileiro(total_frete_limpo)}', background_color='#28a745', text_color='white'))
                 
                 all_badges_html_list.append(badge(f'{formatar_brasileiro(df_carga["Cubagem em m³"].sum())} m³', background_color='#333333', text_color='white'))
                 all_badges_html_list.append(badge(f'{int(df_carga["Quantidade de Volumes"].sum())} volumes', background_color='#333333', text_color='white'))
@@ -10563,7 +10563,7 @@ def pagina_cargas_aprovadas():
                                 )
                 if 'is_retorno_rota' not in df.columns:
                     df['is_retorno_rota'] = False
-                df['is_retorno_rota'] = df['is_retorno_rota'].fillna(False).astype(bool)               
+                df['is_retorno_rota'] = df['is_retorno_rota'].fillna(False).astype(bool)              
                 
                 # --- NOVO: Garante que 'is_reentrega_com_frete_pago' exista e seja booleano ---
                 if 'is_reentrega_com_frete_pago' not in df.columns:
@@ -10584,7 +10584,7 @@ def pagina_cargas_aprovadas():
         numeric_cols_to_convert = [
             'Peso Real em Kg', 'Peso Calculado em Kg', 'Cubagem em m³',
             'Quantidade de Volumes', 'Valor do Frete', 'valor_contratacao',
-            'custo_percentual_frete', 'rentabilidade_percentual' 
+            'custo_percentual_frete', 'rentabilidade_percentual', 'valor_adicional_frete' 
         ]
         for col in numeric_cols_to_convert:
             if col in df.columns:
@@ -10604,8 +10604,6 @@ def pagina_cargas_aprovadas():
         if 'situacao_custo_regional' in df.columns:
             df['situacao_custo_regional'] = df['situacao_custo_regional'].astype(str).str.strip().replace('nan', 'N/A')
 
-
-
         if 'justificativa_aprovacao_custo' in df.columns:
             df['justificativa_aprovacao_custo'] = df['justificativa_aprovacao_custo'].astype(str).str.strip().replace('nan', '')
 
@@ -10623,7 +10621,7 @@ def pagina_cargas_aprovadas():
         MAX_COST_PER_REGION = {
             'INTERIOR 1': 0.35,  # 35%
             'INTERIOR 2': 0.45,  # 45%
-            'POA CAPITAL': 0.30   # 30%
+            'POA CAPITAL': 0.30  # 30%
         }
 
         colunas_exibir = [
@@ -10637,7 +10635,7 @@ def pagina_cargas_aprovadas():
             "veiculo", "aprovador_custos_login", "data_aprovacao_custos", "Data_Hora_Gerada",
             "custo_percentual_frete", "rentabilidade_percentual", "situacao_custo_regional",
             "Retorno de Rota","is_retorno_rota"
-]
+        ]
 
         cargas_unicas = sorted(df["numero_carga"].dropna().unique())
 
@@ -10646,10 +10644,38 @@ def pagina_cargas_aprovadas():
             if df_carga.empty:
                 continue
 
+            # --- NOVO BLOCO: PREPARAR O VALOR DO FRETE AJUSTADO PARA CÁLCULOS (ESSENCIAL) ---
+            # Este bloco é necessário para garantir que os valores dos badges sejam precisos,
+            # mesmo que os valores de custo/rentabilidade já venham do DB.
+            
+            # 1. Garante que 'is_retorno_rota' exista e seja booleano
+            if 'is_retorno_rota' not in df_carga.columns:
+                df_carga['is_retorno_rota'] = False
+            df_carga['is_retorno_rota'] = df_carga['is_retorno_rota'].fillna(False).astype(bool)
+
+            # --- NOVO: Garante que 'is_reentrega_com_frete_pago' exista e seja booleano ---
+            if 'is_reentrega_com_frete_pago' not in df_carga.columns:
+                df_carga['is_reentrega_com_frete_pago'] = False
+            df_carga['is_reentrega_com_frete_pago'] = df_carga['is_reentrega_com_frete_pago'].fillna(False).astype(bool)
+            
+            # 2. Cria uma coluna de 'Valor do Frete' ajustada (LÍQUIDO):
+            #    - Se 'is_reentrega_com_frete_pago' for True, usa o 'Valor do Frete' original da entrega.
+            #    - Senão, se 'is_retorno_rota' for True, usa 0.0.
+            #    - Senão (não é retorno de rota), usa o 'Valor do Frete' original.
+            df_carga['Valor_do_Frete_Para_Calculo'] = df_carga.apply(
+                lambda row: row['Valor do Frete'] if row['is_reentrega_com_frete_pago'] else (0.0 if row['is_retorno_rota'] else row['Valor do Frete']),
+                axis=1
+            )
+            
+            # 3. Cálculos de Frete para exibição nos Badges
+            total_frete_base_bruto = df_carga["Valor do Frete"].sum() # SOMA BRUTA
+            total_frete_carga = df_carga["Valor_do_Frete_Para_Calculo"].sum() # SOMA AJUSTADA (LÍQUIDA)
+            # --- FIM DO BLOCO DE CÁLCULO AJUSTADO ---
+            
+            # --- 1. Extração de informações da Carga (para os badges e cálculos) ---
             valor_contratacao_carga = df_carga["valor_contratacao"].iloc[0] if "valor_contratacao" in df_carga.columns and not df_carga["valor_contratacao"].isnull().all() else 0.0
             motorista_carga = df_carga["motorista"].iloc[0] if "motorista" in df_carga.columns and not df_carga["motorista"].isnull().all() else 'Não Informado'
             placa_carga = df_carga["placa"].iloc[0] if "placa" in df_carga.columns and not df_carga["placa"].isnull().all() else 'Não Informada'
-            # NOVO: Adicione esta linha para ler o tipo de veículo
             veiculo_carga = df_carga["veiculo"].iloc[0] if "veiculo" in df_carga.columns and not df_carga["veiculo"].isnull().all() else 'Não Informado'
             aprovador_custos_login = df_carga["aprovador_custos_login"].iloc[0] if "aprovador_custos_login" in df_carga.columns and not df_carga["aprovador_custos_login"].isnull().all() else 'Desconhecido'
             data_aprovacao_custos = df_carga["data_aprovacao_custos"].iloc[0] if "data_aprovacao_custos" in df_carga.columns and not df_carga["data_aprovacao_custos"].isnull().all() else None
@@ -10658,13 +10684,15 @@ def pagina_cargas_aprovadas():
             info_valor_adicional_raw = df_carga["valor_adicional_frete"].iloc[0] if "valor_adicional_frete" in df_carga.columns and not df_carga.empty and pd.notna(df_carga["valor_adicional_frete"].iloc[0]) else 0.0
             info_motivo_adicional = df_carga["motivo_valor_adicional"].iloc[0] if "motivo_valor_adicional" in df_carga.columns and not df_carga.empty and pd.notna(df_carga["motivo_valor_adicional"].iloc[0]) else ""
 
+            # Valores de custo/rentabilidade já salvos no DB
             custo_percentual_frete_db = df_carga["custo_percentual_frete"].iloc[0] if "custo_percentual_frete" in df_carga.columns and pd.notna(df_carga["custo_percentual_frete"].iloc[0]) else 0.0
             rentabilidade_percentual_db = df_carga["rentabilidade_percentual"].iloc[0] if "rentabilidade_percentual" in df_carga.columns and pd.notna(df_carga["rentabilidade_percentual"].iloc[0]) else 0.0
             situacao_custo_regional_db = df_carga["situacao_custo_regional"].iloc[0] if "situacao_custo_regional" in df_carga.columns and pd.notna(df_carga["situacao_custo_regional"].iloc[0]) else 'N/A'
             
-                        # total_frete_carga é a soma dos "Valor do Frete" da carga (mantido para outros badges)
-            total_frete_carga = df_carga["Valor do Frete"].sum()
-
+            # --- CÁLCULO DOS TOTAIS (PARA BADGES) ---
+            total_frete_bruto = total_frete_base_bruto + info_valor_adicional_raw
+            total_frete_limpo = total_frete_carga + info_valor_adicional_raw # Frete Líquido (Ajustado)
+            
             # --- ADAPTAÇÃO DA LÓGICA DE CORES PARA USAR OS VALORES `_db` ---
             # As variáveis para os badges de custo e rentabilidade AGORA usam SOMENTE os valores do DB.
             percentual_custo_texto = f"{custo_percentual_frete_db:.2f}%" # Formata com .1f para exibir 35.9%
@@ -10712,7 +10740,13 @@ def pagina_cargas_aprovadas():
                 all_badges_html_list.append(badge(f'{len(df_carga)} entregas', background_color='#333333', text_color='white'))
                 all_badges_html_list.append(badge(f'{formatar_brasileiro(df_carga["Peso Calculado em Kg"].sum())} kg calc', background_color='#333333', text_color='white'))
                 all_badges_html_list.append(badge(f'{formatar_brasileiro(df_carga["Peso Real em Kg"].sum())} kg real', background_color='#333333', text_color='white'))
-                all_badges_html_list.append(badge(f'Valor frete: R$ {formatar_brasileiro(total_frete_carga)}', background_color='#333333', text_color='white'))
+                
+                # *** NOVO BADGE: VALOR BRUTO (REFERÊNCIA) ***
+                all_badges_html_list.append(badge(f'💰 Frete Bruto (Ref Cargas Geradas): R$ {formatar_brasileiro(total_frete_bruto)}', background_color='#6c757d', text_color='white'))
+                
+                # *** BADGE CORRIGIDO: VALOR LÍQUIDO (USADO NOS CÁLCULOS) ***
+                all_badges_html_list.append(badge(f'✅ Frete Líquido (Cálc): R$ {formatar_brasileiro(total_frete_limpo)}', background_color='#28a745', text_color='white'))
+                
                 all_badges_html_list.append(badge(f'{formatar_brasileiro(df_carga["Cubagem em m³"].sum())} m³', background_color='#333333', text_color='white'))
                 all_badges_html_list.append(badge(f'{int(df_carga["Quantidade de Volumes"].sum())} volumes', background_color='#333333', text_color='white'))
                 all_badges_html_list.append(badge(f'Valor Contratação: R$ {formatar_brasileiro(valor_contratacao_carga)}', background_color='#333333', text_color='white'))
@@ -10752,21 +10786,6 @@ def pagina_cargas_aprovadas():
                     (df_carga['Particularidade'].notna())
                 ]
                 qtd_com_particularidade_carga = len(entregas_com_particularidade_carga)
-                qtd_retorno_rota_carga = df_carga[df_carga['is_retorno_rota'] == True].shape[0]
-
-                
-
-                entregas_agendar_sem_programacao_carga = df_carga[
-                    (df_carga['Status'].astype(str).str.upper() == 'AGENDAR') &
-                    (df_carga['Entrega Programada'].isnull() | (df_carga['Entrega Programada'] == ''))
-                ]
-                qtd_agendar_sem_programacao_carga = len(entregas_agendar_sem_programacao_carga)
-
-                entregas_com_particularidade_carga = df_carga[
-                    (df_carga['Particularidade'].astype(str).str.strip() != '') &
-                    (df_carga['Particularidade'].notna())
-                ]
-                qtd_com_particularidade_carga = len(entregas_com_particularidade_carga)
 
                 qtd_retorno_rota_carga = df_carga[df_carga['is_retorno_rota'] == True].shape[0]
 
@@ -10787,7 +10806,7 @@ def pagina_cargas_aprovadas():
                     """,
                     unsafe_allow_html=True
                 )
-                # 
+                
             with col2_placeholder:
                 if st.button("🖨️ PDF", key=f"pdf_{carga}"):
                     try:
@@ -10807,18 +10826,18 @@ def pagina_cargas_aprovadas():
                                 motorista=pdf_motorista,
                                 placa=pdf_placa,
                                 veiculo=pdf_veiculo,
-                                valor_frete=total_frete_carga,
+                                valor_frete=total_frete_limpo, # Deve usar o valor líquido (ajustado) no PDF
                                 valor_contratacao=pdf_valor_contratacao
                             )
 
-                        st.success(f"✅ PDF da carga {carga} gerado com sucesso!")
-                        st.download_button(
-                            label="📥 Baixar PDF da Carga",
-                            data=buffer_pdf,
-                            file_name=f"carga_{carga}.pdf",
-                            mime="application/pdf",
-                            key=f"download_pdf_final_{carga}"
-                        )
+                            st.success(f"✅ PDF da carga {carga} gerado com sucesso!")
+                            st.download_button(
+                                label="📥 Baixar PDF da Carga",
+                                data=buffer_pdf,
+                                file_name=f"carga_{carga}.pdf",
+                                mime="application/pdf",
+                                key=f"download_pdf_final_{carga}"
+                            )
                     except Exception as e:
                         st.error(f"❌ Erro ao gerar o PDF da carga {carga}: {e}")
 
@@ -10874,7 +10893,7 @@ def pagina_cargas_aprovadas():
                             gb.configure_column(col, type=["numericColumn"], valueFormatter=formatter)
 
                     # --- NOVO: Configuração para colunas de data que devem ser APENAS dd-mm-aaaa ---
-                                        # NOVO: Aplica o formatador para todas as colunas de data que devem ser DD-MM-AAAA
+                        # NOVO: Aplica o formatador para todas as colunas de data que devem ser DD-MM-AAAA
                     for col in DATE_ONLY_REPARSE_COLUMNS:
                         if col in df_formatado.columns:
                             gb.configure_column(col, valueFormatter=date_only_formatter)
@@ -10922,7 +10941,7 @@ def pagina_cargas_aprovadas():
                         }
                     )
 
-                            # Botão para Retornar à Aprovação de Custos
+                    # 
                 # --- NOVO BLOCO ---
                 col_fechar, col_retornar = st.columns([1,1])
 
@@ -10945,7 +10964,6 @@ def pagina_cargas_aprovadas():
                             df_to_move = pd.DataFrame(data_to_move)
 
                             
-
                             # 2. Adicionar/Atualizar 'motorista', 'placa', 'data_fechamento', 'situacao' e 'fechador_carga_login'
                             df_to_move["motorista"] = motorista_carga  # Usa valor já carregado da carga
                             df_to_move["placa"] = placa_carga # Já está em UPPER()
@@ -10954,7 +10972,6 @@ def pagina_cargas_aprovadas():
                             df_to_move["situacao"] = "Fechada" # Definir a situação
                             df_to_move["fechador_carga_login"] = st.session_state.get("username", "Desconhecido") # Quem fechou
                             
-
                             # 3. Preparar dados para inserção em 'cargas_fechadas'
                             # APLICAÇÃO DA NOVA FUNÇÃO AUXILIAR PARA FORMATAR DATAS
                             df_to_move = _prepare_df_for_supabase_insert(df_to_move)
@@ -11021,8 +11038,7 @@ def pagina_cargas_aprovadas():
 
                                 # 4. Inserir em 'aprovacao_custos'
                                 if records_to_insert:
-                                    supabase.table("aprovacao_custos").insert(records_to_insert).execute()
-                                    #st.success(f"Carga {carga} retornada para Aprovação de Custos com sucesso!")
+                                    supabase.table("aprovacao_custos").upsert(records_to_insert).execute()
                                 else:
                                     st.warning(f"Não há registros válidos para mover para Aprovação de Custos para a carga {carga}.")
                                     time.sleep(3)
