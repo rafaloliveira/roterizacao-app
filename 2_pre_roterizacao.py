@@ -4698,17 +4698,15 @@ def gerenciar_rotas_ui(table_name, schema, supabase_client, key_prefix, should_d
         elif message_type == 'warning':
             st.warning(message_text)
             
-    # === BLOCO DE CONTROLE DE EXIBIÇÃO ===
+    # === ESTE É O NOVO BLOCO QUE PRECISA SER INSERIDO AQUI ===
     if not should_display_content:
         # A mensagem de "Clique no botão 'Atualizar Dados' para carregar"
         # já é exibida na pagina_cadastros(), então aqui só retornamos.
         return 
-    # === FIM DO BLOCO DE CONTROLE DE EXIBIÇÃO ===
+    # === FIM DO NOVO BLOCO ===
 
-    # Carrega os dados da tabela (AGORA SÓ É CHAMADO SE should_display_content for True)
+   # Carrega os dados da tabela (AGORA SÓ É CHAMADO SE should_display_content for True)
     df_data = load_table_data(table_name, supabase_client)
-
-    # **O BLOCO DE PREPARAÇÃO DE OPÇÕES PARA SELECTBOX FOI REMOVIDO**
 
     # --- GRID EXIBINDO OS REGISTROS EXISTENTES ---
     st.subheader("Registros Existentes")
@@ -4724,12 +4722,18 @@ def gerenciar_rotas_ui(table_name, schema, supabase_client, key_prefix, should_d
         ]
         df_display_for_grid = df_data[[col for col in display_cols_for_grid if col in df_data.columns]].copy()
 
+        # --- REMOVA A LINHA ABAIXO, ELA CAUSA O PROBLEMA ---
+        # df_display_for_grid = df_display_for_grid.replace([None, np.nan, pd.NaT], "")
+        # --- FIM DA REMOÇÃO ---
+
         # --- NOVA LÓGICA: Substituir None/NaN por "" APENAS em colunas de texto (object) ---
         for col in df_display_for_grid.columns:
             # Verifica se a coluna é do tipo 'object' (geralmente usada para strings)
             # e não é a coluna 'data_registro'
             if pd.api.types.is_object_dtype(df_display_for_grid[col]) and col != 'data_registro':
                 df_display_for_grid[col] = df_display_for_grid[col].replace([None, np.nan], "")
+            # Se a coluna for de data/hora e tiver NaT, o column_config já vai exibir vazio.
+            # Se for numérica e tiver NaN, o st.dataframe exibirá vazio por padrão.
         # --- FIM NOVA LÓGICA ---
 
         # --- NOVO BLOCO: Configuração da coluna de data para st.dataframe ---
@@ -4738,7 +4742,7 @@ def gerenciar_rotas_ui(table_name, schema, supabase_client, key_prefix, should_d
             column_config_for_rotas['data_registro'] = st.column_config.DatetimeColumn(
                 "Data de Registro", # Nome da coluna que aparece na interface
                 format="DD/MM/YYYY HH:mm", # O formato desejado
-                timezone="America/Sao_Paulo"    # O fuso horário para exibir a data
+                timezone="America/Sao_Paulo"  # O fuso horário para exibir a data
             )
         # --- FIM DO NOVO BLOCO ---
 
@@ -4752,7 +4756,7 @@ def gerenciar_rotas_ui(table_name, schema, supabase_client, key_prefix, should_d
 
     st.markdown("---")
 
-    # --- FUNCIONALIDADE DE ADICIONAR NOVA ROTA (RESTAURO À VERSÃO ORIGINAL COM INPUTS DE TEXTO) ---
+    # --- FUNCIONALIDADE DE ADICIONAR NOVA ROTA ---
     
     with st.expander("➕ Adicionar Nova Rota", expanded=True):
         with st.form(key=f"{key_prefix}_add_form"):
@@ -4802,6 +4806,8 @@ def gerenciar_rotas_ui(table_name, schema, supabase_client, key_prefix, should_d
                     
                     cleaned_new_data = _add_audit_fields_to_payload(cleaned_new_data, "Criado")
                     
+
+
                     try:
                         existing = supabase_client.table(table_name) \
                             .select("id") \
@@ -4828,12 +4834,11 @@ def gerenciar_rotas_ui(table_name, schema, supabase_client, key_prefix, should_d
                         st.session_state['last_action_message_text'] = f"❌ Erro ao adicionar nova rota: {e}"
                         st.rerun()
 
-    # --- FIM DA FUNCIONALIDADE DE ADIÇÃO (RESTAURADA) ---
-    
+   
 
     st.markdown("---")
 
-    # --- FUNCIONALIDADE DE EDITAR/ATUALIZAR ROTAS (Inalterada) ---
+    # --- FUNCIONALIDADE DE EDITAR/ATUALIZAR ROTAS ---
     
     with st.expander("✏️ Editar/Atualizar Rota", expanded=True):
         if df_data.empty:
@@ -4933,11 +4938,11 @@ def gerenciar_rotas_ui(table_name, schema, supabase_client, key_prefix, should_d
                             st.rerun()
         else:
             st.info("Selecione uma rota no campo acima para editar.")
-    
+   
 
     st.markdown("---")
 
-    # --- FUNCIONALIDADE DE EXCLUIR ROTA (Inalterada) ---
+    # --- FUNCIONALIDADE DE EXCLUIR ROTA ---
     
     with st.expander("🗑️ Excluir Rota", expanded=True): # Começa recolhido
         if df_data.empty:
