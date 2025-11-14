@@ -4698,15 +4698,28 @@ def gerenciar_rotas_ui(table_name, schema, supabase_client, key_prefix, should_d
         elif message_type == 'warning':
             st.warning(message_text)
             
-    # === ESTE É O NOVO BLOCO QUE PRECISA SER INSERIDO AQUI ===
+    # === BLOCO DE CONTROLE DE EXIBIÇÃO ===
     if not should_display_content:
         # A mensagem de "Clique no botão 'Atualizar Dados' para carregar"
         # já é exibida na pagina_cadastros(), então aqui só retornamos.
         return 
-    # === FIM DO NOVO BLOCO ===
+    # === FIM DO BLOCO DE CONTROLE DE EXIBIÇÃO ===
 
-   # Carrega os dados da tabela (AGORA SÓ É CHAMADO SE should_display_content for True)
+    # Carrega os dados da tabela (AGORA SÓ É CHAMADO SE should_display_content for True)
     df_data = load_table_data(table_name, supabase_client)
+
+    # --- BLOCO: Preparar as opções para os Selectboxes (APENAS VALORES EXISTENTES) ---
+    # Se os dados estiverem carregados e não vazios, extrai as opções únicas.
+    if not df_data.empty:
+        # Extrai os valores únicos e garante que estejam em maiúsculas e sem espaços extras
+        all_cidades = sorted(df_data["Cidade de Entrega"].dropna().str.strip().str.upper().unique().tolist())
+        all_bairros = sorted(df_data["Bairro do Destinatario"].dropna().str.strip().str.upper().unique().tolist())
+        all_ufs = sorted(df_data["UF de Entrega"].dropna().str.strip().str.upper().unique().tolist())
+        all_rotas = sorted(df_data["Rota"].dropna().str.strip().str.upper().unique().tolist())
+    else:
+        # Se não há dados, as listas ficam vazias
+        all_cidades, all_bairros, all_ufs, all_rotas = [], [], [], []
+    # --- FIM DO BLOCO ---
 
     # --- GRID EXIBINDO OS REGISTROS EXISTENTES ---
     st.subheader("Registros Existentes")
@@ -4722,18 +4735,12 @@ def gerenciar_rotas_ui(table_name, schema, supabase_client, key_prefix, should_d
         ]
         df_display_for_grid = df_data[[col for col in display_cols_for_grid if col in df_data.columns]].copy()
 
-        # --- REMOVA A LINHA ABAIXO, ELA CAUSA O PROBLEMA ---
-        # df_display_for_grid = df_display_for_grid.replace([None, np.nan, pd.NaT], "")
-        # --- FIM DA REMOÇÃO ---
-
         # --- NOVA LÓGICA: Substituir None/NaN por "" APENAS em colunas de texto (object) ---
         for col in df_display_for_grid.columns:
             # Verifica se a coluna é do tipo 'object' (geralmente usada para strings)
             # e não é a coluna 'data_registro'
             if pd.api.types.is_object_dtype(df_display_for_grid[col]) and col != 'data_registro':
                 df_display_for_grid[col] = df_display_for_grid[col].replace([None, np.nan], "")
-            # Se a coluna for de data/hora e tiver NaT, o column_config já vai exibir vazio.
-            # Se for numérica e tiver NaN, o st.dataframe exibirá vazio por padrão.
         # --- FIM NOVA LÓGICA ---
 
         # --- NOVO BLOCO: Configuração da coluna de data para st.dataframe ---
@@ -4742,7 +4749,7 @@ def gerenciar_rotas_ui(table_name, schema, supabase_client, key_prefix, should_d
             column_config_for_rotas['data_registro'] = st.column_config.DatetimeColumn(
                 "Data de Registro", # Nome da coluna que aparece na interface
                 format="DD/MM/YYYY HH:mm", # O formato desejado
-                timezone="America/Sao_Paulo"  # O fuso horário para exibir a data
+                timezone="America/Sao_Paulo"    # O fuso horário para exibir a data
             )
         # --- FIM DO NOVO BLOCO ---
 
@@ -4756,89 +4763,106 @@ def gerenciar_rotas_ui(table_name, schema, supabase_client, key_prefix, should_d
 
     st.markdown("---")
 
-    # --- FUNCIONALIDADE DE ADICIONAR NOVA ROTA ---
-    
+    # --- NOVO BLOCO: FUNCIONALIDADE DE ADICIONAR NOVA ROTA (APENAS COM SELECTBOXES) ---
     with st.expander("➕ Adicionar Nova Rota", expanded=True):
-        with st.form(key=f"{key_prefix}_add_form"):
-            st.markdown("##### Preencha os campos para adicionar uma nova rota:")
-            
-            new_cidade = st.text_input(
-                "Cidade de Entrega:",
-                key=f"{key_prefix}_add_cidade"
-            ).upper()
+        if df_data.empty:
+            st.warning("Não é possível adicionar rotas por seleção, pois a tabela de Rotas está vazia. Carregue ou adicione rotas manualmente para popular as opções de seleção.")
+        elif not (all_cidades and all_bairros and all_ufs and all_rotas):
+            st.warning("As colunas 'Cidade', 'Bairro', 'UF' ou 'Rota' estão vazias. É necessário que existam dados nessas colunas para utilizar a seleção.")
+        else:
+            with st.form(key=f"{key_prefix}_add_form"):
+                st.markdown("##### Selecione os campos para adicionar uma nova combinação de rota:")
+                
+                # 1. CIDADE DE ENTREGA
+                selected_cidade = st.selectbox(
+                    "Cidade de Entrega:", 
+                    options=all_cidades, 
+                    key=f"{key_prefix}_add_cidade_select"
+                )
 
-            new_bairro = st.text_input(
-                "Bairro do Destinatário:",
-                key=f"{key_prefix}_add_bairro"
-            ).upper()
+                # 2. BAIRRO DO DESTINATÁRIO
+                selected_bairro = st.selectbox(
+                    "Bairro do Destinatário:", 
+                    options=all_bairros, 
+                    key=f"{key_prefix}_add_bairro_select"
+                )
 
-            new_uf = st.text_input(
-                "UF de Entrega (Ex: SP, RJ):",
-                max_chars=2,
-                key=f"{key_prefix}_add_uf"
-            ).upper()
+                # 3. UF DE ENTREGA
+                selected_uf = st.selectbox(
+                    "UF de Entrega (Ex: SP, RJ):", 
+                    options=all_ufs, 
+                    key=f"{key_prefix}_add_uf_select"
+                )
+                
+                # 4. ROTA
+                selected_rota = st.selectbox(
+                    "Rota:", 
+                    options=all_rotas, 
+                    key=f"{key_prefix}_add_rota_select"
+                )
 
-            new_rota_val = st.text_input(
-                "Rota:",
-                key=f"{key_prefix}_add_rota"
-            ).upper()
-
-            add_submitted = st.form_submit_button("➕ Adicionar Rota")
-
-            if add_submitted:
-                new_data_payload = {
-                    "Cidade de Entrega": new_cidade,
-                    "Bairro do Destinatario": new_bairro,
-                    "UF de Entrega": new_uf,
-                    "Rota": new_rota_val
-                }
-
-                errors = _validate_input_data(new_data_payload, schema["columns"])
-                if errors:
-                    st.session_state['last_action_message_type'] = 'error'
-                    st.session_state['last_action_message_text'] = f"❌ Erro(s) na validação: {', '.join(errors)}"
-                    st.rerun()
-                else:
-                    cleaned_new_data = {
-                        k: _clean_input_value(v, schema["columns"][k]["type"])
-                        for k, v in new_data_payload.items()
+                add_submitted = st.form_submit_button("➕ Adicionar Rota")
+                
+                if add_submitted:
+                    # Os valores finais vêm diretamente das seleções (já tratamos o uppercase nas listas)
+                    final_cidade = str(selected_cidade).upper().strip()
+                    final_bairro = str(selected_bairro).upper().strip()
+                    final_uf = str(selected_uf).upper().strip()
+                    final_rota_val = str(selected_rota).upper().strip()
+                    
+                    # Reutiliza o payload de dados e a lógica de submissão original
+                    new_data_payload = {
+                        "Cidade de Entrega": final_cidade,
+                        "Bairro do Destinatario": final_bairro,
+                        "UF de Entrega": final_uf,
+                        "Rota": final_rota_val
                     }
                     
-                    cleaned_new_data = _add_audit_fields_to_payload(cleaned_new_data, "Criado")
-                    
-
-
-                    try:
-                        existing = supabase_client.table(table_name) \
-                            .select("id") \
-                            .eq("Cidade de Entrega", cleaned_new_data["Cidade de Entrega"]) \
-                            .eq("Bairro do Destinatario", cleaned_new_data["Bairro do Destinatario"]) \
-                            .limit(1).execute()
-
-                        if existing.data:
-                            st.session_state['last_action_message_type'] = 'error'
-                            st.session_state['last_action_message_text'] = "❌ Erro: Já existe um registro com a mesma Cidade e Bairro do Destinatário."
-                            st.rerun()
-                        else:
-                            supabase_client.table(table_name).insert(cleaned_new_data).execute()
-                            
-                            st.session_state['last_action_message_type'] = 'success'
-                            st.session_state['last_action_message_text'] = "✅ Nova rota adicionada com sucesso!"
-                            
-                            load_table_data.clear()
-                            st.session_state[f"crud_key_counter_{table_name}"] += 1
-                            st.rerun()
-
-                    except Exception as e:
+                    errors = _validate_input_data(new_data_payload, schema["columns"])
+                    if errors:
                         st.session_state['last_action_message_type'] = 'error'
-                        st.session_state['last_action_message_text'] = f"❌ Erro ao adicionar nova rota: {e}"
+                        st.session_state['last_action_message_text'] = f"❌ Erro(s) na validação: {', '.join(errors)}"
                         st.rerun()
+                    else:
+                        cleaned_new_data = {
+                            k: _clean_input_value(v, schema["columns"][k]["type"])
+                            for k, v in new_data_payload.items()
+                        }
+                        
+                        cleaned_new_data = _add_audit_fields_to_payload(cleaned_new_data, "Criado")
+                        
+                        try:
+                            existing = supabase_client.table(table_name) \
+                                .select("id") \
+                                .eq("Cidade de Entrega", cleaned_new_data["Cidade de Entrega"]) \
+                                .eq("Bairro do Destinatario", cleaned_new_data["Bairro do Destinatario"]) \
+                                .limit(1).execute()
 
-   
+                            if existing.data:
+                                st.session_state['last_action_message_type'] = 'error'
+                                st.session_state['last_action_message_text'] = "❌ Erro: Já existe um registro com a mesma Cidade e Bairro do Destinatário."
+                                st.rerun()
+                            else:
+                                supabase_client.table(table_name).insert(cleaned_new_data).execute()
+                                
+                                st.session_state['last_action_message_type'] = 'success'
+                                st.session_state['last_action_message_text'] = "✅ Nova rota adicionada com sucesso!"
+                                
+                                load_table_data.clear()
+                                st.session_state[f"crud_key_counter_{table_name}"] += 1
+                                st.rerun()
+
+                        except Exception as e:
+                            st.session_state['last_action_message_type'] = 'error'
+                            st.session_state['last_action_message_text'] = f"❌ Erro ao adicionar nova rota: {e}"
+                            st.rerun()
+
+    # --- FIM DO NOVO BLOCO ---
+    
 
     st.markdown("---")
 
-    # --- FUNCIONALIDADE DE EDITAR/ATUALIZAR ROTAS ---
+    # --- FUNCIONALIDADE DE EDITAR/ATUALIZAR ROTAS (Lógica Inalterada) ---
     
     with st.expander("✏️ Editar/Atualizar Rota", expanded=True):
         if df_data.empty:
@@ -4938,11 +4962,11 @@ def gerenciar_rotas_ui(table_name, schema, supabase_client, key_prefix, should_d
                             st.rerun()
         else:
             st.info("Selecione uma rota no campo acima para editar.")
-   
+    
 
     st.markdown("---")
 
-    # --- FUNCIONALIDADE DE EXCLUIR ROTA ---
+    # --- FUNCIONALIDADE DE EXCLUIR ROTA (Lógica Inalterada) ---
     
     with st.expander("🗑️ Excluir Rota", expanded=True): # Começa recolhido
         if df_data.empty:
