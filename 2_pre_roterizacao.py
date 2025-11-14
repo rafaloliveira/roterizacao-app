@@ -9955,7 +9955,7 @@ def pagina_aprovacao_custos():
                 all_badges_html_list.append(badge(f'{formatar_brasileiro(df_carga["Peso Real em Kg"].sum())} kg real', background_color='#333333', text_color='white'))
                 
                 # *** NOVO BADGE: VALOR BRUTO (REFERÊNCIA) ***
-                all_badges_html_list.append(badge(f'💰 Frete Bruto (Ref): R$ {formatar_brasileiro(total_frete_bruto)}', background_color='#6c757d', text_color='white'))
+                all_badges_html_list.append(badge(f' Valor Frete: R$ {formatar_brasileiro(total_frete_bruto)}', background_color='#6c757d', text_color='white'))
                 
                 # *** BADGE CORRIGIDO: VALOR LÍQUIDO (USADO NOS CÁLCULOS) ***
                 all_badges_html_list.append(badge(f'✅ Frete Líquido (Cálc): R$ {formatar_brasileiro(total_frete_limpo)}', background_color='#28a745', text_color='white'))
