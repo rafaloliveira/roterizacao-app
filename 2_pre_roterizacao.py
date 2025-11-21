@@ -7991,7 +7991,10 @@ def pagina_pre_roterizacao():
                         df_retornos = df_selecionadas_full_info[df_selecionadas_full_info['is_retorno_rota'] == True]
                         st.session_state.retornos_for_dialog[DIALOG_KEY_GENERATE] = df_retornos[['Serie_Numero_CTRC', 'Valor do Frete']].to_dict('records')
                         
-                        initial_frete_values = {rec['Serie_Numero_CTRC']: 0.0 for rec in st.session_state.retornos_for_dialog[DIALOG_KEY_GENERATE]}
+                        initial_frete_values = {
+                            rec['Serie_Numero_CTRC']: float(rec.get('Valor do Frete', 0.0) or 0.0) 
+                            for rec in st.session_state.retornos_for_dialog[DIALOG_KEY_GENERATE]
+                        }
                         st.session_state.frete_input_values_dict[DIALOG_KEY_GENERATE] = initial_frete_values
 
                         try:
@@ -8171,7 +8174,10 @@ def pagina_pre_roterizacao():
                                     df_retornos_move = df_selecionadas_full_info[df_selecionadas_full_info['is_retorno_rota'] == True]
                                     st.session_state.retornos_for_dialog[DIALOG_KEY_MOVE] = df_retornos_move[['Serie_Numero_CTRC', 'Valor do Frete']].to_dict('records')
                                     
-                                    initial_frete_values_move = {rec['Serie_Numero_CTRC']: 0.0 for rec in st.session_state.retornos_for_dialog[DIALOG_KEY_MOVE]}
+                                    initial_frete_values_move = {
+                                        rec['Serie_Numero_CTRC']: float(rec.get('Valor do Frete') or 0.0) 
+                                        for rec in st.session_state.retornos_for_dialog[DIALOG_KEY_MOVE]
+                                    }
                                     st.session_state.frete_input_values_dict[DIALOG_KEY_MOVE] = initial_frete_values_move
                                     
                                     st.rerun() 
