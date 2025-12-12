@@ -16,10 +16,12 @@ Devemos relacionar coluna Bairro do Destinatario tabela RotasPortoAlegre com col
 Para Criar as demais rotas.
 Devemos relacionar coluna Bairro do Destinatario tabela Rotas com coluna Bairro do Destinatario da tabela fBaseroter.
 
-Para cada Cidade de Entrega na fBaseroter existe uma rota definida nas planilhas de Rotas e RotasPortoAlegre, nas Rotas e RotasPortoAlegre tem a coluna Cidade de Entrega que indica a rota por cidade. Assim saberemos as entregas por rota que é o que queremos
+Para cada Cidade de Entrega na fBaseroter existe uma Rota definida nas tabelas de Rotas e RotasPortoAlegre, nas Rotas e RotasPortoAlegre tem a coluna Cidade de Entrega que indica a rota por cidade. Assim saberemos as entregas por rota que é o que queremos
 
 A expectativa tendo essas informações a disposição, é criar as tabelas de rotas de forma que seja fácil manuseio e que possa ser manipulado por parte do usuário podendo criar novas rotas ou modificar as que forem criadas pelo sistema.
+
 A ideia é ter um layout que tenha as colunas mostrando suas informações, colunas de:
+
 
 Indice para contar a quantidade de notas por rota gerado
 CTRC 

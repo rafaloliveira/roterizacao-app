@@ -987,12 +987,8 @@ def pagina_gerenciar_usuarios():
     st.subheader("➕ Criar novo usuário")
     novo_usuario = st.text_input("Novo nome de usuário")
     nova_senha = st.text_input("Senha", type="password")
-
-
-    # ---- ALTERAÇÃO AQUI para incluir 'gestor' nas opções de criação ----
-    class_options_create = ["colaborador", "aprovador", "gestor"]
-    nova_classe = st.selectbox("Classe", class_options_create, key="classe_nova_criar")
-# -------------------------------------------------------------------
+    # ATUALIZAR: Adicionar selectbox para classe na criação
+    nova_classe = st.selectbox("Classe", ["colaborador", "aprovador"], key="classe_nova_criar") # ATUALIZE ESTA LINHA
     novo_admin = st.checkbox("Tornar administrador")
 
     if st.button("Criar"):
@@ -1021,21 +1017,15 @@ def pagina_gerenciar_usuarios():
         usuario_info = df[df["nome_usuario"] == usuario_alvo].iloc[0]
 
         nova_senha_user = st.text_input("Nova senha (deixe em branco se não for alterar)")
-        # ---- ALTERAÇÃO AQUI para incluir 'gestor' nas opções de atualização ----
-        options_for_edit_selectbox = ["colaborador", "aprovador", "gestor"]
-        default_edit_index = 0
-        if usuario_info["classe"] in options_for_edit_selectbox:
-            default_edit_index = options_for_edit_selectbox.index(usuario_info["classe"])
-            
         # NOVO: Selectbox para atualizar a classe do usuário existente
         # Preenche o valor padrão com a classe atual do usuário selecionado
         nova_classe_user = st.selectbox(
             "Nova classe",
-            options=options_for_edit_selectbox, # <--- CORREÇÃO AQUI: Use a lista com 'gestor'
-            index=default_edit_index,          # <--- CORREÇÃO AQUI: Use o índice calculado
+            ["colaborador", "aprovador"],
+            index=["colaborador", "aprovador"].index(usuario_info["classe"]), # Preenche com a classe atual
             key=f"classe_edit_{usuario_alvo}" # Chave única para cada selectbox
         )
-        novo_admin_status = st.checkbox("Administrador?", value=bool(usuario_info["is_admin"]))
+        novo_admin_status = st.checkbox("Administrador?", value=bool(usuario_info["is_admin"])) # ATUALIZE ESTA LINHA para usar usuario_info
 
         col1, col2 = st.columns(2)
 
@@ -7075,14 +7065,6 @@ def pagina_confirmar_producao():
 def pagina_aprovacao_diretoria():
     st.markdown("## Aprovação Produção")
 
-    # Obter a classe do usuário logado (assume 'colaborador' se não estiver definida por segurança)
-    current_user_class = st.session_state.get("classe", "colaborador")
-    is_user_aprovador = (current_user_class == "aprovador" or current_user_class == "gestor")
-
-    # Mensagem de aviso se o usuário não for aprovador
-    if not is_user_aprovador:
-        st.warning("⛔ Apenas usuários com classe 'aprovador' ou 'gestor' podem realizar ações de aprovação de diretoria.")
-
     # --- INÍCIO DO BLOCO DE CARREGAMENTO DE DADOS (MOVIDO PARA O TOPO) ---
     try:
         with st.spinner("🔄 Carregando entregas pendentes para aprovação..."):
@@ -7109,7 +7091,7 @@ def pagina_aprovacao_diretoria():
 
 
 
-    if st.button("✅ Aprovar Todas as Entregas da Página", key="btn_aprovar_todas_topo", disabled=not is_user_aprovador):
+    if st.button("✅ Aprovar Todas as Entregas da Página", key="btn_aprovar_todas_topo"):
         try:
             with st.spinner("🔄 Aprovando todas as entregas."):
 
@@ -7143,7 +7125,13 @@ def pagina_aprovacao_diretoria():
         except Exception as e:
             st.error(f"❌ Erro ao aprovar todas as entregas: {e}")
 
-    
+    # Obter a classe do usuário logado (assume 'colaborador' se não estiver definida por segurança)
+    current_user_class = st.session_state.get("classe", "colaborador")
+    is_user_aprovador = (current_user_class == "aprovador")
+
+    # Mensagem de aviso se o usuário não for aprovador
+    if not is_user_aprovador:
+        st.warning("⛔ Apenas usuários com classe 'aprovador' podem realizar ações de aprovação de diretoria.")
 
     # ======= BLOCO DE MÉTRICAS: TOTAL + APROVADAS (lado a lado) =======
     col2, col1, col3, col4, spacer, col5, col6, col7 = st.columns([1, 1, 1, 1, 0.3, 1, 1, 1])
