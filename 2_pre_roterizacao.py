@@ -1274,7 +1274,7 @@ def load_and_prepare_data(uploaded_file):
             "Numero da Capa de Remessa", "Numero do Pacote de Arquivamento",
             "Compr. de Entrega Escaneado", "Data do Escaneamento", "Hora do Escaneamento",
             "Notas Fiscais", "Numero dos Pedidos", "Chaves NF-es",
-            "Volume Cliente/Shipment", "Unnamed: 67","CEP de Entrega","CEP do Destinatario" 
+            "Volume Cliente/Shipment", "Unnamed: 71","CEP de Entrega","CEP do Destinatario" 
         ]
 
         column_mapping = {
@@ -3450,7 +3450,7 @@ def pagina_sincronizacao():
 
             df_to_process = st.session_state.df_for_sync_cache.copy()
 
-            colunas_para_remover = ['Capa de Canhoto de NF', 'Unnamed: 70']
+            colunas_para_remover = ['Capa de Canhoto de NF', 'Unnamed: 71']
             colunas_existentes_para_remover = [col for col in colunas_para_remover if col in df_to_process.columns]
             if colunas_existentes_para_remover:
                 df_to_process.drop(columns=colunas_existentes_para_remover, inplace=True)
