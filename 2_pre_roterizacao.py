@@ -1274,7 +1274,7 @@ def load_and_prepare_data(uploaded_file):
             "Numero da Capa de Remessa", "Numero do Pacote de Arquivamento",
             "Compr. de Entrega Escaneado", "Data do Escaneamento", "Hora do Escaneamento",
             "Notas Fiscais", "Numero dos Pedidos", "Chaves NF-es",
-            "Volume Cliente/Shipment", "Unnamed: 71","CEP de Entrega","CEP do Destinatario" 
+            "Volume Cliente/Shipment","CEP de Entrega","CEP do Destinatario" 
         ]
 
         column_mapping = {
